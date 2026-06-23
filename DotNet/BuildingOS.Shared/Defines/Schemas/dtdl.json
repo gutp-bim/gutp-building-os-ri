@@ -1,0 +1,746 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-06/schema#",
+  "$ref": "#/definitions/Dtdl",
+  "definitions": {
+    "Dtdl": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "digitalTwinsFileInfo": {
+          "$ref": "#/definitions/DigitalTwinsFileInfo"
+        },
+        "digitalTwinsGraph": {
+          "$ref": "#/definitions/DigitalTwinsGraph"
+        },
+        "digitalTwinsModels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DigitalTwinsModel"
+          }
+        }
+      },
+      "required": [
+        "digitalTwinsFileInfo",
+        "digitalTwinsGraph",
+        "digitalTwinsModels"
+      ],
+      "title": "Dtdl"
+    },
+    "DigitalTwinsFileInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fileVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileVersion"
+      ],
+      "title": "DigitalTwinsFileInfo"
+    },
+    "DigitalTwinsGraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "digitalTwins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DigitalTwin"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Relationship"
+          }
+        }
+      },
+      "required": [
+        "digitalTwins",
+        "relationships"
+      ],
+      "title": "DigitalTwinsGraph"
+    },
+    "DigitalTwin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "$dtId": {
+          "type": "string"
+        },
+        "$etag": {
+          "type": "string"
+        },
+        "PointID": {
+          "type": "string"
+        },
+        "Space": {
+          "$ref": "#/definitions/BuildingStorey"
+        },
+        "$metadata": {
+          "$ref": "#/definitions/Metadata"
+        },
+        "EnergyConversionDevice": {
+          "$ref": "#/definitions/ElectricDistributionPoint"
+        },
+        "FlowTerminal": {
+          "$ref": "#/definitions/ElectricDistributionPoint"
+        },
+        "ElectricDistributionPoint": {
+          "$ref": "#/definitions/ElectricDistributionPoint"
+        },
+        "BuildingStorey": {
+          "$ref": "#/definitions/BuildingStorey"
+        },
+        "Site": {
+          "$ref": "#/definitions/Site"
+        },
+        "Building": {
+          "$ref": "#/definitions/Building"
+        },
+        "Common": {
+          "$ref": "#/definitions/Common"
+        },
+        "OnOffSetting": {
+          "$ref": "#/definitions/OccupiedState"
+        },
+        "OnOffState": {
+          "$ref": "#/definitions/OccupiedState"
+        },
+        "SettingTemperatureSetting": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "SettingTemperatureState": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "OperationModeSetting": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "OperationModeState": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "FanSpeedSetting": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "FanSpeedState": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "FanDirectionSetting": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "FanDirectionState": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "OccupiedState": {
+          "$ref": "#/definitions/OccupiedState"
+        },
+        "SettingPatternSetting": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        },
+        "SettingPatternState": {
+          "$ref": "#/definitions/FanDirectionSetting"
+        }
+      },
+      "required": [
+        "$dtId",
+        "$etag",
+        "$metadata"
+      ],
+      "title": "DigitalTwin"
+    },
+    "Metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "$model": {
+          "$ref": "#/definitions/Model"
+        }
+      },
+      "required": [
+        "$model"
+      ],
+      "title": "Metadata"
+    },
+    "Building": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "BuildingAddress": {
+          "type": "string"
+        },
+        "CompositionType": {
+          "$ref": "#/definitions/CompositionType"
+        },
+        "Description": {
+          "type": "string"
+        },
+        "ElevationOfRefHeight": {
+          "type": "string"
+        },
+        "ElevationOfTerrain": {
+          "type": "string"
+        },
+        "GlobalId": {
+          "type": "string"
+        },
+        "LongName": {
+          "type": "string"
+        },
+        "Name": {
+          "type": "string"
+        },
+        "ObjectType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "BuildingAddress",
+        "CompositionType",
+        "Description",
+        "ElevationOfRefHeight",
+        "ElevationOfTerrain",
+        "GlobalId",
+        "LongName",
+        "Name",
+        "ObjectType"
+      ],
+      "title": "Building"
+    },
+    "BuildingStorey": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "CompositionType": {
+          "$ref": "#/definitions/CompositionType"
+        },
+        "Description": {
+          "$ref": "#/definitions/BuildingStoreyDescription"
+        },
+        "Elevation": {
+          "type": "string"
+        },
+        "GlobalId": {
+          "type": "string"
+        },
+        "LongName": {
+          "type": "string"
+        },
+        "Name": {
+          "type": "string"
+        },
+        "ObjectType": {
+          "$ref": "#/definitions/ObjectType"
+        },
+        "ElevationWithFlooring": {
+          "type": "string"
+        },
+        "PredefinedType": {
+          "$ref": "#/definitions/PredefinedType"
+        }
+      },
+      "required": [
+        "CompositionType",
+        "Description",
+        "GlobalId",
+        "LongName",
+        "Name",
+        "ObjectType"
+      ],
+      "title": "BuildingStorey"
+    },
+    "Common": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PointId": {
+          "type": "string",
+          "format": "integer"
+        },
+        "DataType": {
+          "$ref": "#/definitions/DataType"
+        },
+        "Description": {
+          "$ref": "#/definitions/CommonDescription"
+        }
+      },
+      "required": [
+        "DataType",
+        "Description",
+        "PointId"
+      ],
+      "title": "Common"
+    },
+    "ElectricDistributionPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Description": {
+          "$ref": "#/definitions/ElectricDistributionPointDescription"
+        },
+        "GlobalId": {
+          "type": "string"
+        },
+        "Name": {
+          "type": "string"
+        },
+        "ObjectType": {
+          "type": "string"
+        },
+        "PredefinedType": {
+          "$ref": "#/definitions/PredefinedType"
+        },
+        "Tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "Description",
+        "GlobalId",
+        "Name",
+        "ObjectType",
+        "Tag"
+      ],
+      "title": "ElectricDistributionPoint"
+    },
+    "FanDirectionSetting": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PresentValue": {
+          "$ref": "#/definitions/FanDirectionSettingPresentValue"
+        },
+        "Min": {
+          "type": "integer"
+        },
+        "Max": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "Max",
+        "Min",
+        "PresentValue"
+      ],
+      "title": "FanDirectionSetting"
+    },
+    "FanDirectionSettingPresentValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Value": {
+          "type": "integer"
+        },
+        "Timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "Timestamp",
+        "Value"
+      ],
+      "title": "FanDirectionSettingPresentValue"
+    },
+    "OccupiedState": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PresentValue": {
+          "$ref": "#/definitions/OccupiedStatePresentValue"
+        }
+      },
+      "required": [
+        "PresentValue"
+      ],
+      "title": "OccupiedState"
+    },
+    "OccupiedStatePresentValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Value": {
+          "type": "boolean"
+        },
+        "Timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "Timestamp",
+        "Value"
+      ],
+      "title": "OccupiedStatePresentValue"
+    },
+    "Site": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "CompositionType": {
+          "$ref": "#/definitions/CompositionType"
+        },
+        "Description": {
+          "type": "string"
+        },
+        "GlobalId": {
+          "type": "string"
+        },
+        "LandTitleNumber": {
+          "type": "string"
+        },
+        "LongName": {
+          "type": "string"
+        },
+        "Name": {
+          "type": "string"
+        },
+        "ObjectType": {
+          "type": "string"
+        },
+        "RefElevation": {
+          "type": "string"
+        },
+        "RefLatitude": {
+          "type": "string"
+        },
+        "RefLongitude": {
+          "type": "string"
+        },
+        "SiteAddress": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "CompositionType",
+        "Description",
+        "GlobalId",
+        "LandTitleNumber",
+        "LongName",
+        "Name",
+        "ObjectType",
+        "RefElevation",
+        "RefLatitude",
+        "RefLongitude",
+        "SiteAddress"
+      ],
+      "title": "Site"
+    },
+    "Relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "$relationshipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "$sourceId": {
+          "type": "string"
+        },
+        "$targetId": {
+          "type": "string"
+        },
+        "$relationshipName": {
+          "$ref": "#/definitions/RelationshipName"
+        },
+        "$etag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "$etag",
+        "$relationshipId",
+        "$relationshipName",
+        "$sourceId",
+        "$targetId"
+      ],
+      "title": "Relationship"
+    },
+    "DigitalTwinsModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "@id": {
+          "type": "string"
+        },
+        "@context": {
+          "$ref": "#/definitions/Context"
+        },
+        "@type": {
+          "$ref": "#/definitions/DigitalTwinsModelType"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "contents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Content"
+          }
+        },
+        "extends": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "@context",
+        "@id",
+        "@type",
+        "displayName"
+      ],
+      "title": "DigitalTwinsModel"
+    },
+    "Content": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "@type": {
+          "$ref": "#/definitions/ContentType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/definitions/ContentSchema"
+        },
+        "target": {
+          "$ref": "#/definitions/Model"
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "@type",
+        "name"
+      ],
+      "title": "Content"
+    },
+    "ContentSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "@type": {
+          "$ref": "#/definitions/SchemaType"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PurpleField"
+          }
+        }
+      },
+      "required": [
+        "@type",
+        "fields"
+      ],
+      "title": "ContentSchema"
+    },
+    "PurpleField": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/definitions/StickySchema"
+        }
+      },
+      "required": [
+        "name",
+        "schema"
+      ],
+      "title": "PurpleField"
+    },
+    "PurpleSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "@type": {
+          "$ref": "#/definitions/SchemaType"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FluffyField"
+          }
+        }
+      },
+      "required": [
+        "@type",
+        "fields"
+      ],
+      "title": "PurpleSchema"
+    },
+    "FluffyField": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/Name"
+        },
+        "schema": {
+          "$ref": "#/definitions/IndigoSchema"
+        }
+      },
+      "required": [
+        "name",
+        "schema"
+      ],
+      "title": "FluffyField"
+    },
+    "FluffySchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "@type": {
+          "type": "string"
+        },
+        "valueSchema": {
+          "$ref": "#/definitions/ValueSchemaEnum"
+        },
+        "enumValues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EnumValue"
+          }
+        }
+      },
+      "required": [
+        "@type",
+        "enumValues",
+        "valueSchema"
+      ],
+      "title": "FluffySchema"
+    },
+    "EnumValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "enumValue": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enumValue",
+        "name"
+      ],
+      "title": "EnumValue"
+    },
+    "StickySchema": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PurpleSchema"
+        },
+        {
+          "$ref": "#/definitions/ValueSchemaEnum"
+        }
+      ],
+      "title": "StickySchema"
+    },
+    "IndigoSchema": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/FluffySchema"
+        },
+        {
+          "$ref": "#/definitions/TentacledSchema"
+        }
+      ],
+      "title": "IndigoSchema"
+    },
+    "Model": {
+      "type": "string",
+      "enum": [
+        "dtmi:org:w3id:rec:Room;1",
+        "dtmi:org:brickschema:schema:brick:HVAC_Equipment;1",
+        "dtmi:org:brickschema:schema:brick:Lighting;1",
+        "dtmi:org:w3id:rec:SensorEquipment;1",
+        "dtmi:org:w3id:rec:Level;1",
+        "dtmi:org:w3id:rec:Site;1",
+        "dtmi:org:w3id:rec:Building;1",
+        "dtmi:com:adt:sample:OnOffSetting;1",
+        "dtmi:com:adt:sample:OnOffState;1",
+        "dtmi:com:adt:sample:SettingTemperatureSetting;1",
+        "dtmi:com:adt:sample:SettingTemperatureState;1",
+        "dtmi:com:adt:sample:OperationModeSetting;1",
+        "dtmi:com:adt:sample:OperationModeState;1",
+        "dtmi:com:adt:sample:FanSpeedSetting;1",
+        "dtmi:com:adt:sample:FanSpeedState;1",
+        "dtmi:com:adt:sample:FanDirectionSetting;1",
+        "dtmi:com:adt:sample:FanDirectionState;1",
+        "dtmi:com:adt:sample:OccupiedState;1",
+        "dtmi:com:adt:sample:SettingPatternSetting;1",
+        "dtmi:com:adt:sample:SettingPatternState;1"
+      ],
+      "title": "Model"
+    },
+    "CompositionType": {
+      "type": "string",
+      "title": "CompositionType"
+    },
+    "BuildingStoreyDescription": {
+      "type": "string",
+      "title": "BuildingStoreyDescription"
+    },
+    "ObjectType": {
+      "type": "string",
+      "title": "ObjectType"
+    },
+    "PredefinedType": {
+      "type": "string",
+      "title": "PredefinedType"
+    },
+    "DataType": {
+      "type": "string",
+      "title": "DataType"
+    },
+    "CommonDescription": {
+      "type": "string",
+      "title": "CommonDescription"
+    },
+    "ElectricDistributionPointDescription": {
+      "type": "string",
+      "title": "ElectricDistributionPointDescription"
+    },
+    "RelationshipName": {
+      "type": "string",
+      "title": "RelationshipName"
+    },
+    "Context": {
+      "type": "string",
+      "title": "Context"
+    },
+    "DigitalTwinsModelType": {
+      "type": "string",
+      "title": "DigitalTwinsModelType"
+    },
+    "ContentType": {
+      "type": "string",
+      "title": "ContentType"
+    },
+    "SchemaType": {
+      "type": "string",
+      "title": "SchemaType"
+    },
+    "ValueSchemaEnum": {
+      "type": "string",
+      "title": "ValueSchemaEnum"
+    },
+    "Name": {
+      "type": "string",
+      "title": "Name"
+    },
+    "TentacledSchema": {
+      "type": "string",
+      "title": "TentacledSchema"
+    }
+  }
+}

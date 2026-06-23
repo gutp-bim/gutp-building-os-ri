@@ -1,0 +1,69 @@
+{
+  "deviceId": "{device_id}",
+  "timestamp": "{timestamp}",
+  "messageType": "telemetry",
+  "protocol": "electric",
+  "data": {
+    "points": [
+      {
+        "meterId": "power_main",
+        "value": "{random_float:0:1000}",
+        "unit": "kW",
+        "description": "主電力消費量"
+      },
+      {
+        "meterId": "voltage_l1",
+        "value": "{random_float:220:240}",
+        "unit": "V",
+        "description": "L1電圧"
+      },
+      {
+        "meterId": "voltage_l2", 
+        "value": "{random_float:220:240}",
+        "unit": "V",
+        "description": "L2電圧"
+      },
+      {
+        "meterId": "voltage_l3",
+        "value": "{random_float:220:240}",
+        "unit": "V",
+        "description": "L3電圧"
+      },
+      {
+        "meterId": "current_l1",
+        "value": "{random_float:0:50}",
+        "unit": "A",
+        "description": "L1電流"
+      },
+      {
+        "meterId": "current_l2",
+        "value": "{random_float:0:50}",
+        "unit": "A", 
+        "description": "L2電流"
+      },
+      {
+        "meterId": "current_l3",
+        "value": "{random_float:0:50}",
+        "unit": "A",
+        "description": "L3電流"
+      },
+      {
+        "meterId": "power_factor",
+        "value": "{random_float:0.7:1.0}",
+        "unit": "",
+        "description": "力率"
+      },
+      {
+        "meterId": "frequency",
+        "value": "{random_float:49.5:50.5}",
+        "unit": "Hz",
+        "description": "周波数"
+      }
+    ]
+  },
+  "metadata": {
+    "panelId": "panel-{random_int:1:20}",
+    "buildingId": "building-001",
+    "meterType": "smart_meter"
+  }
+}

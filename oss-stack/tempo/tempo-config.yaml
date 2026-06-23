@@ -1,0 +1,27 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+
+# NOTE: the `compactor` top-level key is rejected by tempo's strict config parser
+# on the current `:latest` image (v3.0.0-rc.1: "field compactor not found in
+# type app.Config"). Tempo applies a sane default block retention without it, so
+# it is left out for the local dev stack.
+# compactor:
+#   compaction:
+#     block_retention: 168h

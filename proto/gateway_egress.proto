@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+// Egress (control plane) — split out of the former gateway_bridge.proto so the egress
+// service and the ingress service own their generated code independently (the ingress half
+// now lives in BuildingOS.ConnectorWorker). The proto `package` stays `gatewaybridge` so the
+// on-the-wire gRPC service path (/gatewaybridge.GatewayEgress/Connect) is unchanged for BOWS.
+option csharp_namespace = "BuildingOS.GatewayBridge.Protos";
+
+package gatewaybridge;
+
+// Egress: one bidirectional stream per gateway. The external BOWS connector opens the
+// stream with a Hello{gateway_id}, the server pushes ControlCommand frames down, and the
+// gateway returns ControlResult frames up. See docs/oss-egress-gateway-bridge-plan.md §3.
+service GatewayEgress {
+  rpc Connect (stream EgressUp) returns (stream EgressDown);
+}
+
+message EgressUp {
+  oneof m {
+    Hello hello = 1;
+    ControlResult result = 2;
+  }
+}
+
+message EgressDown {
+  // field 1 (command) keeps its number, so a ControlCommand-only EgressDown stays wire-compatible
+  // with existing BOWS clients. point_list_update (#224/push) tells the gateway its shared point list
+  // changed; the gateway revalidates via GET /gateways/{id}/pointlist (If-None-Match / ?since).
+  oneof m {
+    ControlCommand command = 1;
+    PointListUpdate point_list_update = 2;
+  }
+}
+
+// Push signal that a gateway's point list changed. `revision` is the current ETag when known, or
+// empty (the gateway then revalidates with its last-known ETag). It is an invalidation hint, not the
+// authoritative list.
+message PointListUpdate {
+  string gateway_id = 1;
+  string revision = 2;
+}
+
+message Hello {
+  string gateway_id = 1;
+}
+
+message ControlCommand {
+  string control_id = 1;
+  string point_id = 2;     // shared-point-list identity; the gateway resolves it to BACnet object/instance
+  double present_value = 6; // value to write
+  int32 priority = 7;       // BACnet write priority (0 = unset)
+
+  // Point-id canonical (#181): BuildingOS and the gateway share the point list, so the gateway maps
+  // point_id → BACnet device/object/instance locally. The previous BACnet identity fields are removed.
+  reserved 3, 4, 5;
+  reserved "bacnet_device", "object_type", "instance_no";
+}
+
+message ControlResult {
+  string control_id = 1;
+  bool success = 2;
+  string response = 3;
+}

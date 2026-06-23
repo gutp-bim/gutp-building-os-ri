@@ -1,0 +1,38 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/gutp/building-os-connector-worker
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+secretName: connector-worker-env
+
+nats:
+  url: nats://nats.building-os.svc.cluster.local:4222
+  stream: TELEMETRY
+  coldDataSubject: "building-os.cold-data"
+
+minio:
+  endpoint: http://minio.building-os.svc.cluster.local:9000
+  coldBucket: cold-data
+
+timescaledb:
+  host: timescaledb.building-os.svc.cluster.local
+  port: 5432
+  database: building_os
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+
+# Warm-tier storage mode (#216): "parquet" (default) or "timescale".
+warmStore: parquet

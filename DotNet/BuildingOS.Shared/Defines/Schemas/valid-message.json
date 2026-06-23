@@ -1,0 +1,72 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Validated Message",
+  "description": "Schema for validated message data including multiple telemetries from building devices",
+  "type": "object",
+  "$defs": {
+    "validTelemetry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Validated Telemetry",
+      "description": "Schema for validated telemetry data from Building devices",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the message"
+        },
+        "device_id": {
+          "type": "string",
+          "description": "identifier for the device"
+        },
+        "point_id": {
+          "type": "string",
+          "description": "Unique identifier for the telemetry point"
+        },
+        "value": {
+          "type": "number",
+          "description": "Representative value of the telemetry data"
+        },
+        "data": {
+          "type": "object",
+          "description": "Additional data associated with the telemetry point",
+          "properties": {},
+          "additionalProperties": true
+        },
+        "datetime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when the telemetry data was recorded in ISO 8601 format"
+        },
+        "building": {
+          "type": "string",
+          "description": "Name of the building the telemetry point belongs to"
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional name of the telemetry point"
+        }
+      },
+      "required": [
+        "device_id",
+        "point_id",
+        "building",
+        "value",
+        "data",
+        "datetime"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "telemetries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validTelemetry"
+      }
+    }
+  },
+  "required": [
+    "telemetries"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,57 @@
+{
+  "event": {
+    "origin": "{device_id}",
+    "module": "",
+    "interface": "",
+    "component": "",
+    "properties": {
+      "system": {
+        "content_encoding": "utf-8",
+        "content_type": "application/json"
+      },
+      "application": {
+        "iothub-creation-time-utc": "{timestamp}",
+        "batch-index": "0",
+        "batch-count": "1"
+      }
+    },
+    "annotations": {
+      "iothub-connection-device-id": "{device_id}",
+      "iothub-connection-auth-generation-id": "639032814390554012",
+      "iothub-enqueuedtime": 1768370962922,
+      "iothub-message-source": "Telemetry",
+      "iothub-connection-auth-method": "{\"scope\":\"device\",\"type\":\"sas\",\"issuer\":\"iothub\"}",
+      "x-opt-sequence-number-epoch": -1,
+      "x-opt-sequence-number": 27,
+      "x-opt-offset": "4294972256",
+      "x-opt-enqueued-time": 1768370963071
+    },
+    "payload": [
+      {
+        "timestamp": "{timestamp}",
+        "mgmtNo": "1000170",
+        "value": "{random_float:0:200}"
+      },
+      {
+        "timestamp": "{timestamp}",
+        "mgmtNo": "1000190",
+        "value": "{random_bool}"
+      },
+      {
+        "timestamp": "{timestamp}",
+        "mgmtNo": "1000191",
+        "value": "{random_bool}"
+      },
+      {
+        "timestamp": "{timestamp}",
+        "mgmtNo": "1000221",
+        "value": "{random_float:0:200}"
+      },
+      {
+        "timestamp": "{timestamp}",
+        "mgmtNo": "1000314",
+        "value": "{random_float:0:200}"
+      }
+    ]
+  }
+}

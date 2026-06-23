@@ -1,0 +1,12 @@
+aiomqtt>=2.5.0
+nats-py>=2.9.0
+psycopg2-binary>=2.9.9
+requests>=2.31.0
+python-dotenv>=1.0.0
+PyYAML>=6.0
+pytest>=7.0
+# Parquet-lake quality verification (DuckDB over MinIO/S3) — quality_checker.py --mode parquet
+duckdb>=1.1.0
+# E5 point-list integrity: gRPC GatewayIngress client (proto compiled at runtime via grpcio-tools)
+grpcio>=1.60.0
+grpcio-tools>=1.60.0

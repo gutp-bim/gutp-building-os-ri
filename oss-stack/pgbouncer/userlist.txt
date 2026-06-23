@@ -1,0 +1,6 @@
+; pgBouncer userlist.txt — LOCAL DEVELOPMENT ONLY.
+; Production: inject via Kubernetes Secret or external secrets manager.
+;
+; Format: "username" "md5<hex(md5(password + username))>"
+; Regenerate: python3 -c "import hashlib; print('md5' + hashlib.md5(b'<pass><user>').hexdigest())"
+"buildingos" "md5c59956d787b496a520947920b035f638"

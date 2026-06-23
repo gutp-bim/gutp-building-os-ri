@@ -1,0 +1,38 @@
+{
+  "profiles": {
+    "WithLocal": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "PORT": "5000",
+        "LOG_LEVEL": "Information",
+        "DISABLE_AUTH": "true",
+        "NATS_URL": "nats://localhost:4222",
+        "POSTGRES_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
+        "TIMESCALE_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
+        "OXIGRAPH_ENDPOINT": "http://localhost:7878"
+      }
+    },
+    "WithLocalAuth": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "PORT": "5000",
+        "LOG_LEVEL": "Information",
+        "NATS_URL": "nats://localhost:4222",
+        "POSTGRES_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
+        "TIMESCALE_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
+        "OXIGRAPH_ENDPOINT": "http://localhost:7878",
+        "KEYCLOAK_AUTHORITY": "http://localhost:8080/realms/building-os",
+        "KEYCLOAK_CLIENT_ID": "building-os-api",
+        "KEYCLOAK_REALM": "building-os",
+        "KEYCLOAK_ADMIN_CLIENT_ID": "building-os-admin",
+        "KEYCLOAK_ADMIN_CLIENT_SECRET": ""
+      }
+    },
+  }
+}

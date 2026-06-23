@@ -1,0 +1,45 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Behavior Sensor Message",
+  "description": "Schema for telemetry data from behavior sensor message.",
+  "type": "object",
+  "properties": {
+    "point_id": {
+      "type": "string",
+      "description": "Point id for the sensor."
+    },
+    "value": {
+      "type": "number",
+      "description": "Number of people the sensor detected."
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "sbos_space:Name": {
+          "type": "string",
+          "description": "Name of the space where the sensor is installed."
+        }
+      },
+      "additionalProperties": false
+    },
+    "datetime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "timestamp"
+    },
+    "building": {
+      "type": "string",
+      "description": "Name of the building where the sensor is installed."
+    },
+    "name": {
+      "type": "string",
+      "description": "Name of the sensor."
+    },
+    "device_id": {
+      "type": "string",
+      "description": "Device id"
+    }
+  },
+  "required": ["point_id", "value", "data", "device_id"],
+  "additionalProperties": false
+}

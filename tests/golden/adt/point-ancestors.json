@@ -1,0 +1,18 @@
+﻿[
+  {
+    "type": "device",
+    "id": "ahu-301"
+  },
+  {
+    "type": "space",
+    "id": "room-301"
+  },
+  {
+    "type": "floor",
+    "id": "eng2-3f"
+  },
+  {
+    "type": "building",
+    "id": "eng2"
+  }
+]

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: web-client
+description: Building OS Web Client (Next.js)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

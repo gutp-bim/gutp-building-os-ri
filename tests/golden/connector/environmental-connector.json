@@ -1,0 +1,210 @@
+﻿{
+  "telemetries": [
+    {
+      "building": "",
+      "data": {
+        "code": "CO2007",
+        "type": "CO2",
+        "co2": 493,
+        "humidity": 3950,
+        "temperature": 2266
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2007",
+      "point_id": "env-CO2-point",
+      "value": 493,
+      "id": "env-CO2-point.<timestamp>",
+      "name": "CO2007"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2007",
+        "type": "CO2",
+        "co2": 493,
+        "humidity": 3950,
+        "temperature": 2266
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2007",
+      "point_id": "env-Humidity-point",
+      "value": 3950,
+      "id": "env-Humidity-point.<timestamp>",
+      "name": "CO2007"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2007",
+        "type": "CO2",
+        "co2": 493,
+        "humidity": 3950,
+        "temperature": 2266
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2007",
+      "point_id": "env-Temperature-point",
+      "value": 2266,
+      "id": "env-Temperature-point.<timestamp>",
+      "name": "CO2007"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2008",
+        "type": "CO2",
+        "co2": 521,
+        "humidity": 4090,
+        "temperature": 2147
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2008",
+      "point_id": "env-CO2-point",
+      "value": 521,
+      "id": "env-CO2-point.<timestamp>",
+      "name": "CO2008"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2008",
+        "type": "CO2",
+        "co2": 521,
+        "humidity": 4090,
+        "temperature": 2147
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2008",
+      "point_id": "env-Humidity-point",
+      "value": 4090,
+      "id": "env-Humidity-point.<timestamp>",
+      "name": "CO2008"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2008",
+        "type": "CO2",
+        "co2": 521,
+        "humidity": 4090,
+        "temperature": 2147
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2008",
+      "point_id": "env-Temperature-point",
+      "value": 2147,
+      "id": "env-Temperature-point.<timestamp>",
+      "name": "CO2008"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2009",
+        "type": "CO2",
+        "co2": 887,
+        "humidity": 3650,
+        "temperature": 2285
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2009",
+      "point_id": "env-CO2-point",
+      "value": 887,
+      "id": "env-CO2-point.<timestamp>",
+      "name": "CO2009"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2009",
+        "type": "CO2",
+        "co2": 887,
+        "humidity": 3650,
+        "temperature": 2285
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2009",
+      "point_id": "env-Humidity-point",
+      "value": 3650,
+      "id": "env-Humidity-point.<timestamp>",
+      "name": "CO2009"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2009",
+        "type": "CO2",
+        "co2": 887,
+        "humidity": 3650,
+        "temperature": 2285
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2009",
+      "point_id": "env-Temperature-point",
+      "value": 2285,
+      "id": "env-Temperature-point.<timestamp>",
+      "name": "CO2009"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2010",
+        "type": "CO2",
+        "co2": 511,
+        "humidity": 3650,
+        "temperature": 2310
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2010",
+      "point_id": "env-CO2-point",
+      "value": 511,
+      "id": "env-CO2-point.<timestamp>",
+      "name": "CO2010"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2010",
+        "type": "CO2",
+        "co2": 511,
+        "humidity": 3650,
+        "temperature": 2310
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2010",
+      "point_id": "env-Humidity-point",
+      "value": 3650,
+      "id": "env-Humidity-point.<timestamp>",
+      "name": "CO2010"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "CO2010",
+        "type": "CO2",
+        "co2": 511,
+        "humidity": 3650,
+        "temperature": 2310
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "CO2010",
+      "point_id": "env-Temperature-point",
+      "value": 2310,
+      "id": "env-Temperature-point.<timestamp>",
+      "name": "CO2010"
+    },
+    {
+      "building": "",
+      "data": {
+        "code": "LUM002",
+        "type": "LUM",
+        "illuminance": 995
+      },
+      "datetime": "2024-11-06T12:10:36.888\u002B09:00",
+      "device_id": "LUM002",
+      "point_id": "pointId",
+      "value": 995,
+      "id": "pointId.<timestamp>",
+      "name": "LUM002"
+    }
+  ]
+}

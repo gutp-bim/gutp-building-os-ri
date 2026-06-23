@@ -1,0 +1,45 @@
+{
+  "scenario_name": "データサイズ負荷試験",
+  "scenario_type": "data_size_load",
+  "device_types": [
+    "bacnet"
+  ],
+  "devices_per_type": 500,
+  "message_interval_seconds": 60,
+  "azure_config": {
+    "iothub_connection_string": "${IOTHUB_CONNECTION_STRING_DEFAULT}",
+    "device_connection_strings": {
+      "bacnet": "${IOTHUB_CONNECTION_STRING_DEFAULT}",
+      "hvac": "${IOTHUB_CONNECTION_STRING_DEFAULT}",
+      "environmental": "${IOTHUB_CONNECTION_STRING_DEFAULT}",
+      "electric": "${IOTHUB_CONNECTION_STRING_DEFAULT}",
+      "behavior": "${IOTHUB_CONNECTION_STRING_DEFAULT}"
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "step_name": "10ポイント",
+      "point_count": 10,
+      "duration_minutes": 30
+    },
+    {
+      "step_id": 2,
+      "step_name": "25ポイント",
+      "point_count": 25,
+      "duration_minutes": 30
+    },
+    {
+      "step_id": 3,
+      "step_name": "50ポイント",
+      "point_count": 50,
+      "duration_minutes": 30
+    },
+    {
+      "step_id": 4,
+      "step_name": "100ポイント",
+      "point_count": 100,
+      "duration_minutes": 30
+    }
+  ]
+}

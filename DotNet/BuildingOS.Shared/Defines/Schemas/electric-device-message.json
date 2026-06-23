@@ -1,0 +1,69 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Electric Device Message",
+  "description": "Schema for telemetry data from Building devices",
+  "$defs": {
+    "electricDeviceTelemetry": {
+      "title": "Electric Device Telemetry",
+      "description": "Schema for telemetry data from Building devices",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "number",
+          "description": "Representative value of the telemetry data"
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date and time when the telemetry data was recorded in ISO 8601 format"
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional name of the telemetry point"
+        },
+        "fiap_id": {
+          "type": "string",
+          "description": "Fiap id representing this point"
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Optional device identifier"
+        }
+      },
+      "required": [
+        "name",
+        "fiap_id",
+        "time",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "telemetryData": {
+      "type": "array",
+      "description": "Array of electric telemetries",
+      "items": {
+        "$ref": "#/$defs/electricDeviceTelemetry"
+      }
+    },
+    "deviceId": {
+      "type": "string"
+    },
+    "connTime": {
+      "type": "string",
+      "description": "Data transmission date time (JST)"
+    },
+    "acqTime": {
+      "type": "string",
+      "description": "Measurement date time (JST)"
+    }
+  },
+  "required": [
+    "telemetryData",
+    "connTime",
+    "acqTime"
+  ],
+  "additionalProperties": false
+}

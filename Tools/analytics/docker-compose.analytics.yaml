@@ -1,0 +1,59 @@
+# Analytics stack: Trino + Superset for large-scale multi-user analysis
+# Replaces Microsoft Fabric Lakehouse for OSS stack.
+#
+# Usage:
+#   docker compose -f docker-compose.analytics.yaml up -d
+#
+# Superset UI: http://localhost:8088  (admin / admin)
+# Trino UI:    http://localhost:8080
+#
+# Connect Superset to Trino:
+#   Host: trino, Port: 8080, Catalog: minio, Schema: telemetry
+
+version: "3.8"
+
+services:
+  trino:
+    image: trinodb/trino:435
+    container_name: trino
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
+    networks:
+      - analytics
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  superset:
+    image: apache/superset:4.0.0
+    container_name: superset
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: "change-me-in-production"
+      TALISMAN_ENABLED: "false"
+    volumes:
+      - superset_data:/app/superset_home
+    networks:
+      - analytics
+    depends_on:
+      - trino
+    command: >
+      sh -c "
+        superset db upgrade &&
+        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin &&
+        superset init &&
+        superset run -p 8088 --with-threads --reload --debugger
+      "
+
+networks:
+  analytics:
+    name: analytics
+
+volumes:
+  superset_data:

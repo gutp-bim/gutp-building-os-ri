@@ -1,0 +1,39 @@
+name: Golden Tests
+
+# Manual-trigger only to conserve CI credits — run from the Actions tab when needed.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: golden-tests-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  golden-tests:
+    name: Connector & ADT Golden Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore DotNet/BuildingOS.Shared.Test
+
+      - name: Build
+        run: dotnet build DotNet/BuildingOS.Shared.Test --no-restore
+
+      - name: Run golden tests
+        run: dotnet test DotNet/BuildingOS.Shared.Test --no-build --filter "FullyQualifiedName~Golden"
+
+      - name: Fail if snapshots are stale
+        run: |
+          if [ -n "$(git status --porcelain tests/golden/)" ]; then
+            echo "Golden snapshots changed — run UPDATE_GOLDEN=1 dotnet test locally and commit the diff."
+            git diff tests/golden/
+            exit 1
+          fi

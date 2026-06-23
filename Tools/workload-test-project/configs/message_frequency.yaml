@@ -1,0 +1,37 @@
+scenario_name: "メッセージ頻度負荷試験"
+scenario_type: "message_frequency"
+description: "メッセージ送信頻度を段階的に上げて処理能力を測定"
+
+# デフォルト設定
+device_count: 100
+device_types:
+  - "bacnet"
+  - "hvac"
+  - "environmental"
+
+# 実行ステップ
+steps:
+  - step_id: 1
+    description: "ベースライン頻度 (60秒間隔)"
+    message_interval_seconds: 60
+    duration_minutes: 10
+    
+  - step_id: 2
+    description: "中頻度負荷 (30秒間隔)"
+    message_interval_seconds: 30
+    duration_minutes: 15
+    
+  - step_id: 3
+    description: "高頻度負荷 (15秒間隔)"
+    message_interval_seconds: 15
+    duration_minutes: 15
+    
+  - step_id: 4
+    description: "最高頻度負荷 (5秒間隔)"
+    message_interval_seconds: 5
+    duration_minutes: 20
+    
+  - step_id: 5
+    description: "極限頻度負荷 (1秒間隔)"
+    message_interval_seconds: 1
+    duration_minutes: 10

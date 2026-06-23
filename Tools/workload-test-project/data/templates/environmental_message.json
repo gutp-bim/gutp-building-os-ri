@@ -1,0 +1,57 @@
+{
+  "deviceId": "{device_id}",
+  "timestamp": "{timestamp}",
+  "messageType": "telemetry",
+  "protocol": "environmental",
+  "data": {
+    "points": [
+      {
+        "sensorId": "temp_001",
+        "value": "{random_float:15:35}",
+        "unit": "degC",
+        "description": "外気温度"
+      },
+      {
+        "sensorId": "humidity_001", 
+        "value": "{random_float:20:80}",
+        "unit": "%",
+        "description": "外気湿度"
+      },
+      {
+        "sensorId": "pressure_001",
+        "value": "{random_float:980:1030}",
+        "unit": "hPa",
+        "description": "大気圧"
+      },
+      {
+        "sensorId": "co2_001",
+        "value": "{random_int:400:2000}",
+        "unit": "ppm",
+        "description": "CO2濃度"
+      },
+      {
+        "sensorId": "light_001",
+        "value": "{random_int:0:100000}",
+        "unit": "lux",
+        "description": "照度"
+      },
+      {
+        "sensorId": "noise_001",
+        "value": "{random_float:30:80}",
+        "unit": "dB",
+        "description": "騒音レベル"
+      },
+      {
+        "sensorId": "pm25_001",
+        "value": "{random_float:0:100}",
+        "unit": "μg/m3",
+        "description": "PM2.5濃度"
+      }
+    ]
+  },
+  "metadata": {
+    "locationId": "outdoor-{random_int:1:5}",
+    "sensorType": "environmental_station",
+    "calibrationDate": "2024-01-01"
+  }
+}

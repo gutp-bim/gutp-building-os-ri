@@ -1,0 +1,16 @@
+# ArgoCD Helm values for web-client — utokyo-eng2 environment.
+replicaCount: 2
+
+image:
+  repository: harbor.eng2.buildingos.local/building-os/building-os-web-client
+  tag: latest
+  pullPolicy: IfNotPresent
+
+env:
+  NEXT_PUBLIC_KEYCLOAK_AUTHORITY: https://keycloak.eng2.buildingos.local/realms/building-os
+  NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
+  NEXT_PUBLIC_API_BASE_URL: https://api.eng2.buildingos.local
+
+ingress:
+  enabled: true
+  host: app.eng2.buildingos.local

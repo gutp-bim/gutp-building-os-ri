@@ -1,0 +1,88 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: connector-worker-scaler
+  namespace: building-os
+spec:
+  scaleTargetRef:
+    name: connector-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  pollingInterval: 15
+  cooldownPeriod: 60
+  triggers:
+    # Scale based on NATS JetStream consumer lag across all raw subjects
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-monitor.building-os.svc.cluster.local:8222"
+        account: "$G"
+        stream: "building-os-raw"
+        consumer: "hvacreader"
+        lagThreshold: "50"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-monitor.building-os.svc.cluster.local:8222"
+        account: "$G"
+        stream: "building-os-raw"
+        consumer: "envreader"
+        lagThreshold: "50"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-monitor.building-os.svc.cluster.local:8222"
+        account: "$G"
+        stream: "building-os-raw"
+        consumer: "electricreader"
+        lagThreshold: "50"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-monitor.building-os.svc.cluster.local:8222"
+        account: "$G"
+        stream: "building-os-raw"
+        consumer: "bacnetreader"
+        lagThreshold: "50"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-monitor.building-os.svc.cluster.local:8222"
+        account: "$G"
+        stream: "building-os-raw"
+        consumer: "behaviorreader"
+        lagThreshold: "50"
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-monitor.building-os.svc.cluster.local:8222"
+        account: "$G"
+        stream: "building-os-raw"
+        consumer: "bridgereader"
+        lagThreshold: "50"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connector-worker
+  namespace: building-os
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connector-worker
+  template:
+    metadata:
+      labels:
+        app: connector-worker
+    spec:
+      containers:
+        - name: connector-worker
+          image: buildingos/connector-worker:latest
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: building-os-secrets
+                  key: nats-url
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

@@ -1,0 +1,64 @@
+﻿{
+  "telemetries": [
+    {
+      "building": "",
+      "data": {
+        "deviceId": "Device1",
+        "bacnetDeviceId": 3054,
+        "bacnetObjectType": 0,
+        "bacnetInstanceNo": 1
+      },
+      "datetime": "2025-05-26T13:05:00.584\u002B09:00",
+      "device_id": "Device1",
+      "point_id": "bacnet-point-001",
+      "value": 15.0,
+      "id": "bacnet-point-001.<timestamp>",
+      "name": "Test Room Temperature"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "Device1",
+        "bacnetDeviceId": 3054,
+        "bacnetObjectType": 0,
+        "bacnetInstanceNo": 2
+      },
+      "datetime": "2025-05-26T13:05:00.6\u002B09:00",
+      "device_id": "Device1",
+      "point_id": "bacnet-point-002",
+      "value": 25.0,
+      "id": "bacnet-point-002.<timestamp>",
+      "name": "Test CO2 Level"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "Device1",
+        "bacnetDeviceId": 3054,
+        "bacnetObjectType": 0,
+        "bacnetInstanceNo": 1
+      },
+      "datetime": "2025-05-26T13:10:00.584\u002B09:00",
+      "device_id": "Device1",
+      "point_id": "bacnet-point-001",
+      "value": 15.0,
+      "id": "bacnet-point-001.<timestamp>",
+      "name": "Test Room Temperature"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "Device1",
+        "bacnetDeviceId": 3054,
+        "bacnetObjectType": 0,
+        "bacnetInstanceNo": 2
+      },
+      "datetime": "2025-05-26T13:10:00.604\u002B09:00",
+      "device_id": "Device1",
+      "point_id": "bacnet-point-002",
+      "value": 25.0,
+      "id": "bacnet-point-002.<timestamp>",
+      "name": "Test CO2 Level"
+    }
+  ]
+}

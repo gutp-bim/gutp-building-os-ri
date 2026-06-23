@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GET /spaces response contract",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["dtId", "id", "name"],
+    "properties": {
+      "dtId":      { "type": "string" },
+      "id":        { "type": "string" },
+      "name":      { "type": "string" },
+      "floorId":   { "type": ["string", "null"] },
+      "buildingId":{ "type": ["string", "null"] }
+    },
+    "additionalProperties": false
+  }
+}

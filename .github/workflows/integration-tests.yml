@@ -1,0 +1,42 @@
+name: Integration Tests
+
+# Manual-trigger only to conserve CI credits — run from the Actions tab when needed.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: integration-tests-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore DotNet/BuildingOS.IntegrationTest/BuildingOS.IntegrationTest.csproj
+
+      - name: Build
+        run: dotnet build DotNet/BuildingOS.IntegrationTest/BuildingOS.IntegrationTest.csproj --no-restore
+
+      - name: Run Integration Tests
+        run: |
+          dotnet test DotNet/BuildingOS.IntegrationTest/BuildingOS.IntegrationTest.csproj \
+            --no-build \
+            --filter "Category=Integration" \
+            --logger "trx;LogFileName=integration-test-results.trx"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: '**/*.trx'

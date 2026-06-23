@@ -1,0 +1,9 @@
+# This file is an example only. Do NOT use this hash in production.
+# The real passwd is generated at container startup by docker-entrypoint.sh
+# using the MQTT_DEVICES_PASSWORD environment variable.
+#
+# To generate a passwd file manually for local testing:
+#   docker run --rm eclipse-mosquitto:2 mosquitto_passwd -b -c /tmp/passwd devices <your-password>
+#
+# Format: username:PBKDF2$sha512$iterations$salt$hash
+devices:$7$101000$EXAMPLE_HASH_DO_NOT_USE$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==

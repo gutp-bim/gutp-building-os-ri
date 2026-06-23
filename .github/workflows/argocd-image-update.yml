@@ -1,0 +1,73 @@
+name: Argo CD Image Update
+
+# Triggered after container images are built and pushed.
+# Updates the image tag in argocd/values/<env>.yaml and commits back
+# to the repo — Argo CD detects the git change and auto-syncs.
+
+on:
+  workflow_run:
+    workflows: ["Harbor Dual Push (GHCR + Harbor)"]
+    types:
+      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - "DotNet/**"
+      - "web-client/**"
+
+concurrency:
+  group: argocd-image-update-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ${{ vars.HARBOR_REGISTRY || 'ghcr.io/takashikasuya' }}
+
+jobs:
+  update-image-tags:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          # Use short SHA as the image tag for traceability
+          echo "IMAGE_TAG=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Update ArgoCD values image tags
+        run: |
+          TAG="${{ steps.tag.outputs.IMAGE_TAG }}"
+          # Update all environment-specific values files under argocd/values/.
+          # "utokyo-eng2" is a reference environment — adapt or add entries for
+          # your own deployment targets.
+          VALUES_FILE="argocd/values/utokyo-eng2.yaml"
+
+          sed -i "s/^  tag: .*/  tag: ${TAG}/" "${VALUES_FILE}"
+
+          echo "Updated ${VALUES_FILE} → tag: ${TAG}"
+          cat "${VALUES_FILE}"
+
+      - name: Commit and push updated values
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add argocd/values/
+
+          if git diff --staged --quiet; then
+            echo "No values changed — skipping commit"
+            exit 0
+          fi
+
+          TAG="${{ steps.tag.outputs.IMAGE_TAG }}"
+          git commit -m "chore(argocd): update image tags to ${TAG} [skip ci]"
+          git push origin HEAD:main

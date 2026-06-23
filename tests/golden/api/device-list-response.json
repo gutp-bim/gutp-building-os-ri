@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GET /devices response contract",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["dtId", "id", "name"],
+    "properties": {
+      "dtId":         { "type": "string" },
+      "id":           { "type": "string" },
+      "name":         { "type": "string" },
+      "buildingName": { "type": ["string", "null"] },
+      "floorNumber":  { "type": ["integer", "null"] },
+      "owner":        { "type": ["string", "null"] },
+      "site":         { "type": ["string", "null"] },
+      "supplier":     { "type": ["string", "null"] },
+      "gatewayId":    { "type": ["string", "null"] },
+      "deviceType":   { "type": ["string", "null"] }
+    },
+    "additionalProperties": false
+  }
+}

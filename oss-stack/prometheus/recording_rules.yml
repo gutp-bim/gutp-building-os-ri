@@ -1,0 +1,79 @@
+# Prometheus recording rules for Building OS OSS
+#
+# Purpose: pre-aggregate expensive queries and avoid point_id label cardinality.
+#
+# CARDINALITY POLICY: Never use point_id as a Prometheus label.
+#   Reason: 10万+ point では active series が爆発し Prometheus のメモリ消費が数GB超になる。
+#   Telemetry count は connector / building_id 粒度で集計する。
+
+groups:
+  - name: building_os_api
+    interval: 1m
+    rules:
+      # HTTP request rate by job/method/scheme/status (5m window).
+      # Not grouped by http_route — series are aggregated across all routes.
+      - record: job:http_server_requests:rate5m
+        expr: |
+          sum by (job, http_request_method, url_scheme, http_response_status_code) (
+            rate(http_server_request_duration_seconds_count[5m])
+          )
+
+      # P95 latency per job (5m window).
+      # Grouped only by (job, le), so the quantile is aggregated across all routes.
+      - record: job:http_server_duration_p95:rate5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (job, le) (
+              rate(http_server_request_duration_seconds_bucket[5m])
+            )
+          )
+
+      # Error rate (5xx / total)
+      - record: job:http_server_error_rate:rate5m
+        expr: |
+          sum by (job) (
+            rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])
+          )
+          /
+          sum by (job) (
+            rate(http_server_request_duration_seconds_count[5m])
+          )
+
+  - name: building_os_connector
+    interval: 1m
+    rules:
+      # Telemetry ingestion rate per connector (NOT per point_id).
+      # Filter result="published" so skipped/error messages are not counted as
+      # successful ingestion — ConnectorWorkerBase tags every increment with
+      # result=published|skipped|error.
+      - record: connector:messages_processed:rate1m
+        expr: |
+          sum by (connector) (
+            rate(building_os_connector_messages_processed_total{result="published"}[1m])
+          )
+
+      # Processing error rate per connector (result="error" on the processed counter).
+      # ConnectorWorkerBase tags each message published|skipped|error rather than
+      # emitting a separate validation_errors counter.
+      - record: connector:processing_errors:rate1m
+        expr: |
+          sum by (connector) (
+            rate(building_os_connector_messages_processed_total{result="error"}[1m])
+          )
+
+  - name: building_os_nats
+    interval: 1m
+    rules:
+      # NATS JetStream consumer pending messages (backpressure indicator)
+      - record: nats:jetstream_consumer_pending:max
+        expr: |
+          max by (stream, consumer) (
+            nats_consumer_num_pending
+          )
+
+      # NATS JetStream deliver rate
+      - record: nats:jetstream_msgs_delivered:rate1m
+        expr: |
+          sum by (stream) (
+            rate(nats_consumer_num_ack_pending[1m])
+          )

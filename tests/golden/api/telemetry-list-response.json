@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GET /telemetries response contract",
+  "description": "Telemetry query response. Matches the valid-message.json schema persisted by connectors.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "device_id", "point_id", "building", "value", "data", "datetime"],
+    "properties": {
+      "id":        { "type": "string", "description": "Unique identifier: {point_id}.{unix_timestamp}" },
+      "device_id": { "type": "string" },
+      "point_id":  { "type": "string" },
+      "building":  { "type": "string" },
+      "value":     { "type": "number" },
+      "data":      { "type": "object", "additionalProperties": true },
+      "datetime":  { "type": "string", "format": "date-time" },
+      "name":      { "type": "string" }
+    },
+    "additionalProperties": false
+  }
+}

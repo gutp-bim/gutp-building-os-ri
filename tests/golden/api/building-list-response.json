@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GET /buildings response contract",
+  "description": "Array of Building objects returned by BuildingController",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["dtId", "id", "name"],
+    "properties": {
+      "dtId":  { "type": "string", "description": "Azure Digital Twins $dtId" },
+      "id":    { "type": "string", "description": "Business identifier (buildingId)" },
+      "name":  { "type": "string" }
+    },
+    "additionalProperties": false
+  },
+  "examples": [
+    [
+      { "dtId": "eng2-twin", "id": "eng2", "name": "工学部2号館" }
+    ]
+  ]
+}

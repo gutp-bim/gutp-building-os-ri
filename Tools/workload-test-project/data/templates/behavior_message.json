@@ -1,0 +1,33 @@
+{
+  "deviceId": "{device_id}",
+  "timestamp": "{timestamp}",
+  "messageType": "telemetry",
+  "protocol": "behavior",
+  "data": {
+    "points": [
+      {
+        "sensorId": "occupancy_001",
+        "value": "{random_bool}",
+        "unit": "boolean",
+        "description": "人感センサー"
+      },
+      {
+        "sensorId": "motion_count",
+        "value": "{random_int:0:50}",
+        "unit": "count/min",
+        "description": "動作検知回数"
+      },
+      {
+        "sensorId": "person_count",
+        "value": "{random_int:0:20}",
+        "unit": "people",
+        "description": "推定人数"
+      }
+    ]
+  },
+  "metadata": {
+    "zoneId": "zone-{random_int:1:30}",
+    "sensorType": "pir_camera",
+    "installationHeight": "{random_float:2.5:3.5}"
+  }
+}

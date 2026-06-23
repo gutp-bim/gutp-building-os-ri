@@ -1,0 +1,169 @@
+name: OSS Stack CI
+
+# Manual-trigger only to conserve CI credits — run from the Actions tab when needed.
+# (Local verification is the primary gate; see CLAUDE.md.)
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: oss-ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  # ── .NET unit tests ───────────────────────────────────────────
+  dotnet-test:
+    name: .NET Unit Tests
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+    defaults:
+      run:
+        working-directory: DotNet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore BuildingOS.sln
+
+      - name: Build
+        run: dotnet build BuildingOS.sln --no-restore --configuration Release
+
+      # Reports EF model/snapshot drift. Non-blocking: the hand-written
+      # initial Npgsql snapshot only affects future `migrations add`, not
+      # runtime Database.Migrate(); a drift warning should not gate CI.
+      - name: Verify EF migration snapshot is up to date
+        continue-on-error: true
+        run: |
+          dotnet tool install --global dotnet-ef --version 9.0.3
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet ef migrations has-pending-model-changes \
+            --project BuildingOS.Shared \
+            --context RelationalDbContext
+
+      - name: Unit Tests (Shared)
+        run: |
+          dotnet test BuildingOS.Shared.Test/BuildingOS.Shared.Test.csproj \
+            --no-build --configuration Release \
+            --logger "trx;LogFileName=shared-test-results.trx" \
+            --results-directory TestResults
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: .NET Tests
+          path: DotNet/TestResults/*.trx
+          reporter: dotnet-trx
+
+  # ── Frontend typecheck / lint ─────────────────────────────────
+  frontend-check:
+    name: Frontend Type Check & Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - { dir: web-client, node: "20.x", typecheck: "npx tsc --noEmit", lint: "yarn lint" }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.app.node }}
+          cache: yarn
+          cache-dependency-path: ${{ matrix.app.dir }}/yarn.lock
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.app.dir }}
+        run: yarn install --frozen-lockfile
+
+      - name: Type check
+        working-directory: ${{ matrix.app.dir }}
+        run: ${{ matrix.app.typecheck }}
+
+      - name: Lint
+        working-directory: ${{ matrix.app.dir }}
+        run: ${{ matrix.app.lint }}
+
+  # ── OSS issue readiness checks ─────────────────────────────────
+  oss-readiness:
+    name: OSS Issue Readiness
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate frontend auth, Keycloak realm, and design docs
+        run: bash scripts/validate-oss-issue-readiness.sh
+
+  # ── Helm lint ─────────────────────────────────────────────────
+  helm-lint:
+    name: Helm Chart Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Lint
+        run: helm lint kubernetes/helm/building-os
+
+      - name: Template (dev)
+        run: |
+          helm template building-os kubernetes/helm/building-os \
+            -f kubernetes/helm/building-os/values-dev.yaml
+
+      - name: Template (prod)
+        run: |
+          helm template building-os kubernetes/helm/building-os \
+            -f kubernetes/helm/building-os/values-prod.yaml
+
+  # ── Deploy to K8s (main branch only) ─────────────────────────
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [dotnet-test, frontend-check, helm-lint]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Deploy
+        run: |
+          helm upgrade --install building-os kubernetes/helm/building-os \
+            -f kubernetes/helm/building-os/values-prod.yaml \
+            --set global.imageRegistry=${{ secrets.IMAGE_REGISTRY }} \
+            --set apiServer.image.tag=${{ github.sha }} \
+            --set webClient.image.tag=${{ github.sha }} \
+            --set connectorWorker.image.tag=${{ github.sha }} \
+            --wait --timeout=10m

@@ -1,0 +1,46 @@
+name: Helm Chart Install Test
+
+# Manual-trigger only to conserve CI credits — run from the Actions tab when needed.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: helm-install-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  helm-install-test:
+    name: Helm Install (kind) — minimal profile
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+
+      - name: Create namespace
+        run: kubectl create namespace building-os
+
+      # helm lint は oss-ci.yml でも実行されるが、ここでも実行して
+      # kind job が独立して失敗を報告できるようにする
+      - name: Helm lint (minimal profile)
+        run: |
+          helm lint kubernetes/helm/building-os \
+            -f kubernetes/helm/building-os/values-minimal.yaml
+
+      # helm template でマニフェストを展開し、実際の K8s API で検証する
+      # --dry-run=server は Secret/CRD の存在確認はしないが、
+      # スキーマ・フィールド名・型の誤りを検出できる
+      - name: Helm template → kubectl apply --dry-run=server
+        run: |
+          helm template building-os kubernetes/helm/building-os \
+            -f kubernetes/helm/building-os/values.yaml \
+            -f kubernetes/helm/building-os/values-minimal.yaml \
+            --namespace building-os \
+            | kubectl apply --dry-run=server -f -

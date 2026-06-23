@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option csharp_namespace = "BuildingOs.ApiServer.Protos";
+
+package pointcontrol;
+
+service PointControlService {
+  rpc WaitForResult (WaitForResultRequest) returns (stream ControlResultEvent);
+}
+
+message WaitForResultRequest {
+  string control_id = 1;
+}
+
+message ControlResultEvent {
+  string control_id = 1;
+  ControlResult result = 2;
+  string response = 3;
+  string timestamp = 4;
+}
+
+enum ControlResult {
+  CONTROL_RESULT_UNSPECIFIED = 0;
+  CONTROL_RESULT_SUCCESS = 1;
+  CONTROL_RESULT_FAILED = 2;
+}

@@ -1,0 +1,85 @@
+# Argo CD Helm values — deployed into the argocd namespace.
+# Install: helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f argocd/install/argocd-values.yaml
+
+global:
+  # Argo CD served over an ingress with TLS termination at the ingress level.
+  # server.insecure=true allows the argocd-server Pod to serve HTTP internally.
+  env:
+    - name: ARGOCD_SERVER_INSECURE
+      value: "true"
+
+server:
+  extraArgs:
+    - --insecure
+  service:
+    type: ClusterIP
+
+  # server.insecure: run without TLS (TLS terminated at ingress)
+  config:
+    server.insecure: "true"
+    server.tls.minversion: "1.2"
+
+    # OIDC / Keycloak SSO
+    # After Keycloak realm setup (Issue #10), configure:
+    #   oidc.config: |
+    #     name: Keycloak
+    #     issuer: https://keycloak.buildingos.local/realms/building-os
+    #     clientID: argocd
+    #     clientSecret: $argocd-oidc-secret:oidc.keycloak.clientSecret
+    #     requestedScopes: [openid, profile, email, groups]
+    # Placeholder populated once Keycloak is provisioned:
+    oidc.config: |
+      name: Keycloak
+      issuer: ""
+      clientID: argocd
+      clientSecret: $argocd-oidc-secret:oidc.keycloak.clientSecret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+
+    # Repository: public GitHub repo, no credentials needed.
+    repositories: |
+      - url: https://github.com/takashikasuya/gutp-building-os-oss.git
+        name: building-os-oss
+
+  # RBAC: Keycloak group → Argo CD role mapping.
+  rbacConfig:
+    policy.default: role:readonly
+    policy.csv: |
+      g, /building-os-admins, role:admin
+      g, /building-os-ops, role:admin
+    scopes: "[groups]"
+
+  ingress:
+    enabled: true
+    hosts:
+      - argocd.buildingos.local
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+configs:
+  secret:
+    # Populate argocdServerAdminPassword via sealed-secret or external-secrets
+    # argocdServerAdminPassword: REPLACE_WITH_BCRYPT_HASH
+    createSecret: true
+
+repoServer:
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+applicationSet:
+  enabled: true
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "25m"
+
+notifications:
+  enabled: true

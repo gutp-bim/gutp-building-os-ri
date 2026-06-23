@@ -1,0 +1,21 @@
+# OpenTofu S3 (MinIO) backend configuration.
+# Copy to backend.hcl and fill in values. backend.hcl is gitignored.
+#
+# Encryption: MinIO bucket server-side encryption with AES-256 must be enabled:
+#   mc encrypt set SSE-S3 myminio/tofu-state
+#
+# Access control: bucket policy must restrict access to CI service account only.
+# Use a dedicated MinIO user with policy limited to the tofu-state bucket.
+
+bucket   = "tofu-state"
+key      = "building-os/terraform.tfstate"
+endpoint = "http://minio.building-os.svc.cluster.local:9000"
+region   = "us-east-1"
+
+access_key = "tofu-state-user"
+secret_key = "REPLACE_WITH_ACTUAL_SECRET"
+
+skip_credentials_validation = true
+skip_metadata_api_check     = true
+skip_region_validation      = true
+force_path_style            = true

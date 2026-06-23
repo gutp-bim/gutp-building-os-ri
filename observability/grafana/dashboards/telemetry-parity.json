@@ -1,0 +1,89 @@
+{
+  "title": "Telemetry Parity Monitor",
+  "uid": "telemetry-parity",
+  "tags": ["parity", "migration"],
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Count Diff (CosmosDB vs TimescaleDB)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "telemetry_parity_count_diff",
+          "legendFormat": "{{point_id}}",
+          "datasource": {"type": "prometheus", "uid": "prometheus"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Sum Diff (absolute)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "telemetry_parity_sum_diff",
+          "legendFormat": "{{point_id}}",
+          "datasource": {"type": "prometheus", "uid": "prometheus"}
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Avg Diff (absolute)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "max(telemetry_parity_avg_diff)",
+          "datasource": {"type": "prometheus", "uid": "prometheus"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.001}, {"color": "red", "value": 0.01}]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Points with Non-Zero Diff",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+      "targets": [
+        {
+          "expr": "count(telemetry_parity_count_diff > 0)",
+          "datasource": {"type": "prometheus", "uid": "prometheus"}
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Parity Check Last Run",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "telemetry_parity_last_check_timestamp",
+          "datasource": {"type": "prometheus", "uid": "prometheus"}
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["last"]}}
+    }
+  ],
+  "time": {"from": "now-24h", "to": "now"},
+  "refresh": "5m"
+}

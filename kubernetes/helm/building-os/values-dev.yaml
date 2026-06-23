@@ -1,0 +1,22 @@
+# Development environment overrides
+global:
+  namespace: building-os-dev
+
+apiServer:
+  replicas: 1
+  env:
+    ASPNETCORE_ENVIRONMENT: Development
+    DISABLE_AUTH: "true"
+
+webClient:
+  replicas: 1
+  env:
+    NEXT_PUBLIC_KEYCLOAK_AUTHORITY: "http://localhost:8080/realms/building-os"
+    NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
+
+ingress:
+  host: building-os-dev.example.com
+  tls:
+    enabled: false
+
+namespaceCreate: true

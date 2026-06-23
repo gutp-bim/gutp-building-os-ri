@@ -1,0 +1,14 @@
+﻿[
+  {
+    "type": "space",
+    "id": "room-301"
+  },
+  {
+    "type": "floor",
+    "id": "eng2-3f"
+  },
+  {
+    "type": "building",
+    "id": "eng2"
+  }
+]

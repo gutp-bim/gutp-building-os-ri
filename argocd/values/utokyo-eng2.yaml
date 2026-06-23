@@ -1,0 +1,37 @@
+# Argo CD Helm values overlay — example environment ("utokyo-eng2").
+# This is a REFERENCE CONFIGURATION for an on-premises Kubernetes deployment.
+# Domain names (*.eng2.buildingos.local) and image tags are site-specific;
+# replace them with your own values.
+# Referenced by argocd/apps/utokyo-eng2.yaml.
+
+replicaCount: 1
+
+image:
+  repository: harbor.eng2.buildingos.local/building-os/building-os-api-server
+  tag: dc16ec75
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+secretName: api-server-env
+
+keycloak:
+  realm: building-os
+  clientId: api-server
+  issuerUri: https://keycloak.eng2.buildingos.local/realms/building-os
+
+oxigraph:
+  endpoint: http://oxigraph.building-os.svc.cluster.local:7878
+
+nats:
+  url: nats://nats.building-os.svc.cluster.local:4222
+
+ingress:
+  enabled: true
+  host: api.eng2.buildingos.local
+
+autoscaling:
+  enabled: false

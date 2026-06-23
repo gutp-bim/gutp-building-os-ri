@@ -1,0 +1,9 @@
+web-client/node_modules
+web-client/.next
+Tools/
+docs/
+tmp/
+.claude/
+.github/
+*.md
+DotNet/global.json

@@ -1,0 +1,1108 @@
+﻿{
+  "telemetries": [
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P02-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P02-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\u5217\u54C1\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P02-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P02-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF16\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P02-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P02-003",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF11\uFF14\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P02-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P02-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF11\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P02-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P02-005",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66 \u90E8\uFF11\uFF11\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P03-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P03-001",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF13\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P03-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P03-002",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\u65B0\uFF12\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P03-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P03-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF12\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P03-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P03-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF14\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P04-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P04-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF17\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P04-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P04-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF18\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P04-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P04-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF15\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P05-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P05-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF11\uFF10\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P05-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P05-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\u98A8\u5DE5\u5B66\u5B9F\u9A13\u5BA4"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P05-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P05-003",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\uFF13\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P06-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P06-001",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF19\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P06-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P06-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8D85\u9AD8\u5727\u96FB\u5B50\u9855\u5FAE\u93E1\u5BA4"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P06-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P06-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\uFF32\uFF29\u7DCF\u5408\u30BB\u30F3\u30BF\u30FC"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P06-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P06-004",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u4F4E\u6E29\u30BB\u30F3\u30BF\u30FC"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P06-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P06-005",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5DE5\u5B66\u90E8\uFF11\uFF12\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P07-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P07-001",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u6B66\u7530\u5148\u7AEF\u77E5\u30A8\u30EA\u30A2"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P09-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P09-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\u5316\u5B66\u897F\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P09-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P09-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\u5316\u5B66\u672C\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P09-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P09-003",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\u5316\u5B66\u6771\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P09-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P09-004",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\uFF14\u53F7\u9928\u3001\u7406\u5B66\u90E8\uFF17\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\u6559\u80B2\u7814\u7A76\u68DF\uFF08\u2160\u671F\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-002",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\u6559\u80B2\u7814\u7A76\u68DF\uFF08\u2161\u671F\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\uFF11\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\u672C\u9928\uFF08\uFF12\u53F7\u9928\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-005",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\uFF13\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-006"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-006",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\uFF13\u53F7\u9928\u5225\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-007"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-007",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\u751F\u547D\u79D1\u5B66\u5B9F\u9A13\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-008"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-008",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\u7DCF\u5408\u4E2D\u592E\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-009"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-009",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\uFF15\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-010"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-010",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u533B\u5B66\u90E8\u56FD\u969B\u5171\u540C\u7814\u7A76\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-011"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-011",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u4E03\u5FB3\u5802"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P10-012"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P10-012",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5C71\u4E0A\u4F1A\u9928\u9F8D\u5CA1\u9580\u5225\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P11-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P11-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8FB2\u5B66\u90E8\uFF15\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P11-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P11-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8FB2\u5B66\u90E8\uFF16\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P11-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P11-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8FB2\u5B66\u90E8\u4E2D\u592E\u56F3\u66F8\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P12-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P12-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8FB2\u5B66\u90E8\uFF17\u53F7\u9928\uFF21\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P12-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P12-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8FB2\uFF17\u53F7\u9928\uFF22\u68DF\u3001\u30D5\u30FC\u30C9\u30B5\u30A4\u30A8\u30F3\u30B9\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5730\u9707\u7814\uFF11\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5730\u9707\u7814\uFF12\u3001\uFF13\u53F7\u9928\u3001\u5225\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-003",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\uFF08\u5F25\u751F\uFF09\u7DCF\u5408\u7814\u7A76\u68DF\uFF08\u6CD5\u5B66\u90E8\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\uFF08\u5F25\u751F\uFF09\u7DCF\u5408\u7814\u7A76\u68DF\uFF08\u6587\u5B66\u90E8\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-005",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\uFF08\u5F25\u751F\uFF09\u7DCF\u5408\u7814\u7A76\u68DF\uFF08\u6559\u80B2\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-006"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-006",
+      "point_id": "pointId",
+      "value": 2,
+      "id": "pointId.<timestamp>",
+      "name": "\uFF08\u5F25\u751F\uFF09\u7DCF\u5408\u7814\u7A76\u68DF\uFF08\u5206\u751F\u7814\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-007"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-007",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u751F\u547D\u79D1\u5B66\u7DCF\u5408\u7814\u7A76\u68DF\uFF22"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P13-008"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P13-008",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8FB2\u5B66\u90E8\u30B2\u30CE\u30E0\u30D7\u30EC\u30CF\u30D6\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u85AC\u5B66\u7CFB\u7DCF\u5408\u7814\u7A76\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-002",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u85AC\u5B66\u672C\u9928\u3001\u8CC7\u6599\u9928\u3001\u6559\u80B2\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\uFF12\u53F7\u9928\u3001\u690D\u7269\u5B66\u6E29\u5BA4"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u672C\u90E8\u68DF\u3001\u5E83\u5831\u30BB\u30F3\u30BF\u30FC"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-005",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7B2C\uFF12\u672C\u90E8\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-006"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-006",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u7814\u7A76\u535A\u7269\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-007"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-007",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u6771\u6D0B\u6587\u5316\u7814\u7A76\u6240"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-008"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-008",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u30C0\u30A4\u30EF\u30E6\u30D3\u30AD\u30BF\u30B9\u5B66\u8853\u7814\u7A76\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-009"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-009",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7523\u5B66\u9023\u643A\u30D7\u30E9\u30B6"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P15-010"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P15-010",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u30A2\u30F3\u30C8\u30EC\u30D7\u30EC\u30CA\u30FC\u30D7\u30E9\u30B6"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7D4C\u6E08\u5B66\u7814\u7A76\u79D1\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-002",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u8D64\u9580\u7DCF\u5408\u7814\u7A76\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-003",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u7D4C\u6E08\u5B66\u90E8\u5B66\u8853\u4EA4\u6D41\u7814\u7A76\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u56F3\u66F8\u9928\uFF08\u5171\u7528\u90E8\u6771\u5074\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-005",
+      "point_id": "pointId",
+      "value": 10,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u56F3\u66F8\u9928\uFF08\u5171\u7528\u90E8\u897F\u5074\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-006"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-006",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u56F3\u66F8\u9928\uFF08\u6559\u80B2\u5B66\u90E8\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-007"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-007",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF \u5408\u56F3\u66F8\u9928\uFF08\u793E\u7814\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-008"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-008",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u56F3\u66F8\u9928\uFF08\u53F2\u6599\u7DE8\u7E82\u6240\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-009"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-009",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u56F3\u66F8\u9928\uFF08\u60C5\u5831\u5B66\u74B0\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-010"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-010",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7DCF\u5408\u56F3\u66F8\u9928\u5225\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-011"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-011",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u60C5\u5831\u5B66\u74B0\u30FB\u798F\u6B66\u30DB\u30FC\u30EB"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-012"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-012",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u4F0A\u85E4\u56FD\u969B\u5B66\u8853\u7814\u7A76\u30BB\u30F3\u30BF\u30FC"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P16-013"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P16-013",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5F13\u9053\u5834"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-001",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u6CD5\u6587\u5B66\u90E8\uFF11\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-002",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u6CD5\u6587\u5B66\u90E8\uFF12\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u6CD5\u5B66\u90E8\uFF13\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u6587\u5B66\u90E8\uFF13\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-005",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u6CD5\u5B66\u90E8\uFF14\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-006"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-006",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u6CD5\u5B66\u653F\u6CBB\u5B66\u7CFB\u7DCF\u5408\u6559\u80B2\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-007"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-007",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5B89\u7530\u8B1B\u5802"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P17-008"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P17-008",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u4E2D\u592E\u98DF\u5802"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-001"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-001",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u5FA1\u6BBF\u4E0B\u8A18\u5FF5\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-002"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-002",
+      "point_id": "pointId",
+      "value": 1,
+      "id": "pointId.<timestamp>",
+      "name": "\u5C71\u4E0A\u4F1A\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-003"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-003",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u7406\u5B66\u90E8\u65E7\uFF11\u53F7\u9928"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-004"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-004",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u74B0\u5883\u5B89\u5168\u7814\u7A76\u30BB\u30F3\u30BF\u30FC"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-005"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-005",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u30D7\u30EC\u30CF\u30D6\u7814\u7A76\uFF21\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-006"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-006",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u30D7\u30EC\u30CF\u30D6\u7814\u7A76\uFF22\u68DF"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-007"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-007",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u901A\u4FE1\u6A5F\u68B0\u5BA4\uFF08\u7406\u5B66\u90E8\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-008"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-008",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u901A\u4FE1\u6A5F\u68B0\u5BA4\uFF08\u7D20\u7C92\u5B50\u30BB\u30F3\u30BF\u30FC\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-009"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-009",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u901A\u4FE1\u6A5F\u68B0\u5BA4\uFF08\u672C\u90E8\uFF09"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-010"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-010",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u5B66\u751F\u7B2C\u4E8C\u98DF\u5802"
+    },
+    {
+      "building": "",
+      "data": {
+        "deviceId": "P18-011"
+      },
+      "datetime": "2023-12-31T17:28:47\u002B09:00",
+      "device_id": "P18-011",
+      "point_id": "pointId",
+      "value": 0,
+      "id": "pointId.<timestamp>",
+      "name": "\u6771\u4EAC\u5927\u5B66\u51FA\u7248\u4F1A"
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+# Harbor container registry — local development
+#
+# Usage:
+#   docker compose -f docker-compose.harbor.yaml up -d
+#
+# Harbor UI:   http://localhost:8080  (admin / Harbor12345)
+# Push target: localhost:8080/buildingos/<image>:<tag>
+#
+# Log in:
+#   docker login localhost:8080 -u admin -p Harbor12345
+#
+# Note: Harbor requires a robot account for CI. Create one via UI → Robot Accounts
+# and set HARBOR_ROBOT_NAME / HARBOR_ROBOT_SECRET as environment variables.
+
+version: "3.8"
+
+services:
+  harbor-log:
+    image: goharbor/harbor-log:v2.11.0
+    container_name: harbor-log
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    volumes:
+      - harbor_log:/var/log/docker/
+    networks:
+      - harbor
+    ports:
+      - "127.0.0.1:1514:10514"
+
+  harbor-db:
+    image: goharbor/harbor-db:v2.11.0
+    container_name: harbor-db
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root123
+    volumes:
+      - harbor_db:/var/lib/postgresql/data
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+
+  redis:
+    image: goharbor/redis-photon:v2.11.0
+    container_name: harbor-redis
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    volumes:
+      - harbor_redis:/var/lib/redis
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+
+  registry:
+    image: goharbor/registry-photon:v2.11.0
+    container_name: harbor-registry
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    volumes:
+      - harbor_storage:/storage
+      - ./configs/harbor/registry:/etc/registry:z
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+
+  registryctl:
+    image: goharbor/harbor-registryctl:v2.11.0
+    container_name: registryctl
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    volumes:
+      - harbor_storage:/storage
+      - ./configs/harbor/registry:/etc/registry:z
+      - ./configs/harbor/registryctl:/etc/registryctl:z
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+
+  harbor-core:
+    image: goharbor/harbor-core:v2.11.0
+    container_name: harbor-core
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    environment:
+      EXT_ENDPOINT: "http://localhost:8080"
+      CORE_URL: "http://harbor-core:8080"
+      JOBSERVICE_URL: "http://harbor-jobservice:8080"
+      REGISTRY_URL: "http://registry:5000"
+      TOKEN_SERVICE_URL: "http://harbor-core:8080/service/token"
+      WITH_NOTARY: "false"
+      CORE_SECRET: "not-a-real-secret"
+      JOBSERVICE_SECRET: "not-a-real-secret"
+      HARBOR_ADMIN_PASSWORD: "Harbor12345"
+      DATABASE_TYPE: "postgresql"
+      POSTGRESQL_HOST: "harbor-db"
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_USERNAME: "postgres"
+      POSTGRESQL_PASSWORD: "root123"
+      POSTGRESQL_DATABASE: "registry"
+      REDIS_URL: "redis://harbor-redis:6379/0"
+      LOG_LEVEL: "info"
+    volumes:
+      - harbor_core_data:/data
+    networks:
+      - harbor
+    depends_on:
+      - harbor-db
+      - redis
+      - registry
+
+  harbor-portal:
+    image: goharbor/harbor-portal:v2.11.0
+    container_name: harbor-portal
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    networks:
+      - harbor
+    depends_on:
+      - harbor-core
+
+  harbor-jobservice:
+    image: goharbor/harbor-jobservice:v2.11.0
+    container_name: harbor-jobservice
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    environment:
+      CORE_URL: "http://harbor-core:8080"
+      TOKEN_SERVICE_URL: "http://harbor-core:8080/service/token"
+      REGISTRY_URL: "http://registry:5000"
+      JOBSERVICE_SECRET: "not-a-real-secret"
+    volumes:
+      - harbor_jobservice_data:/var/log/jobs
+    networks:
+      - harbor
+    depends_on:
+      - harbor-core
+
+  harbor-nginx:
+    image: goharbor/nginx-photon:v2.11.0
+    container_name: harbor-nginx
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    volumes:
+      - ./configs/harbor/nginx:/etc/nginx:z
+    networks:
+      - harbor
+    ports:
+      - "8080:8080"
+    depends_on:
+      - harbor-portal
+      - harbor-core
+      - harbor-jobservice
+      - registry
+
+networks:
+  harbor:
+    name: harbor
+
+volumes:
+  harbor_log:
+  harbor_db:
+  harbor_redis:
+  harbor_storage:
+  harbor_core_data:
+  harbor_jobservice_data:

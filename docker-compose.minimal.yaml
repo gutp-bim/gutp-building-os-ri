@@ -1,0 +1,119 @@
+version: "3.8"
+
+# Building OS — Minimum Profile
+#
+# 目的: PoC 導入や開発環境向けの最小構成。
+#       NATS + TimescaleDB + pgBouncer のみ起動。
+#       OxiGraph / Keycloak / MinIO / 観測スタック は含まない。
+#
+# 使い方:
+#   make local-up-minimal   # 起動
+#   make local-down-minimal # 停止
+#
+# Production profile (全コンポーネント) は docker-compose.oss.yaml を参照。
+
+networks:
+  oss:
+    name: building-os-oss
+
+volumes:
+  nats_data:
+  pg_data:
+  pgbouncer_run:
+
+services:
+
+  # ── NATS JetStream ────────────────────────────────────────────────────────
+  building-os.nats:
+    image: nats:2.10-alpine
+    container_name: building-os.nats
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./oss-stack/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats_data:/data
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/varz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL 16 + TimescaleDB ───────────────────────────────────────────
+  building-os.postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: building-os.postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-buildingos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buildingos}
+      POSTGRES_DB: ${POSTGRES_DB:-buildingos}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./oss-stack/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-buildingos} -d ${POSTGRES_DB:-buildingos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── pgBouncer — transaction pool ─────────────────────────────────────────
+  building-os.pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: building-os.pgbouncer
+    environment:
+      DB_USER: ${POSTGRES_USER:-buildingos}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-buildingos}
+      DB_HOST: building-os.postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-buildingos}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 50
+      AUTH_TYPE: md5
+      SERVER_RESET_QUERY: ""
+    ports:
+      - "6432:5432"
+    depends_on:
+      building-os.postgres:
+        condition: service_healthy
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-buildingos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── pgBouncer — session pool (EF Core マイグレーション専用) ─────────────
+  building-os.pgbouncer-session:
+    image: edoburu/pgbouncer:latest
+    container_name: building-os.pgbouncer-session
+    environment:
+      DB_USER: ${POSTGRES_USER:-buildingos}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-buildingos}
+      DB_HOST: building-os.postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-buildingos}
+      POOL_MODE: session
+      MAX_CLIENT_CONN: 20
+      DEFAULT_POOL_SIZE: 5
+      AUTH_TYPE: md5
+    ports:
+      - "6433:5432"
+    depends_on:
+      building-os.postgres:
+        condition: service_healthy
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-buildingos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

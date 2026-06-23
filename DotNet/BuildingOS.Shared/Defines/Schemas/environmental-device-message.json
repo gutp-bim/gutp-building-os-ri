@@ -1,0 +1,95 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Environmental Device Message",
+  "description": "Schema for telemetry data from Building devices",
+  "type": "object",
+  "$defs": {
+    "environmentalDeviceTelemetry": {
+      "title": "Environmental Device Telemetry",
+      "description": "Schema for telemetry data from Building devices",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Unique identifier for the sensor"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "CO2",
+            "LUM"
+          ],
+          "description": "Type of the sensor, either CO2 or LUM"
+        },
+        "co2": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "CO2 concentration in ppm",
+          "nullable": true
+        },
+        "temperature": {
+          "type": "integer",
+          "description": "Temperature in Kelvin x 100 (e.g., 2835 means 28.35°C)",
+          "nullable": true
+        },
+        "humidity": {
+          "type": "integer",
+          "description": "Humidity in percentage x 100 (e.g., 5520 means 55.20%)",
+          "nullable": true
+        },
+        "illuminance": {
+          "type": "integer",
+          "description": "Illuminance in lux",
+          "nullable": true
+        }
+      },
+      "required": [
+        "code",
+        "type"
+      ],
+      "oneOf": [
+        {
+          "required": [
+          ],
+          "properties": {
+            "type": {
+              "const": "CO2"
+            }
+          }
+        },
+        {
+          "required": [
+            "illuminance"
+          ],
+          "properties": {
+            "type": {
+              "const": "LUM"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "logtimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 formatted timestamp"
+    },
+    "gateway": {
+      "type": "string",
+      "description": "Identifier for the gateway"
+    },
+    "sensors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/environmentalDeviceTelemetry"
+      }
+    }
+  },
+  "required": [
+    "logtimestamp",
+    "gateway",
+    "sensors"
+  ]
+}

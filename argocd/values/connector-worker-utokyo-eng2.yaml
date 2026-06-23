@@ -1,0 +1,21 @@
+# ArgoCD Helm values for connector-worker — utokyo-eng2 environment.
+replicaCount: 1
+
+image:
+  repository: harbor.eng2.buildingos.local/building-os/building-os-connector-worker
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nats:
+  url: nats://nats.building-os.svc.cluster.local:4222
+
+oxigraph:
+  endpoint: http://oxigraph.building-os.svc.cluster.local:7878
+
+minio:
+  endpoint: http://minio.building-os.svc.cluster.local:9000
+
+secretName: connector-worker-env
+
+autoscaling:
+  enabled: false

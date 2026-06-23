@@ -1,0 +1,15 @@
+apiVersion: v2
+name: building-os
+description: Building OS - Smart Building IoT Platform (OSS stack)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - building-os
+  - iot
+  - nextjs
+  - nats
+  - timescaledb
+maintainers:
+  - name: Building OS Team
+    email: team@building-os.example.com

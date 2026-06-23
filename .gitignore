@@ -1,0 +1,33 @@
+out/
+.local/
+# Mosquitto password file — generated at container startup by docker-entrypoint.sh
+oss-stack/mosquitto/passwd
+Tools/auth-proxy-server/.env.eng2
+Tools/auth-proxy-server/.env.gutp
+# .NET build artifacts
+Tools/parity-harness/bin/
+Tools/parity-harness/obj/
+Tools/parity-harness-test/bin/
+Tools/parity-harness-test/obj/
+__pycache__/
+*.pyc
+
+# Playwright
+Tools/e2e-performance/playwright/node_modules/
+Tools/e2e-performance/playwright/playwright-report/
+Tools/e2e-performance/playwright/test-results/
+
+# Ephemeral perf/e2e run artifacts (k6 summaries, JSON results, captured logs, harness venv)
+# scale-monitor-* directories are deliberate reports — tracked intentionally via git add -f
+Tools/e2e-performance/results/
+Tools/e2e-performance/.venv/
+e2e/results/
+
+# OpenTofu / Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+opentofu/backend.hcl
+opentofu/environments/*.secrets.tfvars
+.env

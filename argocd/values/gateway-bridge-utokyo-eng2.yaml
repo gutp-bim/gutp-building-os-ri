@@ -1,0 +1,34 @@
+# ArgoCD Helm values for gateway-bridge — utokyo-eng2 environment.
+replicaCount: 2
+
+image:
+  repository: harbor.eng2.buildingos.local/building-os/building-os-gateway-bridge
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+nats:
+  url: nats://nats.building-os.svc.cluster.local:4222
+
+otel:
+  endpoint: http://otel-collector.building-os.svc.cluster.local:4317
+  serviceName: building-os-gateway-bridge
+
+autoscaling:
+  enabled: false
+
+# North-south gRPC ingress for external BOWS — enable + fill host/cert refs after the infra
+# review (Envoy-vs-Traefik, cert-manager issuer). HITL: verify on-cluster.
+ingress:
+  enabled: false
+  host: gateway-bridge.eng2.buildingos.local
+  mtls:
+    enabled: false
+    certManager:
+      enabled: false
+      issuerRef:
+        name: building-os-ca-issuer
+        kind: ClusterIssuer

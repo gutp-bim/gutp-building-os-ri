@@ -1,0 +1,36 @@
+{{- if .Values.connectorWorker.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connector-worker
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "building-os.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connector-worker
+spec:
+  replicas: {{ .Values.connectorWorker.replicas }}
+  selector:
+    matchLabels:
+      app: connector-worker
+  template:
+    metadata:
+      labels:
+        app: connector-worker
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: connector-worker
+          image: "{{ include "building-os.image" (dict "global" .Values.global "image" .Values.connectorWorker.image) }}"
+          imagePullPolicy: {{ .Values.connectorWorker.image.pullPolicy }}
+          env:
+            {{- range $key, $value := .Values.connectorWorker.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.connectorWorker.resources | nindent 12 }}
+{{- end }}

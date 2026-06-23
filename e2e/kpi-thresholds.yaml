@@ -1,0 +1,64 @@
+# Building OS E2E 評価 KPI ゲート（機械可読）。
+# runner/ が結果 JSON をこの閾値と突き合わせて pass/fail を判定する。
+# 数値は docs/oss-warm-parquet-kpi.md と plan.md の表に整合。
+# 比較演算子: lte (<=), lt (<), gte (>=), gt (>), eq (==)。
+version: 1
+
+axes:
+  E1_ingest_throughput:
+    sustained_throughput_ratio: { op: gte, value: 0.99, unit: ratio }   # 目標 rate 維持率
+    loss_rate:                  { op: lte, value: 0.01, unit: ratio }
+    duplicate_rate:             { op: lte, value: 0.005, unit: ratio }
+    validation_error_rate:      { op: lte, value: 0.01, unit: ratio }
+
+  E2_ingest_latency:
+    ingest_e2e_p95_ms:          { op: lt, value: 2000, unit: ms }       # gen -> validated
+    parquet_freshness_p95_s:    { op: lte, value: null, unit: s,
+                                  note: "flush 間隔 + 60s。flush 間隔は PARQUET_FLUSH_INTERVAL から動的に算出" }
+
+  E3_latest_value:
+    latest_api_p95_ms:          { op: lt, value: 500, unit: ms, stretch: 20 }
+    latest_freshness_p95_ms:    { op: lt, value: 2000, unit: ms }       # event -> hot 反映
+    stale_latest_ratio:         { op: lt, value: 0.01, unit: ratio }
+
+  E4_historical_query:
+    warm_24h_1pt_p95_ms:        { op: lt, value: 2000, unit: ms }
+    cold_7d_1pt_p95_ms:         { op: lt, value: 5000, unit: ms }
+    agg_hour_cold_p95_ms:       { op: lt, value: 3000, unit: ms }
+    agg_day_cache_hit_p95_ms:   { op: lt, value: 100, unit: ms }
+    multipoint_scaling:         { op: lt, value: 1.0, note: "normalised per-point ratio mp_p95/(K*single_p95); < 1 = sublinear" }
+
+  E5_pointlist_integrity:
+    point_resolution_success:   { op: gte, value: 0.999, unit: ratio }  # 有効 frame
+    unknown_point_rejection:    { op: eq, value: 1.0, unit: ratio }     # 受理ゼロ
+    ownership_rejection:        { op: eq, value: 1.0, unit: ratio }
+    remapping_correctness:      { op: eq, value: 1.0, unit: ratio }
+    twin_lookup_p95_ms:         { op: lt, value: 50, unit: ms }
+
+  E6_control_safety:
+    command_success_rate:       { op: gte, value: 0.99, unit: ratio }   # 正常時
+    command_rtt_p95_ms:         { op: lt, value: 2000, unit: ms }
+    stale_replay_count:         { op: eq, value: 0, unit: count }       # ヘッドライン
+    duplicate_write_count:      { op: eq, value: 0, unit: count }
+    not_writable_rejection:     { op: eq, value: 1.0, unit: ratio }
+    offline_503_ratio:          { op: eq, value: 1.0, unit: ratio }
+    typed_failure_classified:   { op: eq, value: 1.0, unit: ratio }
+
+  E7_storage_cost:
+    parquet_bytes_per_row_ratio: { op: lte, value: 0.20, unit: ratio }  # vs timescale 非圧縮
+    objects_per_building_hour:   { op: lte, value: 2, unit: count }      # compaction 後
+    monthly_cost_estimate_usd:   { op: report, note: "DB 構成 vs Object Storage 構成を併記" }
+
+  E8_resilience:
+    data_loss_under_outage:     { op: lte, value: 0.01, unit: ratio }   # 復旧後
+    rto_seconds:                { op: report, unit: s }
+    backlog_drain_seconds:      { op: report, unit: s }
+    graceful_degradation:       { op: report, note: "Hot/Warm/Cold 部分障害時の代替経路可否" }
+
+# 論文ヘッドライン 5 指標（強調表示用）
+headline:
+  - E2_ingest_latency.ingest_e2e_p95_ms
+  - E3_latest_value.latest_api_p95_ms
+  - E4_historical_query.warm_24h_1pt_p95_ms
+  - E5_pointlist_integrity.point_resolution_success
+  - E6_control_safety.stale_replay_count

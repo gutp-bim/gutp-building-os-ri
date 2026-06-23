@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="Redoc.AspNetCore" Version="1.0.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
+        <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="7.3.1" />
+        <!-- OpenTelemetry -->
+        <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
+        <PackageReference Include="Grpc.AspNetCore" Version="2.67.0" />
+        <PackageReference Include="Grpc.AspNetCore.Web" Version="2.67.0" />
+        <PackageReference Include="NATS.Client.Core" Version="2.5.4" />
+        <PackageReference Include="NATS.Client.JetStream" Version="2.5.4" />
+        <PackageReference Include="System.Text.Json" Version="9.0.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Protobuf Include="..\..\proto\greet.proto" GrpcServices="Server" Link="Protos\greet.proto" />
+        <Protobuf Include="..\..\proto\point_control.proto" GrpcServices="Server" Link="Protos\point_control.proto" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\BuildingOS.Shared\BuildingOS.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="Properties\launchSettings2.json" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <_ContentIncludedByDefault Remove="out\web.config" />
+        <_ContentIncludedByDefault Remove="out\appsettings.Development.json" />
+        <_ContentIncludedByDefault Remove="out\appsettings.json" />
+        <_ContentIncludedByDefault Remove="out\BuildingOS.ApiServer.deps.json" />
+        <_ContentIncludedByDefault Remove="out\BuildingOS.ApiServer.runtimeconfig.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\out\web.config" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\out\web.config" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\appsettings.Development.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\appsettings.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\BuildingOS.ApiServer.deps.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\BuildingOS.ApiServer.runtimeconfig.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\out\appsettings.Development.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\out\appsettings.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\out\BuildingOS.ApiServer.deps.json" />
+        <_ContentIncludedByDefault Remove="bin\Debug\net8.0\out\BuildingOS.ApiServer.runtimeconfig.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\appsettings.Development.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\appsettings.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\BuildingOS.ApiServer.deps.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\BuildingOS.ApiServer.runtimeconfig.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\out\appsettings.Development.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\out\appsettings.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\out\BuildingOS.ApiServer.deps.json" />
+        <_ContentIncludedByDefault Remove="bin\Release\net8.0\out\BuildingOS.ApiServer.runtimeconfig.json" />
+    </ItemGroup>
+</Project>

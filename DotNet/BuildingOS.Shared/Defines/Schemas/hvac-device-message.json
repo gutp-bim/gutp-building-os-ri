@@ -1,0 +1,88 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HVAC Device Telemetry",
+  "description": "Schema for hvac telemetry data from Building devices",
+  "$defs": {
+    "hvacDeviceTelemetry": {
+      "title": "Hvac Device Telemetry",
+      "description": "Schema for telemetry data from Building devices",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Type of HVAC. ex) Heat, Ventilation..."
+        },
+        "fan": {
+          "type": "string",
+          "description": "Strength of fan"
+        },
+        "setTemp": {
+          "type": "number",
+          "description": "Temperature set on this HVAC device"
+        },
+        "onOff": {
+          "type": "string",
+          "description": "Whether the power is on"
+        },
+        "filterSign": {
+          "type": "number",
+          "description": "Filter sign"
+        },
+        "swing": {
+          "type": "string",
+          "description": "Vent direction"
+        },
+        "ambientTemp": {
+          "type": "number",
+          "description": "Ambient temperature"
+        },
+        "unitName": {
+          "type": "string",
+          "description": "Unit name"
+        },
+        "unitId": {
+          "type": ["string", "number"],
+          "description": "Unit id"
+        }
+      },
+      "required": [
+        "unitId",
+        "unitName",
+        "ambientTemp"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "telemetryData": {
+      "type": "array",
+      "description": "Array of hvac telemetries",
+      "items": {
+        "$ref": "#/$defs/hvacDeviceTelemetry"
+      }
+    },
+    "deviceId": {
+      "type": "string",
+      "description": "hvacWriter_[ipAddress]"
+    },
+    "connTime": {
+      "type": "string",
+      "description": "Data transmission date time (JST)"
+    },
+    "acqTime": {
+      "type": "string",
+      "description": "Measurement date time (JST)"
+    },
+    "ipAddress": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "telemetryData",
+    "connTime",
+    "acqTime",
+    "ipAddress"
+  ],
+  "additionalProperties": false
+}

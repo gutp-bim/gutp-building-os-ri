@@ -1,0 +1,60 @@
+name: Generate Swagger Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "DotNet/BuildingOS.ApiServer/**"
+  workflow_dispatch:
+
+concurrency:
+  group: generate-swagger-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate-swagger:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore .NET tools
+        run: |
+          cd DotNet
+          dotnet tool restore
+
+      - name: Restore NuGet packages
+        run: |
+          cd DotNet
+          dotnet restore BuildingOS.Shared/BuildingOS.Shared.csproj
+          dotnet restore BuildingOS.ApiServer/BuildingOS.ApiServer.csproj
+
+      - name: Run generate_swagger.bash
+        run: |
+          chmod +x Tools/generate_swagger.bash
+          bash Tools/generate_swagger.bash
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code docs/schema/swagger.yaml || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add docs/schema/swagger.yaml
+          git commit -m "chore: update swagger.yaml from API changes"
+          git push

@@ -1,0 +1,52 @@
+name: Parity Harness
+
+# Manual-trigger only to conserve CI credits — run from the Actions tab when needed.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: parity-harness-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  unit-tests:
+    name: Parity Harness Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Tools/parity-harness-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore
+      - run: dotnet test --no-build --verbosity normal
+
+  golden-self-check:
+    name: Golden Self-Consistency Check (Azure vs Azure baseline)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Tools/parity-harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore
+      - name: Run golden self-consistency check
+        run: |
+          dotnet run -- golden \
+            --golden-dir ../../tests/golden/connector \
+            --report-dir /tmp/parity-reports
+        continue-on-error: false
+      - name: Upload parity reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-reports-golden
+          path: /tmp/parity-reports/
+          retention-days: 14

@@ -1,0 +1,603 @@
+version: "3.8"
+
+# OSS スタック — Azure マネージドサービスを置換する全コンポーネント
+#
+# SECURITY: 認証情報はすべて `${VAR:-default}` で外部化されています。
+#   デフォルト値はローカル開発専用であり、本番環境では使用しないでください。
+#   `cp .env.example .env` で値を上書きするか、環境変数で渡してください。
+#   本番では Kubernetes Secret / 外部シークレットマネージャを使用すること。
+#
+# ポート帯域 (既存 docker-compose.yaml と競合しない)
+#   4222/8222  NATS (client/monitoring)
+#   5433       PostgreSQL + TimescaleDB
+#   7878       OxiGraph (SPARQL)
+#   9000/9001  MinIO (API/Console)
+#   8080       Keycloak
+#   9090       Prometheus
+#   3010       Grafana
+#   3100       Loki
+#   3200/4317/4318  Tempo (HTTP/OTLP-gRPC/OTLP-HTTP)
+#   1883       Mosquitto (MQTT) — optional, `--profile mqtt` only (#25)
+
+networks:
+  oss:
+    name: building-os-oss
+
+volumes:
+  nats_data:
+  pg_data:
+  oxigraph_data:
+  minio_data:
+  keycloak_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
+  mosquitto_data:
+  mosquitto_log:
+  pgbouncer_run:
+  ollama_data:
+
+services:
+
+  # ── NATS JetStream (← Azure Event Hub + CosmosDB Change Feed) ────────────
+  building-os.nats:
+    image: nats:2.10-alpine
+    container_name: building-os.nats
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    ports:
+      - "4222:4222"   # client
+      - "8222:8222"   # monitoring HTTP
+    volumes:
+      - ./oss-stack/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats_data:/data
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/varz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
+  building-os.postgres:
+    image: postgres:16
+    container_name: building-os.postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-buildingos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buildingos}
+      POSTGRES_DB: ${POSTGRES_DB:-buildingos}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./oss-stack/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-buildingos} -d ${POSTGRES_DB:-buildingos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── postgres-exporter — PostgreSQL/TimescaleDB metrics for Prometheus ─────
+  # Connects directly to postgres (not pgBouncer) to read pg_stat_* views.
+  building-os.postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    container_name: building-os.postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-buildingos}:${POSTGRES_PASSWORD:-buildingos}@building-os.postgres:5432/${POSTGRES_DB:-buildingos}?sslmode=disable"
+    depends_on:
+      building-os.postgres:
+        condition: service_healthy
+    networks:
+      - oss
+
+  # ── pgBouncer — transaction pool (アプリ接続用) ─────────────────────────
+  building-os.pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: building-os.pgbouncer
+    environment:
+      DB_USER: ${POSTGRES_USER:-buildingos}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-buildingos}
+      DB_HOST: building-os.postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-buildingos}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 50
+      AUTH_TYPE: scram-sha-256
+      SERVER_RESET_QUERY: ""
+    ports:
+      - "6432:5432"   # transaction pool — アプリケーション接続用
+    depends_on:
+      building-os.postgres:
+        condition: service_healthy
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-buildingos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── pgBouncer — session pool (EF Core マイグレーション用) ────────────────
+  building-os.pgbouncer-session:
+    image: edoburu/pgbouncer:latest
+    container_name: building-os.pgbouncer-session
+    environment:
+      DB_USER: ${POSTGRES_USER:-buildingos}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-buildingos}
+      DB_HOST: building-os.postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-buildingos}
+      POOL_MODE: session
+      MAX_CLIENT_CONN: 20
+      DEFAULT_POOL_SIZE: 5
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "6433:5432"   # session pool — EF Core マイグレーション専用
+    depends_on:
+      building-os.postgres:
+        condition: service_healthy
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-buildingos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── OxiGraph (← Azure Digital Twins) ────────────────────────────────────
+  building-os.oxigraph:
+    image: ghcr.io/oxigraph/oxigraph:latest
+    container_name: building-os.oxigraph
+    command: ["serve", "--location", "/data", "--bind", "0.0.0.0:7878"]
+    ports:
+      - "7878:7878"
+    volumes:
+      - oxigraph_data:/data
+    networks:
+      - oss
+    # distroless image — no shell/curl; health verified by scripts/test-oss-stack.sh from host
+
+  # ── MinIO S3 (← Azure Blob Storage) ──────────────────────────────────────
+  building-os.minio:
+    image: minio/minio:latest
+    container_name: building-os.minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-buildingos}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-buildingos123}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio_data:/data
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Keycloak OIDC (← Azure AD / MSAL) ────────────────────────────────────
+  building-os.keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: building-os.keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      KC_HTTP_PORT: 8080
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    ports:
+      - "8080:8080"
+      - "8180:9000"   # management interface (health/metrics)
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./oss-stack/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    networks:
+      - oss
+    healthcheck:
+      # Keycloak has bash but not curl; probe management port via /dev/tcp
+      test: ["CMD", "/bin/bash", "-c", "echo '' > /dev/tcp/localhost/9000"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Prometheus (← Azure Monitor / App Insights) ───────────────────────────
+  building-os.prometheus:
+    image: prom/prometheus:latest
+    container_name: building-os.prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+      - --web.enable-lifecycle
+      - --storage.tsdb.retention.time=15d
+      # Accept metrics pushed by the otel-collector (prometheusremotewrite exporter).
+      - --web.enable-remote-write-receiver
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./oss-stack/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./oss-stack/prometheus/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Grafana (← Azure Portal Dashboards) ──────────────────────────────────
+  building-os.grafana:
+    image: grafana/grafana:latest
+    container_name: building-os.grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: ${GF_AUTH_ANONYMOUS_ENABLED:-true}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: ${GF_AUTH_ANONYMOUS_ORG_ROLE:-Admin}
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      GF_SERVER_HTTP_PORT: "3000"
+    ports:
+      - "3010:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./oss-stack/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - building-os.prometheus
+      - building-os.loki
+      - building-os.tempo
+    networks:
+      - oss
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Loki (ログ集約 ← Log Analytics) ──────────────────────────────────────
+  building-os.loki:
+    image: grafana/loki:latest
+    container_name: building-os.loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./oss-stack/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - oss
+    # distroless image — no shell/curl; health verified by scripts/test-oss-stack.sh from host
+
+  # ── Tempo (分散トレース ← App Insights) ─────────────────────────────────
+  building-os.tempo:
+    image: grafana/tempo:latest
+    container_name: building-os.tempo
+    command: -config.file=/etc/tempo/tempo-config.yaml
+    ports:
+      - "3200:3200"   # HTTP query
+      # OTLP ingestion (4317/4318) stays internal — the otel-collector is the single
+      # host-facing OTLP front door and forwards traces to Tempo over the oss network.
+    volumes:
+      - ./oss-stack/tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - oss
+    # distroless image — no shell/curl; health verified by scripts/test-oss-stack.sh from host
+
+  # ── OpenTelemetry Collector — OTLP 入口 (apps → collector → Tempo/Prometheus/Loki) ──
+  building-os.otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.104.0
+    container_name: building-os.otel-collector
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./oss-stack/otel-collector/config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC (host front door for external telemetry push)
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - building-os.tempo
+      - building-os.prometheus
+      - building-os.loki
+    networks:
+      - oss
+
+  # ── API Server (ASP.NET Core) ────────────────────────────────────────────
+  building-os.api:
+    build:
+      # context is the repo root: the ApiServer Dockerfile copies both ./proto/
+      # (referenced by the csproj as ../../proto/) and ./DotNet/.
+      context: .
+      dockerfile: DotNet/BuildingOS.ApiServer/Dockerfile
+    container_name: building-os.api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Log verbosity via the standard .NET config (overridable at runtime). Crank a
+      # category to Debug for troubleshooting, e.g.:
+      #   Logging__LogLevel__Default: Debug
+      #   Logging__LogLevel__BuildingOs.ApiServer: Debug
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+      PORT: "8080"
+      DISABLE_AUTH: "true"
+      NATS_URL: nats://building-os.nats:4222
+      POSTGRES_CONNECTION_STRING: "Host=building-os.pgbouncer;Port=5432;Database=${POSTGRES_DB:-buildingos};Username=${POSTGRES_USER:-buildingos};Password=${POSTGRES_PASSWORD:-buildingos};No Reset On Close=true;Max Auto Prepare=0"
+      POSTGRES_MIGRATION_CONNECTION_STRING: "Host=building-os.pgbouncer-session;Port=5432;Database=${POSTGRES_DB:-buildingos};Username=${POSTGRES_USER:-buildingos};Password=${POSTGRES_PASSWORD:-buildingos}"
+      OXIGRAPH_ENDPOINT: http://building-os.oxigraph:7878
+      # Warm-tier storage mode (#216). Default parquet: telemetry read/write goes through the unified
+      # Parquet lake (MinIO). Set WARM_STORE=timescale (with `--profile timescale` + your own
+      # TimescaleDB) to opt back into the TimescaleDB warm/aggregate path.
+      WARM_STORE: ${WARM_STORE:-parquet}
+      # TimescaleDB connection — empty by default (parquet mode needs none). Passed through so the
+      # WARM_STORE=timescale opt-in actually reaches the container (docker compose only injects keys
+      # listed here). Provide your own DSN via env/.env when using the timescale profile.
+      TIMESCALE_CONNECTION_STRING: ${TIMESCALE_CONNECTION_STRING:-}
+      # MinIO/S3 — the Parquet lake's object store (read path for parquet mode / cold tier).
+      MINIO_ENDPOINT: http://building-os.minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-buildingos}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-buildingos123}
+      # Built-in simple-monitoring endpoint (GET /api/system/status).
+      # Prometheus query API for KPIs — unset → KPIs degrade to null (Grafana not required).
+      PROMETHEUS_URL: http://building-os.prometheus:9090
+      # Per-service up/down via /health fan-out (Prometheus-independent). "name=healthUrl" CSV.
+      # Worker /health endpoints are added in #145 (B-2); for now probe the core dependencies.
+      SYSTEM_STATUS_HEALTH_TARGETS: >-
+        nats=http://building-os.nats:8222/healthz,
+        oxigraph=http://building-os.oxigraph:7878/,
+        minio=http://building-os.minio:9000/minio/health/live,
+        keycloak=http://building-os.keycloak:9000/health/ready,
+        prometheus=http://building-os.prometheus:9090/-/healthy
+      # OpenTelemetry: export traces/metrics/logs to the collector (no-op if unset).
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
+      OTEL_SERVICE_NAME: building-os-api
+      # Flush metrics every 15s (default is 60s) for snappier dashboards in dev.
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      # nexus-gateway (gw-001) の制御を GatewayBridge 経由にルーティング (#178)
+      GatewayConnectionTypes__Map__gw-001: "bacnet-sim"
+    ports:
+      - "5000:8080"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+      building-os.pgbouncer:
+        condition: service_healthy
+      building-os.pgbouncer-session:
+        condition: service_healthy
+      building-os.minio:
+        condition: service_healthy
+    networks:
+      - oss
+    healthcheck:
+      # The aspnet:8.0 image has neither wget nor curl, but it does ship bash;
+      # probe /health over a raw /dev/tcp socket and assert a 200 status line.
+      test: ["CMD", "/bin/bash", "-c",
+             "exec 3<>/dev/tcp/localhost/8080; printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Mosquitto MQTT Broker — IoT デバイス接続入口 (Scenario A) ──────────────
+  # ポート 1883: パスワード認証必須 (allow_anonymous false)
+  # ポート 8883: TLS 準備済み (oss-stack/mosquitto/mosquitto.conf の Phase 2 設定を参照)
+  # デフォルト認証情報 devices/buildingos-devices は開発専用。本番は passwd を再生成すること。
+  building-os.mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: building-os.mosquitto
+    # The MQTT broker is OPTIONAL and NOT part of the base stack (#25). Enable Scenario A with:
+    #   docker compose -f docker-compose.oss.yaml --profile mqtt up -d
+    # and set MQTT_HOST=building-os.mosquitto on the connector-worker (see below).
+    profiles: ["mqtt"]
+    # docker-entrypoint.sh generates /mosquitto/config/passwd at startup from MQTT_DEVICES_PASSWORD.
+    # The passwd file is NOT stored in the repository (see .gitignore).
+    entrypoint: ["/bin/sh", "/mosquitto/config/docker-entrypoint.sh"]
+    command: ["-c", "/mosquitto/config/mosquitto.conf"]
+    environment:
+      MQTT_DEVICES_PASSWORD: ${MQTT_DEVICES_PASSWORD:-buildingos-devices}
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./oss-stack/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./oss-stack/mosquitto/docker-entrypoint.sh:/mosquitto/config/docker-entrypoint.sh:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - oss
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck",
+             "-u", "devices", "-P", "${MQTT_DEVICES_PASSWORD:-buildingos-devices}", "-W", "3"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── ConnectorWorker (.NET) — NATS raw → NATS validated 変換 + ColdExportWorker ─
+  building-os.connector-worker:
+    build:
+      context: .
+      dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
+    container_name: building-os.connector-worker
+    environment:
+      NATS_URL: nats://building-os.nats:4222
+      # Internal /health surface (#145): liveness (/health/live), readiness (/health/ready = NATS
+      # connection Open), overall (/health). Does not open the external gRPC ingest surface.
+      HEALTH_PORT: "8081"
+      # gRPC GatewayIngress telemetry ingest (#181). Unset by default → no gRPC listener (OSS/local is
+      # NATS/MQTT-driven). Set to a port (e.g. 5051) to expose the canonical point-id ingest path; the
+      # E5 point-list-integrity harness drives it via grpc. Mapped to the host below when set.
+      GRPC_INGRESS_PORT: ${GRPC_INGRESS_PORT:-5051}
+      # OSS/local: register only SimulatedDeviceControlHandler. The Kandt (IoT Hub)
+      # handler requires IOT_HUB_CONNECTION_STRING / IOT_EDGE_MODULE_ID credentials
+      # and aborts startup when those are absent.
+      ENABLE_SIM_CONTROL: "true"
+      # OpenTelemetry: export traces/metrics/logs to the collector (no-op if unset).
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
+      OTEL_SERVICE_NAME: building-os-connector-worker
+      # Flush metrics every 15s (default is 60s) for snappier dashboards in dev.
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      # Log verbosity via the standard .NET config (overridable at runtime). Crank a
+      # category to Debug for troubleshooting, e.g.:
+      #   Logging__LogLevel__Default: Debug
+      #   Logging__LogLevel__BuildingOS.ConnectorWorker.Connectors: Debug
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+      # Warm-tier storage mode (#216). Default parquet: ParquetLakeWriter persists validated telemetry
+      # straight to the lake (MinIO). WARM_STORE=timescale restores the cold-export + Python
+      # telemetry-consumer path (run with `--profile timescale` + provide TIMESCALE_CONNECTION_STRING).
+      WARM_STORE: ${WARM_STORE:-parquet}
+      # TimescaleDB connection — empty by default. Passed through so the timescale opt-in (ColdExportWorker)
+      # actually activates: without this key compose would not inject it and the worker stays disabled.
+      TIMESCALE_CONNECTION_STRING: ${TIMESCALE_CONNECTION_STRING:-}
+      MINIO_ENDPOINT: http://building-os.minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-buildingos}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-buildingos123}
+      # Digital twin (OxiGraph): required by the gRPC GatewayIngress path — IPointMetadataCache
+      # resolves point_id → building/device/name/gatewayId via SPARQL. Defaults to localhost in-app,
+      # which is wrong inside the container, so set the service DNS here.
+      OXIGRAPH_ENDPOINT: http://building-os.oxigraph:7878
+      # ParquetLakeWriter flush cadence in minutes (default 5 in-app). Overridable for tests, e.g.
+      # PARQUET_FLUSH_INTERVAL=1 for a faster QUICK e2e perf run. Empty → app default.
+      PARQUET_FLUSH_INTERVAL: ${PARQUET_FLUSH_INTERVAL:-}
+      # ParquetLakeWriter row-count flush threshold (default 50000 in-app). The E4 agg harness sets this
+      # low so a hour gets ≥2 part files → compaction (min-parts 2) merges them into an agg_hourly rollup.
+      PARQUET_FLUSH_MAX_ROWS: ${PARQUET_FLUSH_MAX_ROWS:-}
+      # CompactionWorker tuning (#217). Empty → app defaults (interval 15min / settle 30min / min parts 2).
+      # The E4 agg harness sets these aggressive (interval 1 / settle 0) so settled hours get their
+      # agg_hourly rollups quickly → hour-granularity aggregate reads hit rollups (not aggregate-on-read).
+      LAKE_COMPACTION_INTERVAL: ${LAKE_COMPACTION_INTERVAL:-}
+      LAKE_COMPACTION_SETTLE_MINUTES: ${LAKE_COMPACTION_SETTLE_MINUTES:-}
+      LAKE_COMPACTION_MIN_PARTS: ${LAKE_COMPACTION_MIN_PARTS:-}
+      COLD_EXPORT_INTERVAL: "5"
+      # Scenario A: MQTT ingress (MqttIngressWorker + MqttConnectorWorker) — OPTIONAL, off by default.
+      # The broker is not in the base stack (#25); enable it with `--profile mqtt` AND set MQTT_HOST,
+      # e.g. `MQTT_HOST=building-os.mosquitto docker compose ... --profile mqtt up -d`. Empty → no MQTT
+      # ingress (MqttIngressWorker does not start).
+      MQTT_HOST: ${MQTT_HOST:-}
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: devices
+      MQTT_PASSWORD: ${MQTT_DEVICES_PASSWORD:-buildingos-devices}
+      MQTT_TOPIC_FILTER: "telemetry/#"
+      # Scenario B: Eclipse Hono AMQP Northbound (AmqpIngressWorker + HonoConnectorWorker)
+      # HONO_AMQP_HOST: hono.example.com
+      # HONO_AMQP_PORT: "5672"          # 5671 for TLS
+      # HONO_AMQP_TLS: "false"          # "true" → amqps (TLS); default plaintext amqp
+      # HONO_AMQP_TENANT: building-os
+      # HONO_AMQP_USER: consumer@HONO
+      # HONO_AMQP_PASSWORD: verysecret
+    ports:
+      # gRPC GatewayIngress. Dormant unless GRPC_INGRESS_PORT is set (then the container binds it and
+      # this publishes it to the host on the same port). Default 5051 keeps a stable host port for the
+      # E5 harness; with the listener disabled nothing accepts on it.
+      - "${GRPC_INGRESS_PORT:-5051}:${GRPC_INGRESS_PORT:-5051}"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+      building-os.pgbouncer:
+        condition: service_healthy
+      building-os.minio:
+        condition: service_healthy
+      # No hard dependency on the MQTT broker: it is optional / behind the `mqtt` profile (#25), and
+      # MqttIngressWorker connects only when MQTT_HOST is set, retrying on its own. A depends_on here
+      # would couple the base stack to a profiled service.
+    healthcheck:
+      # Liveness: the health listener accepts a TCP connection (the process is up). bash /dev/tcp
+      # keeps the probe dependency-free (the aspnet base ships no curl/wget). Richer readiness
+      # (NATS Open) is exposed over HTTP at /health/ready and consumed by the status fan-out (#144).
+      test: ["CMD", "/bin/bash", "-c", "echo > /dev/tcp/localhost/8081"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    networks:
+      - oss
+    restart: unless-stopped
+
+  # ── GatewayBridge — gRPC GatewayEgress (control plane, #178) ───────────
+  # Egress is a SEPARATE service/stream from ingress by design: ingress (GatewayIngress) lives in the
+  # connector-worker (port 5051), egress (gatewaybridge.GatewayEgress/Connect, bidi) lives here. The
+  # API server publishes a control command to the per-gateway NATS subject
+  # (building-os.control.request.gw.{gatewayId}); the live bridge replica forwards it down the gateway's
+  # egress stream and relays the ControlResult back. h2c (plaintext HTTP/2); TLS/mTLS terminates at the
+  # ingress in production. External BOWS / nexus-gateway connect their egress agent here (#276).
+  building-os.gateway-bridge:
+    build:
+      context: .
+      dockerfile: DotNet/BuildingOS.GatewayBridge/Dockerfile
+    container_name: building-os.gateway-bridge
+    environment:
+      NATS_URL: nats://building-os.nats:4222
+      # gRPC (h2c) listen port. Distinct from the connector-worker's ingress port (5051) — egress and
+      # ingress are different gRPC services. nexus-gateway egress: E2E_BOS_EGRESS_ADDR=localhost:5052.
+      GRPC_PORT: "5052"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
+      OTEL_SERVICE_NAME: building-os-gateway-bridge
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+    ports:
+      - "5052:5052"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+    healthcheck:
+      # TCP liveness: the h2c listener accepts a connection (HTTP/1.1 probes can't speak to an
+      # h2c-only Kestrel, so check the socket, matching the connector-worker pattern).
+      test: ["CMD", "/bin/bash", "-c", "echo > /dev/tcp/localhost/5052"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    networks:
+      - oss
+    restart: unless-stopped
+
+  # ── TelemetryConsumer (Python) — NATS validated → TimescaleDB ──────────
+  # timescale mode only (#216). In the default parquet mode the .NET ParquetLakeWriter persists
+  # validated telemetry to the lake, so this consumer is gated behind the `timescale` profile:
+  #   WARM_STORE=timescale docker compose -f docker-compose.oss.yaml --profile timescale up -d
+  building-os.telemetry-consumer:
+    image: python:3.12-slim
+    container_name: building-os.telemetry-consumer
+    working_dir: /app
+    profiles:
+      - timescale
+    command: >
+      sh -c "pip install nats-py psycopg2-binary -q && python telemetry_consumer.py"
+    environment:
+      NATS_URL: nats://building-os.nats:4222
+      TIMESCALE_DSN: postgresql://${POSTGRES_USER:-buildingos}:${POSTGRES_PASSWORD:-buildingos}@building-os.pgbouncer:5432/${POSTGRES_DB:-buildingos}
+    volumes:
+      - ./Tools/e2e-performance/telemetry_consumer.py:/app/telemetry_consumer.py:ro
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+      building-os.pgbouncer:
+        condition: service_healthy
+    networks:
+      - oss
+    restart: unless-stopped
+
+  # ── Ollama (experimental/optional help assistant, #151) ────────────────
+  # Started only with `docker compose --profile assistant up`. Point the API server at it via
+  # ASSISTANT_LLM_URL=http://building-os.ollama:11434/v1 to enable POST /api/assistant/chat.
+  # Data stays local (on-prem friendly); no model is pulled automatically — run e.g.
+  #   docker compose --profile assistant exec building-os.ollama ollama pull llama3.2
+  building-os.ollama:
+    image: ollama/ollama:latest
+    container_name: building-os.ollama
+    profiles:
+      - assistant
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - oss
+    restart: unless-stopped
+

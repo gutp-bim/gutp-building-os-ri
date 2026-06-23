@@ -1,0 +1,12 @@
+# Dockerfile.simple
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Azure IoT Device SDK (通常のIoTデバイス用)
+RUN pip install --no-cache-dir azure-iot-device
+
+# シンプルなIoTデバイススクリプト
+COPY iot_simple_device.py .
+
+CMD ["python", "iot_simple_device.py"]

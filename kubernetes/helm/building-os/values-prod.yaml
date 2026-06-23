@@ -1,0 +1,20 @@
+# Production environment overrides
+global:
+  namespace: building-os
+
+apiServer:
+  replicas: 3
+  env:
+    ASPNETCORE_ENVIRONMENT: Production
+
+webClient:
+  replicas: 2
+  env:
+    NEXT_PUBLIC_KEYCLOAK_AUTHORITY: "https://auth.building-os.example.com/realms/building-os"
+    NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
+
+ingress:
+  host: building-os.example.com
+  tls:
+    enabled: true
+    secretName: building-os-tls

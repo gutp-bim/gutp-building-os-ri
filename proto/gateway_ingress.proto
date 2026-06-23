@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+// Ingress (data plane) — split out of the former gateway_bridge.proto. The ingress service
+// now lives in BuildingOS.ConnectorWorker (telemetry ingest is the connector worker's role),
+// so its generated code uses the ConnectorWorker namespace. The proto `package` stays
+// `gatewaybridge` so the on-the-wire gRPC service path (/gatewaybridge.GatewayIngress/StreamTelemetry)
+// is unchanged for BOWS.
+option csharp_namespace = "BuildingOS.ConnectorWorker.Protos";
+
+package gatewaybridge;
+
+// Ingress: client-streaming telemetry. Separate stream + scale unit from Egress (§3-1).
+//
+// The canonical contract is point-id based (#181): BuildingOS and the gateway SHARE the point
+// list, so the gateway resolves its protocol-native addressing (BACnet device/object/instance,
+// vendor unit ids, …) to a `point_id` locally. A frame therefore carries only what BuildingOS
+// cannot derive: routing/provenance (`gateway_id`), identity (`point_id`), and the reading
+// (`value` + `timestamp`). Static per-point metadata (building/device/name/…) is NOT sent every
+// frame — BuildingOS enriches it from the digital twin by `point_id`.
+//
+// The Ingress pod holds no state. Each frame is enriched and published straight to
+// building-os.validated.telemetry via a JetStream publish-ack (#187), so `accepted` means the frame
+// was durably persisted to the stream (not merely sent). A frame with an unknown `point_id`, whose
+// `gateway_id` does not own that point, or whose publish was not acked, is skipped (logged +
+// metered); the stream continues and StreamAck.accepted counts only successfully-persisted frames.
+service GatewayIngress {
+  rpc StreamTelemetry (stream TelemetryFrame) returns (StreamAck);
+}
+
+message TelemetryFrame {
+  string gateway_id = 1; // routing/provenance; must own point_id in the twin
+  string point_id = 2;   // shared-point-list identity; joins to the digital twin
+  // Single numeric type (#189, design note): booleans are normalized to 0/1 and state/enum points are
+  // sent as numeric codes by the gateway (the whole pipeline — valid-message.json / TimescaleDB / KV —
+  // is number-based). Non-numeric state can ride in `attributes` as a string. A first-class string/enum
+  // value (proto `oneof`) is deferred to a dedicated design phase; see docs/telemetry-specification.md.
+  double value = 3;      // telemetry reading (see #189 note above)
+  string timestamp = 4;  // RFC3339; empty → server stamps receive time
+
+  // Optional ancillary attributes, merged into the validated telemetry `data` object. Not required
+  // each frame — only send what is not derivable from the shared point list.
+  map<string, string> attributes = 5;
+}
+
+message StreamAck {
+  int64 accepted = 1; // cumulative for the stream's lifetime — int64 avoids overflow on long-lived streams
+}

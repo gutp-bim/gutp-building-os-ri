@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway-bridge
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gateway-bridge
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: building-os
+spec:
+  # Stateless → scale horizontally. Per-gateway routing is by NATS subject (any replica may hold
+  # any gateway's stream). See docs/oss-egress-gateway-bridge-plan.md §3-3.
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-bridge
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway-bridge
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: gateway-bridge
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: GRPC_PORT
+              value: {{ .Values.service.port | quote }}
+            - name: NATS_URL
+              value: {{ .Values.nats.url | quote }}
+            - name: GRPC_KEEPALIVE_PING_DELAY_SEC
+              value: {{ .Values.keepalive.pingDelaySeconds | quote }}
+            - name: GRPC_KEEPALIVE_PING_TIMEOUT_SEC
+              value: {{ .Values.keepalive.pingTimeoutSeconds | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.otel.serviceName | quote }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.service.port }}
+          # gRPC is h2c-only on this port → TCP probe (httpGet would use HTTP/1.1 and fail).
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway-bridge
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gateway-bridge
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+      appProtocol: kubernetes.io/h2c
+  selector:
+    app.kubernetes.io/name: gateway-bridge
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-gateway-bridge
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-gateway-bridge
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if .Values.ingress.enabled }}
+---
+# North-south gRPC ingress for external BOWS. Connection-level LB is sufficient; command delivery
+# to the holding replica is guaranteed by the per-gateway NATS subject (plan §3-5).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-gateway-bridge-grpc
+  namespace: {{ .Release.Namespace }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: "Host(`{{ .Values.ingress.host }}`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}-gateway-bridge
+          port: {{ .Values.service.port }}
+          scheme: h2c
+  tls:
+    {{- if .Values.ingress.mtls.enabled }}
+    secretName: {{ .Values.ingress.mtls.serverSecretName }}
+    options:
+      name: {{ .Release.Name }}-gateway-bridge-mtls
+      namespace: {{ .Release.Namespace }}
+    {{- else }}
+    secretName: {{ .Values.ingress.tlsSecretName }}
+    {{- end }}
+{{- if .Values.ingress.mtls.enabled }}
+---
+# Require + verify client certificates (mTLS) for BOWS connections.
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: {{ .Release.Name }}-gateway-bridge-mtls
+  namespace: {{ .Release.Namespace }}
+spec:
+  minVersion: VersionTLS13
+  clientAuth:
+    secretNames:
+      - {{ .Values.ingress.mtls.clientCaSecretName }}
+    clientAuthType: RequireAndVerifyClientCert
+{{- if .Values.ingress.mtls.certManager.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}-gateway-bridge-server
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Values.ingress.mtls.serverSecretName }}
+  dnsNames:
+    - {{ .Values.ingress.host }}
+  issuerRef:
+    name: {{ .Values.ingress.mtls.certManager.issuerRef.name }}
+    kind: {{ .Values.ingress.mtls.certManager.issuerRef.kind }}
+{{- end }}
+{{- end }}
+{{- end }}

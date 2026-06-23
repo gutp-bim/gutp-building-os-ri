@@ -1,0 +1,62 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  # Probabilistic trace sampling — default 10%.
+  # Override per service with OTEL_SAMPLING_RATIO environment variable.
+  # Accepted range: 0.01 (1%) to 1.0 (100%). For production, 0.01–0.10 is typical.
+  probabilistic_sampler:
+    hash_seed: 22
+    sampling_percentage: 10
+
+  # Drop point_id and device_id from metric attributes to prevent cardinality explosion.
+  # These belong in log lines, not metric labels.
+  attributes/drop_high_cardinality:
+    actions:
+      - key: point_id
+        action: delete
+      - key: device_id
+        action: delete
+
+exporters:
+  otlp/tempo:
+    endpoint: building-os.tempo:4317
+    tls:
+      insecure: true
+  prometheusremotewrite:
+    # Requires Prometheus to be started with --web.enable-remote-write-receiver.
+    endpoint: http://building-os.prometheus:9090/api/v1/write
+  otlphttp/loki:
+    # Loki 3.x native OTLP ingestion (posts to /otlp/v1/logs). Replaces the
+    # deprecated `loki` exporter.
+    endpoint: http://building-os.loki:3100/otlp
+  debug:
+    verbosity: normal
+
+service:
+  telemetry:
+    metrics:
+      # Collector self-metrics, scraped by Prometheus (job: otel-collector).
+      address: 0.0.0.0:8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, probabilistic_sampler]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [batch, attributes/drop_high_cardinality]
+      exporters: [prometheusremotewrite]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/loki]

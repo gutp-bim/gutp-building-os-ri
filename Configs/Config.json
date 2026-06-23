@@ -1,0 +1,55 @@
+{
+    "UserConfig": {
+        "NamespaceConfig": [
+            {
+                "Type": "EventHub",
+                "Name": "emulatorNs1",
+                "Entities": [
+                    {
+                        "Name": "electricdata",
+                        "PartitionCount": "2",
+                        "ConsumerGroups": [
+                            {
+                                "Name": "electricreader"
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "environmentaldata",
+                        "PartitionCount": "2",
+                        "ConsumerGroups": [
+                            {
+                                "Name": "environmentalreader"
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "hvacdata",
+                        "PartitionCount": "2",
+                        "ConsumerGroups": [
+                            {
+                                "Name": "hvacreader"
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "behaviordata",
+                        "PartitionCount": "2",
+                        "ConsumerGroups": [
+                            {
+                                "Name": "behaviorreader"
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "example-iot-hub",
+                        "PartitionCount": "2"
+                    }
+                ]
+            }
+        ],
+        "LoggingConfig": {
+            "Type": "File"
+        }
+    }
+}

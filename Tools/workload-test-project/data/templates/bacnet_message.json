@@ -1,0 +1,38 @@
+{
+  "deviceId": "{device_id}",
+  "timestamp": "{timestamp}",
+  "messageType": "telemetry",
+  "protocol": "bacnet",
+  "data": {
+    "points": [
+      {
+        "objectId": "analogInput:1",
+        "presentValue": "{random_float:0:100}",
+        "units": "degreesCelsius",
+        "description": "室内温度"
+      },
+      {
+        "objectId": "analogInput:2", 
+        "presentValue": "{random_float:0:100}",
+        "units": "percent",
+        "description": "湿度"
+      },
+      {
+        "objectId": "binaryInput:1",
+        "presentValue": "{random_bool}",
+        "description": "占有センサー"
+      },
+      {
+        "objectId": "analogOutput:1",
+        "presentValue": "{random_float:0:100}",
+        "units": "percent", 
+        "description": "VAVダンパー開度"
+      }
+    ]
+  },
+  "metadata": {
+    "buildingId": "building-001",
+    "floorId": "floor-{random_int:1:10}",
+    "zoneId": "zone-{random_int:1:20}"
+  }
+}

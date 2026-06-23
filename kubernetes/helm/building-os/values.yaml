@@ -1,0 +1,161 @@
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  namespace: building-os
+
+# API Server (ASP.NET Core)
+apiServer:
+  enabled: true
+  image:
+    repository: buildingos/api-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    ASPNETCORE_ENVIRONMENT: Production
+    AUTH_PROVIDER: keycloak
+    KEYCLOAK_AUTHORITY: ""
+    KEYCLOAK_CLIENT_ID: api-server
+    COSMOS_DATABASE_NAME: ""
+    COSMOS_CONTAINER_NAME: ""
+    COSMOS_CONTROL_CONTAINER_NAME: ""
+    COSMOS_CONNECTION_STRING: ""
+    POSTGRES_CONNECTION_STRING: ""
+    LOG_LEVEL: Information
+  secretEnv:
+    KEYCLOAK_ADMIN_CLIENT_ID: ""
+    KEYCLOAK_ADMIN_CLIENT_SECRET: ""
+    KEYCLOAK_REALM: ""
+
+# Web Client (Next.js)
+webClient:
+  enabled: true
+  image:
+    repository: buildingos/web-client
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    NEXT_PUBLIC_KEYCLOAK_AUTHORITY: ""
+    NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
+    NEXT_PUBLIC_API_BASE_URL: ""
+
+# Connector Worker Service
+connectorWorker:
+  enabled: true
+  image:
+    repository: buildingos/connector-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    NATS_URL: "nats://nats.building-os.svc.cluster.local:4222"
+
+# GatewayBridge (gRPC ⇄ NATS bridge for the external BOWS connector). Stateless / horizontally
+# scalable; per-gateway routing is by NATS subject. Disabled by default (opt-in infra).
+gatewayBridge:
+  enabled: false
+  image:
+    repository: buildingos/gateway-bridge
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    NATS_URL: "nats://nats.building-os.svc.cluster.local:4222"
+    # Short HTTP/2 keepalive for fast dead-connection detection (must be > 0).
+    # Consumed by the GatewayBridge server's Kestrel HTTP/2 keepalive (server-side reading lands with #162).
+    GRPC_KEEPALIVE_PING_DELAY_SEC: "20"
+    GRPC_KEEPALIVE_PING_TIMEOUT_SEC: "10"
+    # OTLP export (no-op when unset).
+    OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    OTEL_SERVICE_NAME: building-os-gateway-bridge
+  # North-south gRPC ingress for cluster-external BOWS. Traefik h2c L7 LB + cert-manager mTLS.
+  ingress:
+    enabled: false
+    host: gateway-bridge.example.com
+    tlsSecretName: gateway-bridge-tls
+    mtls:
+      enabled: false
+      serverSecretName: gateway-bridge-server-tls
+      clientCaSecretName: gateway-bridge-client-ca
+      certManager:
+        enabled: false
+        issuerRef:
+          name: building-os-ca-issuer
+          kind: ClusterIssuer
+
+# Ingress (Traefik IngressRoute)
+ingress:
+  enabled: true
+  className: traefik
+  host: building-os.example.com
+  tls:
+    enabled: true
+    secretName: building-os-tls
+  routes:
+    # API Server at /api
+    - match: "Host(`building-os.example.com`) && PathPrefix(`/api`)"
+      service: api-server
+      port: 8080
+    # gRPC endpoint
+    - match: "Host(`building-os.example.com`) && PathPrefix(`/grpc`)"
+      service: api-server
+      port: 8080
+      grpc: true
+    # Web Client (catch-all; serves the (admin) workspace at /admin too)
+    - match: "Host(`building-os.example.com`)"
+      service: web-client
+      port: 3000
+
+# Namespace creation
+namespaceCreate: true
+
+nats:
+  url: "nats://nats:4222"
+
+# Hono northbound → NATS は ConnectorWorker の AmqpIngressWorker（Hono AMQP 1.0 Northbound）が担う
+# （旧 hono-nats-bridge Python サービスは廃止）。connector-worker に HONO_AMQP_HOST を設定して有効化する。
+# 注: MQTT_HOST は別シナリオ（汎用 MQTT ブローカー Mosquitto → building-os.raw.mqtt）用であり、Hono 取込には使わない。

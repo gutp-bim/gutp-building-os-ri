@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option csharp_namespace = "BuildingOs.ApiServer.Protos";
+
+package greet;
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+  rpc Subscribe (SubscribeRequest) returns (stream NotificationEvent);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}
+
+message SubscribeRequest {
+  string client_name = 1;
+}
+
+message NotificationEvent {
+  int32 sequence = 1;
+  string message = 2;
+  string timestamp = 3;
+}

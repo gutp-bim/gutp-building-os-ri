@@ -1,0 +1,15 @@
+﻿{
+  "telemetries": [
+    {
+      "building": "Engineering(Bldg.2)",
+      "data": {
+        "sbos_space:Name": "102C2"
+      },
+      "datetime": "2025-01-23T19:34:00\u002B09:00",
+      "device_id": "BehaviorSnsr_0001",
+      "point_id": "BehaviorSnsr_0001",
+      "value": 1,
+      "id": "BehaviorSnsr_0001.<timestamp>"
+    }
+  ]
+}

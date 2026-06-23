@@ -1,0 +1,40 @@
+scenario_name: "データサイズ負荷試験"
+scenario_type: "data_size_load"
+description: "メッセージのデータポイント数を段階的に増加させて処理能力を測定"
+
+# デフォルト設定
+device_count: 50
+device_types:
+  - "bacnet"
+  - "hvac"
+  - "environmental"
+  - "electric"
+
+message_interval_seconds: 30
+
+# 実行ステップ
+steps:
+  - step_id: 1
+    description: "小サイズデータ (10ポイント/メッセージ)"
+    data_point_count: 10
+    duration_minutes: 10
+    
+  - step_id: 2
+    description: "中サイズデータ (50ポイント/メッセージ)"
+    data_point_count: 50
+    duration_minutes: 15
+    
+  - step_id: 3
+    description: "大サイズデータ (100ポイント/メッセージ)"
+    data_point_count: 100
+    duration_minutes: 15
+    
+  - step_id: 4
+    description: "超大サイズデータ (200ポイント/メッセージ)"
+    data_point_count: 200
+    duration_minutes: 20
+    
+  - step_id: 5
+    description: "極大サイズデータ (500ポイント/メッセージ)"
+    data_point_count: 500
+    duration_minutes: 15

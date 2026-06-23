@@ -1,0 +1,37 @@
+version: "3.8"
+
+# Building OS — Dev プロファイル (ローカルデバイスシミュレーター)
+#
+# OSS スタック (make local-up-oss) が起動済みの状態で使用する。
+# Mosquitto は docker-compose.oss.yaml に含まれており、このファイルは
+# 仮想エッジデバイス (mqtt_edge_device.py) のみを追加起動する。
+#
+# 使い方:
+#   make local-up-oss        # OSS フルスタック起動 (Mosquitto 含む)
+#   make local-up-dev        # デバイスシミュレーター追加起動
+
+networks:
+  oss:
+    external: true
+    name: building-os-oss
+
+services:
+
+  # ── MQTT デバイスシミュレーター ───────────────────────────────────────────
+  # Mosquitto (building-os.mosquitto) に MQTT テレメトリを送信するシミュレーター。
+  # OSS スタックの MqttIngressWorker が受信し NATS へ転送する。
+  building-os.dev-device:
+    build:
+      context: ./Tools/development-edge-device
+      dockerfile: Dockerfile.simple
+    container_name: building-os.dev-device
+    environment:
+      MQTT_HOST: building-os.mosquitto
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: devices
+      MQTT_PASSWORD: ${MQTT_DEVICES_PASSWORD:-buildingos-devices}
+      MQTT_TOPIC: telemetry/dev-simulator
+      PUBLISH_INTERVAL: "5"
+    networks:
+      - oss
+    restart: unless-stopped

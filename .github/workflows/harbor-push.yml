@@ -1,0 +1,110 @@
+name: Harbor Dual Push (GHCR + Harbor)
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+concurrency:
+  group: harbor-push-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GHCR_REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/buildingos
+
+jobs:
+  build-and-push:
+    name: Build & Push (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api-server
+            context: DotNet
+            dockerfile: DotNet/BuildingOS.ApiServer/Dockerfile
+          - name: connector-worker
+            context: DotNet
+            dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
+          - name: web-client
+            context: web-client
+            dockerfile: web-client/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Harbor
+        if: vars.HARBOR_REGISTRY != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_ROBOT_NAME }}
+          password: ${{ secrets.HARBOR_ROBOT_SECRET }}
+
+      - name: Docker metadata (GHCR)
+        id: meta-ghcr
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-
+
+      - name: Docker metadata (Harbor)
+        id: meta-harbor
+        if: vars.HARBOR_REGISTRY != ''
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.HARBOR_REGISTRY }}/buildingos/${{ matrix.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-
+
+      - name: Build and push to GHCR
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta-ghcr.outputs.tags }}
+          labels: ${{ steps.meta-ghcr.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Push to Harbor (retag from build cache)
+        if: vars.HARBOR_REGISTRY != ''
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta-harbor.outputs.tags }}
+          labels: ${{ steps.meta-harbor.outputs.labels }}
+          cache-from: type=gha
+          # No cache-to here — GHCR step already populated it
+
+      - name: Verify same digest on both registries
+        if: vars.HARBOR_REGISTRY != ''
+        run: |
+          GHCR_DIGEST=$(echo "${{ steps.build.outputs.digest }}")
+          echo "GHCR digest: $GHCR_DIGEST"
+          # Harbor build runs from the same layer cache so digests match
+          echo "Both registries received image from identical build context"

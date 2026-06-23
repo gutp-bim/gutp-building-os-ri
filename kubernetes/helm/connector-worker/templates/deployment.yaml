@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-connector-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: connector-worker
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: building-os
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: connector-worker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: connector-worker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: connector-worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          env:
+            - name: NATS_URL
+              value: {{ .Values.nats.url | quote }}
+            - name: NATS_STREAM
+              value: {{ .Values.nats.stream | quote }}
+            # Warm-tier storage mode (#216). Default parquet → ParquetLakeWriter persists validated
+            # telemetry to the lake (MinIO); the TimescaleDB cold export is disabled. Set to
+            # "timescale" to restore the cold-export path.
+            - name: WARM_STORE
+              value: {{ .Values.warmStore | default "parquet" | quote }}
+            - name: MINIO_ENDPOINT
+              value: {{ .Values.minio.endpoint | quote }}
+            - name: COLD_STORAGE_BUCKET
+              value: {{ .Values.minio.coldBucket | quote }}
+          ports:
+            - name: metrics
+              containerPort: 8081
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            # Liveness = the process serves HTTP (no dependency checks), so a NATS outage does not
+            # trigger a restart loop that cannot fix it (#145).
+            httpGet:
+              path: /health/live
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            # Readiness = NATS connection Open (the worker can actually consume/publish).
+            httpGet:
+              path: /health/ready
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10

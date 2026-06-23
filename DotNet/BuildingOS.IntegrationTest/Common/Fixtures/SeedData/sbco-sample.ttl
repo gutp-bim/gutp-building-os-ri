@@ -1,0 +1,210 @@
+@prefix sbco: <https://www.sbco.or.jp/ont/> .
+@prefix sbr: <https://www.sbco.or.jp/ont/resource/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://www.sbco.or.jp/ont/resource/site%3Asite-1> a sbco:Site ;
+  sbco:id "site:site-1" ;
+  sbco:name "site-1" ;
+  sbco:hasPart <https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-2> ;
+  sbco:hasPart <https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-1> .
+
+<https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-2> a sbco:Building ;
+  sbco:id "building:site:site-1/bldg-2" ;
+  sbco:name "bldg-2" ;
+  sbco:hasPart <https://www.sbco.or.jp/ont/resource/level%3Abuilding%3Asite%3Asite-1%2Fbldg-2%2Ffloor-2> .
+
+<https://www.sbco.or.jp/ont/resource/level%3Abuilding%3Asite%3Asite-1%2Fbldg-2%2Ffloor-2> a sbco:Level ;
+  sbco:id "level:building:site:site-1/bldg-2/floor-2" ;
+  sbco:name "floor-2" ;
+  sbco:hasPart <https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-2%2Ffloor-2%2FRoom-201> .
+
+<https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-2%2Ffloor-2%2FRoom-201> a sbco:Room ;
+  sbco:id "room:level:building:site:site-1/bldg-2/floor-2/Room-201" ;
+  sbco:name "Room 201" .
+
+<https://www.sbco.or.jp/ont/resource/DEV004> a sbco:EquipmentExt ;
+  sbco:id "DEV004" ;
+  sbco:name "Temperature Sensor 02" ;
+  sbco:deviceType "Sensor" ;
+  sbco:floor "floor-2" ;
+  sbco:locatedIn <https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-2%2Ffloor-2%2FRoom-201> ;
+  sbco:hasPoint <https://www.sbco.or.jp/ont/resource/PT005> .
+
+<https://www.sbco.or.jp/ont/resource/PT005> a sbco:PointExt ;
+  sbco:id "PT005" ;
+  sbco:name "Room 201 Temperature" ;
+  sbco:gatewayId "GW002" ;
+  sbco:deviceType "Sensor" ;
+  sbco:site "site-1" ;
+  sbco:building "bldg-2" ;
+  sbco:floor "floor-2" ;
+  sbco:installationArea "Room 201" ;
+  sbco:targetArea "Room 201" ;
+  sbco:pointType "Temperature" ;
+  sbco:pointSpecification "Measurement" ;
+  sbco:writable "false" ;
+  sbco:interval "60" ;
+  sbco:unit "C" ;
+  sbco:maxPresValue "50" ;
+  sbco:minPresValue "-10" ;
+  sbco:scale "1.0" ;
+  sbco:tags "temperature&&room201" ;
+  sbco:supplier "VendorA" ;
+  sbco:owner "Building Management" ;
+  sbco:description "Room 201 temperature sensor" ;
+  sbco:localId "LOCAL005" ;
+  sbco:deviceIdBacnet "BAC004" ;
+  sbco:instanceNoBacnet "1003" ;
+  sbco:objectTypeBacnet "Analog-Input" ;
+  sbco:extra "epsilon" .
+
+<https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-1> a sbco:Building ;
+  sbco:id "building:site:site-1/bldg-1" ;
+  sbco:name "bldg-1" ;
+  sbco:hasPart <https://www.sbco.or.jp/ont/resource/level%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1> .
+
+<https://www.sbco.or.jp/ont/resource/level%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1> a sbco:Level ;
+  sbco:id "level:building:site:site-1/bldg-1/floor-1" ;
+  sbco:name "floor-1" ;
+  sbco:hasPart <https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1%2FRoom-101> .
+
+<https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1%2FRoom-101> a sbco:Room ;
+  sbco:id "room:level:building:site:site-1/bldg-1/floor-1/Room-101" ;
+  sbco:name "Room 101" .
+
+<https://www.sbco.or.jp/ont/resource/DEV003> a sbco:EquipmentExt ;
+  sbco:id "DEV003" ;
+  sbco:name "CO2 Sensor 01" ;
+  sbco:deviceType "Sensor" ;
+  sbco:floor "floor-1" ;
+  sbco:locatedIn <https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1%2FRoom-101> ;
+  sbco:hasPoint <https://www.sbco.or.jp/ont/resource/PT004> .
+
+<https://www.sbco.or.jp/ont/resource/PT004> a sbco:PointExt ;
+  sbco:id "PT004" ;
+  sbco:name "CO2 Level" ;
+  sbco:gatewayId "GW001" ;
+  sbco:deviceType "Sensor" ;
+  sbco:site "site-1" ;
+  sbco:building "bldg-1" ;
+  sbco:floor "floor-1" ;
+  sbco:installationArea "Room 101" ;
+  sbco:targetArea "Room 101" ;
+  sbco:pointType "CO2 Concentration" ;
+  sbco:pointSpecification "Measurement" ;
+  sbco:writable "false" ;
+  sbco:interval "120" ;
+  sbco:unit "ppm" ;
+  sbco:maxPresValue "2000" ;
+  sbco:minPresValue "400" ;
+  sbco:scale "1.0" ;
+  sbco:tags "co2&&room101" ;
+  sbco:supplier "VendorC" ;
+  sbco:owner "Building Management" ;
+  sbco:description "CO2 concentration sensor in Room 101" ;
+  sbco:localId "LOCAL004" ;
+  sbco:deviceIdBacnet "BAC003" ;
+  sbco:instanceNoBacnet "3001" ;
+  sbco:objectTypeBacnet "Analog-Input" ;
+  sbco:extra "delta" .
+
+<https://www.sbco.or.jp/ont/resource/DEV002> a sbco:EquipmentExt ;
+  sbco:id "DEV002" ;
+  sbco:name "Humidity Sensor 01" ;
+  sbco:deviceType "Sensor" ;
+  sbco:floor "floor-1" ;
+  sbco:locatedIn <https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1%2FRoom-101> ;
+  sbco:hasPoint <https://www.sbco.or.jp/ont/resource/PT003> .
+
+<https://www.sbco.or.jp/ont/resource/PT003> a sbco:PointExt ;
+  sbco:id "PT003" ;
+  sbco:name "Room Humidity" ;
+  sbco:gatewayId "GW001" ;
+  sbco:deviceType "Sensor" ;
+  sbco:site "site-1" ;
+  sbco:building "bldg-1" ;
+  sbco:floor "floor-1" ;
+  sbco:installationArea "Room 101" ;
+  sbco:targetArea "Room 101" ;
+  sbco:pointType "Humidity" ;
+  sbco:pointSpecification "Measurement" ;
+  sbco:writable "false" ;
+  sbco:interval "60" ;
+  sbco:unit "%" ;
+  sbco:maxPresValue "100" ;
+  sbco:minPresValue "0" ;
+  sbco:scale "1.0" ;
+  sbco:tags "humidity&&room101" ;
+  sbco:supplier "VendorB" ;
+  sbco:owner "Building Management" ;
+  sbco:description "Room 101 humidity sensor" ;
+  sbco:localId "LOCAL003" ;
+  sbco:deviceIdBacnet "BAC002" ;
+  sbco:instanceNoBacnet "2001" ;
+  sbco:objectTypeBacnet "Analog-Input" ;
+  sbco:extra "gamma" .
+
+<https://www.sbco.or.jp/ont/resource/DEV001> a sbco:EquipmentExt ;
+  sbco:id "DEV001" ;
+  sbco:name "Temperature Sensor 01" ;
+  sbco:deviceType "Sensor" ;
+  sbco:floor "floor-1" ;
+  sbco:locatedIn <https://www.sbco.or.jp/ont/resource/room%3Alevel%3Abuilding%3Asite%3Asite-1%2Fbldg-1%2Ffloor-1%2FRoom-101> ;
+  sbco:hasPoint <https://www.sbco.or.jp/ont/resource/PT002> ;
+  sbco:hasPoint <https://www.sbco.or.jp/ont/resource/PT001> .
+
+<https://www.sbco.or.jp/ont/resource/PT002> a sbco:PointExt ;
+  sbco:id "PT002" ;
+  sbco:name "Wall Temperature" ;
+  sbco:gatewayId "GW001" ;
+  sbco:deviceType "Sensor" ;
+  sbco:site "site-1" ;
+  sbco:building "bldg-1" ;
+  sbco:floor "floor-1" ;
+  sbco:installationArea "Room 101" ;
+  sbco:targetArea "Room 101" ;
+  sbco:pointType "Temperature" ;
+  sbco:pointSpecification "Measurement" ;
+  sbco:writable "false" ;
+  sbco:interval "60" ;
+  sbco:unit "C" ;
+  sbco:maxPresValue "50" ;
+  sbco:minPresValue "-10" ;
+  sbco:scale "1.0" ;
+  sbco:tags "temperature&&room101" ;
+  sbco:supplier "VendorA" ;
+  sbco:owner "Building Management" ;
+  sbco:description "Wall mounted temperature sensor in Room 101" ;
+  sbco:localId "LOCAL002" ;
+  sbco:deviceIdBacnet "BAC001" ;
+  sbco:instanceNoBacnet "1002" ;
+  sbco:objectTypeBacnet "Analog-Input" ;
+  sbco:extra "beta" .
+
+<https://www.sbco.or.jp/ont/resource/PT001> a sbco:PointExt ;
+  sbco:id "PT001" ;
+  sbco:name "Room Temperature" ;
+  sbco:gatewayId "GW001" ;
+  sbco:deviceType "Sensor" ;
+  sbco:site "site-1" ;
+  sbco:building "bldg-1" ;
+  sbco:floor "floor-1" ;
+  sbco:installationArea "Room 101" ;
+  sbco:targetArea "Room 101" ;
+  sbco:pointType "Temperature" ;
+  sbco:pointSpecification "Measurement" ;
+  sbco:writable "false" ;
+  sbco:interval "60" ;
+  sbco:unit "C" ;
+  sbco:maxPresValue "50" ;
+  sbco:minPresValue "-10" ;
+  sbco:scale "1.0" ;
+  sbco:tags "temperature&&room101" ;
+  sbco:supplier "VendorA" ;
+  sbco:owner "Building Management" ;
+  sbco:description "Room 101 temperature sensor" ;
+  sbco:localId "LOCAL001" ;
+  sbco:deviceIdBacnet "BAC001" ;
+  sbco:instanceNoBacnet "1001" ;
+  sbco:objectTypeBacnet "Analog-Input" ;
+  sbco:extra "alpha" .

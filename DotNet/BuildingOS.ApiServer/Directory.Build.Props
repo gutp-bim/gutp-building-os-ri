@@ -1,0 +1,6 @@
+<Project>
+    <PropertyGroup>
+        <BaseIntermediateOutputPath>../../out/BuildingOS.ApiServer/obj</BaseIntermediateOutputPath>
+        <BaseOutputPath>../../out/BuildingOS.ApiServer/bin</BaseOutputPath>
+    </PropertyGroup>
+</Project>

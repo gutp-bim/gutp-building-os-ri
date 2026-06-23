@@ -1,0 +1,56 @@
+# GatewayBridge — stateless gRPC ⇄ NATS bridge. Horizontally scalable; per-gateway routing is by
+# NATS subject, so connection-level LB at the ingress is sufficient.
+replicaCount: 2
+
+image:
+  repository: ghcr.io/gutp/building-os-gateway-bridge
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+nats:
+  url: nats://nats.building-os.svc.cluster.local:4222
+
+# Short HTTP/2 keepalive for fast dead-connection detection (must be > 0).
+# Surfaced as GRPC_KEEPALIVE_PING_* env; consumed by the GatewayBridge server's Kestrel HTTP/2
+# keepalive (the server-side reading lands with the replica-routing/health slice, #162).
+keepalive:
+  pingDelaySeconds: 20
+  pingTimeoutSeconds: 10
+
+otel:
+  endpoint: ""
+  serviceName: building-os-gateway-bridge
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# North-south gRPC ingress for the cluster-external (building-edge) BOWS connector.
+# Traefik h2c gRPC L7 LB; Contour/Emissary (Envoy) is a drop-in alternative (plan §3-5).
+ingress:
+  enabled: false
+  host: gateway-bridge.example.com
+  tlsSecretName: gateway-bridge-tls
+  mtls:
+    enabled: false
+    serverSecretName: gateway-bridge-server-tls
+    clientCaSecretName: gateway-bridge-client-ca
+    certManager:
+      enabled: false
+      issuerRef:
+        name: building-os-ca-issuer
+        kind: ClusterIssuer

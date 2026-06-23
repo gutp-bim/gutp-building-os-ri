@@ -1,0 +1,1790 @@
+﻿{
+  "telemetries": [
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "001"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "002"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "003"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "004"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "005"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "006"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "007"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "008"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "009"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "010"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "011"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "012"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "013"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "014"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "015"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "016"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "017"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "018"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "019"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "020"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "021"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "022"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "023"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "024"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "025"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "026"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "027"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "028"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "029"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "030"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "031"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "032"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "033"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "034"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "035"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "036"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "037"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "038"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "039"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "040"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "041"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "042"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "043"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "044"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "045"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "046"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "047"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "048"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "049"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "050"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "051"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "052"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "053"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "054"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "055"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "056"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "057"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "058"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "059"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "060"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "061"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "062"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "063"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "064"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "065"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "066"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "067"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "068"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "069"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "070"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "071"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "072"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "073"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "074"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "075"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "076"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "077"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "078"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "079"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "080"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "081"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "082"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "083"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "084"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "085"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "086"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "087"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "088"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "089"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "090"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "091"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "092"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "093"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    },
+    {
+      "building": "",
+      "data": {
+        "ipAddress": "192.168.10.12",
+        "onOff": "OFF",
+        "mode": "Heat",
+        "fan": "Medium",
+        "swing": "60deg",
+        "setTemp": 22,
+        "filterSign": 0,
+        "unitId": "094"
+      },
+      "datetime": "2023-12-31T17:26:07\u002B09:00",
+      "device_id": "hvacWriter_192.168.10.12",
+      "point_id": "pointId",
+      "value": 21.5,
+      "id": "pointId.<timestamp>",
+      "name": ""
+    }
+  ]
+}

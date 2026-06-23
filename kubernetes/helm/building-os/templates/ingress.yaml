@@ -1,0 +1,63 @@
+{{- if .Values.ingress.enabled }}
+---
+# Traefik IngressRoute for HTTP/HTTPS routing
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: building-os
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "building-os.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    {{- if .Values.ingress.tls.enabled }}
+    - websecure
+    {{- else }}
+    - web
+    {{- end }}
+  routes:
+    {{- range .Values.ingress.routes }}
+    - match: {{ .match | quote }}
+      kind: Rule
+      services:
+        - name: {{ .service }}
+          port: {{ .port }}
+          {{- if .grpc }}
+          scheme: h2c
+          {{- end }}
+    {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+---
+# Redirect HTTP → HTTPS
+{{- if .Values.ingress.tls.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: building-os-http-redirect
+  namespace: {{ .Values.global.namespace }}
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: "Host(`{{ .Values.ingress.host }}`)"
+      kind: Rule
+      middlewares:
+        - name: https-redirect
+      services:
+        - name: api-server
+          port: 8080
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: {{ .Values.global.namespace }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+{{- end }}
+{{- end }}

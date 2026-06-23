@@ -1,0 +1,254 @@
+{
+  "realm": "building-os",
+  "enabled": true,
+  "displayName": "Building OS",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      {
+        "name": "building-os-admin",
+        "description": "Full administrative access to Building OS resources."
+      },
+      {
+        "name": "building-os-operator",
+        "description": "Operational control access for assigned resources."
+      },
+      {
+        "name": "building-os-viewer",
+        "description": "Read-only access for assigned resources."
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "building-os-api",
+      "description": "Audience and permission scope for Building OS API access.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "building-os-client-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "api-server",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "building-os-permissions",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "permissions",
+            "claim.name": "permissions",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "building-os-role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "role",
+            "claim.name": "building_os_role",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
+    },
+    {
+      "name": "email",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "web-client",
+      "name": "Building OS Web Client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/auth/oidc-callback",
+        "https://building-os.example.com/auth/oidc-callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "https://building-os.example.com"
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "profile",
+        "email",
+        "roles",
+        "building-os-api"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "api-server",
+      "name": "Building OS API Server",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "secret": "change-me-in-production",
+      "defaultClientScopes": [
+        "roles",
+        "profile",
+        "email",
+        "building-os-api"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "building-os-admins",
+      "realmRoles": [
+        "building-os-admin"
+      ],
+      "attributes": {
+        "role": [
+          "admin"
+        ],
+        "permissions": [
+          "*:*:*"
+        ]
+      }
+    },
+    {
+      "name": "building-os-operators",
+      "realmRoles": [
+        "building-os-operator"
+      ],
+      "attributes": {
+        "role": [
+          "operator"
+        ],
+        "permissions": [
+          "building:*:read",
+          "floor:*:read",
+          "space:*:read",
+          "device:*:read,control",
+          "point:*:read,write,control"
+        ]
+      }
+    },
+    {
+      "name": "building-os-viewers",
+      "realmRoles": [
+        "building-os-viewer"
+      ],
+      "attributes": {
+        "role": [
+          "viewer"
+        ],
+        "permissions": [
+          "building:*:read",
+          "floor:*:read",
+          "space:*:read",
+          "device:*:read",
+          "point:*:read"
+        ]
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@building-os.local",
+      "firstName": "Building",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "building-os-admins"
+      ],
+      "attributes": {
+        "role": [
+          "admin"
+        ],
+        "permissions": [
+          "*:*:*"
+        ]
+      }
+    },
+    {
+      "username": "testoperator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "testoperator@building-os.local",
+      "firstName": "Test",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "testpass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "building-os-operators"
+      ],
+      "attributes": {
+        "role": [
+          "operator"
+        ],
+        "permissions": [
+          "building:*:read",
+          "floor:*:read",
+          "space:*:read",
+          "device:*:read,control",
+          "point:*:read,write,control"
+        ]
+      }
+    }
+  ]
+}

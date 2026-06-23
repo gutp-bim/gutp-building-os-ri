@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "Device_id",
+      "ValueString"
+    ],
+    "properties": {
+      "Device_id": {
+        "type": "string",
+        "description": "デバイスの一意識別子"
+      },
+      "ValueString": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "TimeStamp",
+            "BACnetDevice",
+            "BACnetObject",
+            "Properties"
+          ],
+          "properties": {
+            "TimeStamp": {
+              "type": "string",
+              "format": "date-time",
+              "description": "データのタイムスタンプ"
+            },
+            "BACnetDevice": {
+              "type": "integer",
+              "description": "BACnetデバイスID"
+            },
+            "BACnetObject": {
+              "type": "object",
+              "required": [
+                "_base",
+                "_value"
+              ],
+              "properties": {
+                "_base": {
+                  "type": "string",
+                  "description": "BACnetオブジェクトの基本型"
+                },
+                "_value": {
+                  "type": "object",
+                  "required": [
+                    "ObjectType",
+                    "InstanceNo"
+                  ],
+                  "properties": {
+                    "ObjectType": {
+                      "type": "integer",
+                      "description": "BACnetオブジェクトタイプ"
+                    },
+                    "InstanceNo": {
+                      "type": "integer",
+                      "description": "BACnetオブジェクトインスタンス番号"
+                    }
+                  }
+                }
+              }
+            },
+            "Properties": {
+              "type": "object",
+              "required": [
+                "PresentValue"
+              ],
+              "properties": {
+                "PresentValue": {
+                  "type": "number",
+                  "description": "数値型の現在値"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

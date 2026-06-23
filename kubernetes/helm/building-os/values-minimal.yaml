@@ -1,0 +1,63 @@
+# Building OS — Minimum Profile Helm values
+#
+# 目的: PoC 導入・開発環境向けの最小 Kubernetes 構成。
+#       OxiGraph / Keycloak / MinIO / 観測スタック は無効化。
+#       pgBouncer は有効（NATS + TimescaleDB は外部依存前提）。
+#
+# 使い方:
+#   helm upgrade --install building-os ./kubernetes/helm/building-os \
+#     -f kubernetes/helm/building-os/values.yaml \
+#     -f kubernetes/helm/building-os/values-minimal.yaml
+
+# API Server: 認証なし（PoC 向け）
+apiServer:
+  replicas: 1
+  env:
+    ASPNETCORE_ENVIRONMENT: Development
+    DISABLE_AUTH: "true"
+
+# Web Client: 最小 replica
+webClient:
+  replicas: 1
+
+# ConnectorWorker: 最小 replica
+connectorWorker:
+  replicas: 1
+
+# OxiGraph (デジタルツイン): 最小プロファイルでは無効
+# API Server の OxiGraph 依存 API はフェイルファスト (503) で動作
+oxigraph:
+  enabled: false
+
+# Keycloak (認証): 無効 (DISABLE_AUTH=true で代替)
+keycloak:
+  enabled: false
+
+# MinIO (Cold storage): 無効 (Warm tier のみで動作)
+minio:
+  enabled: false
+
+# 観測スタック: 最小プロファイルでは無効 (標準出力ログのみ)
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+loki:
+  enabled: false
+
+tempo:
+  enabled: false
+
+# pgBouncer: 有効 (minimum profile でも接続プール管理は必須)
+pgbouncer:
+  enabled: true
+  transactionPool:
+    maxClientConn: 100
+    defaultPoolSize: 20
+
+# Ingress (Traefik IngressRoute / Middleware): 最小プロファイルでは無効
+# kind smoke test は Traefik CRD なしで動くため、minimal では Ingress を除外する
+ingress:
+  enabled: false
