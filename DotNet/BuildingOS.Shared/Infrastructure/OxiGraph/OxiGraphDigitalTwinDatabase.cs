@@ -31,7 +31,28 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
             r => new Building { DtId = r["dt"], Id = r["id"], Name = r["name"] }));
 
     public async Task<Building?> GetBuilding(string dtId)
-        => (await ListBuildings()).FirstOrDefault(b => b.DtId == dtId);
+    {
+        var sparql = $@"{Prefixes}
+SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  <{dtId}> a <{Cls_Building}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
+  OPTIONAL {{
+    <{dtId}> <{Prop_Identifiers}> ?identEntry .
+    ?identEntry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ?identKey ; <{Prop_Value}> ?identVal .
+  }}
+  OPTIONAL {{
+    <{dtId}> <{Prop_CustomTags}> ?tagEntry .
+    ?tagEntry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ?tagKey ; <{Prop_Value}> ?tagBoolVal .
+  }}
+}}";
+        var rows = await _client.QueryAsync(sparql);
+        if (rows.Count == 0) return null;
+        return MapWithMetadata(rows, r => new Building
+        {
+            DtId = dtId,
+            Id = r.GetValueOrDefault("id", ""),
+            Name = r.GetValueOrDefault("name", ""),
+        });
+    }
 
     public async Task<Floor[]> ListFloors(string? buildingDtId)
     {
@@ -46,7 +67,28 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
     }
 
     public async Task<Floor?> GetFloor(string dtId)
-        => (await ListFloors(null)).FirstOrDefault(f => f.DtId == dtId);
+    {
+        var sparql = $@"{Prefixes}
+SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  <{dtId}> a <{Cls_Level}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
+  OPTIONAL {{
+    <{dtId}> <{Prop_Identifiers}> ?identEntry .
+    ?identEntry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ?identKey ; <{Prop_Value}> ?identVal .
+  }}
+  OPTIONAL {{
+    <{dtId}> <{Prop_CustomTags}> ?tagEntry .
+    ?tagEntry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ?tagKey ; <{Prop_Value}> ?tagBoolVal .
+  }}
+}}";
+        var rows = await _client.QueryAsync(sparql);
+        if (rows.Count == 0) return null;
+        return MapWithMetadata(rows, r => new Floor
+        {
+            DtId = dtId,
+            Id = r.GetValueOrDefault("id", ""),
+            Name = r.GetValueOrDefault("name", ""),
+        });
+    }
 
     public async Task<Space[]> ListSpaces(string? floorDtId)
     {
@@ -61,7 +103,28 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
     }
 
     public async Task<Space?> GetSpace(string dtId)
-        => (await ListSpaces(null)).FirstOrDefault(s => s.DtId == dtId);
+    {
+        var sparql = $@"{Prefixes}
+SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  <{dtId}> a <{Cls_Space}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
+  OPTIONAL {{
+    <{dtId}> <{Prop_Identifiers}> ?identEntry .
+    ?identEntry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ?identKey ; <{Prop_Value}> ?identVal .
+  }}
+  OPTIONAL {{
+    <{dtId}> <{Prop_CustomTags}> ?tagEntry .
+    ?tagEntry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ?tagKey ; <{Prop_Value}> ?tagBoolVal .
+  }}
+}}";
+        var rows = await _client.QueryAsync(sparql);
+        if (rows.Count == 0) return null;
+        return MapWithMetadata(rows, r => new Space
+        {
+            DtId = dtId,
+            Id = r.GetValueOrDefault("id", ""),
+            Name = r.GetValueOrDefault("name", ""),
+        });
+    }
 
     public async Task<Device[]> ListDevices(string? spaceDtId)
     {
@@ -80,7 +143,40 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
     }
 
     public async Task<Device?> GetDevice(string dtId)
-        => (await ListDevices(null)).FirstOrDefault(d => d.DtId == dtId);
+    {
+        // Single-resource query; SAMPLE not needed — DistinctBy handles any cross-product from OPTIONALs.
+        var sparql = $@"{Prefixes}
+SELECT ?devId ?devName ?devGw ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  <{dtId}> a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
+  OPTIONAL {{ <{dtId}> <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?devGw . }}
+  OPTIONAL {{
+    <{dtId}> <{Prop_Identifiers}> ?identEntry .
+    ?identEntry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ?identKey ; <{Prop_Value}> ?identVal .
+  }}
+  OPTIONAL {{
+    <{dtId}> <{Prop_CustomTags}> ?tagEntry .
+    ?tagEntry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ?tagKey ; <{Prop_Value}> ?tagBoolVal .
+  }}
+}}";
+        var rows = await _client.QueryAsync(sparql);
+        if (rows.Count == 0) return null;
+        var device = new Device
+        {
+            DtId = dtId,
+            Id = rows[0].GetValueOrDefault("devId", ""),
+            Name = rows[0].GetValueOrDefault("devName", ""),
+            GatewayId = rows.Select(r => r.GetValueOrDefault("devGw")).FirstOrDefault(g => g != null),
+        };
+        device.Identifiers = rows
+            .Where(r => r.ContainsKey("identKey") && r.ContainsKey("identVal"))
+            .DistinctBy(r => r["identKey"])
+            .ToDictionary(r => r["identKey"], r => r["identVal"]);
+        device.CustomTags = rows
+            .Where(r => r.ContainsKey("tagKey") && r.ContainsKey("tagBoolVal"))
+            .DistinctBy(r => r["tagKey"])
+            .ToDictionary(r => r["tagKey"], r => r["tagBoolVal"] == "true");
+        return device;
+    }
 
     public async Task<BuildingOS.Shared.Point[]> ListPoints(string? deviceDtId)
     {
@@ -92,10 +188,33 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
 
     public async Task<BuildingOS.Shared.Point?> GetPoint(string pointId)
     {
-        var sparql = $"{Prefixes} SELECT ?ptDt ?ptId ?ptName ?ptWritable WHERE {{ ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName . OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }} FILTER(?ptId = \"{EscapeStringLiteral(pointId)}\") BIND(?pt AS ?ptDt) }}";
+        var sparql = $@"{Prefixes}
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
+  OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
+  FILTER(?ptId = ""{EscapeStringLiteral(pointId)}"")
+  BIND(?pt AS ?ptDt)
+  OPTIONAL {{
+    ?pt <{Prop_Identifiers}> ?identEntry .
+    ?identEntry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ?identKey ; <{Prop_Value}> ?identVal .
+  }}
+  OPTIONAL {{
+    ?pt <{Prop_CustomTags}> ?tagEntry .
+    ?tagEntry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ?tagKey ; <{Prop_Value}> ?tagBoolVal .
+  }}
+}}";
         var rows = await _client.QueryAsync(sparql);
         if (rows.Count == 0) return null;
-        return MapPoint(rows[0]);
+        var point = MapPoint(rows[0]);
+        point.Identifiers = rows
+            .Where(r => r.ContainsKey("identKey") && r.ContainsKey("identVal"))
+            .DistinctBy(r => r["identKey"])
+            .ToDictionary(r => r["identKey"], r => r["identVal"]);
+        point.CustomTags = rows
+            .Where(r => r.ContainsKey("tagKey") && r.ContainsKey("tagBoolVal"))
+            .DistinctBy(r => r["tagKey"])
+            .ToDictionary(r => r["tagKey"], r => r["tagBoolVal"] == "true");
+        return point;
     }
 
     public async Task<PointDetail?> GetPointDetailByPointId(string pointId)
@@ -342,4 +461,123 @@ WHERE {{
         };
 
     private static string EscapeStringLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    // ── Metadata helpers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Maps one entity from the first row and attaches identifiers/customTags from all rows.
+    /// Uses DistinctBy to collapse any cross-product rows produced by independent OPTIONAL joins.
+    /// </summary>
+    private static T MapWithMetadata<T>(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows,
+        Func<IReadOnlyDictionary<string, string>, T> mapEntity)
+        where T : class
+    {
+        var entity = mapEntity(rows[0]);
+        if (entity is Building b)
+        {
+            b.Identifiers = ExtractIdentifiers(rows);
+            b.CustomTags   = ExtractCustomTags(rows);
+        }
+        else if (entity is Floor f)
+        {
+            f.Identifiers = ExtractIdentifiers(rows);
+            f.CustomTags   = ExtractCustomTags(rows);
+        }
+        else if (entity is Space s)
+        {
+            s.Identifiers = ExtractIdentifiers(rows);
+            s.CustomTags   = ExtractCustomTags(rows);
+        }
+        return entity;
+    }
+
+    private static Dictionary<string, string> ExtractIdentifiers(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows) =>
+        rows.Where(r => r.ContainsKey("identKey") && r.ContainsKey("identVal"))
+            .DistinctBy(r => r["identKey"])
+            .ToDictionary(r => r["identKey"], r => r["identVal"]);
+
+    private static Dictionary<string, bool> ExtractCustomTags(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows) =>
+        rows.Where(r => r.ContainsKey("tagKey") && r.ContainsKey("tagBoolVal"))
+            .DistinctBy(r => r["tagKey"])
+            .ToDictionary(r => r["tagKey"], r => r["tagBoolVal"] == "true");
+
+    // ── UpdateResourceMetadataAsync ───────────────────────────────────────────
+
+    public async Task UpdateResourceMetadataAsync(
+        string dtId,
+        Dictionary<string, string?>? identifiers,
+        Dictionary<string, bool?>? customTags,
+        CancellationToken ct)
+    {
+        var sb = new System.Text.StringBuilder();
+        var nodeIdx = 0;
+
+        if (identifiers != null)
+        {
+            foreach (var (key, value) in identifiers)
+            {
+                var escapedKey = EscapeStringLiteral(key);
+                // Always delete the existing entry for this key first.
+                sb.Append($@"DELETE {{
+  <{dtId}> <{Prop_Identifiers}> ?entry .
+  ?entry ?p ?v .
+}} WHERE {{
+  <{dtId}> <{Prop_Identifiers}> ?entry .
+  ?entry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ""{escapedKey}"" .
+  ?entry ?p ?v .
+}} ;
+");
+                if (value != null)
+                {
+                    var escapedVal = EscapeStringLiteral(value);
+                    var label = SafeBlankNodeLabel(key, nodeIdx++);
+                    sb.Append($@"INSERT DATA {{
+  <{dtId}> <{Prop_Identifiers}> _:{label} .
+  _:{label} a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ""{escapedKey}"" ; <{Prop_Value}> ""{escapedVal}"" .
+}} ;
+");
+                }
+            }
+        }
+
+        if (customTags != null)
+        {
+            foreach (var (key, value) in customTags)
+            {
+                var escapedKey = EscapeStringLiteral(key);
+                sb.Append($@"DELETE {{
+  <{dtId}> <{Prop_CustomTags}> ?entry .
+  ?entry ?p ?v .
+}} WHERE {{
+  <{dtId}> <{Prop_CustomTags}> ?entry .
+  ?entry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ""{escapedKey}"" .
+  ?entry ?p ?v .
+}} ;
+");
+                if (value != null)
+                {
+                    var boolLiteral = value.Value ? "true" : "false";
+                    var label = SafeBlankNodeLabel(key, nodeIdx++);
+                    sb.Append($@"INSERT DATA {{
+  <{dtId}> <{Prop_CustomTags}> _:{label} .
+  _:{label} a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ""{escapedKey}"" ; <{Prop_Value}> ""{boolLiteral}""^^xsd:boolean .
+}} ;
+");
+                }
+            }
+        }
+
+        if (sb.Length == 0) return;
+
+        var sparqlUpdate = $"{Prefixes}{sb.ToString().TrimEnd().TrimEnd(';').TrimEnd()}";
+        await _client.UpdateAsync(sparqlUpdate, ct).ConfigureAwait(false);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    private static string SafeBlankNodeLabel(string key, int idx) =>
+        // SPARQL PN_CHARS forbids spaces, slashes, colons, etc. — use a counter-based label instead.
+        $"n{idx}";
 }

@@ -18,4 +18,7 @@ public class Space
 
     [Required]
     public string Name { get; set; }
+
+    public Dictionary<string, string> Identifiers { get; set; } = new();
+    public Dictionary<string, bool> CustomTags { get; set; } = new();
 }

@@ -1,9 +1,13 @@
+import { API_BASE_URL, authHeaders, mutationError } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
 import { toPointResource, toRef, toSearchHit } from "./mapping";
 import { normalizeSearchParams } from "./search";
 import type {
   PointResource,
+  ResourceMetadata,
+  ResourceMetadataPatch,
   ResourceRef,
+  ResourceType,
   SearchHit,
   SearchParams,
 } from "./types";
@@ -119,4 +123,47 @@ export async function searchResources(
   const query = normalizeSearchParams(params);
   const res = await apiClient(token).resources.search.$get({ query });
   return res.map(toSearchHit);
+}
+
+// ── Metadata (identifiers / customTags) ─────────────────────────────────────
+
+function metadataPath(type: ResourceType, id: string): string {
+  const pathMap: Record<ResourceType, string> = {
+    building: "buildings",
+    floor: "floors",
+    space: "spaces",
+    device: "devices",
+    point: "points",
+  };
+  return `${API_BASE_URL}/${pathMap[type]}/${encodeURIComponent(id)}/metadata`;
+}
+
+/** Fetch identifiers/customTags for a resource. Returns empty maps when none exist. */
+export async function fetchResourceMetadata(
+  type: ResourceType,
+  id: string,
+): Promise<ResourceMetadata> {
+  const res = await fetch(metadataPath(type, id), {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return { identifiers: {}, customTags: {} };
+  const json = await res.json();
+  return {
+    identifiers: json.identifiers ?? {},
+    customTags: json.customTags ?? {},
+  };
+}
+
+/** Upsert or delete keys. Null value = delete the key. */
+export async function updateResourceMetadata(
+  type: ResourceType,
+  id: string,
+  patch: ResourceMetadataPatch,
+): Promise<void> {
+  const res = await fetch(metadataPath(type, id), {
+    method: "PATCH",
+    headers: authHeaders(true),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await mutationError(res, "メタデータの更新に失敗しました");
 }

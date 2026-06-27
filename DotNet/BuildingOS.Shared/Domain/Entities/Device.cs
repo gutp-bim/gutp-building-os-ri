@@ -26,4 +26,7 @@ public class Device
     public string? Supplier { get; set; }
     public string? GatewayId { get; set; }
     public string? DeviceType { get; set; }
+
+    public Dictionary<string, string> Identifiers { get; set; } = new();
+    public Dictionary<string, bool> CustomTags { get; set; } = new();
 }

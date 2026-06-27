@@ -1,4 +1,4 @@
-import type { ResourceRef } from "@/lib/resources/types";
+import type { ResourceMetadata, ResourceRef } from "@/lib/resources/types";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ResourceDetail } from "./resource-detail";
@@ -39,5 +39,39 @@ describe("ResourceDetail", () => {
   it("renders empty state when no resource is selected", () => {
     render(<ResourceDetail resource={null} />);
     expect(screen.getByTestId("detail-empty")).toBeInTheDocument();
+  });
+
+  // ── Metadata section ──────────────────────────────────────────────────────
+
+  const metadata: ResourceMetadata = {
+    identifiers: { ifcGuid: "3Skg8nAD1AJAiNfIxGkWjF" },
+    customTags: { geometryMapped: true },
+  };
+
+  it("shows identifiers when metadata is provided", () => {
+    render(<ResourceDetail resource={building} metadata={metadata} />);
+    expect(screen.getByTestId("metadata-section")).toBeInTheDocument();
+    expect(screen.getByText("ifcGuid")).toBeInTheDocument();
+    expect(screen.getByText("3Skg8nAD1AJAiNfIxGkWjF")).toBeInTheDocument();
+  });
+
+  it("shows customTags when metadata is provided", () => {
+    render(<ResourceDetail resource={building} metadata={metadata} />);
+    expect(screen.getByText("geometryMapped")).toBeInTheDocument();
+  });
+
+  it("shows edit button when canWrite is true", () => {
+    render(<ResourceDetail resource={building} metadata={metadata} canWrite />);
+    expect(screen.getByTestId("metadata-edit-btn")).toBeInTheDocument();
+  });
+
+  it("hides edit button when canWrite is false", () => {
+    render(<ResourceDetail resource={building} metadata={metadata} canWrite={false} />);
+    expect(screen.queryByTestId("metadata-edit-btn")).not.toBeInTheDocument();
+  });
+
+  it("does not show metadata section when metadata is not provided", () => {
+    render(<ResourceDetail resource={building} />);
+    expect(screen.queryByTestId("metadata-section")).not.toBeInTheDocument();
   });
 });

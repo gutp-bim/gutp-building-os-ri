@@ -35,4 +35,11 @@ public interface IAuthorizedTwinView
     Task<ResourceSearchHit[]> SearchAsync(
         AuthorizationContext auth, string? q, string? type, string? buildingDtId,
         IReadOnlyList<string> tags, int limit, int offset, CancellationToken ct);
+
+    /// <summary>
+    /// Returns true when the caller has write access to any resource type.
+    /// Admins always have write access.
+    /// </summary>
+    Task<bool> CanWriteResourceAsync(
+        AuthorizationContext auth, string resourceType, string resourceId, CancellationToken ct);
 }

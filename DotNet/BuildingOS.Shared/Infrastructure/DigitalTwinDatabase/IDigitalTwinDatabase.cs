@@ -36,4 +36,15 @@ public interface IDigitalTwinDatabase
     /// the gateway admin surface (#323) to enumerate gateways. Empty when no gateway owns points.
     /// </summary>
     public Task<string[]> ListGatewayIds();
+
+    /// <summary>
+    /// Upsert or delete <c>sbco:identifiers</c> and <c>sbco:customTags</c> entries for a resource.
+    /// A null value deletes the key; a non-null value upserts (delete existing + insert new).
+    /// Either map may be null to leave that dimension unchanged.
+    /// </summary>
+    public Task UpdateResourceMetadataAsync(
+        string dtId,
+        Dictionary<string, string?>? identifiers,
+        Dictionary<string, bool?>? customTags,
+        CancellationToken ct);
 }

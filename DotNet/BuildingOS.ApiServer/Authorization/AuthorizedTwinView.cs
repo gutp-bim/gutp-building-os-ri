@@ -150,6 +150,11 @@ public sealed class AuthorizedTwinView(
         return auth.IsAdmin || await authService.CanAccessAsync(auth, "point", pointId, "write", ct).ConfigureAwait(false);
     }
 
+    public async Task<bool> CanWriteResourceAsync(
+        AuthorizationContext auth, string resourceType, string resourceId, CancellationToken ct)
+        => auth.IsAdmin
+           || await authService.CanAccessAsync(auth, resourceType, resourceId, "write", ct).ConfigureAwait(false);
+
     // ── Search ────────────────────────────────────────────────────────────────
 
     public async Task<ResourceSearchHit[]> SearchAsync(

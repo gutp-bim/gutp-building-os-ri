@@ -47,3 +47,14 @@ export type SearchParams = {
   limit?: number;
   offset?: number;
 };
+
+/** sbco:identifiers (map<string, string>) and sbco:customTags (map<string, boolean>). */
+export type ResourceMetadata = {
+  identifiers: Record<string, string>;
+  customTags: Record<string, boolean>;
+};
+
+export type ResourceMetadataPatch = {
+  identifiers?: Record<string, string | null>;
+  customTags?: Record<string, boolean | null>;
+};

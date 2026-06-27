@@ -102,4 +102,14 @@ public class OssDigitalTwinDatabase(ILogger<OssDigitalTwinDatabase> logger) : ID
         logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListGatewayIds — no-op placeholder");
         return Task.FromResult(Array.Empty<string>());
     }
+
+    public Task UpdateResourceMetadataAsync(
+        string dtId,
+        Dictionary<string, string?>? identifiers,
+        Dictionary<string, bool?>? customTags,
+        CancellationToken ct)
+    {
+        logger.LogWarning("[OSS] OssDigitalTwinDatabase.UpdateResourceMetadataAsync — no-op placeholder");
+        return Task.CompletedTask;
+    }
 }

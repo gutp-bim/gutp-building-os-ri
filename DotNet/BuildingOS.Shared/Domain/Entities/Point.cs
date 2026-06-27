@@ -37,4 +37,7 @@ public class Point
     public string? DeviceIdBacnet { get; set; }
 
     public string? RowDataString { get; set; }
+
+    public Dictionary<string, string> Identifiers { get; set; } = new();
+    public Dictionary<string, bool> CustomTags { get; set; } = new();
 }
