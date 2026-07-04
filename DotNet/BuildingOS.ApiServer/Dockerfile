@@ -1,5 +1,5 @@
 # ----- application build stage -----
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS builder
 WORKDIR /app
 
 # copy proto files (referenced by csproj as ../../proto/; relative dest lands at /app/proto/)
