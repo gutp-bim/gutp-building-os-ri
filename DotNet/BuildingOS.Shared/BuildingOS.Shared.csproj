@@ -8,32 +8,33 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="AWSSDK.Core" Version="4.0.100.2" />
       <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
-      <PackageReference Include="Npgsql" Version="9.0.3" />
+      <PackageReference Include="Npgsql" Version="9.0.5" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
       <PackageReference Include="Parquet.Net" Version="4.25.0" />
-      <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.3" />
-      <PackageReference Include="Corvus.Json.ExtendedTypes" Version="2.0.9" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.3" />
+      <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.17" />
+      <PackageReference Include="Corvus.Json.ExtendedTypes" Version="2.0.20" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
       <!-- Pin Relational explicitly: the only non-private path to it is
            Npgsql.EntityFrameworkCore.PostgreSQL, whose floor [9.0.1, 10.0.0)
            otherwise resolves to 9.0.1 in publish output — too low for
            EntityFrameworkCore 9.0.3, which loads Relational 9.0.3.0 at runtime.
            (EntityFrameworkCore.Design carries 9.0.3 but is PrivateAssets=all.) -->
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.3" />
-      <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-      <PackageReference Include="TinyCsvParser" Version="2.7.1" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.17" />
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+      <PackageReference Include="TinyCsvParser" Version="2.7.2" />
       <!-- OpenTelemetry -->
       <PackageReference Include="OpenTelemetry" Version="1.9.0" />
       <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
       <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
       <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
       <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.9.0" />
-      <PackageReference Include="NATS.Client.Core" Version="2.5.4" />
-      <PackageReference Include="NATS.Client.JetStream" Version="2.5.4" />
-      <PackageReference Include="NATS.Client.KeyValueStore" Version="2.5.4" />
+      <PackageReference Include="NATS.Client.Core" Version="2.5.16" />
+      <PackageReference Include="NATS.Client.JetStream" Version="2.5.16" />
+      <PackageReference Include="NATS.Client.KeyValueStore" Version="2.5.16" />
       <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.3">
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.17">
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         <PrivateAssets>all</PrivateAssets>
       </PackageReference>
