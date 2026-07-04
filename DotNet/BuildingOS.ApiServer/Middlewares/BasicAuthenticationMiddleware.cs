@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 
 public class BasicAuthenticationMiddleware
@@ -39,14 +39,18 @@ public class BasicAuthenticationMiddleware
                         Convert.FromBase64String(encodedCredentials));
                     var parts = credentials.Split(':', 2);
 
-                    // Evaluate both comparisons unconditionally to prevent username
-                    // enumeration via timing (short-circuit && would leak correctness).
-                    var usernameOk = IsEqual(parts[0], _username);
-                    var passwordOk = IsEqual(parts[1], password);
-                    if (parts.Length == 2 & usernameOk & passwordOk)
+                    // Guard length first (attacker controls format, not the secret values).
+                    // Then evaluate both IsEqual calls unconditionally with non-short-circuit &
+                    // so neither username nor password correctness leaks via timing.
+                    if (parts.Length == 2)
                     {
-                        await _next(context);
-                        return;
+                        var usernameOk = IsEqual(parts[0], _username);
+                        var passwordOk = IsEqual(parts[1], password);
+                        if (usernameOk & passwordOk)
+                        {
+                            await _next(context);
+                            return;
+                        }
                     }
                 }
                 catch (FormatException)

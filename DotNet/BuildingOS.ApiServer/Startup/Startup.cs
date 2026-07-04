@@ -267,15 +267,14 @@ namespace BuildingOs.ApiServer
             // Add ASP.NET Core server instrumentation (http_server_* request duration /
             // active requests) on top — kept here so Shared stays free of an AspNetCore
             // framework dependency. AddOpenTelemetry() is idempotent and returns the same builder.
-            // Health-check paths are filtered from both traces and metrics to avoid noise.
+            // Health-check paths are filtered from traces to avoid sampling noise.
             const string HealthPath = "/health";
             if (!string.IsNullOrEmpty(_envModule.OtlpEndpoint))
             {
                 services.AddOpenTelemetry()
                     .WithTracing(builder => builder.AddAspNetCoreInstrumentation(opts =>
                         opts.Filter = ctx => !ctx.Request.Path.StartsWithSegments(HealthPath)))
-                    .WithMetrics(builder => builder.AddAspNetCoreInstrumentation(opts =>
-                        opts.Filter = ctx => !ctx.Request.Path.StartsWithSegments(HealthPath)));
+                    .WithMetrics(builder => builder.AddAspNetCoreInstrumentation());
             }
 
             // === Logger middleware ===
