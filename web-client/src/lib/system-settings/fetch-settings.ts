@@ -2,7 +2,7 @@ import Cookies from "js-cookie";
 import type { SettingView } from "./types";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 function authHeaders(json = false): HeadersInit {
   const headers: Record<string, string> = {

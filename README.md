@@ -332,7 +332,9 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 |------|------|-----------|
 | `PORT` | HTTP リッスンポート | `8080` |
 | `ASPNETCORE_ENVIRONMENT` | 環境名 | — |
-| `LOG_LEVEL` | ログレベル（`Information`/`Warning`/`Error`） | — |
+| `LOG_LEVEL` | **非推奨（no effect）** — `Logging__LogLevel__Default` を使用すること | — |
+| `Logging__LogLevel__Default` | ログレベル（`Information`/`Warning`/`Error`）。カテゴリ別は `Logging__LogLevel__<Category>` | `Information` |
+| `CORS_ALLOWED_ORIGINS` | CORS 許可オリジン（CSV。未設定 = 全開放・開発専用）。本番では必ず設定すること | — |
 | `POSTGRES_CONNECTION_STRING` | PostgreSQL（ユーザー・グループ・権限 + point_control_audit）| — |
 | `WARM_STORE` | Warm 層モード。`parquet`（既定）/ `timescale`（opt-in）| `parquet` |
 | `MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | Parquet レイク（MinIO/S3）| — |
@@ -350,9 +352,15 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 
 ### ConnectorWorker
 
+主要な変数（全一覧は [CLAUDE.md](./CLAUDE.md) の ConnectorWorker セクション参照）:
+
 | 変数 | 説明 | 必須 |
 |------|------|------|
 | `NATS_URL` | NATS 接続 URL | ✅ |
+| `WARM_STORE` | Warm 層モード。`parquet`（既定）/ `timescale` | — |
+| `MINIO_ENDPOINT` | MinIO/S3 エンドポイント（parquet モード時必須）| parquet モード |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | MinIO 認証情報 | parquet モード |
+| `OXIGRAPH_ENDPOINT` | OxiGraph SPARQL（gRPC GatewayIngress 利用時必須）| gRPC ingress |
 | `IOT_HUB_CONNECTION_STRING` | Azure IoT Hub（Kandt ゲートウェイ制御）| Kandt のみ |
 | `IOT_EDGE_MODULE_ID` | IoT Edge モジュール ID | Kandt のみ |
 

@@ -335,7 +335,7 @@ namespace BuildingOs.ApiServer
             services
                 .AddMemoryCache()
                 .AddSingleton(_envModule)
-                .AddCorsForAll()
+                .AddCorsForAll(Configuration)
                 .AddAuth()
                 .AddControllers();
 

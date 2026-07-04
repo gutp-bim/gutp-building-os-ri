@@ -2,7 +2,7 @@ import Cookies from "js-cookie";
 import type { AssistantChatRequest } from "./types";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 /**
  * `POST /api/assistant/chat` (#151). JWT-gated server-side (no backdoor). Returns the assistant reply.

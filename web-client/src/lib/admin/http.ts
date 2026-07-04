@@ -2,7 +2,7 @@ import Cookies from "js-cookie";
 
 /** Shared base URL + auth/error helpers for the admin bespoke-fetch clients (#143). */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 export function authHeaders(json = false): HeadersInit {
   const headers: Record<string, string> = {

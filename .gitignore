@@ -23,6 +23,10 @@ Tools/e2e-performance/results/
 Tools/e2e-performance/.venv/
 e2e/results/
 
+# AI agent runtime files
+.claude/scheduled_tasks.lock
+.claude/*.lock
+
 # OpenTofu / Terraform
 .terraform/
 .terraform.lock.hcl

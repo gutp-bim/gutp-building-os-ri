@@ -72,7 +72,7 @@ jobs:
     strategy:
       matrix:
         app:
-          - { dir: web-client, node: "20.x", typecheck: "npx tsc --noEmit", lint: "yarn lint" }
+          - { dir: web-client, node: "22.x", typecheck: "npx tsc --noEmit", lint: "yarn lint" }
 
     steps:
       - uses: actions/checkout@v4
@@ -133,37 +133,3 @@ jobs:
           helm template building-os kubernetes/helm/building-os \
             -f kubernetes/helm/building-os/values-prod.yaml
 
-  # ── Deploy to K8s (main branch only) ─────────────────────────
-  deploy:
-    name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
-    needs: [dotnet-test, frontend-check, helm-lint]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.16.4
-
-      - name: Configure kubectl
-        uses: azure/k8s-set-context@v4
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
-      - name: Deploy
-        run: |
-          helm upgrade --install building-os kubernetes/helm/building-os \
-            -f kubernetes/helm/building-os/values-prod.yaml \
-            --set global.imageRegistry=${{ secrets.IMAGE_REGISTRY }} \
-            --set apiServer.image.tag=${{ github.sha }} \
-            --set webClient.image.tag=${{ github.sha }} \
-            --set connectorWorker.image.tag=${{ github.sha }} \
-            --wait --timeout=10m

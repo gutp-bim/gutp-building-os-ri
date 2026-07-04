@@ -2,7 +2,7 @@ import Cookies from "js-cookie";
 import type { EffectiveConfig } from "./types";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 /**
  * Fetches `GET /api/system/config`. Admin/platform-gated server-side; secrets are masked server-side

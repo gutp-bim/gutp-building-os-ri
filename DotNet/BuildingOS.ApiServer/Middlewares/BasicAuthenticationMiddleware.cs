@@ -1,44 +1,50 @@
-﻿using System.Text;
+﻿using System.Security.Cryptography;
+using System.Text;
 
 public class BasicAuthenticationMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly string _username;
-    private readonly string _password;
+    private readonly string? _username;
+    private readonly string? _password;
 
     public BasicAuthenticationMiddleware(
         RequestDelegate next,
         IConfiguration configuration)
     {
         _next = next;
-        _username = "building-os";
-        _password = "oP*4yzbN8jE7";
+        _password = configuration["SWAGGER_BASIC_AUTH_PASSWORD"];
+        _username = configuration["SWAGGER_BASIC_AUTH_USER"] ?? "building-os";
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Redocページのパスをチェック
-        if (context.Request.Path.StartsWithSegments("/api-docs") || context.Request.Path.StartsWithSegments("/swagger"))
+        if (context.Request.Path.StartsWithSegments("/api-docs") ||
+            context.Request.Path.StartsWithSegments("/swagger"))
         {
-            string authHeader = context.Request.Headers["Authorization"];
-            
+            // When no password is configured, Swagger is open (development mode).
+            if (string.IsNullOrEmpty(_password))
+            {
+                await _next(context);
+                return;
+            }
+
+            string? authHeader = context.Request.Headers["Authorization"];
             if (authHeader != null && authHeader.StartsWith("Basic "))
             {
                 var encodedCredentials = authHeader.Substring("Basic ".Length).Trim();
                 var credentials = Encoding.UTF8.GetString(
                     Convert.FromBase64String(encodedCredentials));
                 var parts = credentials.Split(':', 2);
-                
-                if (parts.Length == 2 && 
-                    parts[0] == _username && 
-                    parts[1] == _password)
+
+                if (parts.Length == 2 &&
+                    IsEqual(parts[0], _username) &&
+                    IsEqual(parts[1], _password))
                 {
                     await _next(context);
                     return;
                 }
             }
 
-            // 認証失敗
             context.Response.StatusCode = 401;
             context.Response.Headers["WWW-Authenticate"] = "Basic realm=\"API Documentation\"";
             await context.Response.WriteAsync("Unauthorized");
@@ -46,5 +52,13 @@ public class BasicAuthenticationMiddleware
         }
 
         await _next(context);
+    }
+
+    // Timing-safe string comparison to resist timing attacks.
+    private static bool IsEqual(string a, string b)
+    {
+        var aBytes = Encoding.UTF8.GetBytes(a);
+        var bBytes = Encoding.UTF8.GetBytes(b);
+        return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
     }
 }

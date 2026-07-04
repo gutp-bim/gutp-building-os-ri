@@ -26,10 +26,10 @@ jobs:
       matrix:
         include:
           - name: api-server
-            context: DotNet
+            context: .
             dockerfile: DotNet/BuildingOS.ApiServer/Dockerfile
           - name: connector-worker
-            context: DotNet
+            context: .
             dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
           - name: web-client
             context: web-client
