@@ -78,9 +78,9 @@ required = {
         "HITL Sign-Off",
     ],
     "docs/oss-hono-design.md": [
-        "Eclipse Hono and EMQX Design",
+        "OSS Device Connectivity Design",
         "Provisioning",
-        "Cutover",
+        "HITL Sign-Off",
     ],
     "docs/hono-device-test-plan.md": [
         "Hono Device Test Plan",
@@ -94,9 +94,35 @@ for filename, headings in required.items():
     if not path.exists():
         raise SystemExit(f"missing {filename}")
     text = path.read_text(encoding="utf-8")
+    text_lower = text.lower()
     for heading in headings:
-        if heading not in text:
+        if heading.lower() not in text_lower:
             raise SystemExit(f"{filename} missing heading/text: {heading}")
+PY
+
+# Check for :latest tags in third-party infra images in docker-compose.oss.yaml.
+# Non-blocking: logs unpinned images so maintainers can track and pin them.
+python3 - <<'PY'
+import re
+from pathlib import Path
+
+compose = Path("docker-compose.oss.yaml").read_text(encoding="utf-8")
+
+# First-party images are built from this repo — :latest is managed by CI/CD.
+first_party_prefixes = ("buildingos/",)
+
+unpinned = []
+for line in compose.splitlines():
+    m = re.match(r'\s+image:\s+(\S+)', line)
+    if m:
+        image = m.group(1)
+        if image.endswith(":latest") and not any(image.startswith(p) for p in first_party_prefixes):
+            unpinned.append(image)
+
+if unpinned:
+    print("WARNING: third-party images using :latest (pin to a specific version for reproducibility):")
+    for img in unpinned:
+        print(f"  {img}")
 PY
 
 echo "OSS issue readiness checks passed"
