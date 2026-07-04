@@ -3,7 +3,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-COPY ./proto/ /proto/
+# proto files referenced by csproj as ../../proto/; relative dest lands at /src/proto/
+COPY ./proto/ proto/
 
 # copy *.csproj files only — restore is cached until dependencies change
 COPY ./DotNet/BuildingOS.ConnectorWorker/BuildingOS.ConnectorWorker.csproj DotNet/BuildingOS.ConnectorWorker/

@@ -39,6 +39,7 @@ apiServer:
     KEYCLOAK_ADMIN_CLIENT_SECRET: ""
     MINIO_ACCESS_KEY: ""
     MINIO_SECRET_KEY: ""
+    # SWAGGER_BASIC_AUTH_PASSWORD: ""  # Required in production: omitting this leaves /swagger open
 
 # Web Client (Next.js)
 webClient:

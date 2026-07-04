@@ -39,9 +39,11 @@ public class BasicAuthenticationMiddleware
                         Convert.FromBase64String(encodedCredentials));
                     var parts = credentials.Split(':', 2);
 
-                    if (parts.Length == 2 &&
-                        IsEqual(parts[0], _username) &&
-                        IsEqual(parts[1], password))
+                    // Evaluate both comparisons unconditionally to prevent username
+                    // enumeration via timing (short-circuit && would leak correctness).
+                    var usernameOk = IsEqual(parts[0], _username);
+                    var passwordOk = IsEqual(parts[1], password);
+                    if (parts.Length == 2 & usernameOk & passwordOk)
                     {
                         await _next(context);
                         return;
@@ -73,7 +75,9 @@ public class BasicAuthenticationMiddleware
         var bPadded = new byte[maxLen];
         Buffer.BlockCopy(aBytes, 0, aPadded, 0, aBytes.Length);
         Buffer.BlockCopy(bBytes, 0, bPadded, 0, bBytes.Length);
+        // Bitwise & (no short-circuit) so length check runs unconditionally,
+        // preserving constant-time behaviour for inputs of differing length.
         return CryptographicOperations.FixedTimeEquals(aPadded, bPadded)
-               && aBytes.Length == bBytes.Length;
+               & (aBytes.Length == bBytes.Length);
     }
 }

@@ -2,8 +2,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS builder
 WORKDIR /app
 
-# copy proto files (referenced by csproj as ../../proto/)
-COPY ./proto/ /proto/
+# copy proto files (referenced by csproj as ../../proto/; relative dest lands at /app/proto/)
+COPY ./proto/ proto/
 
 # copy *.csproj files only — restore is cached until dependencies change
 COPY ./DotNet/BuildingOS.ApiServer/BuildingOS.ApiServer.csproj DotNet/BuildingOS.ApiServer/

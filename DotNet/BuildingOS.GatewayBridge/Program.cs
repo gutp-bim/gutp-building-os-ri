@@ -9,7 +9,11 @@ var builder = WebApplication.CreateBuilder(args);
 // ── OpenTelemetry (traces+metrics+logs via OTLP; no-op when endpoint unset) ───
 var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
 var otelServiceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "building-os-gateway-bridge";
-builder.Services.AddOtlpTelemetry(otelServiceName, otlpEndpoint);
+var sampleRatio = double.TryParse(
+    builder.Configuration["OTEL_TRACES_SAMPLER_ARG"],
+    System.Globalization.NumberStyles.Float,
+    System.Globalization.CultureInfo.InvariantCulture, out var sr) ? sr : 1.0;
+builder.Services.AddOtlpTelemetry(otelServiceName, otlpEndpoint, sampleRatio);
 builder.Logging.AddOtlpLogging(otelServiceName, otlpEndpoint);
 
 // ── Kestrel: gRPC needs HTTP/2. Plaintext h2c in-cluster; TLS/mTLS terminates at Envoy (#161) ──
