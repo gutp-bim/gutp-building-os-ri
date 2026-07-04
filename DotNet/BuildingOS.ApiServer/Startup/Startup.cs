@@ -33,7 +33,7 @@ namespace BuildingOs.ApiServer
 {
     public class Startup
     {
-        private const string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+        private const string HealthPath = "/health";
 
         private EnvModule _envModule = null!;
         public IConfiguration Configuration { get; }
@@ -268,7 +268,6 @@ namespace BuildingOs.ApiServer
             // active requests) on top — kept here so Shared stays free of an AspNetCore
             // framework dependency. AddOpenTelemetry() is idempotent and returns the same builder.
             // Health-check paths are filtered from traces to avoid sampling noise.
-            const string HealthPath = "/health";
             if (!string.IsNullOrEmpty(_envModule.OtlpEndpoint))
             {
                 services.AddOpenTelemetry()
@@ -390,7 +389,7 @@ namespace BuildingOs.ApiServer
             }
 
             app.UseRouting();
-            app.UseCors(MyAllowSpecificOrigins);
+            app.UseCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
             app.UseGrpcWeb();
             app.UseMiddleware<LoggerMiddleware>();
             app.UseMiddleware<BasicAuthenticationMiddleware>();
@@ -402,14 +401,14 @@ namespace BuildingOs.ApiServer
             {
                 endpoints.MapGrpcService<Services.GreeterService>()
                     .EnableGrpcWeb()
-                    .RequireCors(MyAllowSpecificOrigins);
+                    .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
                 endpoints.MapGrpcService<Services.PointControlGrpcService>()
                     .EnableGrpcWeb()
-                    .RequireCors(MyAllowSpecificOrigins);
+                    .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
 
                 endpoints.MapControllers();
 
-                endpoints.MapGet("/health", async context =>
+                endpoints.MapGet(HealthPath, async context =>
                 {
                     var healthData = new
                     {
@@ -419,8 +418,9 @@ namespace BuildingOs.ApiServer
                         Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0"
                     };
                     context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(healthData,
-                        JsonSerializerHelper.JsonSerializerOptions));
+                    await context.Response.WriteAsync(
+                        JsonSerializer.Serialize(healthData, JsonSerializerHelper.JsonSerializerOptions),
+                        context.RequestAborted);
                 });
             });
 

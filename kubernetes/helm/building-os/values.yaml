@@ -32,14 +32,14 @@ apiServer:
     MINIO_ENDPOINT: ""
     OXIGRAPH_ENDPOINT: ""
     NATS_URL: ""
-    # CORS_ALLOWED_ORIGINS: "https://app.example.com"  # Set in production
+    CORS_ALLOWED_ORIGINS: ""  # Required: comma-separated frontend origins (e.g. https://app.example.com). Empty → CORS fail-closed in Production.
     Logging__LogLevel__Default: Information
   secretEnv:
     KEYCLOAK_ADMIN_CLIENT_ID: ""
     KEYCLOAK_ADMIN_CLIENT_SECRET: ""
     MINIO_ACCESS_KEY: ""
     MINIO_SECRET_KEY: ""
-    # SWAGGER_BASIC_AUTH_PASSWORD: ""  # Required in production: omitting this leaves /swagger open
+    # SWAGGER_BASIC_AUTH_PASSWORD: ""  # Set to expose /swagger in Production; if unset, /swagger is blocked in non-Development environments.
 
 # Web Client (Next.js)
 webClient:

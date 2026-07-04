@@ -78,20 +78,20 @@ public class BasicAuthenticationMiddleware
         await _next(context);
     }
 
-    // Timing-safe string comparison. Pads to equal length so FixedTimeEquals
-    // does not short-circuit on length mismatch, which would leak password byte-length.
+    // Timing-safe string comparison. Always compares bBytes.Length bytes so the
+    // execution time is proportional to the stored credential length (b), not the
+    // attacker-supplied input (a). Without this, Math.Max would make the timing
+    // proportional to max(a,b) — leaking stored credential byte-length when a < b.
     private static bool IsEqual(string a, string b)
     {
         var aBytes = Encoding.UTF8.GetBytes(a);
         var bBytes = Encoding.UTF8.GetBytes(b);
-        var maxLen = Math.Max(aBytes.Length, bBytes.Length);
-        var aPadded = new byte[maxLen];
-        var bPadded = new byte[maxLen];
-        Buffer.BlockCopy(aBytes, 0, aPadded, 0, aBytes.Length);
-        Buffer.BlockCopy(bBytes, 0, bPadded, 0, bBytes.Length);
-        // Bitwise & (no short-circuit) so length check runs unconditionally,
-        // preserving constant-time behaviour for inputs of differing length.
-        return CryptographicOperations.FixedTimeEquals(aPadded, bPadded)
+        // Pad a to b's length (the stored credential). Time is constant w.r.t. a.
+        var aPadded = new byte[bBytes.Length];
+        Buffer.BlockCopy(aBytes, 0, aPadded, 0, Math.Min(aBytes.Length, bBytes.Length));
+        // Bitwise & (no short-circuit) so the length equality check runs unconditionally,
+        // preventing a short-circuit path that would distinguish "wrong length" from "wrong bytes".
+        return CryptographicOperations.FixedTimeEquals(aPadded, bBytes)
                & (aBytes.Length == bBytes.Length);
     }
 }

@@ -2,7 +2,7 @@
 
 public static partial class IServiceCollectionExtension
 {
-    private const string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+    internal const string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
     public static IServiceCollection AddCorsForAll(
         this IServiceCollection services,
