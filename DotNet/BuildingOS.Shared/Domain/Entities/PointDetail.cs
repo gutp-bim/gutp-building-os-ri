@@ -5,7 +5,7 @@ namespace BuildingOS.Shared;
 public class PointDetail
 {
     [Required]
-    public Point Point { get; set; }
+    public Point Point { get; set; } = null!;
     public Floor? Floor { get; set; }
     public Space? Space { get; set; }
     public Device? Device { get; set; }

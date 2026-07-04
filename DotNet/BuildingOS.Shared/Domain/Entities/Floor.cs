@@ -8,16 +8,16 @@ public class Floor
     /// Digital Twins ID ($dtId)
     /// </summary>
     [Required]
-    public string DtId { get; set; }
+    public string DtId { get; set; } = null!;
 
     /// <summary>
     /// Business ID (floorId)
     /// </summary>
     [Required]
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     [Required]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public Dictionary<string, string> Identifiers { get; set; } = new();
     public Dictionary<string, bool> CustomTags { get; set; } = new();

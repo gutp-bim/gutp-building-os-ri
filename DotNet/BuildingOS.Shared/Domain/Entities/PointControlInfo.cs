@@ -11,12 +11,12 @@ public class PointControlInfo
     /// <summary>
     /// 制御タイプ（Kandt, Hono等）
     /// </summary>
-    public string Type { get; set; }
+    public string Type { get; set; } = null!;
 
     /// <summary>
     /// 制御タイプ固有のパラメータ（JSON文字列）
     /// </summary>
-    public string Body { get; set; }
+    public string Body { get; set; } = null!;
 
     /// <summary>
     /// 配送先ゲートウェイ id（gateway-bridge 経由の制御で per-gateway subject ルーティングに使用）。

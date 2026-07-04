@@ -8,16 +8,16 @@ public class Device
     /// Digital Twins ID ($dtId)
     /// </summary>
     [Required]
-    public string DtId { get; set; }
+    public string DtId { get; set; } = null!;
 
     /// <summary>
     /// Business ID (deviceId)
     /// </summary>
     [Required]
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     [Required]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public string? BuildingName { get; set; }
     public int? FloorNumber { get; set; }

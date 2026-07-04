@@ -8,16 +8,16 @@ public class Point
     /// Digital Twins ID ($dtId)
     /// </summary>
     [Required]
-    public string DtId { get; set; }
+    public string DtId { get; set; } = null!;
 
     /// <summary>
     /// Business ID (pointId) - formerly PointId property
     /// </summary>
     [Required]
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     [Required]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public string? Specification { get; set; }
     public string? Type { get; set; }
