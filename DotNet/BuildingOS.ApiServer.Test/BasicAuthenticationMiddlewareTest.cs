@@ -26,7 +26,7 @@ public class BasicAuthenticationMiddlewareTest
         return $"Basic {encoded}";
     }
 
-    private static (DefaultHttpContext ctx, bool nextCalled) BuildContext(
+    private static DefaultHttpContext BuildContext(
         string path = "/swagger",
         string? authHeader = null)
     {
@@ -35,23 +35,7 @@ public class BasicAuthenticationMiddlewareTest
         ctx.Response.Body = new MemoryStream();
         if (authHeader != null)
             ctx.Request.Headers["Authorization"] = authHeader;
-
-        return (ctx, false);
-    }
-
-    private static BasicAuthenticationMiddleware BuildSut(
-        IConfiguration config,
-        out bool nextInvoked)
-    {
-        var invoked = false;
-        nextInvoked = false;
-        RequestDelegate next = _ => { invoked = true; return Task.CompletedTask; };
-        // capture by ref trick: use a wrapper
-        var sut = new BasicAuthenticationMiddleware(
-            _ => { invoked = true; return Task.CompletedTask; },
-            config);
-        _ = invoked; // suppress unused warning
-        return sut;
+        return ctx;
     }
 
     // ── Tests: credentials not configured ─────────────────────────────────
@@ -66,7 +50,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger");
+        var ctx = BuildContext("/swagger");
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
@@ -82,7 +66,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/api-docs");
+        var ctx = BuildContext("/api-docs");
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
@@ -100,7 +84,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger", BasicHeader("testuser", "s3cr3t!"));
+        var ctx = BuildContext("/swagger", BasicHeader("testuser", "s3cr3t!"));
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
@@ -116,7 +100,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger/index.html", BasicHeader("u", "p"));
+        var ctx = BuildContext("/swagger/index.html", BasicHeader("u", "p"));
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
@@ -133,7 +117,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger"); // no Authorization header
+        var ctx = BuildContext("/swagger"); // no Authorization header
         await sut.InvokeAsync(ctx);
 
         Assert.False(nextCalled);
@@ -149,7 +133,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger", BasicHeader("testuser", "wrong"));
+        var ctx = BuildContext("/swagger", BasicHeader("testuser", "wrong"));
         await sut.InvokeAsync(ctx);
 
         Assert.False(nextCalled);
@@ -165,7 +149,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger", BasicHeader("otheruser", "s3cr3t!"));
+        var ctx = BuildContext("/swagger", BasicHeader("otheruser", "s3cr3t!"));
         await sut.InvokeAsync(ctx);
 
         Assert.False(nextCalled);
@@ -180,7 +164,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => Task.CompletedTask,
             config);
 
-        var (ctx, _) = BuildContext("/swagger"); // no auth
+        var ctx = BuildContext("/swagger"); // no auth
         await sut.InvokeAsync(ctx);
 
         Assert.Equal(401, ctx.Response.StatusCode);
@@ -198,7 +182,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/api/buildings"); // not a swagger path
+        var ctx = BuildContext("/api/buildings"); // not a swagger path
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
@@ -214,10 +198,28 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/health");
+        var ctx = BuildContext("/health");
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);
+    }
+
+    // ── Tests: malformed Authorization header ─────────────────────────────────
+
+    [Fact]
+    public async Task SwaggerPath_MalformedBase64_Returns401NotException()
+    {
+        var config = Config(user: "u", password: "p");
+        var nextCalled = false;
+        var sut = new BasicAuthenticationMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            config);
+
+        var ctx = BuildContext("/swagger", "Basic not!valid@@base64==");
+        await sut.InvokeAsync(ctx);
+
+        Assert.False(nextCalled);
+        Assert.Equal(401, ctx.Response.StatusCode);
     }
 
     // ── Tests: password-only configuration (user defaults to "building-os") ──
@@ -232,7 +234,7 @@ public class BasicAuthenticationMiddlewareTest
             _ => { nextCalled = true; return Task.CompletedTask; },
             config);
 
-        var (ctx, _) = BuildContext("/swagger", BasicHeader("building-os", "mysecret"));
+        var ctx = BuildContext("/swagger", BasicHeader("building-os", "mysecret"));
         await sut.InvokeAsync(ctx);
 
         Assert.True(nextCalled);

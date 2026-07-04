@@ -4,7 +4,7 @@ using System.Text;
 public class BasicAuthenticationMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly string? _username;
+    private readonly string _username;
     private readonly string? _password;
 
     public BasicAuthenticationMiddleware(
@@ -22,7 +22,8 @@ public class BasicAuthenticationMiddleware
             context.Request.Path.StartsWithSegments("/swagger"))
         {
             // When no password is configured, Swagger is open (development mode).
-            if (string.IsNullOrEmpty(_password))
+            var password = _password;
+            if (string.IsNullOrEmpty(password))
             {
                 await _next(context);
                 return;
@@ -32,33 +33,47 @@ public class BasicAuthenticationMiddleware
             if (authHeader != null && authHeader.StartsWith("Basic "))
             {
                 var encodedCredentials = authHeader.Substring("Basic ".Length).Trim();
-                var credentials = Encoding.UTF8.GetString(
-                    Convert.FromBase64String(encodedCredentials));
-                var parts = credentials.Split(':', 2);
-
-                if (parts.Length == 2 &&
-                    IsEqual(parts[0], _username) &&
-                    IsEqual(parts[1], _password))
+                try
                 {
-                    await _next(context);
-                    return;
+                    var credentials = Encoding.UTF8.GetString(
+                        Convert.FromBase64String(encodedCredentials));
+                    var parts = credentials.Split(':', 2);
+
+                    if (parts.Length == 2 &&
+                        IsEqual(parts[0], _username) &&
+                        IsEqual(parts[1], password))
+                    {
+                        await _next(context);
+                        return;
+                    }
+                }
+                catch (FormatException)
+                {
+                    // Malformed base64 — fall through to 401.
                 }
             }
 
             context.Response.StatusCode = 401;
             context.Response.Headers["WWW-Authenticate"] = "Basic realm=\"API Documentation\"";
-            await context.Response.WriteAsync("Unauthorized");
+            await context.Response.WriteAsync("Unauthorized", context.RequestAborted);
             return;
         }
 
         await _next(context);
     }
 
-    // Timing-safe string comparison to resist timing attacks.
+    // Timing-safe string comparison. Pads to equal length so FixedTimeEquals
+    // does not short-circuit on length mismatch, which would leak password byte-length.
     private static bool IsEqual(string a, string b)
     {
         var aBytes = Encoding.UTF8.GetBytes(a);
         var bBytes = Encoding.UTF8.GetBytes(b);
-        return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
+        var maxLen = Math.Max(aBytes.Length, bBytes.Length);
+        var aPadded = new byte[maxLen];
+        var bPadded = new byte[maxLen];
+        Buffer.BlockCopy(aBytes, 0, aPadded, 0, aBytes.Length);
+        Buffer.BlockCopy(bBytes, 0, bPadded, 0, bBytes.Length);
+        return CryptographicOperations.FixedTimeEquals(aPadded, bPadded)
+               && aBytes.Length == bBytes.Length;
     }
 }
