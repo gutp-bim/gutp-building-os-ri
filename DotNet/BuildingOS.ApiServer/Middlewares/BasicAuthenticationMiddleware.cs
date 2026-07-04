@@ -6,6 +6,7 @@ public class BasicAuthenticationMiddleware
     private readonly RequestDelegate _next;
     private readonly string _username;
     private readonly string? _password;
+    private readonly bool _isDevelopment;
 
     public BasicAuthenticationMiddleware(
         RequestDelegate next,
@@ -14,6 +15,9 @@ public class BasicAuthenticationMiddleware
         _next = next;
         _password = configuration["SWAGGER_BASIC_AUTH_PASSWORD"];
         _username = configuration["SWAGGER_BASIC_AUTH_USER"] ?? "building-os";
+        _isDevelopment = string.Equals(
+            configuration["ASPNETCORE_ENVIRONMENT"], "Development",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -21,41 +25,47 @@ public class BasicAuthenticationMiddleware
         if (context.Request.Path.StartsWithSegments("/api-docs") ||
             context.Request.Path.StartsWithSegments("/swagger"))
         {
-            // When no password is configured, Swagger is open (development mode).
             var password = _password;
             if (string.IsNullOrEmpty(password))
             {
-                await _next(context);
-                return;
-            }
-
-            string? authHeader = context.Request.Headers["Authorization"];
-            if (authHeader != null && authHeader.StartsWith("Basic "))
-            {
-                var encodedCredentials = authHeader.Substring("Basic ".Length).Trim();
-                try
+                // No password configured: open only in Development; deny in all other environments.
+                if (_isDevelopment)
                 {
-                    var credentials = Encoding.UTF8.GetString(
-                        Convert.FromBase64String(encodedCredentials));
-                    var parts = credentials.Split(':', 2);
-
-                    // Guard length first (attacker controls format, not the secret values).
-                    // Then evaluate both IsEqual calls unconditionally with non-short-circuit &
-                    // so neither username nor password correctness leaks via timing.
-                    if (parts.Length == 2)
+                    await _next(context);
+                    return;
+                }
+            }
+            else
+            {
+                string? authHeader = context.Request.Headers["Authorization"];
+                // RFC 7235: authentication scheme names are case-insensitive.
+                if (authHeader != null && authHeader.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var encodedCredentials = authHeader.Substring("Basic ".Length).Trim();
+                    try
                     {
-                        var usernameOk = IsEqual(parts[0], _username);
-                        var passwordOk = IsEqual(parts[1], password);
-                        if (usernameOk & passwordOk)
+                        var credentials = Encoding.UTF8.GetString(
+                            Convert.FromBase64String(encodedCredentials));
+                        var parts = credentials.Split(':', 2);
+
+                        // Guard length first (attacker controls format, not the secret values).
+                        // Then evaluate both IsEqual calls unconditionally with non-short-circuit &
+                        // so neither username nor password correctness leaks via timing.
+                        if (parts.Length == 2)
                         {
-                            await _next(context);
-                            return;
+                            var usernameOk = IsEqual(parts[0], _username);
+                            var passwordOk = IsEqual(parts[1], password);
+                            if (usernameOk & passwordOk)
+                            {
+                                await _next(context);
+                                return;
+                            }
                         }
                     }
-                }
-                catch (FormatException)
-                {
-                    // Malformed base64 — fall through to 401.
+                    catch (FormatException)
+                    {
+                        // Malformed base64 — fall through to 401.
+                    }
                 }
             }
 

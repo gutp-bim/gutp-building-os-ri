@@ -12,9 +12,12 @@ namespace BuildingOS.ApiServer.Test;
 /// </summary>
 public class CorsConfigurationTest
 {
-    private static CorsPolicy GetPolicy(string? allowedOrigins)
+    private static CorsPolicy GetPolicy(string? allowedOrigins, string environment = "Development")
     {
-        var dict = new Dictionary<string, string?>();
+        var dict = new Dictionary<string, string?>
+        {
+            ["ASPNETCORE_ENVIRONMENT"] = environment,
+        };
         if (allowedOrigins != null) dict["CORS_ALLOWED_ORIGINS"] = allowedOrigins;
         var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
 
@@ -45,6 +48,17 @@ public class CorsConfigurationTest
     }
 
     [Fact]
+    public void NoOriginsConfigured_NonDevelopment_PolicyIsFailClosed()
+    {
+        // In Production, omitting CORS_ALLOWED_ORIGINS must deny all cross-origin requests.
+        var policy = GetPolicy(null, environment: "Production");
+
+        Assert.NotNull(policy);
+        Assert.False(policy.AllowAnyOrigin);
+        Assert.Empty(policy.Origins);
+    }
+
+    [Fact]
     public void SingleOriginConfigured_PolicyRestrictsToThatOrigin()
     {
         var policy = GetPolicy("https://app.example.com");
@@ -66,7 +80,7 @@ public class CorsConfigurationTest
     }
 
     [Fact]
-    public void OriginsWithWhitespace_AreTrimedCorrectly()
+    public void OriginsWithWhitespace_AreTrimmedCorrectly()
     {
         var policy = GetPolicy("  https://a.example.com , https://b.example.com  ");
 

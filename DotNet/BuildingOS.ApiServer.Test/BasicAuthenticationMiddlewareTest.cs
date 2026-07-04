@@ -12,9 +12,15 @@ public class BasicAuthenticationMiddlewareTest
 {
     // ── Helpers ────────────────────────────────────────────────────────────
 
-    private static IConfiguration Config(string? user = null, string? password = null)
+    private static IConfiguration Config(
+        string? user = null,
+        string? password = null,
+        string environment = "Development")
     {
-        var dict = new Dictionary<string, string?>();
+        var dict = new Dictionary<string, string?>
+        {
+            ["ASPNETCORE_ENVIRONMENT"] = environment,
+        };
         if (user != null) dict["SWAGGER_BASIC_AUTH_USER"] = user;
         if (password != null) dict["SWAGGER_BASIC_AUTH_PASSWORD"] = password;
         return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
@@ -71,6 +77,23 @@ public class BasicAuthenticationMiddlewareTest
 
         Assert.True(nextCalled);
         Assert.NotEqual(401, ctx.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SwaggerPath_NoCredentialsConfigured_NonDevelopment_Returns401()
+    {
+        // In Production (or any non-Development env), omitting the password is fail-closed.
+        var config = Config(environment: "Production");
+        var nextCalled = false;
+        var sut = new BasicAuthenticationMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            config);
+
+        var ctx = BuildContext("/swagger");
+        await sut.InvokeAsync(ctx);
+
+        Assert.False(nextCalled);
+        Assert.Equal(401, ctx.Response.StatusCode);
     }
 
     // ── Tests: credentials configured, correct auth ────────────────────────

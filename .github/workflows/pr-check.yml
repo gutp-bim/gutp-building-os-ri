@@ -79,7 +79,7 @@ jobs:
         if: always()
         with:
           name: .NET Tests (PR)
-          path: DotNet/TestResults/*.trx
+          path: DotNet/TestResults/**/*.trx
           reporter: dotnet-trx
 
   # ── Frontend typecheck / lint / test ─────────────────────────
