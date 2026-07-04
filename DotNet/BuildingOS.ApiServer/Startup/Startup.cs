@@ -408,7 +408,7 @@ namespace BuildingOs.ApiServer
                         Status = "Healthy",
                         Timestamp = DateTime.UtcNow,
                         Environment = env.EnvironmentName,
-                        Version = "1.0.0"
+                        Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0"
                     };
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(healthData,
