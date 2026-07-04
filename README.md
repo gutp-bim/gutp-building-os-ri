@@ -314,11 +314,11 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 | 9000 | MinIO（S3 API） | http://localhost:9000 |
 | 9001 | MinIO（Web Console） | http://localhost:9001 |
 | 8080 | Keycloak | http://localhost:8080 |
-| 9090 | Prometheus | http://localhost:9090 |
-| 3010 | Grafana | http://localhost:3010 |
-| 3100 | Loki | — |
-| 4317 | Tempo（OTLP gRPC） | — |
-| 1883 | Mosquitto（MQTT） | `mqtt://localhost:1883` |
+| 9090 | Prometheus（`--profile observability`） | http://localhost:9090 |
+| 3010 | Grafana（`--profile observability`） | http://localhost:3010 |
+| 3100 | Loki（`--profile observability`） | — |
+| 4317 | Tempo（OTLP gRPC、`--profile observability`） | — |
+| 1883 | Mosquitto（MQTT、`--profile mqtt`） | `mqtt://localhost:1883` |
 | **5000** | **API Server**（`WithLocal`）| http://localhost:5000 |
 | **3000** | **Web Client**（`/admin` に管理ワークスペース）| http://localhost:3000 |
 
@@ -403,10 +403,10 @@ NATS subject / stream 設計は [`docs/oss-nats-design.md`](docs/oss-nats-design
 
 | ファイル | 用途 | 起動コマンド |
 |---------|------|------------|
-| `docker-compose.oss.yaml` | **OSS フルスタック**（NATS / PostgreSQL 16 / OxiGraph / MinIO / Keycloak / Prometheus / Grafana / Loki / Tempo 等）。MQTT ブローカ（Mosquitto）は任意で `--profile mqtt`（#25） | `make local-up-oss`（= `docker compose -f docker-compose.oss.yaml up -d`） |
+| `docker-compose.oss.yaml` | **OSS フルスタック**（NATS / PostgreSQL 16 / OxiGraph / MinIO / Keycloak 等）。Prometheus / Grafana / Loki / Tempo / otel-collector は既定オフで `--profile observability`（A-7、コスト最適化）、MQTT ブローカ（Mosquitto）は任意で `--profile mqtt`（#25） | `make local-up-oss`（= `docker compose -f docker-compose.oss.yaml up -d`）。可観測性込みは `docker compose -f docker-compose.oss.yaml --profile observability up -d` |
 | `docker-compose.minimal.yaml` | **最小構成**（NATS + PostgreSQL 16 + pgBouncer）。PoC・軽量開発向け | `make local-up-minimal` |
 | `docker-compose.dev.yaml` | OSS スタック起動済みを前提に **仮想エッジデバイス（MQTT シミュレータ）** を追加 | `make local-up-dev` |
-| `docker-compose.observability.yml` | **OpenTelemetry Collector + 観測バックエンド**（OTLP 受信） | `docker compose -f docker-compose.observability.yml up -d` |
+| `docker-compose.observability.yml` | **スタンドアロンの観測バックエンド**（OTLP 受信）。`docker-compose.oss.yaml --profile observability` とは別物 — API Server/ConnectorWorker を compose 外（`dotnet run` 等）で動かす場合に使う | `docker compose -f docker-compose.observability.yml up -d` |
 | `docker-compose.harbor.yaml` | ローカル **Harbor** コンテナレジストリ | `docker compose -f docker-compose.harbor.yaml up -d` |
 | `docker-compose.yaml` | レガシー（Azure 互換補助・Redis 等） | `make local-up-azure` |
 

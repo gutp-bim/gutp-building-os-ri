@@ -79,7 +79,7 @@ yarn generate               # regenerate TypeScript types from proto files via B
 
 ### Local Development Services
 ```bash
-docker compose -f docker-compose.oss.yaml up -d   # NATS, PostgreSQL 16, OxiGraph, MinIO, Keycloak, Prometheus, Grafana, Loki, Tempo, ConnectorWorker, GatewayBridge
+docker compose -f docker-compose.oss.yaml up -d   # NATS, PostgreSQL 16, OxiGraph, MinIO, Keycloak, ConnectorWorker, GatewayBridge
 docker compose -f docker-compose.oss.yaml down
 docker compose up -d   # Redis (legacy helper service)
 
@@ -87,6 +87,11 @@ docker compose up -d   # Redis (legacy helper service)
 #   ConnectorWorker GatewayIngress (telemetry ingest)  → enable with GRPC_INGRESS_PORT (e.g. 5051)
 #   GatewayBridge   GatewayEgress  (control plane)     → host port 5052 (always in the oss stack)
 # External BOWS / nexus-gateway egress agent: E2E_BOS_EGRESS_ADDR=localhost:5052 (NOT 5051).
+
+# Observability (Prometheus/Grafana/Loki/Tempo/otel-collector/postgres-exporter) is OPTIONAL and NOT
+# in the base stack (A-7, cost optimization). Apps degrade gracefully without it — PROMETHEUS_URL and
+# OTEL_EXPORTER_OTLP_ENDPOINT are no-ops when the targets are unreachable. Opt in with:
+docker compose -f docker-compose.oss.yaml --profile observability up -d
 
 # MQTT broker is OPTIONAL and NOT in the base stack (#25). Scenario A (Mosquitto) is opt-in:
 MQTT_HOST=building-os.mosquitto docker compose -f docker-compose.oss.yaml --profile mqtt up -d

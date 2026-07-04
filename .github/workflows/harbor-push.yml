@@ -31,6 +31,9 @@ jobs:
           - name: connector-worker
             context: .
             dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
+          - name: gateway-bridge
+            context: .
+            dockerfile: DotNet/BuildingOS.GatewayBridge/Dockerfile
           - name: web-client
             context: web-client
             dockerfile: web-client/Dockerfile
