@@ -1,6 +1,6 @@
 # Build context is the repo root (see docker-compose.oss.yaml) so the proto files referenced by the
 # csproj as ../../proto/*.proto (e.g. gateway_ingress.proto) are available. Mirrors the ApiServer image.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # proto files referenced by csproj as ../../proto/; relative dest lands at /src/proto/
