@@ -34,7 +34,7 @@ namespace BuildingOs.ApiServer
     {
         private const string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
-        private EnvModule _envModule;
+        private EnvModule _envModule = null!;
         public IConfiguration Configuration { get; }
 
         public Startup(IConfiguration configuration)
@@ -289,7 +289,7 @@ namespace BuildingOs.ApiServer
                 LogHeaders = false,
                 DeserializeRequest = requestBody =>
                 {
-                    if (string.IsNullOrWhiteSpace(requestBody)) return null;
+                    if (string.IsNullOrWhiteSpace(requestBody)) return null!;
                     try
                     {
                         return JsonSerializer.Deserialize<object>(requestBody,
@@ -302,7 +302,7 @@ namespace BuildingOs.ApiServer
                 },
                 DeserializeResponse = responseBody =>
                 {
-                    if (string.IsNullOrWhiteSpace(responseBody)) return null;
+                    if (string.IsNullOrWhiteSpace(responseBody)) return null!;
                     try
                     {
                         return JsonSerializer.Deserialize<object>(responseBody,

@@ -28,7 +28,7 @@ public class MinioBlobStorageTest : IntegrationTestBase
 
         var result = await _storage.GetAsync(Bucket, "roundtrip.txt");
         Assert.NotNull(result);
-        using var reader = new StreamReader(result);
+        using var reader = new StreamReader(result!);
         Assert.Equal(content, await reader.ReadToEndAsync());
     }
 

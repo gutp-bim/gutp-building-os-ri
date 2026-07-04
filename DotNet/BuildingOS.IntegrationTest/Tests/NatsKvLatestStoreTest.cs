@@ -28,8 +28,8 @@ public class NatsKvLatestStoreTest(NatsFixture fixture) : IntegrationTestBase
         var result = await store.GetAsync(pointId);
 
         Assert.NotNull(result);
-        Assert.Equal(42.0, result.Value);
-        Assert.Equal(pointId, result.PointId);
+        Assert.Equal(42.0, result!.Value);
+        Assert.Equal(pointId, result!.PointId);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class NatsKvLatestStoreTest(NatsFixture fixture) : IntegrationTestBase
         var result = await store.GetAsync(pointId);
 
         Assert.NotNull(result);
-        Assert.Equal(20.0, result.Value);
+        Assert.Equal(20.0, result!.Value);
     }
 
     [Fact]
@@ -66,6 +66,6 @@ public class NatsKvLatestStoreTest(NatsFixture fixture) : IntegrationTestBase
         var result = await store.GetAsync(pointId);
 
         Assert.NotNull(result);
-        Assert.Equal(1.0, result.Value);
+        Assert.Equal(1.0, result!.Value);
     }
 }

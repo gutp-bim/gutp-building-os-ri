@@ -74,10 +74,10 @@ public class KeycloakUserManagementServiceTest
         var user = await service.GetUserByIdAsync("id1");
 
         Assert.NotNull(user);
-        Assert.Equal("id1", user.Id);
-        Assert.Equal("bob", user.DisplayName);
-        Assert.Null(user.Role);
-        Assert.Empty(user.Permissions);
+        Assert.Equal("id1", user!.Id);
+        Assert.Equal("bob", user!.DisplayName);
+        Assert.Null(user!.Role);
+        Assert.Empty(user!.Permissions);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class KeycloakUserManagementServiceTest
         });
 
         Assert.NotNull(capturedBody);
-        var doc = JsonDocument.Parse(capturedBody);
+        var doc = JsonDocument.Parse(capturedBody!);
         var attrs = doc.RootElement.GetProperty("attributes");
         Assert.Equal("manager", attrs.GetProperty("buildingos_role")[0].GetString());
         Assert.Equal("floor:2:write", attrs.GetProperty("buildingos_permissions")[0].GetString());

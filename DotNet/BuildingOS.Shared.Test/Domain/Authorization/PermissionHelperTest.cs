@@ -182,9 +182,9 @@ public class PermissionHelperTest
         var result = PermissionHelper.ParsePermissionString($"d:{hash}:rw");
 
         Assert.NotNull(result);
-        Assert.Equal("device", result.Value.ResourceType);
-        Assert.Equal(hash, result.Value.ResourceId);
-        Assert.Equal("read,write", result.Value.Actions);
+        Assert.Equal("device", result!.Value.ResourceType);
+        Assert.Equal(hash, result!.Value.ResourceId);
+        Assert.Equal("read,write", result!.Value.Actions);
     }
 
     [Fact]
@@ -193,9 +193,9 @@ public class PermissionHelperTest
         var result = PermissionHelper.ParsePermissionString("g:hvac-team:r");
 
         Assert.NotNull(result);
-        Assert.Equal("group", result.Value.ResourceType);
-        Assert.Equal("hvac-team", result.Value.ResourceId);
-        Assert.Equal("read", result.Value.Actions);
+        Assert.Equal("group", result!.Value.ResourceType);
+        Assert.Equal("hvac-team", result!.Value.ResourceId);
+        Assert.Equal("read", result!.Value.Actions);
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public class PermissionHelperTest
         var parsed = PermissionHelper.ParsePermissionString(first);
         Assert.NotNull(parsed);
         var second = PermissionHelper.BuildPermissionString(
-            parsed.Value.ResourceType, parsed.Value.ResourceId, parsed.Value.Actions);
+            parsed!.Value.ResourceType, parsed!.Value.ResourceId, parsed!.Value.Actions);
 
         Assert.Equal(first, second);
     }

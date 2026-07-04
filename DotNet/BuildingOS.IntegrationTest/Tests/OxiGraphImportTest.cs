@@ -102,7 +102,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         var details = await db.ListPointDetails(Bldg1DtId);
 
         Assert.NotEmpty(details);
-        Assert.All(details, d => Assert.Equal("floor-1", d.Floor.Name));
+        Assert.All(details, d => Assert.Equal("floor-1", d.Floor!.Name));
     }
 
     // #181: gateway_id must belong to a single building; import-time validation must reject a duplicate.
