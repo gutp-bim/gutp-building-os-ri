@@ -23,30 +23,28 @@ public static class OtelSetup
     /// <summary>
     /// Registers OpenTelemetry tracing and metrics with OTLP export.
     /// No-op when otlpEndpoint is null or empty (Azure-only / disabled mode).
-    ///
-    /// Tracing: outbound HttpClient spans.
-    /// Metrics: .NET runtime (GC/heap/threadpool/exceptions), outbound HttpClient,
-    ///          and the BuildingOS.Pipeline meter (custom application metrics).
-    ///
-    /// ASP.NET Core instrumentation (http_server_*) is added by the API host on top of
-    /// this base, so the Shared library stays free of an AspNetCore framework dependency.
+    /// <paramref name="sampleRatio"/> controls trace sampling (0.0–1.0, default 1.0 = AlwaysOn);
+    /// read from OTEL_TRACES_SAMPLER_ARG in the host and pass it here.
     /// </summary>
     public static IServiceCollection AddOtlpTelemetry(
         this IServiceCollection services,
         string serviceName,
-        string? otlpEndpoint)
+        string? otlpEndpoint,
+        double sampleRatio = 1.0)
     {
         if (string.IsNullOrEmpty(otlpEndpoint))
             return services;
 
         var resource = BuildResource(serviceName);
         var endpoint = new Uri(otlpEndpoint);
+        var sampler = new ParentBasedSampler(new TraceIdRatioBasedSampler(Math.Clamp(sampleRatio, 0.0, 1.0)));
 
         services.AddOpenTelemetry()
             .WithTracing(builder =>
             {
                 builder
                     .SetResourceBuilder(resource)
+                    .SetSampler(sampler)
                     .AddHttpClientInstrumentation()
                     .AddOtlpExporter(opts => opts.Endpoint = endpoint);
             })

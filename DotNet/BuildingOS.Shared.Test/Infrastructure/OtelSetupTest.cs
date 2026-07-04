@@ -96,4 +96,40 @@ public class OtelSetupTest
         var factory = provider.GetRequiredService<ILoggerFactory>();
         Assert.NotNull(factory.CreateLogger("test"));
     }
+
+    // ── Sampler configuration (A-1) ───────────────────────────────
+
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(0.5)]
+    [InlineData(1.0)]
+    public void AddOtlpTelemetry_WithSampleRatio_RegistersTracerProvider(double sampleRatio)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOtlpTelemetry("test-service", "http://localhost:4317", sampleRatio);
+        using var provider = services.BuildServiceProvider();
+        Assert.NotNull(provider.GetService<TracerProvider>());
+    }
+
+    [Fact]
+    public void AddOtlpTelemetry_WithZeroSampleRatio_RegistersTracerProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOtlpTelemetry("test-service", "http://localhost:4317", 0.0);
+        using var provider = services.BuildServiceProvider();
+        Assert.NotNull(provider.GetService<TracerProvider>());
+    }
+
+    [Fact]
+    public void AddOtlpTelemetry_DefaultSampleRatio_IsAlwaysOnEquivalent()
+    {
+        // Default (no sampleRatio arg) should behave like 1.0 — provider is registered.
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOtlpTelemetry("test-service", "http://localhost:4317");
+        using var provider = services.BuildServiceProvider();
+        Assert.NotNull(provider.GetService<TracerProvider>());
+    }
 }

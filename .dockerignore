@@ -7,3 +7,6 @@ tmp/
 .github/
 *.md
 DotNet/global.json
+DotNet/**/bin/
+DotNet/**/obj/
+DotNet/**/TestResults/

@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Treat nullable-related warnings as errors to prevent null-safety regressions.
+         Other warning categories can be added here incrementally. -->
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

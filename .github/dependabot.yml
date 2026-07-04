@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/DotNet"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      dotnet-patch:
+        update-types: ["patch"]
+      dotnet-minor:
+        update-types: ["minor"]
+
+  - package-ecosystem: npm
+    directory: "/web-client"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm-patch:
+        update-types: ["patch"]
+      npm-minor:
+        update-types: ["minor"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+
+  - package-ecosystem: docker
+    directory: "/DotNet/BuildingOS.ApiServer"
+    schedule:
+      interval: weekly
+      day: monday
+
+  - package-ecosystem: docker
+    directory: "/DotNet/BuildingOS.ConnectorWorker"
+    schedule:
+      interval: weekly
+      day: monday

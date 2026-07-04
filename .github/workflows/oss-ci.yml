@@ -31,6 +31,11 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: DotNet/**/*.csproj
+
+      - name: Restore tools
+        run: dotnet tool restore
 
       - name: Restore
         run: dotnet restore BuildingOS.sln
@@ -41,21 +46,37 @@ jobs:
       # Reports EF model/snapshot drift. Non-blocking: the hand-written
       # initial Npgsql snapshot only affects future `migrations add`, not
       # runtime Database.Migrate(); a drift warning should not gate CI.
+      # TODO (B-9): re-generate snapshot and remove continue-on-error.
       - name: Verify EF migration snapshot is up to date
         continue-on-error: true
         run: |
-          dotnet tool install --global dotnet-ef --version 9.0.3
-          export PATH="$PATH:$HOME/.dotnet/tools"
           dotnet ef migrations has-pending-model-changes \
             --project BuildingOS.Shared \
             --context RelationalDbContext
 
-      - name: Unit Tests (Shared)
+      - name: Unit Tests
         run: |
-          dotnet test BuildingOS.Shared.Test/BuildingOS.Shared.Test.csproj \
+          dotnet test BuildingOS.sln \
             --no-build --configuration Release \
-            --logger "trx;LogFileName=shared-test-results.trx" \
+            --filter "FullyQualifiedName!~IntegrationTest&FullyQualifiedName!~DuckDbSpike" \
+            --collect:"XPlat Code Coverage" \
+            --logger "trx;LogFileName=unit-test-results.trx" \
             --results-directory TestResults
+
+      - name: Coverage Report
+        uses: danielpalme/ReportGenerator-GitHub-Action@5
+        if: always()
+        with:
+          reports: DotNet/TestResults/**/coverage.cobertura.xml
+          targetdir: DotNet/TestResults/coverage-report
+          reporttypes: MarkdownSummaryGithub
+
+      - name: Upload Coverage Summary
+        if: always()
+        run: |
+          if [ -f TestResults/coverage-report/SummaryGithub.md ]; then
+            cat TestResults/coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v1
@@ -95,6 +116,10 @@ jobs:
       - name: Lint
         working-directory: ${{ matrix.app.dir }}
         run: ${{ matrix.app.lint }}
+
+      - name: Unit Tests
+        working-directory: ${{ matrix.app.dir }}
+        run: yarn test --run
 
   # ── OSS issue readiness checks ─────────────────────────────────
   oss-readiness:

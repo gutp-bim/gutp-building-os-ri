@@ -1,0 +1,116 @@
+name: PR Check
+
+# Lightweight gate that runs on every pull request targeting main.
+# Scoped to the changed area only (DotNet/proto → backend, web-client → frontend)
+# to keep credit consumption low.
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  # ── Detect changed areas ──────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      dotnet: ${{ steps.filter.outputs.dotnet }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            dotnet:
+              - 'DotNet/**'
+              - 'proto/**'
+            frontend:
+              - 'web-client/**'
+
+  # ── .NET build + unit tests ───────────────────────────────────
+  dotnet-check:
+    name: .NET Build & Test
+    needs: changes
+    if: needs.changes.outputs.dotnet == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+    defaults:
+      run:
+        working-directory: DotNet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: DotNet/**/*.csproj
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Restore
+        run: dotnet restore BuildingOS.sln
+
+      - name: Build
+        run: dotnet build BuildingOS.sln --no-restore --configuration Release
+
+      - name: Unit Tests
+        run: |
+          dotnet test BuildingOS.sln \
+            --no-build --configuration Release \
+            --filter "FullyQualifiedName!~IntegrationTest&FullyQualifiedName!~DuckDbSpike" \
+            --logger "trx;LogFileName=pr-test-results.trx" \
+            --results-directory TestResults
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: .NET Tests (PR)
+          path: DotNet/TestResults/*.trx
+          reporter: dotnet-trx
+
+  # ── Frontend typecheck / lint / test ─────────────────────────
+  frontend-check:
+    name: Frontend Check
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: yarn
+          cache-dependency-path: web-client/yarn.lock
+
+      - name: Install dependencies
+        working-directory: web-client
+        run: yarn install --frozen-lockfile
+
+      - name: Type check
+        working-directory: web-client
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: web-client
+        run: yarn lint
+
+      - name: Unit Tests
+        working-directory: web-client
+        run: yarn test --run
