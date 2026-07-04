@@ -1,5 +1,3 @@
-version: "3.8"
-
 # OSS スタック — Azure マネージドサービスを置換する全コンポーネント
 #
 # SECURITY: 認証情報はすべて `${VAR:-default}` で外部化されています。
@@ -85,6 +83,7 @@ services:
   building-os.postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:latest
     container_name: building-os.postgres-exporter
+    profiles: [observability]
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-buildingos}:${POSTGRES_PASSWORD:-buildingos}@building-os.postgres:5432/${POSTGRES_DB:-buildingos}?sslmode=disable"
     depends_on:
@@ -210,9 +209,16 @@ services:
       start_period: 30s
 
   # ── Prometheus (← Azure Monitor / App Insights) ───────────────────────────
+  # ── Observability stack (A-7) ─────────────────────────────────────────────
+  # Start with: docker compose -f docker-compose.oss.yaml --profile observability up -d
+  # Without the profile, the base stack (NATS/PG/OxiGraph/MinIO/Keycloak + app) starts without
+  # Prometheus, Grafana, Loki, Tempo, otel-collector, and postgres-exporter.
+  # Apps degrade gracefully: PROMETHEUS_URL and OTEL_EXPORTER_OTLP_ENDPOINT are no-ops when
+  # the targets are unreachable (OTel SDK retries silently; /api/system/status KPIs return null).
   building-os.prometheus:
     image: prom/prometheus:latest
     container_name: building-os.prometheus
+    profiles: [observability]
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -240,6 +246,7 @@ services:
   building-os.grafana:
     image: grafana/grafana:latest
     container_name: building-os.grafana
+    profiles: [observability]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: ${GF_AUTH_ANONYMOUS_ENABLED:-true}
       GF_AUTH_ANONYMOUS_ORG_ROLE: ${GF_AUTH_ANONYMOUS_ORG_ROLE:-Admin}
@@ -268,6 +275,7 @@ services:
   building-os.loki:
     image: grafana/loki:latest
     container_name: building-os.loki
+    profiles: [observability]
     command: -config.file=/etc/loki/loki-config.yaml
     ports:
       - "3100:3100"
@@ -282,6 +290,7 @@ services:
   building-os.tempo:
     image: grafana/tempo:latest
     container_name: building-os.tempo
+    profiles: [observability]
     command: -config.file=/etc/tempo/tempo-config.yaml
     ports:
       - "3200:3200"   # HTTP query
@@ -298,6 +307,7 @@ services:
   building-os.otel-collector:
     image: otel/opentelemetry-collector-contrib:0.104.0
     container_name: building-os.otel-collector
+    profiles: [observability]
     command: ["--config=/etc/otel/config.yaml"]
     volumes:
       - ./oss-stack/otel-collector/config.yaml:/etc/otel/config.yaml:ro
@@ -474,6 +484,11 @@ services:
       LAKE_COMPACTION_INTERVAL: ${LAKE_COMPACTION_INTERVAL:-}
       LAKE_COMPACTION_SETTLE_MINUTES: ${LAKE_COMPACTION_SETTLE_MINUTES:-}
       LAKE_COMPACTION_MIN_PARTS: ${LAKE_COMPACTION_MIN_PARTS:-}
+      # Lake retention / query safety caps (A-6). These are reference defaults — adjust for your
+      # environment. To disable retention / cap, set the var to 0 (or to "" for MAX_FILES unlimited).
+      LAKE_RETENTION_DAYS: ${LAKE_RETENTION_DAYS:-365}
+      PARQUET_STREAM_MAX_BYTES: ${PARQUET_STREAM_MAX_BYTES:-10737418240}
+      PARQUET_QUERY_MAX_FILES: ${PARQUET_QUERY_MAX_FILES:-5000}
       COLD_EXPORT_INTERVAL: "5"
       # Scenario A: MQTT ingress (MqttIngressWorker + MqttConnectorWorker) — OPTIONAL, off by default.
       # The broker is not in the base stack (#25); enable it with `--profile mqtt` AND set MQTT_HOST,

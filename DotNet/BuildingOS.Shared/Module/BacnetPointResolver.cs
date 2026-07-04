@@ -6,13 +6,13 @@ namespace BuildingOS.Shared.Module;
 [Serializable]
 public class BacnetPointInfo
 {
-    public string DeviceIdBacnet { get; set; }
+    public string DeviceIdBacnet { get; set; } = null!;
     public int InstanceNoBacnet { get; set; }
-    public string Name { get; set; }
-    public string ObjectTypeBacnet { get; set; }
-    public string PointId { get; set; }
-    public string PointName { get; set; }
-    public string PointSpecification { get; set; }
+    public string Name { get; set; } = null!;
+    public string ObjectTypeBacnet { get; set; } = null!;
+    public string PointId { get; set; } = null!;
+    public string PointName { get; set; } = null!;
+    public string PointSpecification { get; set; } = null!;
 }
 
 public class BacnetPointResolver
@@ -101,10 +101,10 @@ public class BacnetPointResolver
             Path.Combine(Directory.GetCurrentDirectory(), "Data", BacnetPointInfoFileName),
             
             // 2. アセンブリの場所/Data配下
-            Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Data", BacnetPointInfoFileName),
-            
+            Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "", "Data", BacnetPointInfoFileName),
+
             // 3. アセンブリの場所と同じディレクトリ
-            Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), BacnetPointInfoFileName),
+            Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "", BacnetPointInfoFileName),
             
             // 4. Azure Functions の home/site/wwwroot/Data 配下
             Path.Combine(Environment.GetEnvironmentVariable("HOME") ?? "", "site", "wwwroot", "Data", BacnetPointInfoFileName),

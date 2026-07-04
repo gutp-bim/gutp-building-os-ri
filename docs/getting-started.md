@@ -62,7 +62,6 @@ docker compose -f docker-compose.oss.yaml up -d
 | OxiGraph | デジタルツイン（SPARQL） | 7878 |
 | MinIO | Parquet レイク（S3 互換） | 9000 / 9001(console) |
 | Keycloak | 認証（OIDC/JWT） | 8080 |
-| Prometheus / Grafana / Loki / Tempo | 可観測性 | 9090 / 3010 / 3100 / 3200 |
 | ConnectorWorker | 取り込みワーカー（+ 任意 gRPC ingress） | 8081(health), 5051(ingress)※ |
 | GatewayBridge | 制御 egress（gRPC bidi） | 5052 |
 
@@ -71,6 +70,13 @@ docker compose -f docker-compose.oss.yaml up -d
 > `GRPC_INGRESS_PORT=5051 docker compose -f docker-compose.oss.yaml up -d building-os.connector-worker`。
 > ポート全一覧と起動オプション（MQTT/TimescaleDB プロファイル等）は
 > [ルート README](../README.md#ローカルポート一覧) を参照。
+
+> 📊 **可観測性（Prometheus / Grafana / Loki / Tempo / otel-collector）は既定オフ**です（コスト最適化、A-7）。
+> API/ConnectorWorker は `PROMETHEUS_URL` / `OTEL_EXPORTER_OTLP_ENDPOINT` が未到達でも no-op で動き続けるため必須ではありません。使う場合は起動時に `--profile observability` を付けてください:
+> ```bash
+> docker compose -f docker-compose.oss.yaml --profile observability up -d
+> ```
+> Prometheus(9090) / Grafana(3010) / Loki(3100) / Tempo(3200) / otel-collector / postgres-exporter が追加で立ち上がります。
 
 ---
 
@@ -187,7 +193,7 @@ curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
 | gRPC ingest が `Unimplemented`/接続不可 | connector に `GRPC_INGRESS_PORT` 未設定（health のみ）。設定して recreate |
 | 制御が常に成功扱いで 503 にならない | OSS 既定は `ENABLE_SIM_CONTROL=true`（シミュレート制御）。実 egress は gateway binding を `bacnet-sim` にし GatewayBridge 経由 |
 | latest/range が空 | point が twin 未登録（404）／flush 前（既定 5 分、テストは `PARQUET_FLUSH_INTERVAL=1`） |
-| 各サービスの health | `GET /api/system/status`（API）、`/health/ready`（worker 8081）、MinIO console 9001、Grafana 3010 |
+| 各サービスの health | `GET /api/system/status`（API）、`/health/ready`（worker 8081）、MinIO console 9001、Grafana 3010（`--profile observability` 起動時のみ） |
 
 ---
 

@@ -13,25 +13,25 @@ namespace BuildingOs.Shared
         public DateTime Timestamp { get; set; }
 
         [JsonPropertyName("level")]
-        public string Level { get; set; }
+        public string Level { get; set; } = null!;
 
         [JsonPropertyName("message")]
-        public object Message { get; set; }
+        public object Message { get; set; } = null!;
 
         [JsonPropertyName("traceId")]
-        public string TraceId { get; set; }
+        public string TraceId { get; set; } = null!;
 
         [JsonPropertyName("spanId")]
-        public string SpanId { get; set; }
+        public string SpanId { get; set; } = null!;
 
         [JsonPropertyName("operationId")]
-        public string OperationId { get; set; }
+        public string OperationId { get; set; } = null!;
 
         [JsonPropertyName("httpRequest")]
-        public LogHttpRequest HttpRequest { get; set; }
+        public LogHttpRequest HttpRequest { get; set; } = null!;
 
         [JsonPropertyName("customDimensions")]
-        public Dictionary<string, object> CustomDimensions { get; set; }
+        public Dictionary<string, object> CustomDimensions { get; set; } = null!;
 
         #endregion
 
@@ -42,7 +42,7 @@ namespace BuildingOs.Shared
             string spanId,
             object messageData,
             string level = "Information",
-            string operationId = null
+            string? operationId = null
         ) => new()
         {
             TraceId = traceId,
@@ -66,10 +66,10 @@ namespace BuildingOs.Shared
         #region Properties
 
         [JsonPropertyName("method")]
-        public string Method { get; set; }
+        public string Method { get; set; } = null!;
 
         [JsonPropertyName("url")]
-        public string Url { get; set; }
+        public string Url { get; set; } = null!;
 
         [JsonPropertyName("statusCode")]
         public int StatusCode { get; set; }
@@ -81,22 +81,22 @@ namespace BuildingOs.Shared
         public long ResponseSize { get; set; }
 
         [JsonPropertyName("userAgent")]
-        public string UserAgent { get; set; }
+        public string UserAgent { get; set; } = null!;
 
         [JsonPropertyName("referer")]
-        public string Referer { get; set; }
+        public string Referer { get; set; } = null!;
 
         [JsonPropertyName("remoteIp")]
-        public string RemoteIp { get; set; }
+        public string RemoteIp { get; set; } = null!;
 
         [JsonPropertyName("protocol")]
-        public string Protocol { get; set; }
+        public string Protocol { get; set; } = null!;
 
         [JsonPropertyName("host")]
-        public string Host { get; set; }
+        public string Host { get; set; } = null!;
 
         [JsonPropertyName("scheme")]
-        public string Scheme { get; set; }
+        public string Scheme { get; set; } = null!;
 
         #endregion
 

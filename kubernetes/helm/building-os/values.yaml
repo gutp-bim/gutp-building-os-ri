@@ -24,19 +24,22 @@ apiServer:
       memory: 1Gi
   env:
     ASPNETCORE_ENVIRONMENT: Production
-    AUTH_PROVIDER: keycloak
     KEYCLOAK_AUTHORITY: ""
     KEYCLOAK_CLIENT_ID: api-server
-    COSMOS_DATABASE_NAME: ""
-    COSMOS_CONTAINER_NAME: ""
-    COSMOS_CONTROL_CONTAINER_NAME: ""
-    COSMOS_CONNECTION_STRING: ""
+    KEYCLOAK_REALM: ""
     POSTGRES_CONNECTION_STRING: ""
-    LOG_LEVEL: Information
+    WARM_STORE: parquet
+    MINIO_ENDPOINT: ""
+    OXIGRAPH_ENDPOINT: ""
+    NATS_URL: ""
+    CORS_ALLOWED_ORIGINS: ""  # Required: comma-separated frontend origins (e.g. https://app.example.com). Empty → CORS fail-closed in Production.
+    Logging__LogLevel__Default: Information
   secretEnv:
     KEYCLOAK_ADMIN_CLIENT_ID: ""
     KEYCLOAK_ADMIN_CLIENT_SECRET: ""
-    KEYCLOAK_REALM: ""
+    MINIO_ACCESS_KEY: ""
+    MINIO_SECRET_KEY: ""
+    # SWAGGER_BASIC_AUTH_PASSWORD: ""  # Set to expose /swagger in Production; if unset, /swagger is blocked in non-Development environments.
 
 # Web Client (Next.js)
 webClient:

@@ -27,14 +27,15 @@ using NATS.Client.JetStream;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using System.Globalization;
 
 namespace BuildingOs.ApiServer
 {
     public class Startup
     {
-        private const string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+        private const string HealthPath = "/health";
 
-        private EnvModule _envModule;
+        private EnvModule _envModule = null!;
         public IConfiguration Configuration { get; }
 
         public Startup(IConfiguration configuration)
@@ -258,14 +259,20 @@ namespace BuildingOs.ApiServer
 
             // === Telemetry: OpenTelemetry OTLP ===
             // Base traces + metrics (HttpClient + .NET runtime + BuildingOS.Pipeline meter).
-            services.AddOtlpTelemetry(_envModule.OtlpServiceName, _envModule.OtlpEndpoint);
+            // OTEL_TRACES_SAMPLER_ARG controls the trace sampling ratio (0.0–1.0, default 1.0).
+            var sampleRatio = double.TryParse(
+                Configuration["OTEL_TRACES_SAMPLER_ARG"],
+                NumberStyles.Float, CultureInfo.InvariantCulture, out var r) ? r : 1.0;
+            services.AddOtlpTelemetry(_envModule.OtlpServiceName, _envModule.OtlpEndpoint, sampleRatio);
             // Add ASP.NET Core server instrumentation (http_server_* request duration /
             // active requests) on top — kept here so Shared stays free of an AspNetCore
             // framework dependency. AddOpenTelemetry() is idempotent and returns the same builder.
+            // Health-check paths are filtered from traces to avoid sampling noise.
             if (!string.IsNullOrEmpty(_envModule.OtlpEndpoint))
             {
                 services.AddOpenTelemetry()
-                    .WithTracing(builder => builder.AddAspNetCoreInstrumentation())
+                    .WithTracing(builder => builder.AddAspNetCoreInstrumentation(opts =>
+                        opts.Filter = ctx => !ctx.Request.Path.StartsWithSegments(HealthPath)))
                     .WithMetrics(builder => builder.AddAspNetCoreInstrumentation());
             }
 
@@ -274,7 +281,7 @@ namespace BuildingOs.ApiServer
             {
                 FilteringPaths = new[]
                 {
-                    "/health",
+                    HealthPath,
                     "/metrics",
                     "/favicon.ico",
                     "/swagger",
@@ -285,7 +292,7 @@ namespace BuildingOs.ApiServer
                 LogHeaders = false,
                 DeserializeRequest = requestBody =>
                 {
-                    if (string.IsNullOrWhiteSpace(requestBody)) return null;
+                    if (string.IsNullOrWhiteSpace(requestBody)) return null!;
                     try
                     {
                         return JsonSerializer.Deserialize<object>(requestBody,
@@ -298,7 +305,7 @@ namespace BuildingOs.ApiServer
                 },
                 DeserializeResponse = responseBody =>
                 {
-                    if (string.IsNullOrWhiteSpace(responseBody)) return null;
+                    if (string.IsNullOrWhiteSpace(responseBody)) return null!;
                     try
                     {
                         return JsonSerializer.Deserialize<object>(responseBody,
@@ -335,7 +342,7 @@ namespace BuildingOs.ApiServer
             services
                 .AddMemoryCache()
                 .AddSingleton(_envModule)
-                .AddCorsForAll()
+                .AddCorsForAll(Configuration)
                 .AddAuth()
                 .AddControllers();
 
@@ -382,7 +389,7 @@ namespace BuildingOs.ApiServer
             }
 
             app.UseRouting();
-            app.UseCors(MyAllowSpecificOrigins);
+            app.UseCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
             app.UseGrpcWeb();
             app.UseMiddleware<LoggerMiddleware>();
             app.UseMiddleware<BasicAuthenticationMiddleware>();
@@ -394,25 +401,26 @@ namespace BuildingOs.ApiServer
             {
                 endpoints.MapGrpcService<Services.GreeterService>()
                     .EnableGrpcWeb()
-                    .RequireCors(MyAllowSpecificOrigins);
+                    .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
                 endpoints.MapGrpcService<Services.PointControlGrpcService>()
                     .EnableGrpcWeb()
-                    .RequireCors(MyAllowSpecificOrigins);
+                    .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
 
                 endpoints.MapControllers();
 
-                endpoints.MapGet("/health", async context =>
+                endpoints.MapGet(HealthPath, async context =>
                 {
                     var healthData = new
                     {
                         Status = "Healthy",
                         Timestamp = DateTime.UtcNow,
                         Environment = env.EnvironmentName,
-                        Version = "1.0.0"
+                        Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0"
                     };
                     context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(healthData,
-                        JsonSerializerHelper.JsonSerializerOptions));
+                    await context.Response.WriteAsync(
+                        JsonSerializer.Serialize(healthData, JsonSerializerHelper.JsonSerializerOptions),
+                        context.RequestAborted);
                 });
             });
 

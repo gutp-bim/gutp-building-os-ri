@@ -5,10 +5,10 @@ namespace BuildingOS.Shared.Domain;
 /// </summary>
 public class KandtControlRequest
 {
-    public string GatewayId { get; set; }
-    public string DestDevId { get; set; }
-    public string ObjectType { get; set; }
-    public string MethodName { get; set; }
+    public string GatewayId { get; set; } = null!;
+    public string DestDevId { get; set; } = null!;
+    public string ObjectType { get; set; } = null!;
+    public string MethodName { get; set; } = null!;
     public int ObjectInstanceNo { get; set; }
     public int? IntValue { get; set; }
     public bool? BoolValue { get; set; }

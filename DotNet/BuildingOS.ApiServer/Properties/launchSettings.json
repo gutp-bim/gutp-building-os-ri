@@ -33,6 +33,6 @@
         "KEYCLOAK_ADMIN_CLIENT_ID": "building-os-admin",
         "KEYCLOAK_ADMIN_CLIENT_SECRET": ""
       }
-    },
+    }
   }
 }

@@ -4,7 +4,7 @@ Guidance for AI coding agents (Codex, Claude Code, Copilot Workspace, etc.) work
 
 ## What this repo is
 
-Building OS OSS — an open-source IoT platform for smart building management. The stack is entirely self-hosted: NATS JetStream for messaging, TimescaleDB for telemetry, OxiGraph for the digital-twin graph, MinIO for blob storage, Keycloak for authentication.
+Building OS OSS — an open-source IoT platform for smart building management. The stack is entirely self-hosted: NATS JetStream for messaging, MinIO Parquet lake for telemetry (default; TimescaleDB is opt-in via `WARM_STORE=timescale`), OxiGraph for the digital-twin graph, Keycloak for authentication.
 
 The .NET solution (`DotNet/`) is the primary codebase. The Next.js frontend lives at `web-client/`; user/group/permission management is its `(admin)` workspace under `/admin` (the former standalone `admin-console` app was merged in).
 
@@ -88,7 +88,7 @@ The building → floor → space → device hierarchy is stored as RDF triples i
 | Subject | Direction | Purpose |
 |---------|-----------|---------|
 | `building-os.raw.*` | inbound | raw device telemetry per protocol |
-| `building-os.validated.telemetry` | internal | normalised telemetry → TimescaleDB |
+| `building-os.validated.telemetry` | internal | normalised telemetry → Parquet lake (MinIO) / NATS KV latest |
 | `building-os.control.request` | API → Worker | point control commands |
 | `building-os.control.result.*` | Worker → API | control execution results (gRPC streaming) |
 

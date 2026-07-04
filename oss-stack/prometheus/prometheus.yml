@@ -1,6 +1,8 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  # 30s is sufficient for KPI dashboards and reduces Prometheus TSDB storage by ~50% vs 15s.
+  # Increase to 15s if you need sub-30s granularity in Grafana.
+  scrape_interval: 30s
+  evaluation_interval: 30s
 
 rule_files:
   - /etc/prometheus/recording_rules.yml
