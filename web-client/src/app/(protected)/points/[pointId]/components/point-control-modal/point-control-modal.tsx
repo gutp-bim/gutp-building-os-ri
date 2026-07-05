@@ -5,26 +5,9 @@ import { useCallback, useMemo, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
 import { ControlStatusBar } from "./control-status-bar";
+import { getControlProtocol } from "./get-control-protocol";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
 import { toControlValue } from "./to-control-value";
-
-/**
- * 制御プロトコルを判定する
- * BACnet: Point に BACnet固有フィールドが存在する（Kandt ゲートウェイ経由の場合も下流は BACnet）
- */
-const getControlProtocol = (pointDetail: PointDetail): "BACnet" | null => {
-  const point = pointDetail.point;
-
-  if (
-    point.objectTypeBacnet ||
-    point.instanceNoBacnet ||
-    point.deviceIdBacnet
-  ) {
-    return "BACnet";
-  }
-
-  return null;
-};
 
 export function PointControlModal({
   pointDetail,

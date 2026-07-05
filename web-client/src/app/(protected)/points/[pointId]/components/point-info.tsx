@@ -19,7 +19,7 @@ const BACNET_OBJECT_TYPE_MAP: Record<string, string> = {
 
 export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
-  const controlType = getControlType(pointDetail.device, pointDetail.point);
+  const controlType = getControlType(pointDetail.point);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow w-full mx-auto">
