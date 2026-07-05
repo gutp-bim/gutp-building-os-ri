@@ -52,7 +52,7 @@ docker compose -f docker-compose.oss.yaml up -d
 
 ## Code of Conduct
 
-Be respectful and constructive. We follow the [Contributor Covenant](https://www.contributor-covenant.org/) spirit.
+This project follows the [Contributor Covenant](./CODE_OF_CONDUCT.md).
 
 ## License
 
