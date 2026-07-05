@@ -13,8 +13,9 @@ WORKDIR /app/BuildingOS.GatewayBridge
 RUN dotnet publish -c Release -o out
 
 # ----- application packaging stage -----
-# Chiseled: Debian-based, no shell/package manager, non-root by default (A-5). Health probes are
-# plain HTTP so the missing shell is not a problem.
+# Chiseled: Ubuntu 24.04 (Noble)-based, no shell/package manager, non-root by default (A-5).
+# GatewayBridge is gRPC (h2c) only — no HTTP /health here — but the Helm Deployment already probes
+# the gRPC port via kubelet-native tcpSocket (no exec needed), so the missing shell is not a problem.
 # The chiseled base image already sets ENTRYPOINT ["/usr/bin/dotnet"], so CMD is just the DLL name.
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS main
 WORKDIR /out

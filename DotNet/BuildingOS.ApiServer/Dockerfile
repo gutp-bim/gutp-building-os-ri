@@ -17,7 +17,7 @@ RUN dotnet publish DotNet/BuildingOS.ApiServer/BuildingOS.ApiServer.csproj \
     -c Release -o /app/out --no-restore
 
 # ----- application packaging stage -----
-# Chiseled: Debian-based, no shell/package manager, non-root by default (A-5).
+# Chiseled: Ubuntu 24.04 (Noble)-based, no shell/package manager, non-root by default (A-5).
 # Health probes are plain HTTP so the missing shell is not a problem.
 # The chiseled base image already sets ENTRYPOINT ["/usr/bin/dotnet"], so CMD is just the DLL name.
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS main
