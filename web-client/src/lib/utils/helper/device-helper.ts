@@ -1,4 +1,4 @@
-import { Device, Point } from "@/lib/infra/aspida-client/generated/@types";
+import { Point } from "@/lib/infra/aspida-client/generated/@types";
 
 export const toDisplayDeviceType = (deviceTypeString: string) => {
   const split = deviceTypeString.split(":");
@@ -7,26 +7,16 @@ export const toDisplayDeviceType = (deviceTypeString: string) => {
 };
 
 /**
- * デバイスから制御タイプを判定する
- * @param device デバイス情報
+ * ポイントから制御タイプを判定する
  * @param point
- * @returns "BACnet" | "DkConnect" | null
+ * @returns "BACnet" | null
  */
 export const getControlType = (
-  device: Device | undefined,
   point: Point | undefined,
-): "BACnet" | "DkConnect" | null => {
-  if (!device || !point) return null;
+): "BACnet" | null => {
+  if (!point) return null;
 
-  // DK Connect判定ロジック（デバイスタイプに"DkConnect"または"Daikin"が含まれる）
-  if (device.gatewayId) {
-    const deviceType = device.gatewayId.toLowerCase();
-    if (deviceType.includes("dkapi") || deviceType.includes("daikin")) {
-      return "DkConnect";
-    }
-  }
-
-  // BACnet判定ロジック（gatewayIdが存在する）
+  // BACnet判定ロジック（point に BACnet 固有フィールドが存在する）
   if (point.deviceIdBacnet != null) {
     return "BACnet";
   }

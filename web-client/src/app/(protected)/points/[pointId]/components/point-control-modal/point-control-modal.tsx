@@ -1,48 +1,13 @@
 import { apiClient } from "@/lib/infra/aspida-client";
 import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { useControlExecution } from "@/lib/infra/grpc-client/use-control-execution";
-import {
-  DkConnectControlRequestBody,
-  DkConnectOperations,
-} from "@/types/control";
 import { useCallback, useMemo, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
 import { ControlStatusBar } from "./control-status-bar";
-import { DkConnectControlModal } from "./dk-connect-control-modal";
+import { getControlProtocol } from "./get-control-protocol";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
 import { toControlValue } from "./to-control-value";
-
-/**
- * 制御プロトコルを判定する
- * BACnet: Point に BACnet固有フィールドが存在する
- * DkConnect: Device.gatewayId が "dkapi" で始まる
- */
-const getControlProtocol = (
-  pointDetail: PointDetail,
-): "BACnet" | "DkConnect" | null => {
-  const point = pointDetail.point;
-  const device = pointDetail.device;
-
-  // DkConnect判定: gatewayId に "dkapi" または "daikin" が含まれる（device-helper.ts と一致）
-  if (device?.gatewayId) {
-    const gwId = device.gatewayId.toLowerCase();
-    if (gwId.includes("dkapi") || gwId.includes("daikin")) {
-      return "DkConnect";
-    }
-  }
-
-  // BACnet判定: Point に BACnet固有フィールドが存在する
-  if (
-    point.objectTypeBacnet ||
-    point.instanceNoBacnet ||
-    point.deviceIdBacnet
-  ) {
-    return "BACnet";
-  }
-
-  return null;
-};
 
 export function PointControlModal({
   pointDetail,
@@ -64,18 +29,14 @@ export function PointControlModal({
   const controlProtocol = getControlProtocol(pointDetail);
   const controlSchema = pointDetail.controlSchema;
 
-  // 制御可能性の判定:
-  // DkConnect: プロトコル解決済み かつ (controlSchema あり または writable=true)
-  // BACnet: controlSchema が必須（dataType に応じたモーダルがないと操作不能になるため）
+  // 制御可能性の判定: BACnet は controlSchema が必須
+  // （dataType に応じたモーダルがないと操作不能になるため）
   const canControl = useMemo(() => {
     if (controlProtocol === null) return false;
-    if (controlProtocol === "DkConnect") {
-      return controlSchema != null || (pointDetail.point?.writable ?? false);
-    }
     return controlSchema != null;
-  }, [controlProtocol, controlSchema, pointDetail]);
+  }, [controlProtocol, controlSchema]);
 
-  // BACnet制御ハンドラー
+  // BACnet制御ハンドラー（Kandt ゲートウェイ経由の制御も含む）
   // ControlTypeResolver がゲートウェイ/BACnetアドレス指定をサーバー側で解決するため、
   // クライアントは点の値のみを送信する(#154)。
   const handleBacnetControl = async (value: number | boolean) => {
@@ -95,63 +56,6 @@ export function PointControlModal({
     } catch {
       setIsLoading(false);
       setDirectResult("failed", "制御信号の送信に失敗しました。");
-    }
-  };
-
-  // DK Connect制御ハンドラー
-  const handleDkConnectControl = async (operations: DkConnectOperations) => {
-    try {
-      setIsLoading(true);
-
-      // equipmentIdをdevice.idから取得（DK ConnectのequipmentIdはDevice.idに対応）
-      const equipmentId = pointDetail.device?.id;
-
-      // equipmentIdが見つからない場合はエラー
-      if (!equipmentId) {
-        throw new Error(
-          "equipmentIdが見つかりません。Device情報を確認してください。",
-        );
-      }
-
-      const dkConnectBody: DkConnectControlRequestBody = {
-        equipmentIdList: [equipmentId],
-        operations: operations,
-      };
-
-      // KNOWN ISSUE: this legacy multi-parameter body (controlType/body) predates the
-      // point-id-canonical single-value control contract — ControlTypeResolver now resolves
-      // gateway/protocol server-side from `{ value }` alone (see handleBacnetControl above),
-      // and PointController.Control requires `value`, which this payload never sends. DK Connect's
-      // operations batch multiple HVAC parameters (onOff/setpoint/fanSpeed/...) in one call, which
-      // doesn't reduce to a single point value — this needs a dedicated redesign (one control call
-      // per point, or a DK-Connect-specific endpoint), not a mechanical type fix. Left unchanged
-      // (same wire shape as before) pending that redesign; tracked as a follow-up issue.
-      const legacyDkConnectRequestOptions = {
-        body: {
-          controlType: "DkConnect",
-          body: JSON.stringify(dkConnectBody),
-        },
-      } as unknown as Parameters<
-        ReturnType<
-          ReturnType<typeof apiClient>["points"]["_pointId"]
-        >["control"]["$post"]
-      >[0];
-      const { controlId } = await apiClient()
-        .points._pointId(pointDetail.point.id)
-        .control.$post(legacyDkConnectRequestOptions);
-
-      // モーダルを閉じて gRPC ストリームで結果を待機
-      setIsOpen(false);
-      setIsLoading(false);
-      startExecution(controlId);
-    } catch (error) {
-      setIsLoading(false);
-      setDirectResult(
-        "failed",
-        error instanceof Error
-          ? error.message
-          : "制御信号の送信に失敗しました。",
-      );
     }
   };
 
@@ -212,17 +116,6 @@ export function PointControlModal({
           onClose={handleClose}
           pointDetail={pointDetail}
           onControl={handleBacnetControl}
-          isLoading={isLoading}
-        />
-      )}
-
-      {/* DK Connect制御モーダル */}
-      {controlProtocol === "DkConnect" && (
-        <DkConnectControlModal
-          isOpen={isOpen}
-          onClose={handleClose}
-          pointDetail={pointDetail}
-          onControl={handleDkConnectControl}
           isLoading={isLoading}
         />
       )}

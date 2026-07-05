@@ -4,7 +4,7 @@
 
 現状、機器制御の Egress は `PointController.Control` で **`Type = Hono` / `Body = {value}` をハードコード**しており（`DotNet/BuildingOS.ApiServer/Controllers/PointController.cs:75-77`、MVP）、プロトコルを増やせない。さらに既存の `DeviceControlType.BACnet` は実体が **Azure IoT Hub direct method** であり名前と実態が乖離している。
 
-本計画は (1) ControlType をハードコードから **twin/設定駆動の汎用解決**へ、(2) 実態に合わせた **改名（Egress BACnet→Kandt）と DkConnect 削除**、(3) 接続先 [bbc-sim / BOWS コネクタ](https://github.com/takashikasuya/bacnet-sim-gateway)（北向き=BACnet/IP、Building OS へは MQTT/AMQP/gRPC）に向けた **スケーラブルな gRPC Gateway Bridge** の導入、を定義する。
+本計画は (1) ControlType をハードコードから **twin/設定駆動の汎用解決**へ、(2) 実態に合わせた **改名（Egress BACnet→Kandt）と廃止済み外部ベンダー機器制御連携のコード削除**、(3) 接続先 [bbc-sim / BOWS コネクタ](https://github.com/takashikasuya/bacnet-sim-gateway)（北向き=BACnet/IP、Building OS へは MQTT/AMQP/gRPC）に向けた **スケーラブルな gRPC Gateway Bridge** の導入、を定義する。
 
 接続先仕様の要点（bbc-sim 側 ADR-014/015, `docs/specs/northbound-bows-buildingos.md`）:
 - BOWS は bbc-sim 北向き BACnet を読む**下流コネクタ**。Building OS へは telemetry を送り、将来は下り制御（`type=BACnet → WriteProperty`）を受ける。
@@ -20,7 +20,7 @@
 | 新 ControlType | **`BacnetSim`** / connectionType **`bacnet-sim`**（❌`BACnet` は使わない＝あくまで Bacnet **Sim**） |
 | Egress 改名 | `DeviceControlType.BACnet`→**`Kandt`**、`BacnetControlRequest`→`KandtControlRequest`、`BacnetDeviceControlHandler`→`KandtDeviceControlHandler`（**Egress 側のみ**） |
 | 温存 | 上り telemetry の純正 BACnet 語彙（`building-os.raw.bacnet` / `bacnet-device-message` / `Point.*Bacnet` / `BacnetPointResolver`） |
-| DkConnect | **コード削除**（handler / DTO / 分類 / DI / スキーマ解決） |
+| 廃止済み外部ベンダー機器制御連携 | **コード削除**（handler / DTO / 分類 / DI / スキーマ解決） |
 | gRPC ストリーム | **Ingress と Egress を分離**（別ストリーム・別 Pod） |
 | Egress チャネル | **gateway ごとに 1 本の双方向 stream**（command↓ / result↑） |
 | LB 基盤 | **Envoy 系 ingress**（BOWS は**クラスタ外＝建物エッジ**、north-south）。mTLS は cert-manager |
@@ -49,10 +49,10 @@ public record ControlDispatch(string ControlType, string Body, string? GatewayId
 
 `PointController.Control` は解決結果で `PointControlInfo { Type, Body }` を組み立てて publish。`NatsPointControlWorker` 以降（Type 文字列マッチ）は無改修。新プロトコルは「connectionType エントリ + Body ビルダ + 送信経路」を足すだけ。
 
-## 2. 改名（Egress 側のみ）＋ DkConnect 削除
+## 2. 改名（Egress 側のみ）＋ 廃止済み外部ベンダー機器制御連携の削除
 
 - 改名: 上記表のとおり。上り BACnet 語彙は触らない。
-- 削除: `DkConnectDeviceControlHandler` / `DkConnectControlRequest`(+`DkConnectOperations`) / `OxiGraphControlSchemaResolver.IsDkConnectPoint`・`QueryDkConnectSchema` / `Program.cs` の DI / 関連 env ドキュメント。
+- 削除: 廃止済み外部ベンダー向け device control handler / DTO（operations 型）/ `OxiGraphControlSchemaResolver` の当該ベンダー判定・スキーマ取得メソッド / `Program.cs` の DI / 関連 env ドキュメント。
 
 ## 3. gRPC Gateway Bridge（集約・スケーラブル）
 
@@ -116,7 +116,7 @@ message ControlResult  { string control_id=1; bool success=2; string response=3;
 
 1. **ControlType 汎用化 + `IGatewayConnectionTypeProvider`(ConfigMap)**：ハードコード撤廃、twin/設定解決、テスト。
 2. **Egress 改名（BACnet→Kandt）**：enum/DTO/handler/DI 改名、上り語彙は温存、テスト更新。
-3. **DkConnect 削除**：handler/DTO/分類/DI/ドキュメント除去。
+3. **廃止済み外部ベンダー機器制御連携の削除**：handler/DTO/分類/DI/ドキュメント除去。
 4. **`BacnetSim` 経路の Body ビルダ + connectionType=bacnet-sim 配線**（gRPC 前の準備）。
 5. **`GatewayBridge` サービス雛形 + proto（Ingress/Egress 分離）**：gRPC サーバ、NATS 即時 enqueue（ingress）、per-gateway subject（egress）、結果は既存 result-bus。
 6. **レプリカ間ルーティング + 接続健全性**：per-gateway subscribe、keepalive、reconnect+jitter、ステートレス化の検証。

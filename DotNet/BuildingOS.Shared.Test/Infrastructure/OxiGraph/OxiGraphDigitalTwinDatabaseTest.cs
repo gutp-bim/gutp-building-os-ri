@@ -68,13 +68,13 @@ public class OxiGraphDigitalTwinDatabaseTest
     { ""devDt"": {""type"":""uri"",""value"":""urn:dtid:dev1""},
       ""devId"": {""type"":""literal"",""value"":""DEV1""},
       ""devName"": {""type"":""literal"",""value"":""AC Unit""},
-      ""devGw"": {""type"":""literal"",""value"":""dkapi-gw1""} }
+      ""devGw"": {""type"":""literal"",""value"":""gw-001""} }
   ]}}");
 
         var devices = await db.ListDevices("space-001");
         Assert.Single(devices);
         Assert.Equal("urn:dtid:dev1", devices[0].DtId);
-        Assert.Equal("dkapi-gw1", devices[0].GatewayId);
+        Assert.Equal("gw-001", devices[0].GatewayId);
     }
 
     [Fact]
