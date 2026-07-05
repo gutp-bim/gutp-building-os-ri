@@ -69,7 +69,7 @@ IoT Devices / Integration Gateway
 |----------|------|
 | Backend / API | .NET 8, ASP.NET Core, REST, gRPC-web |
 | Worker | .NET `BackgroundService`, NATS JetStream durable consumers |
-| Frontend | Next.js 15, React 19, TypeScript 5, Tailwind CSS 4 |
+| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
 | 認証 | Keycloak, OIDC, JWT bearer |
 | メッセージバス | NATS JetStream |
 | テレメトリ | Hot=NATS KV（最新値）/ Warm・Cold=MinIO Parquet レイク（既定。TimescaleDB は opt-in）|
@@ -577,7 +577,7 @@ sections on request). Gateway integration: [docs/gateway-integration.md](docs/ga
 |-------|------------|
 | Backend / API | .NET 8, ASP.NET Core, REST, gRPC-web |
 | Worker | .NET `BackgroundService`, NATS JetStream durable consumers |
-| Frontend | Next.js 15, React 19, TypeScript 5, Tailwind CSS 4 |
+| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
 | Auth | Keycloak, OIDC, JWT bearer |
 | Message bus | NATS JetStream |
 | Telemetry | Hot = NATS KV (latest) / Warm & Cold = MinIO Parquet lake (default; TimescaleDB opt-in) |
