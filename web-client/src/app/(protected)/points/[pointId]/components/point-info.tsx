@@ -51,13 +51,7 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
           <div className="font-semibold">制御タイプ</div>
           <div>
             {controlType ? (
-              <span
-                className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                  controlType === "BACnet"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-green-100 text-green-800"
-                }`}
-              >
+              <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                 {controlType}
               </span>
             ) : (

@@ -288,7 +288,6 @@ OpenAPI スキーマから自動生成されたクライアントを使用して
 - Analog Output 制御
 - Binary Output 制御
 - Multi-State Output 制御
-- Daikin Connect 制御
 
 ### テレメトリ表示
 

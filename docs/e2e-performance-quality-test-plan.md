@@ -22,7 +22,6 @@ Device simulator
 対象外:
 
 - 実機設備の物理応答時間
-- 外部サービスである Daikin DK Connect の SLA 評価
 - Azure 旧構成の性能評価。ただし移行比較では旧結果を baseline として扱う
 
 ## 評価観点
