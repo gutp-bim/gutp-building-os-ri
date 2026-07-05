@@ -482,8 +482,12 @@ services:
       LAKE_COMPACTION_MIN_PARTS: ${LAKE_COMPACTION_MIN_PARTS:-}
       # Lake retention / query safety caps (A-6). These are reference defaults — adjust for your
       # environment. To disable retention / cap, set the var to 0 (or to "" for MAX_FILES unlimited).
+      # PARQUET_STREAM_MAX_BYTES is reserved on the BUILDING_OS_VALIDATED stream at creation time —
+      # it must stay comfortably under NATS's jetstream.max_file_store (oss-stack/nats/nats-server.conf,
+      # shared across 4 streams) or stream creation fails with "insufficient storage resources
+      # available" and crash-loops the worker on every boot (#61). 1GB here vs. a 2GB server pool.
       LAKE_RETENTION_DAYS: ${LAKE_RETENTION_DAYS:-365}
-      PARQUET_STREAM_MAX_BYTES: ${PARQUET_STREAM_MAX_BYTES:-10737418240}
+      PARQUET_STREAM_MAX_BYTES: ${PARQUET_STREAM_MAX_BYTES:-1073741824}
       PARQUET_QUERY_MAX_FILES: ${PARQUET_QUERY_MAX_FILES:-5000}
       COLD_EXPORT_INTERVAL: "5"
       # Scenario A: MQTT ingress (MqttIngressWorker + MqttConnectorWorker) — OPTIONAL, off by default.
