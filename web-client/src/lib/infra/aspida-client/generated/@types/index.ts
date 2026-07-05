@@ -1,45 +1,75 @@
 /* eslint-disable */
-export type AddPermissionRequest = {
-  permission?: string | undefined;
+/** API レスポンス DTO。監査ドメイン型をそのまま露出せず、result 文字列化して返す。 */
+export type AdminAuditResponse = {
+  id?: string | undefined;
+  subjectType?: string | undefined;
+  action?: string | undefined;
+  targetId?: string | null | undefined;
+  actorSub?: string | undefined;
+  actorName?: string | null | undefined;
+  result?: string | undefined;
+  detail?: string | null | undefined;
+  createdAt?: string | undefined;
 }
 
-export type AddResourceRequest = {
-  resourceType?: string | undefined;
-  resourceId?: string | undefined;
+export type AssistantChatRequest = {
+  messages?: ChatMessage[] | undefined;
+  context?: AssistantHelpContext | undefined;
+}
+
+export type AssistantContextTerm = {
+  term?: string | undefined;
+  definition?: string | undefined;
+}
+
+export type AssistantControllerAssistantChatResponse = {
+  reply?: string | undefined;
+}
+
+export type AssistantHelpContext = {
+  title?: string | null | undefined;
+  body?: string[] | undefined;
+  terms?: AssistantContextTerm[] | undefined;
 }
 
 export type Building = {
   dtId: string;
   id: string;
   name: string;
+
+  identifiers?: {
+    [key: string]: string;
+  } | undefined;
+
+  customTags?: {
+    [key: string]: boolean;
+  } | undefined;
 }
 
-export type ResourceSearchHit = {
-  type: string;
-  dtId: string;
-  id: string;
-  name: string;
-  buildingDtId?: string | null | undefined;
+export type ChatMessage = {
+  role?: string | undefined;
+  content?: string | undefined;
 }
 
-export type BulkAddResourceRequest = {
-  items?: AddResourceRequest[] | undefined;
-}
-
-export type BulkAddResourceResponse = {
-  added?: ResourceItemResponse[] | undefined;
-  failed?: string[] | undefined;
+export type ConfigEntry = {
+  key?: string | undefined;
+  isSecret?: boolean | undefined;
+  isSet?: boolean | undefined;
+  value?: string | null | undefined;
 }
 
 export type ControlSchema = {
   dataType?: string | undefined;
   enumLabels?: string | null | undefined;
+  minValue?: number | null | undefined;
+  maxValue?: number | null | undefined;
 }
 
-export type CreateGroupRequest = {
-  id?: string | undefined;
-  name?: string | undefined;
-  description?: string | null | undefined;
+export type ControlSchemaDto = {
+  dataType?: string | null | undefined;
+  minValue?: string | null | undefined;
+  maxValue?: string | null | undefined;
+  enumLabels?: string | null | undefined;
 }
 
 export type Device = {
@@ -53,6 +83,14 @@ export type Device = {
   supplier?: string | null | undefined;
   gatewayId?: string | null | undefined;
   deviceType?: string | null | undefined;
+
+  identifiers?: {
+    [key: string]: string;
+  } | undefined;
+
+  customTags?: {
+    [key: string]: boolean;
+  } | undefined;
 }
 
 export type DeviceDetail = {
@@ -61,27 +99,114 @@ export type DeviceDetail = {
   space?: Space | undefined;
 }
 
+export type DeviceRefDto = {
+  dtId?: string | null | undefined;
+  id?: string | null | undefined;
+  name?: string | null | undefined;
+}
+
+export type EffectiveConfig = {
+  entries?: ConfigEntry[] | undefined;
+}
+
 export type Floor = {
   dtId: string;
   id: string;
   name: string;
+
+  identifiers?: {
+    [key: string]: string;
+  } | undefined;
+
+  customTags?: {
+    [key: string]: boolean;
+  } | undefined;
 }
 
-export type GroupDetailResponse = {
+/** Admin view of one gateway: binding + masked settings + pointlist sync status (#323). */
+export type GatewayAdminView = {
+  gatewayId?: string | undefined;
+  bindingType?: string | undefined;
+
+  settings?: {
+    [key: string]: string;
+  } | undefined;
+
+  pointCount?: number | undefined;
+  revision?: string | undefined;
+  certTrustAnchor?: string | undefined;
+}
+
+export type GatewayCollision = {
+  gatewayId?: string | undefined;
+  buildingCount?: number | undefined;
+}
+
+export type GatewayPointDto = {
+  pointId?: string | undefined;
+  localId?: string | null | undefined;
+  native?: NativeAddressingDto | undefined;
+  unit?: string | null | undefined;
+  writable?: boolean | null | undefined;
+  controlSchema?: ControlSchemaDto | undefined;
+  device?: DeviceRefDto | undefined;
+}
+
+/** Gateway point-list export response (#224). BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse.Revision equals the ETag. */
+export type GatewayPointListResponse = {
+  gatewayId?: string | undefined;
+  revision?: string | undefined;
+  generatedAt?: string | undefined;
+  points?: GatewayPointDto[] | undefined;
+}
+
+export type GroupsControllerAddResourceRequest = {
+  resourceType?: string | undefined;
+  resourceId?: string | undefined;
+}
+
+export type GroupsControllerBulkAddResourceRequest = {
+  items?: GroupsControllerAddResourceRequest[] | undefined;
+}
+
+export type GroupsControllerBulkAddResourceResponse = {
+  added?: GroupsControllerResourceItemResponse[] | undefined;
+  failed?: string[] | undefined;
+}
+
+export type GroupsControllerCreateGroupRequest = {
+  id?: string | undefined;
+  name?: string | undefined;
+  description?: string | null | undefined;
+}
+
+export type GroupsControllerGroupDetailResponse = {
   id?: string | undefined;
   name?: string | undefined;
   description?: string | null | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
-  resourceItems?: ResourceItemResponse[] | undefined;
+  resourceItems?: GroupsControllerResourceItemResponse[] | undefined;
 }
 
-export type GroupResponse = {
+export type GroupsControllerGroupResponse = {
   id?: string | undefined;
   name?: string | undefined;
   description?: string | null | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
+}
+
+export type GroupsControllerResourceItemResponse = {
+  id?: string | undefined;
+  resourceType?: string | undefined;
+  resourceId?: string | undefined;
+  createdAt?: string | undefined;
+}
+
+export type GroupsControllerUpdateGroupRequest = {
+  name?: string | null | undefined;
+  description?: string | null | undefined;
 }
 
 export type MyResourcesResponse = {
@@ -90,6 +215,58 @@ export type MyResourcesResponse = {
   resources?: {
     [key: string]: string[];
   } | null | undefined;
+}
+
+export type NativeAddressingDto = {
+  protocol?: string | undefined;
+  deviceId?: string | null | undefined;
+  objectType?: string | null | undefined;
+  instanceNo?: string | null | undefined;
+}
+
+export type OidcClientDetail = {
+  id?: string | undefined;
+  clientId?: string | undefined;
+  enabled?: boolean | undefined;
+  serviceAccountsEnabled?: boolean | undefined;
+  publicClient?: boolean | undefined;
+  description?: string | null | undefined;
+  redirectUris?: string[] | undefined;
+}
+
+export type OidcClientSummary = {
+  id?: string | undefined;
+  clientId?: string | undefined;
+  enabled?: boolean | undefined;
+  serviceAccountsEnabled?: boolean | undefined;
+  description?: string | null | undefined;
+}
+
+export type OidcClientsControllerCreateOidcClientRequest = {
+  clientId?: string | undefined;
+  description?: string | null | undefined;
+  serviceAccountsEnabled?: boolean | undefined;
+  redirectUris?: string[] | null | undefined;
+}
+
+/** Create response — carries the one-time plaintext secret (never returned again). */
+export type OidcClientsControllerCreatedOidcClientResponse = {
+  client?: OidcClientDetail | undefined;
+  secret?: string | undefined;
+}
+
+export type OidcClientsControllerRotatedSecretResponse = {
+  secret?: string | undefined;
+}
+
+export type OidcClientsControllerSetEnabledRequest = {
+  enabled?: boolean | undefined;
+}
+
+export type PermissionsControllerResolvedPermissionInfo = {
+  originalId?: string | undefined;
+  resourceType?: string | undefined;
+  displayName?: string | null | undefined;
 }
 
 export type Point = {
@@ -113,19 +290,23 @@ export type Point = {
   objectTypeBacnet?: string | null | undefined;
   deviceIdBacnet?: string | null | undefined;
   rowDataString?: string | null | undefined;
+
+  identifiers?: {
+    [key: string]: string;
+  } | undefined;
+
+  customTags?: {
+    [key: string]: boolean;
+  } | undefined;
 }
 
-export type PointControlRequest = {
-  controlType?: string | null | undefined;
-  body?: string | null | undefined;
+export type PointControllerControlAcceptedResponse = {
+  controlId: string;
 }
 
-export type PointControlResponse = {
-  response?: string | undefined;
-  result?: PointControlResult | undefined;
+export type PointControllerPointControlRequest = {
+  value?: number | null | undefined;
 }
-
-export type PointControlResult = 0 | 1
 
 export type PointDetail = {
   point: Point;
@@ -143,40 +324,152 @@ export type ProblemDetails = {
   instance?: string | null | undefined;
 }
 
-export type RemovePermissionRequest = {
-  permission?: string | undefined;
+export type ResourceMetadataPatchRequest = {
+  identifiers?: {
+    [key: string]: string | null;
+  } | null | undefined;
+
+  customTags?: {
+    [key: string]: boolean | null;
+  } | null | undefined;
 }
 
-export type ResourceItemResponse = {
-  id?: string | undefined;
-  resourceType?: string | undefined;
-  resourceId?: string | undefined;
-  createdAt?: string | undefined;
+export type ResourceMetadataResponse = {
+  identifiers?: {
+    [key: string]: string;
+  } | undefined;
+
+  customTags?: {
+    [key: string]: boolean;
+  } | undefined;
+}
+
+export type ResourceSearchHit = {
+  type: string;
+  dtId: string;
+  id: string;
+  name: string;
+  buildingDtId?: string | null | undefined;
+}
+
+export type RoleCatalogEntry = {
+  role?: string | undefined;
+  isAdmin?: boolean | undefined;
+  workspaces?: string[] | undefined;
+  description?: string | undefined;
+}
+
+export type ServiceStatus = {
+  name?: string | undefined;
+  status?: string | undefined;
+}
+
+export type SettingSource = 'Default' | 'Ui'
+
+export type SettingType = 'Boolean' | 'Number' | 'String'
+
+export type SettingView = {
+  key?: string | undefined;
+  type?: SettingType | undefined;
+  description?: string | undefined;
+  category?: string | undefined;
+  value?: string | undefined;
+  defaultValue?: string | undefined;
+  isOverridden?: boolean | undefined;
+  source?: SettingSource | undefined;
+  updatedAt?: string | null | undefined;
+  updatedBy?: string | null | undefined;
 }
 
 export type Space = {
   dtId: string;
   id: string;
   name: string;
+
+  identifiers?: {
+    [key: string]: string;
+  } | undefined;
+
+  customTags?: {
+    [key: string]: boolean;
+  } | undefined;
 }
 
-export type UpdateGroupRequest = {
-  name?: string | null | undefined;
-  description?: string | null | undefined;
+export type SparqlQueryResult = {
+  columns?: string[] | undefined;
+  rows?: {
+    [key: string]: string;
+  }[] | undefined;
+  rowCount?: number | undefined;
+  truncated?: boolean | undefined;
+  elapsedMs?: number | undefined;
 }
 
-export type UpdateUserAttributesApiRequest = {
+export type SystemConfigControllerUpdateSettingRequest = {
+  value?: string | null | undefined;
+}
+
+export type SystemKpis = {
+  msgRate1m?: number | null | undefined;
+  controlReq5m?: number | null | undefined;
+}
+
+export type SystemStatus = {
+  services?: ServiceStatus[] | undefined;
+  kpis?: SystemKpis | undefined;
+  metricsAvailable?: boolean | undefined;
+}
+
+export type TelemetryGranularity = 0 | 1 | 2
+
+export type TwinAdminControllerSparqlQueryRequest = {
+  query?: string | undefined;
+  maxRows?: number | null | undefined;
+}
+
+export type TwinAdminControllerTwinImportRequest = {
+  turtle?: string | undefined;
+  /** "append" (default) or "replace". */
+  mode?: string | null | undefined;
+}
+
+export type TwinImportPreview = {
+  tripleCount?: number | undefined;
+  gatewayCount?: number | undefined;
+  collisions?: GatewayCollision[] | undefined;
+  valid?: boolean | undefined;
+}
+
+export type UsersControllerAddPermissionRequest = {
+  permission?: string | undefined;
+}
+
+export type UsersControllerRemovePermissionRequest = {
+  permission?: string | undefined;
+}
+
+export type UsersControllerSetEnabledRequest = {
+  enabled?: boolean | undefined;
+}
+
+export type UsersControllerUpdateUserAttributesApiRequest = {
   role?: string | null | undefined;
   permissions?: string[] | null | undefined;
+
+  /** リソースIDに対応する表示名のマップ（キー: 元のリソースID、値: 表示名） */
+  resourceDisplayNames?: {
+    [key: string]: string;
+  } | null | undefined;
 }
 
-export type UserResponse = {
+export type UsersControllerUserResponse = {
   id?: string | undefined;
   displayName?: string | undefined;
   email?: string | null | undefined;
   userPrincipalName?: string | null | undefined;
   role?: string | null | undefined;
   permissions?: string[] | undefined;
+  enabled?: boolean | undefined;
 }
 
 export type ValidTelemetryData = {

@@ -1,6 +1,6 @@
 import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
 import { describe, expect, it } from "vitest";
-import { toSeries } from "./mapping";
+import { toGranularityParam, toSeries } from "./mapping";
 
 describe("toSeries", () => {
   it("sorts samples by datetime ascending", () => {
@@ -36,5 +36,17 @@ describe("toSeries", () => {
 
   it("returns an empty series for empty input", () => {
     expect(toSeries("PT001", []).points).toEqual([]);
+  });
+});
+
+describe("toGranularityParam", () => {
+  it("maps each granularity to its backend enum ordinal", () => {
+    expect(toGranularityParam("raw")).toBe(0);
+    expect(toGranularityParam("hour")).toBe(1);
+    expect(toGranularityParam("day")).toBe(2);
+  });
+
+  it("returns undefined when granularity is unset", () => {
+    expect(toGranularityParam(undefined)).toBeUndefined();
   });
 });

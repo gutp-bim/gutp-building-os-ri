@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/infra/aspida-client";
-import { toSeries } from "./mapping";
+import { toGranularityParam, toSeries } from "./mapping";
 import type { TelemetryPoint, TelemetryQuery, TelemetrySeries } from "./types";
 
 /**
@@ -17,7 +17,7 @@ export async function queryTelemetry(
       pointId: q.pointId,
       start: q.start?.toISOString(),
       end: q.end?.toISOString(),
-      granularity: q.granularity,
+      granularity: toGranularityParam(q.granularity),
       latest: q.latest,
     },
   });

@@ -43,12 +43,9 @@ jobs:
       - name: Build
         run: dotnet build BuildingOS.sln --no-restore --configuration Release
 
-      # Reports EF model/snapshot drift. Non-blocking: the hand-written
-      # initial Npgsql snapshot only affects future `migrations add`, not
-      # runtime Database.Migrate(); a drift warning should not gate CI.
-      # TODO (B-9): re-generate snapshot and remove continue-on-error.
+      # Reports EF model/snapshot drift so it's caught at PR time instead of
+      # surfacing later as a `migrations add` failure (B-9).
       - name: Verify EF migration snapshot is up to date
-        continue-on-error: true
         run: |
           dotnet ef migrations has-pending-model-changes \
             --project BuildingOS.Shared \
@@ -120,6 +117,66 @@ jobs:
       - name: Unit Tests
         working-directory: ${{ matrix.app.dir }}
         run: yarn test --run
+
+  # ── Swagger / Aspida drift check (B-7) ─────────────────────────
+  # Regenerates docs/schema/swagger.yaml from the built API Server and the Aspida client from
+  # that swagger doc, then fails if either differs from what's committed. Catches both API changes
+  # that were never synced to the frontend types, and swagger-generation regressions (e.g. the
+  # schemaId collision that silently broke `dotnet swagger tofile` before this check existed).
+  swagger-drift-check:
+    name: Swagger / Aspida Drift Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: DotNet/**/*.csproj
+
+      - name: Restore tools
+        working-directory: DotNet
+        run: dotnet tool restore
+
+      - name: Generate swagger.yaml
+        run: bash Tools/generate_swagger.bash
+
+      - name: Fail if swagger.yaml drifted
+        run: |
+          if [ -n "$(git status --porcelain docs/schema/swagger.yaml)" ]; then
+            echo "docs/schema/swagger.yaml is out of date — run ./Tools/sync-type.bash and commit the diff."
+            git diff docs/schema/swagger.yaml
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: yarn
+          cache-dependency-path: web-client/yarn.lock
+
+      - name: Install web-client dependencies
+        working-directory: web-client
+        run: yarn install --frozen-lockfile
+
+      - name: Regenerate Aspida client
+        working-directory: web-client
+        run: |
+          CLIENT_PATH="$(pwd)/src/lib/infra/aspida-client/generated"
+          rm -rf "$CLIENT_PATH"/*
+          npx openapi2aspida -i="$(pwd)/../docs/schema/swagger.yaml" -o="$CLIENT_PATH"
+
+      - name: Fail if the Aspida client drifted
+        run: |
+          if [ -n "$(git status --porcelain web-client/src/lib/infra/aspida-client/generated)" ]; then
+            echo "web-client/src/lib/infra/aspida-client/generated is out of date — run ./Tools/sync-type.bash and commit the diff."
+            git status --porcelain web-client/src/lib/infra/aspida-client/generated
+            exit 1
+          fi
 
   # ── OSS issue readiness checks ─────────────────────────────────
   oss-readiness:

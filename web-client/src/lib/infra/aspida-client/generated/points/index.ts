@@ -5,7 +5,6 @@ import type * as Types from '../@types';
 export type Methods = DefineMethods<{
   get: {
     query?: {
-      /** ポイントを保持しているデバイスのdtId */
       deviceDtId?: string | undefined;
     } | undefined;
 

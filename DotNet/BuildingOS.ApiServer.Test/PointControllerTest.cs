@@ -87,9 +87,11 @@ public class PointControllerTest
 
         var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
 
-        Assert.IsType<AcceptedResult>(result);
+        var accepted = Assert.IsType<AcceptedResult>(result);
+        var body = Assert.IsType<PointController.ControlAcceptedResponse>(accepted.Value);
         Assert.NotNull(captured);
         Assert.NotEqual(Guid.Empty, captured!.id);
+        Assert.Equal(captured.id, body.ControlId);
     }
 
     [Fact]

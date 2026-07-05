@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain;
@@ -17,7 +18,6 @@ namespace BuildingOs.ApiServer.Controllers;
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
-[ProducesResponseType(StatusCodes.Status200OK)]
 [AuthorizeFilter]
 public class PointController(
     IAuthorizedTwinView twinView,
@@ -29,6 +29,7 @@ public class PointController(
     /// ポイント情報の一括取得
     /// </summary>
     [HttpGet]
+    [ProducesResponseType(typeof(Point[]), StatusCodes.Status200OK)]
     public async Task<ActionResult<Point[]>> List([FromQuery] string? deviceDtId, CancellationToken ct)
     {
         var auth = HttpContext.GetAuthorizationContext();
@@ -41,6 +42,7 @@ public class PointController(
     /// </summary>
     [HttpGet]
     [Route("{pointId}")]
+    [ProducesResponseType(typeof(Point), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<Point>> Get(string pointId, CancellationToken ct)
         => await twinView.GetPointAsync(HttpContext.GetAuthorizationContext(), Uri.UnescapeDataString(pointId), ct) switch
@@ -56,7 +58,7 @@ public class PointController(
     /// 結果は gRPC PointControlService.WaitForResult ストリームで通知される。
     /// </summary>
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ControlAcceptedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Route("{pointId}/control")]
     public async Task<ActionResult> Control(string pointId, [FromBody] PointControlRequest request, CancellationToken ct)
@@ -123,7 +125,7 @@ public class PointController(
                 });
             }
 
-            return Accepted(new { controlId = pointControlInfo.id });
+            return Accepted(new ControlAcceptedResponse { ControlId = pointControlInfo.id });
         }
         catch (Exception ex)
         {
@@ -136,9 +138,9 @@ public class PointController(
         public double? Value { get; set; }
     }
 
-    public class PointControlResponse
+    public class ControlAcceptedResponse
     {
-        public string Response { get; set; } = string.Empty;
-        public PointControlResult Result { get; set; }
+        [Required]
+        public Guid ControlId { get; init; }
     }
 }

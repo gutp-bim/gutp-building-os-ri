@@ -6,13 +6,13 @@ export type Methods = DefineMethods<{
   get: {
     status: 200;
     /** OK */
-    resBody: Types.GroupResponse[];
+    resBody: Types.GroupsControllerGroupResponse[];
   };
 
   post: {
     status: 201;
     /** Created */
-    resBody: Types.GroupResponse;
-    reqBody: Types.CreateGroupRequest;
+    resBody: Types.GroupsControllerGroupResponse;
+    reqBody: Types.GroupsControllerCreateGroupRequest;
   };
 }>;

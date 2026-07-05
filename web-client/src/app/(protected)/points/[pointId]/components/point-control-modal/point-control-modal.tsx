@@ -2,7 +2,6 @@ import { apiClient } from "@/lib/infra/aspida-client";
 import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { useControlExecution } from "@/lib/infra/grpc-client/use-control-execution";
 import {
-  BacnetControlRequestBody,
   DkConnectControlRequestBody,
   DkConnectOperations,
 } from "@/types/control";
@@ -12,9 +11,7 @@ import { BinaryOutputControlModal } from "./binary-output-control-modal";
 import { ControlStatusBar } from "./control-status-bar";
 import { DkConnectControlModal } from "./dk-connect-control-modal";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
-
-// TODO: swagger + aspida 再生成後にこの型定義を削除
-type ControlAcceptedResponse = { controlId: string };
+import { toControlValue } from "./to-control-value";
 
 /**
  * 制御プロトコルを判定する
@@ -64,7 +61,6 @@ export function PointControlModal({
     isExecuting,
   } = useControlExecution();
 
-  const objectType = pointDetail.point.objectTypeBacnet?.toString();
   const controlProtocol = getControlProtocol(pointDetail);
   const controlSchema = pointDetail.controlSchema;
 
@@ -80,36 +76,22 @@ export function PointControlModal({
   }, [controlProtocol, controlSchema, pointDetail]);
 
   // BACnet制御ハンドラー
+  // ControlTypeResolver がゲートウェイ/BACnetアドレス指定をサーバー側で解決するため、
+  // クライアントは点の値のみを送信する(#154)。
   const handleBacnetControl = async (value: number | boolean) => {
     try {
       setIsLoading(true);
 
-      const bacnetBody: BacnetControlRequestBody = {
-        methodName: "setData",
-        gatewayId: pointDetail.device!.gatewayId!,
-        destDevId: pointDetail.point.deviceIdBacnet!,
-        objectType: objectType ?? "",
-        objectInstanceNo: pointDetail.point.instanceNoBacnet ?? 0,
-        intValue: typeof value === "number" ? value : undefined,
-        boolValue: typeof value === "boolean" ? value : undefined,
-        priority: 8,
-      };
-
-      // TODO: swagger + aspida 再生成後に型キャストを削除
-      const rawResult = await apiClient()
+      const { controlId } = await apiClient()
         .points._pointId(pointDetail.point.id)
         .control.$post({
-          body: {
-            controlType: "BACnet",
-            body: JSON.stringify(bacnetBody),
-          },
+          body: { value: toControlValue(value) },
         });
-      const accepted = rawResult as unknown as ControlAcceptedResponse;
 
       // モーダルを閉じて gRPC ストリームで結果を待機
       setIsOpen(false);
       setIsLoading(false);
-      startExecution(accepted.controlId);
+      startExecution(controlId);
     } catch {
       setIsLoading(false);
       setDirectResult("failed", "制御信号の送信に失敗しました。");
@@ -136,21 +118,32 @@ export function PointControlModal({
         operations: operations,
       };
 
-      // TODO: swagger + aspida 再生成後に型キャストを削除
-      const rawResult = await apiClient()
+      // KNOWN ISSUE: this legacy multi-parameter body (controlType/body) predates the
+      // point-id-canonical single-value control contract — ControlTypeResolver now resolves
+      // gateway/protocol server-side from `{ value }` alone (see handleBacnetControl above),
+      // and PointController.Control requires `value`, which this payload never sends. DK Connect's
+      // operations batch multiple HVAC parameters (onOff/setpoint/fanSpeed/...) in one call, which
+      // doesn't reduce to a single point value — this needs a dedicated redesign (one control call
+      // per point, or a DK-Connect-specific endpoint), not a mechanical type fix. Left unchanged
+      // (same wire shape as before) pending that redesign; tracked as a follow-up issue.
+      const legacyDkConnectRequestOptions = {
+        body: {
+          controlType: "DkConnect",
+          body: JSON.stringify(dkConnectBody),
+        },
+      } as unknown as Parameters<
+        ReturnType<
+          ReturnType<typeof apiClient>["points"]["_pointId"]
+        >["control"]["$post"]
+      >[0];
+      const { controlId } = await apiClient()
         .points._pointId(pointDetail.point.id)
-        .control.$post({
-          body: {
-            controlType: "DkConnect",
-            body: JSON.stringify(dkConnectBody),
-          },
-        });
-      const accepted = rawResult as unknown as ControlAcceptedResponse;
+        .control.$post(legacyDkConnectRequestOptions);
 
       // モーダルを閉じて gRPC ストリームで結果を待機
       setIsOpen(false);
       setIsLoading(false);
-      startExecution(accepted.controlId);
+      startExecution(controlId);
     } catch (error) {
       setIsLoading(false);
       setDirectResult(

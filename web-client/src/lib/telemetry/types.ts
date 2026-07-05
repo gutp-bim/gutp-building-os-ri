@@ -4,7 +4,7 @@
  * endpoint (tier auto-selection) so the hot/warm/cold split stays an implementation detail.
  */
 
-export type Granularity = "raw" | "minute" | "hour" | "day";
+export type Granularity = "raw" | "hour" | "day";
 
 /** One sample: ISO-8601 timestamp + numeric value. */
 export type TelemetryPoint = { t: string; v: number };
