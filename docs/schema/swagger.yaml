@@ -350,6 +350,7 @@ paths:
       tags:
         - GatewayProvisioning
       summary: "当該 gateway が所有する全 point（native addressing / unit / writable / control schema / device）を\r\n返す。`If-None-Match` が現在の ETag と一致すれば 304。`?since={etag}` 指定時は差分\r\n（added/removed/changed）を返す（スナップショット未保持なら full にフォールバック）。"
+      description: "The 200 response is BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse for the full list (no `since`, or\r\nsnapshot evicted) and BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListDiffResponse for a resolvable `?since=`\r\ndiff. Swagger documents only the full-list shape (Swashbuckle doesn't merge two response types\r\nunder one status code without a custom schema filter) — treat it as the primary contract."
       parameters:
         - name: gatewayId
           in: path
@@ -361,14 +362,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: OK
         '403':
           description: Forbidden
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayPointListResponse'
         '304':
           description: Not Modified
         '400':
@@ -3079,6 +3084,22 @@ components:
           format: double
           nullable: true
       additionalProperties: false
+    ControlSchemaDto:
+      type: object
+      properties:
+        dataType:
+          type: string
+          nullable: true
+        minValue:
+          type: string
+          nullable: true
+        maxValue:
+          type: string
+          nullable: true
+        enumLabels:
+          type: string
+          nullable: true
+      additionalProperties: false
     Device:
       required:
         - dtId
@@ -3137,6 +3158,19 @@ components:
           $ref: '#/components/schemas/Floor'
         space:
           $ref: '#/components/schemas/Space'
+      additionalProperties: false
+    DeviceRefDto:
+      type: object
+      properties:
+        dtId:
+          type: string
+          nullable: true
+        id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
       additionalProperties: false
     EffectiveConfig:
       type: object
@@ -3200,6 +3234,43 @@ components:
           type: integer
           format: int32
       additionalProperties: false
+    GatewayPointDto:
+      type: object
+      properties:
+        pointId:
+          type: string
+        localId:
+          type: string
+          nullable: true
+        native:
+          $ref: '#/components/schemas/NativeAddressingDto'
+        unit:
+          type: string
+          nullable: true
+        writable:
+          type: boolean
+          nullable: true
+        controlSchema:
+          $ref: '#/components/schemas/ControlSchemaDto'
+        device:
+          $ref: '#/components/schemas/DeviceRefDto'
+      additionalProperties: false
+    GatewayPointListResponse:
+      type: object
+      properties:
+        gatewayId:
+          type: string
+        revision:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/GatewayPointDto'
+      additionalProperties: false
+      description: Gateway point-list export response (#224). BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse.Revision equals the ETag.
     GroupsControllerAddResourceRequest:
       type: object
       properties:
@@ -3311,6 +3382,21 @@ components:
             type: array
             items:
               type: string
+          nullable: true
+      additionalProperties: false
+    NativeAddressingDto:
+      type: object
+      properties:
+        protocol:
+          type: string
+        deviceId:
+          type: string
+          nullable: true
+        objectType:
+          type: string
+          nullable: true
+        instanceNo:
+          type: string
           nullable: true
       additionalProperties: false
     OidcClientDetail:

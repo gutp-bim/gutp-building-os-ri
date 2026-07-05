@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       dotnet: ${{ steps.filter.outputs.dotnet == 'true' || steps.force.outputs.force == 'true' }}
-      web-client: ${{ steps.filter.outputs.web-client == 'true' || steps.force.outputs.force == 'true' }}
+      web-client: ${{ steps.filter.outputs['web-client'] == 'true' || steps.force.outputs.force == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +68,7 @@ jobs:
           - name: web-client
             context: web-client
             dockerfile: web-client/Dockerfile
-            changed: ${{ needs.changes.outputs.web-client }}
+            changed: ${{ needs.changes.outputs['web-client'] }}
 
     steps:
       - uses: actions/checkout@v4

@@ -126,9 +126,11 @@ export function PointControlModal({
       // doesn't reduce to a single point value — this needs a dedicated redesign (one control call
       // per point, or a DK-Connect-specific endpoint), not a mechanical type fix. Left unchanged
       // (same wire shape as before) pending that redesign; tracked as a follow-up issue.
-      const legacyDkConnectRequestBody = {
-        controlType: "DkConnect",
-        body: JSON.stringify(dkConnectBody),
+      const legacyDkConnectRequestOptions = {
+        body: {
+          controlType: "DkConnect",
+          body: JSON.stringify(dkConnectBody),
+        },
       } as unknown as Parameters<
         ReturnType<
           ReturnType<typeof apiClient>["points"]["_pointId"]
@@ -136,7 +138,7 @@ export function PointControlModal({
       >[0];
       const { controlId } = await apiClient()
         .points._pointId(pointDetail.point.id)
-        .control.$post(legacyDkConnectRequestBody);
+        .control.$post(legacyDkConnectRequestOptions);
 
       // モーダルを閉じて gRPC ストリームで結果を待機
       setIsOpen(false);

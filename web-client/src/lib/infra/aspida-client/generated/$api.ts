@@ -740,10 +740,24 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
 
         return {
           pointlist: {
+            /**
+             * The 200 response is BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse for the full list (no `since`, or
+             * snapshot evicted) and BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListDiffResponse for a resolvable `?since=`
+             * diff. Swagger documents only the full-list shape (Swashbuckle doesn't merge two response types
+             * under one status code without a custom schema filter) — treat it as the primary contract.
+             * @returns OK
+             */
             get: (option?: { query?: Methods_137chuu['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<void, BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH31}`, GET, option).send(),
+              fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH31}`, GET, option).json(),
+            /**
+             * The 200 response is BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse for the full list (no `since`, or
+             * snapshot evicted) and BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListDiffResponse for a resolvable `?since=`
+             * diff. Swagger documents only the full-list shape (Swashbuckle doesn't merge two response types
+             * under one status code without a custom schema filter) — treat it as the primary contract.
+             * @returns OK
+             */
             $get: (option?: { query?: Methods_137chuu['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<void, BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH31}`, GET, option).send().then(r => r.body),
+              fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH31}`, GET, option).json().then(r => r.body),
             $path: (option?: { method?: 'get' | undefined; query: Methods_137chuu['get']['query'] } | undefined) =>
               `${prefix}${prefix1}${PATH31}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
           },

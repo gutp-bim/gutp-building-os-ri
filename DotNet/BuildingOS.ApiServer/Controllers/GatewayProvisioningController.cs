@@ -20,7 +20,6 @@ namespace BuildingOs.ApiServer.Controllers;
 [ApiController]
 [Route("/gateways")]
 [Produces("application/json")]
-[ProducesResponseType(StatusCodes.Status200OK)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class GatewayProvisioningController(
     IDigitalTwinDatabase digitalTwinDatabase,
@@ -32,7 +31,14 @@ public class GatewayProvisioningController(
     /// 返す。`If-None-Match` が現在の ETag と一致すれば 304。`?since={etag}` 指定時は差分
     /// （added/removed/changed）を返す（スナップショット未保持なら full にフォールバック）。
     /// </summary>
+    /// <remarks>
+    /// The 200 response is <see cref="GatewayPointListResponse"/> for the full list (no `since`, or
+    /// snapshot evicted) and <see cref="GatewayPointListDiffResponse"/> for a resolvable `?since=`
+    /// diff. Swagger documents only the full-list shape (Swashbuckle doesn't merge two response types
+    /// under one status code without a custom schema filter) — treat it as the primary contract.
+    /// </remarks>
     [HttpGet("{gatewayId}/pointlist")]
+    [ProducesResponseType(typeof(GatewayPointListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status304NotModified)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetPointList(string gatewayId, [FromQuery] string? since, CancellationToken ct)

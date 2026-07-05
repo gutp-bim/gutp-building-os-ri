@@ -65,6 +65,13 @@ export type ControlSchema = {
   maxValue?: number | null | undefined;
 }
 
+export type ControlSchemaDto = {
+  dataType?: string | null | undefined;
+  minValue?: string | null | undefined;
+  maxValue?: string | null | undefined;
+  enumLabels?: string | null | undefined;
+}
+
 export type Device = {
   dtId: string;
   id: string;
@@ -90,6 +97,12 @@ export type DeviceDetail = {
   device: Device;
   floor?: Floor | undefined;
   space?: Space | undefined;
+}
+
+export type DeviceRefDto = {
+  dtId?: string | null | undefined;
+  id?: string | null | undefined;
+  name?: string | null | undefined;
 }
 
 export type EffectiveConfig = {
@@ -127,6 +140,24 @@ export type GatewayAdminView = {
 export type GatewayCollision = {
   gatewayId?: string | undefined;
   buildingCount?: number | undefined;
+}
+
+export type GatewayPointDto = {
+  pointId?: string | undefined;
+  localId?: string | null | undefined;
+  native?: NativeAddressingDto | undefined;
+  unit?: string | null | undefined;
+  writable?: boolean | null | undefined;
+  controlSchema?: ControlSchemaDto | undefined;
+  device?: DeviceRefDto | undefined;
+}
+
+/** Gateway point-list export response (#224). BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse.Revision equals the ETag. */
+export type GatewayPointListResponse = {
+  gatewayId?: string | undefined;
+  revision?: string | undefined;
+  generatedAt?: string | undefined;
+  points?: GatewayPointDto[] | undefined;
 }
 
 export type GroupsControllerAddResourceRequest = {
@@ -184,6 +215,13 @@ export type MyResourcesResponse = {
   resources?: {
     [key: string]: string[];
   } | null | undefined;
+}
+
+export type NativeAddressingDto = {
+  protocol?: string | undefined;
+  deviceId?: string | null | undefined;
+  objectType?: string | null | undefined;
+  instanceNo?: string | null | undefined;
 }
 
 export type OidcClientDetail = {
