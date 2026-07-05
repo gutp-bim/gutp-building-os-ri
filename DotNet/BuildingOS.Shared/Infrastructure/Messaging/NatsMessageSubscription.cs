@@ -49,20 +49,22 @@ public class NatsMessageSubscription : IMessageSubscription, IAsyncDisposable
         {
             try
             {
-                await js.GetStreamAsync(streamName, cancellationToken: ct);
+                await js.GetStreamAsync(streamName, cancellationToken: ct).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                await js.CreateStreamAsync(new StreamConfig(streamName, streamSubjects), ct);
+                await js.CreateStreamAsync(new StreamConfig(streamName, streamSubjects), ct).ConfigureAwait(false);
             }
             return true;
-        }, _cts.Token, logger: _logger, operationName: $"NatsMessageSubscription: ensure stream {streamName}");
+        }, _cts.Token, logger: _logger, operationName: $"NatsMessageSubscription: ensure stream {streamName}")
+            .ConfigureAwait(false);
 
         var consumer = await TransientRetry.RunAsync(
             ct => js.CreateOrUpdateConsumerAsync(streamName,
                 new ConsumerConfig(_durableName) { FilterSubject = _subject }, ct).AsTask(),
             _cts.Token, logger: _logger,
-            operationName: $"NatsMessageSubscription: create consumer {_durableName}");
+            operationName: $"NatsMessageSubscription: create consumer {_durableName}")
+            .ConfigureAwait(false);
 
         _consumeLoop = Task.Run(async () =>
         {

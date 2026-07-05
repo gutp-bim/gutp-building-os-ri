@@ -65,4 +65,26 @@ public class TransientRetryTest
 
         Assert.Equal(1, calls);
     }
+
+    [Fact]
+    public async Task RunAsync_ClientSideTimeout_RetriesEvenThoughExceptionTypeIsOperationCanceled()
+    {
+        // A client library's own request timeout can surface as OperationCanceledException even
+        // though the caller's token was never signalled — this must be treated as transient (retried),
+        // not mistaken for real shutdown. Distinguished from RunAsync_CallerCancellation... above by
+        // cancellationToken.IsCancellationRequested being false here (CancellationToken.None).
+        var calls = 0;
+        var result = await TransientRetry.RunAsync(
+            _ =>
+            {
+                calls++;
+                if (calls < 2) throw new OperationCanceledException("client-side request timeout");
+                return Task.FromResult(7);
+            },
+            CancellationToken.None,
+            initialDelay: TimeSpan.FromMilliseconds(1));
+
+        Assert.Equal(7, result);
+        Assert.Equal(2, calls);
+    }
 }
