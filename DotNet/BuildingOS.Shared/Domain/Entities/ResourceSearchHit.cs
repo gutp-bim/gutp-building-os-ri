@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BuildingOS.Shared;
 
 /// <summary>
@@ -8,15 +10,19 @@ namespace BuildingOS.Shared;
 public class ResourceSearchHit
 {
     /// <summary>building | floor | space | device | point</summary>
-    public string Type { get; set; } = "";
+    [Required]
+    public string Type { get; set; } = null!;
 
     /// <summary>Digital Twin ID (node URI). For point this differs from <see cref="Id"/>.</summary>
-    public string DtId { get; set; } = "";
+    [Required]
+    public string DtId { get; set; } = null!;
 
     /// <summary>Business ID. For point this is the pointId used for authorization.</summary>
-    public string Id { get; set; } = "";
+    [Required]
+    public string Id { get; set; } = null!;
 
-    public string Name { get; set; } = "";
+    [Required]
+    public string Name { get; set; } = null!;
 
     /// <summary>Owning building's dtId when resolvable; null otherwise.</summary>
     public string? BuildingDtId { get; set; }

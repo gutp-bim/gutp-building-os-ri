@@ -6,7 +6,7 @@ export type Methods = DefineMethods<{
   post: {
     status: 201;
     /** Created */
-    resBody: Types.ResourceItemResponse;
-    reqBody: Types.AddResourceRequest;
+    resBody: Types.GroupsControllerResourceItemResponse;
+    reqBody: Types.GroupsControllerAddResourceRequest;
   };
 }>;

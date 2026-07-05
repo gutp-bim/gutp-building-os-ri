@@ -1,5 +1,25 @@
-import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
-import type { TelemetryPoint, TelemetrySeries } from "./types";
+import type {
+  TelemetryGranularity,
+  ValidTelemetryData,
+} from "@/lib/infra/aspida-client/generated/@types";
+import type { Granularity, TelemetryPoint, TelemetrySeries } from "./types";
+
+// Backend enum ordinals (BuildingOS.Shared.Infrastructure.Telemetry.TelemetryGranularity):
+// Raw = 0, Hour = 1, Day = 2. OpenAPI/aspida types this as a bare number, so the friendly
+// lowercase names used across the UI are mapped to their ordinal here, once.
+const GRANULARITY_ORDINAL: Record<Granularity, TelemetryGranularity> = {
+  raw: 0,
+  hour: 1,
+  day: 2,
+};
+
+export function toGranularityParam(
+  granularity: Granularity | undefined,
+): TelemetryGranularity | undefined {
+  return granularity === undefined
+    ? undefined
+    : GRANULARITY_ORDINAL[granularity];
+}
 
 /**
  * Pure conversion of raw telemetry rows into a clean, datetime-ascending series. Rows without a

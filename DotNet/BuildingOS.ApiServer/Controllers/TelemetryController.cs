@@ -173,7 +173,7 @@ public class TelemetryController(
     /// <param name="pointId">必須. ポイントID</param>
     /// <param name="start">開始時刻（latest=true の場合は不要）</param>
     /// <param name="end">終了時刻（latest=true の場合は不要）</param>
-    /// <param name="granularity">集計粒度: raw / minute / hour / day（省略時: raw）</param>
+    /// <param name="granularity">集計粒度: raw / hour / day（省略時: raw）</param>
     /// <param name="latest">true の場合は最新値のみ返す</param>
     [HttpGet("query")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

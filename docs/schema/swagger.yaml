@@ -4,6 +4,90 @@ info:
   description: An ASP.NET Core API for Building OS
   version: v1
 paths:
+  /api/admin/audit:
+    get:
+      tags:
+        - AdminAudit
+      summary: 監査ログを新しい順に取得する。subjectType / targetId で絞り込み可能。管理者のみ。
+      parameters:
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+        - name: targetId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int32
+            default: 100
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminAuditResponse'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminAuditResponse'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminAuditResponse'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/assistant/chat:
+    post:
+      tags:
+        - Assistant
+      summary: 1ターンのチャット。無効時は 503、上流 LLM エラー時は 502。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistantChatRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/AssistantChatRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/AssistantChatRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/AssistantControllerAssistantChatResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantControllerAssistantChatResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/AssistantControllerAssistantChatResponse'
+        '503':
+          description: Service Unavailable
+        '502':
+          description: Bad Gateway
   /api/Auth/me:
     get:
       tags:
@@ -33,45 +117,6 @@ paths:
       responses:
         '200':
           description: OK
-  /gateways/{gatewayId}/pointlist:
-    get:
-      tags:
-        - GatewayProvisioning
-      summary: ゲートウェイ所有 Point List のエクスポート（native addressing 含む、ETag/304）
-      parameters:
-        - name: gatewayId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: since
-          in: query
-          required: false
-          description: 指定時は当該 ETag からの差分（added/removed/changed）を返す。未保持なら full。
-          schema:
-            type: string
-        - name: If-None-Match
-          in: header
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: OK（since 指定時は GatewayPointListDiffResponse）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GatewayPointListResponse'
-        '304':
-          description: Not Modified
-        '400':
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetails'
-        '403':
-          description: Forbidden
   /buildings:
     get:
       tags:
@@ -102,11 +147,10 @@ paths:
     get:
       tags:
         - Building
-      summary: "ビル情報を取得\r\n指定されたdtIdに対応するビルの詳細情報を返します。"
+      summary: ビル情報を取得
       parameters:
         - name: buildingDtId
           in: path
-          description: ビルのdtId
           required: true
           schema:
             type: string
@@ -143,7 +187,6 @@ paths:
       parameters:
         - name: deviceDtId
           in: path
-          description: デバイスのdtId
           required: true
           schema:
             type: string
@@ -180,7 +223,6 @@ paths:
       parameters:
         - name: spaceDtId
           in: query
-          description: デバイスが配置されているスペースのdtId
           schema:
             type: string
       responses:
@@ -244,7 +286,6 @@ paths:
       parameters:
         - name: floorDtId
           in: path
-          description: フロアのdtId
           required: true
           schema:
             type: string
@@ -281,7 +322,6 @@ paths:
       parameters:
         - name: buildingDtId
           in: query
-          description: フロアを含むビルのdtId
           schema:
             type: string
       responses:
@@ -305,6 +345,136 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Floor'
+  '/gateways/{gatewayId}/pointlist':
+    get:
+      tags:
+        - GatewayProvisioning
+      summary: "当該 gateway が所有する全 point（native addressing / unit / writable / control schema / device）を\r\n返す。`If-None-Match` が現在の ETag と一致すれば 304。`?since={etag}` 指定時は差分\r\n（added/removed/changed）を返す（スナップショット未保持なら full にフォールバック）。"
+      parameters:
+        - name: gatewayId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: since
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '304':
+          description: Not Modified
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/admin/gateways:
+    get:
+      tags:
+        - Gateways
+      summary: ゲートウェイ一覧（binding + マスク済み設定 + pointlist 件数/revision）。管理者のみ。
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GatewayAdminView'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GatewayAdminView'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GatewayAdminView'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  '/api/admin/gateways/{id}':
+    get:
+      tags:
+        - Gateways
+      summary: ゲートウェイ詳細。ツインに存在しない id は 404。管理者のみ。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/GatewayAdminView'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayAdminView'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/GatewayAdminView'
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  '/api/admin/gateways/{id}/resync-pointlist':
+    post:
+      tags:
+        - Gateways
+      summary: "pointlist の再同期 push 通知を送る（`building-os.pointlist.updated.gw.{id}`）。ゲートウェイは\r\nETag で再検証する（push は最適化、ETag ポーリングが信頼性のバックストップ）。監査必須。管理者のみ。"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Accepted
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/Groups:
     get:
       tags:
@@ -330,17 +500,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/GroupResponse'
+                  $ref: '#/components/schemas/GroupsControllerGroupResponse'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/GroupResponse'
+                  $ref: '#/components/schemas/GroupsControllerGroupResponse'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/GroupResponse'
+                  $ref: '#/components/schemas/GroupsControllerGroupResponse'
     post:
       tags:
         - Groups
@@ -349,13 +519,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateGroupRequest'
+              $ref: '#/components/schemas/GroupsControllerCreateGroupRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/CreateGroupRequest'
+              $ref: '#/components/schemas/GroupsControllerCreateGroupRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/CreateGroupRequest'
+              $ref: '#/components/schemas/GroupsControllerCreateGroupRequest'
       responses:
         '403':
           description: Forbidden
@@ -374,13 +544,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/GroupResponse'
+                $ref: '#/components/schemas/GroupsControllerGroupResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/GroupResponse'
+                $ref: '#/components/schemas/GroupsControllerGroupResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/GroupResponse'
+                $ref: '#/components/schemas/GroupsControllerGroupResponse'
         '400':
           description: Bad Request
           content:
@@ -422,13 +592,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/GroupDetailResponse'
+                $ref: '#/components/schemas/GroupsControllerGroupDetailResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/GroupDetailResponse'
+                $ref: '#/components/schemas/GroupsControllerGroupDetailResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/GroupDetailResponse'
+                $ref: '#/components/schemas/GroupsControllerGroupDetailResponse'
         '404':
           description: Not Found
           content:
@@ -455,13 +625,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateGroupRequest'
+              $ref: '#/components/schemas/GroupsControllerUpdateGroupRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/UpdateGroupRequest'
+              $ref: '#/components/schemas/GroupsControllerUpdateGroupRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/UpdateGroupRequest'
+              $ref: '#/components/schemas/GroupsControllerUpdateGroupRequest'
       responses:
         '403':
           description: Forbidden
@@ -541,13 +711,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AddResourceRequest'
+              $ref: '#/components/schemas/GroupsControllerAddResourceRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/AddResourceRequest'
+              $ref: '#/components/schemas/GroupsControllerAddResourceRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/AddResourceRequest'
+              $ref: '#/components/schemas/GroupsControllerAddResourceRequest'
       responses:
         '403':
           description: Forbidden
@@ -566,13 +736,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/ResourceItemResponse'
+                $ref: '#/components/schemas/GroupsControllerResourceItemResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceItemResponse'
+                $ref: '#/components/schemas/GroupsControllerResourceItemResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/ResourceItemResponse'
+                $ref: '#/components/schemas/GroupsControllerResourceItemResponse'
         '404':
           description: Not Found
           content:
@@ -655,13 +825,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BulkAddResourceRequest'
+              $ref: '#/components/schemas/GroupsControllerBulkAddResourceRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/BulkAddResourceRequest'
+              $ref: '#/components/schemas/GroupsControllerBulkAddResourceRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/BulkAddResourceRequest'
+              $ref: '#/components/schemas/GroupsControllerBulkAddResourceRequest'
       responses:
         '403':
           description: Forbidden
@@ -680,13 +850,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/BulkAddResourceResponse'
+                $ref: '#/components/schemas/GroupsControllerBulkAddResourceResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/BulkAddResourceResponse'
+                $ref: '#/components/schemas/GroupsControllerBulkAddResourceResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/BulkAddResourceResponse'
+                $ref: '#/components/schemas/GroupsControllerBulkAddResourceResponse'
         '404':
           description: Not Found
           content:
@@ -734,6 +904,239 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/MyResourcesResponse'
+  /api/admin/oidc-clients:
+    get:
+      tags:
+        - OidcClients
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OidcClientSummary'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OidcClientSummary'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OidcClientSummary'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
+    post:
+      tags:
+        - OidcClients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OidcClientsControllerCreateOidcClientRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/OidcClientsControllerCreateOidcClientRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/OidcClientsControllerCreateOidcClientRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/OidcClientsControllerCreatedOidcClientResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientsControllerCreatedOidcClientResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientsControllerCreatedOidcClientResponse'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  '/api/admin/oidc-clients/{id}':
+    get:
+      tags:
+        - OidcClients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/OidcClientDetail'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientDetail'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientDetail'
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    delete:
+      tags:
+        - OidcClients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+  '/api/admin/oidc-clients/{id}/rotate-secret':
+    post:
+      tags:
+        - OidcClients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/OidcClientsControllerRotatedSecretResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientsControllerRotatedSecretResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientsControllerRotatedSecretResponse'
+  '/api/admin/oidc-clients/{id}/enabled':
+    put:
+      tags:
+        - OidcClients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OidcClientsControllerSetEnabledRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/OidcClientsControllerSetEnabledRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/OidcClientsControllerSetEnabledRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/OidcClientDetail'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientDetail'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/OidcClientDetail'
+  /api/Permissions/resolve:
+    post:
+      tags:
+        - Permissions
+      summary: ハッシュ化されたリソースIDを元のID・リソースタイプ・表示名に解決する
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+          text/json:
+            schema:
+              type: array
+              items:
+                type: string
+          application/*+json:
+            schema:
+              type: array
+              items:
+                type: string
+      responses:
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/PermissionsControllerResolvedPermissionInfo'
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/PermissionsControllerResolvedPermissionInfo'
+            text/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/PermissionsControllerResolvedPermissionInfo'
   /points:
     get:
       tags:
@@ -742,7 +1145,6 @@ paths:
       parameters:
         - name: deviceDtId
           in: query
-          description: ポイントを保持しているデバイスのdtId
           schema:
             type: string
       responses:
@@ -774,7 +1176,6 @@ paths:
       parameters:
         - name: pointId
           in: path
-          description: ポイントId（ビジネスID）
           required: true
           schema:
             type: string
@@ -807,26 +1208,24 @@ paths:
     post:
       tags:
         - Point
-      summary: 機器制御用の API
+      summary: "機器制御コマンドを送信する。\r\n結果は gRPC PointControlService.WaitForResult ストリームで通知される。"
       parameters:
         - name: pointId
           in: path
-          description: 制御対象のポイントID
           required: true
           schema:
             type: string
       requestBody:
-        description: 制御に関する情報
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PointControlRequest'
+              $ref: '#/components/schemas/PointControllerPointControlRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/PointControlRequest'
+              $ref: '#/components/schemas/PointControllerPointControlRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/PointControlRequest'
+              $ref: '#/components/schemas/PointControllerPointControlRequest'
       responses:
         '401':
           description: Unauthorized
@@ -840,10 +1239,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-        '200':
-          description: OK
         '202':
           description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointControllerControlAcceptedResponse'
         '404':
           description: Not Found
           content:
@@ -925,6 +1326,456 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  '/buildings/{buildingDtId}/metadata':
+    get:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: buildingDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceMetadataResponse'
+    patch:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: buildingDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '204':
+          description: No Content
+  '/floors/{floorDtId}/metadata':
+    get:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: floorDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceMetadataResponse'
+    patch:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: floorDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '204':
+          description: No Content
+  '/spaces/{spaceDtId}/metadata':
+    get:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: spaceDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceMetadataResponse'
+    patch:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: spaceDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '204':
+          description: No Content
+  '/devices/{deviceDtId}/metadata':
+    get:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: deviceDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceMetadataResponse'
+    patch:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: deviceDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '204':
+          description: No Content
+  '/points/{pointId}/metadata':
+    get:
+      tags:
+        - ResourceMetadata
+      parameters:
+        - name: pointId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceMetadataResponse'
+    patch:
+      tags:
+        - ResourceMetadata
+      summary: "Points use the logical pointId in the URL (matching the existing PointController convention).\r\nThe logical pointId is resolved to the twin DtId (RDF IRI) before writing SPARQL,\r\nso triples land under the correct subject and are readable via the twin's standard IRI."
+      parameters:
+        - name: pointId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/ResourceMetadataPatchRequest'
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '204':
+          description: No Content
+  /resources/search:
+    get:
+      tags:
+        - ResourceSearch
+      summary: リソース横断検索（building / floor / space / device / point を名前・IDで検索）。
+      parameters:
+        - name: q
+          in: query
+          description: 検索語（名前・ID の部分一致、大文字小文字を無視）
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: リソース種別で絞り込み（building/floor/space/device/point）。省略時は全種別
+          schema:
+            type: string
+        - name: buildingId
+          in: query
+          description: 建物 dtId でスコープ（building/floor/space のみ対象）
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: 'SBCO customTags のキーで絞り込み（customTags[key] == true）。複数指定は AND（#332）'
+          schema:
+            type: array
+            items:
+              type: string
+        - name: limit
+          in: query
+          description: 最大件数（1..200、既定 50）
+          schema:
+            type: integer
+            format: int32
+            default: 50
+        - name: offset
+          in: query
+          description: オフセット（既定 0）
+          schema:
+            type: integer
+            format: int32
+            default: 0
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResourceSearchHit'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/spaces/{spaceDtId}':
     get:
       tags:
@@ -933,7 +1784,6 @@ paths:
       parameters:
         - name: spaceDtId
           in: path
-          description: スペースのdtId
           required: true
           schema:
             type: string
@@ -970,7 +1820,6 @@ paths:
       parameters:
         - name: floorDtId
           in: query
-          description: スペースを含めフロアのdtId
           schema:
             type: string
       responses:
@@ -994,96 +1843,71 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Space'
-  /resources/search:
+  /api/system/status:
     get:
       tags:
-        - ResourceSearch
-      summary: リソース横断検索（building / floor / space / device / point を名前・IDで検索）。
-      parameters:
-        - name: q
-          in: query
-          schema:
-            type: string
-        - name: type
-          in: query
-          schema:
-            type: string
-        - name: buildingId
-          in: query
-          schema:
-            type: string
-        - name: tag
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            format: int32
-            default: 50
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            format: int32
-            default: 0
+        - System
+      summary: プラットフォーム稼働状態（サービス up/down + KPI）を取得する。管理者（platform ロール）のみ。
       responses:
         '200':
           description: OK
           content:
             text/plain:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ResourceSearchHit'
+                $ref: '#/components/schemas/SystemStatus'
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ResourceSearchHit'
+                $ref: '#/components/schemas/SystemStatus'
             text/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ResourceSearchHit'
-        '400':
-          description: Bad Request
+                $ref: '#/components/schemas/SystemStatus'
+        '403':
+          description: Forbidden
           content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /telemetries/query:
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/system/config:
     get:
       tags:
-        - Telemetry
-      summary: 期間・粒度を指定してテレメトリデータを取得（tier 自動選択）
-      parameters:
-        - name: pointId
-          in: query
-          schema:
-            type: string
-        - name: start
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: end
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: granularity
-          in: query
-          schema:
-            type: string
-        - name: latest
-          in: query
-          schema:
-            type: boolean
-            default: false
+        - System
+      summary: "実効設定（許可リストのキーのみ、シークレットはマスク）を読み取り専用で取得する。管理者のみ。\r\nIaC/ArgoCD が source of truth であり、本エンドポイントは観測専用（編集不可）。"
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/EffectiveConfig'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectiveConfig'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/EffectiveConfig'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/system/settings:
+    get:
+      tags:
+        - SystemConfig
+      summary: 編集可能設定の実効値一覧（既定値 + override をマージ）を取得する。管理者のみ。
       responses:
         '200':
           description: OK
@@ -1092,28 +1916,118 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/SettingView'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/SettingView'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/SettingView'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  '/api/system/settings/{key}':
+    put:
+      tags:
+        - SystemConfig
+      summary: 設定値を更新する（許可リスト外は 404、型不一致は 400）。管理者のみ。
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemConfigControllerUpdateSettingRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/SystemConfigControllerUpdateSettingRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/SystemConfigControllerUpdateSettingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/SettingView'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingView'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/SettingView'
         '400':
           description: Bad Request
           content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
             application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    delete:
+      tags:
+        - SystemConfig
+      summary: 設定を既定値にリセットする（override を削除）。許可リスト外は 404。管理者のみ。
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
   /telemetries/hot:
     get:
       tags:
         - Telemetry
-      summary: 最新のテレメトリデータを取得
+      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /telemetries/query?latest=true`。\r\nこの per-tier エンドポイントは後方互換のため残置。"
       parameters:
         - name: pointId
           in: query
@@ -1187,11 +2101,12 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+      deprecated: true
   /telemetries/warm:
     get:
       tags:
         - Telemetry
-      summary: 指定期間のWarmテレメトリデータを取得
+      summary: '[非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は `GET /telemetries/query`（tier 自動選択）。'
       parameters:
         - name: pointId
           in: query
@@ -1268,11 +2183,12 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+      deprecated: true
   /telemetries/cold:
     get:
       tags:
         - Telemetry
-      summary: 指定期間のColdテレメトリデータを取得
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は `GET /telemetries/query`（tier 自動選択）。'
       parameters:
         - name: pointId
           in: query
@@ -1355,11 +2271,12 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+      deprecated: true
   /telemetries/cold-multi-point:
     get:
       tags:
         - Telemetry
-      summary: 指定期間のColdテレメトリデータを取得（複数ポイント）
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は `GET /telemetries/query`。'
       parameters:
         - name: pointIds
           in: query
@@ -1438,6 +2355,219 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+      deprecated: true
+  /telemetries/query:
+    get:
+      tags:
+        - Telemetry
+      summary: "テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を\r\n自動選択する。per-tier の `/hot`・`/warm`・`/cold`・`/cold-multi-point` は非推奨。"
+      parameters:
+        - name: pointId
+          in: query
+          description: 必須. ポイントID
+          schema:
+            type: string
+        - name: start
+          in: query
+          description: 開始時刻（latest=true の場合は不要）
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          description: 終了時刻（latest=true の場合は不要）
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          description: '集計粒度: raw / hour / day（省略時: raw）'
+          schema:
+            $ref: '#/components/schemas/TelemetryGranularity'
+        - name: latest
+          in: query
+          description: true の場合は最新値のみ返す
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidTelemetryData'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidTelemetryData'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidTelemetryData'
+        '401':
+          description: Unauthorized
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/admin/twin/query:
+    post:
+      tags:
+        - TwinAdmin
+      summary: 読み取り専用 SPARQL（SELECT/ASK）を実行する。更新系は 400。監査必須。管理者のみ。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerSparqlQueryRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerSparqlQueryRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerSparqlQueryRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/SparqlQueryResult'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SparqlQueryResult'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/SparqlQueryResult'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/admin/twin/import/preview:
+    post:
+      tags:
+        - TwinAdmin
+      summary: 取込のプレビュー（件数 + gateway_id 一意性検証）。適用はしない。監査必須。管理者のみ。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerTwinImportRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerTwinImportRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerTwinImportRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TwinImportPreview'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwinImportPreview'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/TwinImportPreview'
+  /api/admin/twin/import/apply:
+    post:
+      tags:
+        - TwinAdmin
+      summary: 取込を適用する（append / replace）。gateway_id 一意性違反があれば 409 で拒否。監査必須。管理者のみ。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerTwinImportRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerTwinImportRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/TwinAdminControllerTwinImportRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TwinImportPreview'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwinImportPreview'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/TwinImportPreview'
+        '409':
+          description: Conflict
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/Users:
     get:
       tags:
@@ -1463,17 +2593,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserResponse'
+                  $ref: '#/components/schemas/UsersControllerUserResponse'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserResponse'
+                  $ref: '#/components/schemas/UsersControllerUserResponse'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserResponse'
+                  $ref: '#/components/schemas/UsersControllerUserResponse'
   '/api/Users/{id}':
     get:
       tags:
@@ -1503,13 +2633,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
         '404':
           description: Not Found
           content:
@@ -1537,13 +2667,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateUserAttributesApiRequest'
+              $ref: '#/components/schemas/UsersControllerUpdateUserAttributesApiRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/UpdateUserAttributesApiRequest'
+              $ref: '#/components/schemas/UsersControllerUpdateUserAttributesApiRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/UpdateUserAttributesApiRequest'
+              $ref: '#/components/schemas/UsersControllerUpdateUserAttributesApiRequest'
       responses:
         '403':
           description: Forbidden
@@ -1562,13 +2692,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
         '404':
           description: Not Found
           content:
@@ -1583,6 +2713,113 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '400':
           description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/Users/roles:
+    get:
+      tags:
+        - Users
+      summary: "割当可能なロール（admin / operator / viewer）のカタログを取得する。各ロールが見えるワークスペースと\r\nadmin 権限の有無を含む（読み取り専用 SSOT）。管理者のみ。"
+      responses:
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleCatalogEntry'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleCatalogEntry'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleCatalogEntry'
+  '/api/Users/{id}/enabled':
+    put:
+      tags:
+        - Users
+      summary: "ユーザーを有効化／無効化する（Keycloak `enabled`）。削除はせず、認証だけを止める（可逆）。\r\n自己無効化・最後の admin 無効化はロックアウト防止のため 409。管理者のみ。"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsersControllerSetEnabledRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/UsersControllerSetEnabledRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/UsersControllerSetEnabledRequest'
+      responses:
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/UsersControllerUserResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersControllerUserResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/UsersControllerUserResponse'
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict
           content:
             text/plain:
               schema:
@@ -1608,13 +2845,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AddPermissionRequest'
+              $ref: '#/components/schemas/UsersControllerAddPermissionRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/AddPermissionRequest'
+              $ref: '#/components/schemas/UsersControllerAddPermissionRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/AddPermissionRequest'
+              $ref: '#/components/schemas/UsersControllerAddPermissionRequest'
       responses:
         '403':
           description: Forbidden
@@ -1633,13 +2870,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
         '404':
           description: Not Found
           content:
@@ -1666,13 +2903,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RemovePermissionRequest'
+              $ref: '#/components/schemas/UsersControllerRemovePermissionRequest'
           text/json:
             schema:
-              $ref: '#/components/schemas/RemovePermissionRequest'
+              $ref: '#/components/schemas/UsersControllerRemovePermissionRequest'
           application/*+json:
             schema:
-              $ref: '#/components/schemas/RemovePermissionRequest'
+              $ref: '#/components/schemas/UsersControllerRemovePermissionRequest'
       responses:
         '403':
           description: Forbidden
@@ -1691,13 +2928,13 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
             text/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/UsersControllerUserResponse'
         '404':
           description: Not Found
           content:
@@ -1712,92 +2949,72 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
 components:
   schemas:
-    AddPermissionRequest:
+    AdminAuditResponse:
       type: object
       properties:
-        permission:
+        id:
+          type: string
+          format: uuid
+        subjectType:
+          type: string
+        action:
+          type: string
+        targetId:
+          type: string
+          nullable: true
+        actorSub:
+          type: string
+        actorName:
+          type: string
+          nullable: true
+        result:
+          type: string
+        detail:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+      description: API レスポンス DTO。監査ドメイン型をそのまま露出せず、result 文字列化して返す。
+    AssistantChatRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        context:
+          $ref: '#/components/schemas/AssistantHelpContext'
+      additionalProperties: false
+    AssistantContextTerm:
+      type: object
+      properties:
+        term:
+          type: string
+        definition:
           type: string
       additionalProperties: false
-    AddResourceRequest:
+    AssistantControllerAssistantChatResponse:
       type: object
       properties:
-        resourceType:
-          type: string
-        resourceId:
+        reply:
           type: string
       additionalProperties: false
-    GatewayPointListResponse:
+    AssistantHelpContext:
       type: object
       properties:
-        gatewayId: { type: string }
-        revision: { type: string }
-        generatedAt: { type: string, format: date-time }
-        points:
-          type: array
-          items: { $ref: '#/components/schemas/GatewayPointDto' }
-      additionalProperties: false
-    GatewayPointListDiffResponse:
-      type: object
-      properties:
-        gatewayId: { type: string }
-        revision: { type: string }
-        since: { type: string }
-        full: { type: boolean }
-        added:
-          type: array
-          items: { $ref: '#/components/schemas/GatewayPointDto' }
-        removed:
-          type: array
-          items: { type: string }
-        changed:
-          type: array
-          items: { $ref: '#/components/schemas/GatewayPointDto' }
-        points:
-          type: array
-          items: { $ref: '#/components/schemas/GatewayPointDto' }
-      additionalProperties: false
-    GatewayPointDto:
-      type: object
-      properties:
-        pointId: { type: string }
-        localId: { type: string, nullable: true }
-        native:
+        title:
+          type: string
           nullable: true
-          allOf:
-            - $ref: '#/components/schemas/NativeAddressingDto'
-        unit: { type: string, nullable: true }
-        writable: { type: boolean, nullable: true }
-        controlSchema:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/ControlSchemaDto'
-        device:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/DeviceRefDto'
-      additionalProperties: false
-    NativeAddressingDto:
-      type: object
-      properties:
-        protocol: { type: string }
-        deviceId: { type: string, nullable: true }
-        objectType: { type: string, nullable: true }
-        instanceNo: { type: string, nullable: true }
-      additionalProperties: false
-    ControlSchemaDto:
-      type: object
-      properties:
-        dataType: { type: string, nullable: true }
-        minValue: { type: string, nullable: true }
-        maxValue: { type: string, nullable: true }
-        enumLabels: { type: string, nullable: true }
-      additionalProperties: false
-    DeviceRefDto:
-      type: object
-      properties:
-        dtId: { type: string, nullable: true }
-        id: { type: string, nullable: true }
-        name: { type: string, nullable: true }
+        body:
+          type: array
+          items:
+            type: string
+        terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssistantContextTerm'
       additionalProperties: false
     Building:
       required:
@@ -1815,41 +3032,35 @@ components:
         name:
           minLength: 1
           type: string
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
       additionalProperties: false
-    ResourceSearchHit:
+    ChatMessage:
       type: object
       properties:
-        type:
+        role:
           type: string
-        dtId:
+        content:
           type: string
-        id:
+      additionalProperties: false
+    ConfigEntry:
+      type: object
+      properties:
+        key:
           type: string
-        name:
-          type: string
-        buildingDtId:
+        isSecret:
+          type: boolean
+        isSet:
+          type: boolean
+        value:
           type: string
           nullable: true
-      additionalProperties: false
-    BulkAddResourceRequest:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/AddResourceRequest'
-      additionalProperties: false
-    BulkAddResourceResponse:
-      type: object
-      properties:
-        added:
-          type: array
-          items:
-            $ref: '#/components/schemas/ResourceItemResponse'
-        failed:
-          type: array
-          items:
-            type: string
       additionalProperties: false
     ControlSchema:
       type: object
@@ -1859,16 +3070,13 @@ components:
         enumLabels:
           type: string
           nullable: true
-      additionalProperties: false
-    CreateGroupRequest:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
+        minValue:
+          type: number
+          format: double
+          nullable: true
+        maxValue:
+          type: number
+          format: double
           nullable: true
       additionalProperties: false
     Device:
@@ -1909,6 +3117,14 @@ components:
         deviceType:
           type: string
           nullable: true
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
       additionalProperties: false
     DeviceDetail:
       required:
@@ -1921,6 +3137,14 @@ components:
           $ref: '#/components/schemas/Floor'
         space:
           $ref: '#/components/schemas/Space'
+      additionalProperties: false
+    EffectiveConfig:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigEntry'
       additionalProperties: false
     Floor:
       required:
@@ -1938,8 +3162,84 @@ components:
         name:
           minLength: 1
           type: string
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
       additionalProperties: false
-    GroupDetailResponse:
+    GatewayAdminView:
+      type: object
+      properties:
+        gatewayId:
+          type: string
+        bindingType:
+          type: string
+        settings:
+          type: object
+          additionalProperties:
+            type: string
+        pointCount:
+          type: integer
+          format: int32
+        revision:
+          type: string
+        certTrustAnchor:
+          type: string
+      additionalProperties: false
+      description: 'Admin view of one gateway: binding + masked settings + pointlist sync status (#323).'
+    GatewayCollision:
+      type: object
+      properties:
+        gatewayId:
+          type: string
+        buildingCount:
+          type: integer
+          format: int32
+      additionalProperties: false
+    GroupsControllerAddResourceRequest:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+      additionalProperties: false
+    GroupsControllerBulkAddResourceRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupsControllerAddResourceRequest'
+      additionalProperties: false
+    GroupsControllerBulkAddResourceResponse:
+      type: object
+      properties:
+        added:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupsControllerResourceItemResponse'
+        failed:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    GroupsControllerCreateGroupRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+      additionalProperties: false
+    GroupsControllerGroupDetailResponse:
       type: object
       properties:
         id:
@@ -1958,9 +3258,9 @@ components:
         resourceItems:
           type: array
           items:
-            $ref: '#/components/schemas/ResourceItemResponse'
+            $ref: '#/components/schemas/GroupsControllerResourceItemResponse'
       additionalProperties: false
-    GroupResponse:
+    GroupsControllerGroupResponse:
       type: object
       properties:
         id:
@@ -1977,6 +3277,29 @@ components:
           type: string
           format: date-time
       additionalProperties: false
+    GroupsControllerResourceItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    GroupsControllerUpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+      additionalProperties: false
     MyResourcesResponse:
       type: object
       properties:
@@ -1988,6 +3311,90 @@ components:
             type: array
             items:
               type: string
+          nullable: true
+      additionalProperties: false
+    OidcClientDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        enabled:
+          type: boolean
+        serviceAccountsEnabled:
+          type: boolean
+        publicClient:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+        redirectUris:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    OidcClientSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        enabled:
+          type: boolean
+        serviceAccountsEnabled:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+      additionalProperties: false
+    OidcClientsControllerCreateOidcClientRequest:
+      type: object
+      properties:
+        clientId:
+          type: string
+        description:
+          type: string
+          nullable: true
+        serviceAccountsEnabled:
+          type: boolean
+        redirectUris:
+          type: array
+          items:
+            type: string
+          nullable: true
+      additionalProperties: false
+    OidcClientsControllerCreatedOidcClientResponse:
+      type: object
+      properties:
+        client:
+          $ref: '#/components/schemas/OidcClientDetail'
+        secret:
+          type: string
+      additionalProperties: false
+      description: Create response — carries the one-time plaintext secret (never returned again).
+    OidcClientsControllerRotatedSecretResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+      additionalProperties: false
+    OidcClientsControllerSetEnabledRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      additionalProperties: false
+    PermissionsControllerResolvedPermissionInfo:
+      type: object
+      properties:
+        originalId:
+          type: string
+        resourceType:
+          type: string
+        displayName:
+          type: string
           nullable: true
       additionalProperties: false
     Point:
@@ -2062,15 +3469,30 @@ components:
         rowDataString:
           type: string
           nullable: true
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
       additionalProperties: false
-    PointControlRequest:
+    PointControllerControlAcceptedResponse:
+      required:
+        - controlId
       type: object
       properties:
-        controlType:
+        controlId:
           type: string
-          nullable: true
-        body:
-          type: string
+          format: uuid
+      additionalProperties: false
+    PointControllerPointControlRequest:
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
           nullable: true
       additionalProperties: false
     PointDetail:
@@ -2109,24 +3531,117 @@ components:
           type: string
           nullable: true
       additionalProperties: { }
-    RemovePermissionRequest:
+    ResourceMetadataPatchRequest:
       type: object
       properties:
-        permission:
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          nullable: true
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
+            nullable: true
+          nullable: true
+      additionalProperties: false
+    ResourceMetadataResponse:
+      type: object
+      properties:
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
+      additionalProperties: false
+    ResourceSearchHit:
+      required:
+        - dtId
+        - id
+        - name
+        - type
+      type: object
+      properties:
+        type:
+          minLength: 1
+          type: string
+        dtId:
+          minLength: 1
+          type: string
+        id:
+          minLength: 1
+          type: string
+        name:
+          minLength: 1
+          type: string
+        buildingDtId:
+          type: string
+          nullable: true
+      additionalProperties: false
+    RoleCatalogEntry:
+      type: object
+      properties:
+        role:
+          type: string
+        isAdmin:
+          type: boolean
+        workspaces:
+          type: array
+          items:
+            type: string
+        description:
           type: string
       additionalProperties: false
-    ResourceItemResponse:
+    ServiceStatus:
       type: object
       properties:
-        id:
+        name:
           type: string
-        resourceType:
+        status:
           type: string
-        resourceId:
+      additionalProperties: false
+    SettingSource:
+      enum:
+        - Default
+        - Ui
+      type: string
+    SettingType:
+      enum:
+        - Boolean
+        - Number
+        - String
+      type: string
+    SettingView:
+      type: object
+      properties:
+        key:
           type: string
-        createdAt:
+        type:
+          $ref: '#/components/schemas/SettingType'
+        description:
+          type: string
+        category:
+          type: string
+        value:
+          type: string
+        defaultValue:
+          type: string
+        isOverridden:
+          type: boolean
+        source:
+          $ref: '#/components/schemas/SettingSource'
+        updatedAt:
           type: string
           format: date-time
+          nullable: true
+        updatedBy:
+          type: string
+          nullable: true
       additionalProperties: false
     Space:
       required:
@@ -2144,18 +3659,131 @@ components:
         name:
           minLength: 1
           type: string
+        identifiers:
+          type: object
+          additionalProperties:
+            type: string
+        customTags:
+          type: object
+          additionalProperties:
+            type: boolean
       additionalProperties: false
-    UpdateGroupRequest:
+    SparqlQueryResult:
       type: object
       properties:
-        name:
-          type: string
-          nullable: true
-        description:
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        rowCount:
+          type: integer
+          format: int32
+        truncated:
+          type: boolean
+        elapsedMs:
+          type: integer
+          format: int64
+      additionalProperties: false
+    SystemConfigControllerUpdateSettingRequest:
+      type: object
+      properties:
+        value:
           type: string
           nullable: true
       additionalProperties: false
-    UpdateUserAttributesApiRequest:
+    SystemKpis:
+      type: object
+      properties:
+        msgRate1m:
+          type: number
+          format: double
+          nullable: true
+        controlReq5m:
+          type: number
+          format: double
+          nullable: true
+      additionalProperties: false
+    SystemStatus:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceStatus'
+        kpis:
+          $ref: '#/components/schemas/SystemKpis'
+        metricsAvailable:
+          type: boolean
+      additionalProperties: false
+    TelemetryGranularity:
+      enum:
+        - 0
+        - 1
+        - 2
+      type: integer
+      format: int32
+    TwinAdminControllerSparqlQueryRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        maxRows:
+          type: integer
+          format: int32
+          nullable: true
+      additionalProperties: false
+    TwinAdminControllerTwinImportRequest:
+      type: object
+      properties:
+        turtle:
+          type: string
+        mode:
+          type: string
+          description: '"append" (default) or "replace".'
+          nullable: true
+      additionalProperties: false
+    TwinImportPreview:
+      type: object
+      properties:
+        tripleCount:
+          type: integer
+          format: int64
+        gatewayCount:
+          type: integer
+          format: int32
+        collisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/GatewayCollision'
+        valid:
+          type: boolean
+          readOnly: true
+      additionalProperties: false
+    UsersControllerAddPermissionRequest:
+      type: object
+      properties:
+        permission:
+          type: string
+      additionalProperties: false
+    UsersControllerRemovePermissionRequest:
+      type: object
+      properties:
+        permission:
+          type: string
+      additionalProperties: false
+    UsersControllerSetEnabledRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      additionalProperties: false
+    UsersControllerUpdateUserAttributesApiRequest:
       type: object
       properties:
         role:
@@ -2166,8 +3794,14 @@ components:
           items:
             type: string
           nullable: true
+        resourceDisplayNames:
+          type: object
+          additionalProperties:
+            type: string
+          description: 'リソースIDに対応する表示名のマップ（キー: 元のリソースID、値: 表示名）'
+          nullable: true
       additionalProperties: false
-    UserResponse:
+    UsersControllerUserResponse:
       type: object
       properties:
         id:
@@ -2187,6 +3821,8 @@ components:
           type: array
           items:
             type: string
+        enabled:
+          type: boolean
       additionalProperties: false
     ValidTelemetryData:
       type: object

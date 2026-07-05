@@ -5,7 +5,6 @@ import type * as Types from '../@types';
 export type Methods = DefineMethods<{
   get: {
     query?: {
-      /** デバイスが配置されているスペースのdtId */
       spaceDtId?: string | undefined;
     } | undefined;
 

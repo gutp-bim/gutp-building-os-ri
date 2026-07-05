@@ -6,6 +6,6 @@ export type Methods = DefineMethods<{
   get: {
     status: 200;
     /** OK */
-    resBody: Types.UserResponse[];
+    resBody: Types.UsersControllerUserResponse[];
   };
 }>;

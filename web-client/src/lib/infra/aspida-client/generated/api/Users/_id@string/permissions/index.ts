@@ -6,14 +6,14 @@ export type Methods = DefineMethods<{
   post: {
     status: 200;
     /** OK */
-    resBody: Types.UserResponse;
-    reqBody: Types.AddPermissionRequest;
+    resBody: Types.UsersControllerUserResponse;
+    reqBody: Types.UsersControllerAddPermissionRequest;
   };
 
   delete: {
     status: 200;
     /** OK */
-    resBody: Types.UserResponse;
-    reqBody: Types.RemovePermissionRequest;
+    resBody: Types.UsersControllerUserResponse;
+    reqBody: Types.UsersControllerRemovePermissionRequest;
   };
 }>;

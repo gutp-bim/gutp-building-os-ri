@@ -5,7 +5,6 @@ import type * as Types from '../@types';
 export type Methods = DefineMethods<{
   get: {
     query?: {
-      /** スペースを含めフロアのdtId */
       floorDtId?: string | undefined;
     } | undefined;
 

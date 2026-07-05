@@ -6,7 +6,7 @@ export type Methods = DefineMethods<{
   patch: {
     status: 200;
     /** OK */
-    resBody: Types.UserResponse;
-    reqBody: Types.UpdateUserAttributesApiRequest;
+    resBody: Types.UsersControllerUserResponse;
+    reqBody: Types.UsersControllerUpdateUserAttributesApiRequest;
   };
 }>;
