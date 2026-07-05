@@ -13,8 +13,11 @@ WORKDIR /app/BuildingOS.GatewayBridge
 RUN dotnet publish -c Release -o out
 
 # ----- application packaging stage -----
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS main
+# Chiseled: Debian-based, no shell/package manager, non-root by default (A-5). Health probes are
+# plain HTTP so the missing shell is not a problem.
+# The chiseled base image already sets ENTRYPOINT ["/usr/bin/dotnet"], so CMD is just the DLL name.
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS main
 WORKDIR /out
 EXPOSE 8080
-COPY --from=builder /app/BuildingOS.GatewayBridge/out /out
-ENTRYPOINT ["dotnet", "BuildingOS.GatewayBridge.dll"]
+COPY --from=builder --chown=app:app /app/BuildingOS.GatewayBridge/out /out
+CMD ["BuildingOS.GatewayBridge.dll"]

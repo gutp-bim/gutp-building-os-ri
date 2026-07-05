@@ -21,8 +21,11 @@ RUN dotnet publish DotNet/BuildingOS.ConnectorWorker/BuildingOS.ConnectorWorker.
 # an internal /health surface (#145) and the optional gRPC ingress (#181) — so it needs the
 # ASP.NET Core shared framework. aspnet:8.0 is a superset of runtime:8.0; the BackgroundService
 # connectors run identically.
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# Chiseled: Debian-based, no shell/package manager, non-root by default (A-5). Health probes are
+# plain HTTP so the missing shell is not a problem.
+# The chiseled base image already sets ENTRYPOINT ["/usr/bin/dotnet"], so CMD is just the DLL name.
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS runtime
 WORKDIR /app
 
-COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "BuildingOS.ConnectorWorker.dll"]
+COPY --from=build --chown=app:app /app/publish .
+CMD ["BuildingOS.ConnectorWorker.dll"]
