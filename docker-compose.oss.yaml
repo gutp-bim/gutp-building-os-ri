@@ -385,15 +385,11 @@ services:
         condition: service_healthy
     networks:
       - oss
-    healthcheck:
-      # The aspnet:8.0 image has neither wget nor curl, but it does ship bash;
-      # probe /health over a raw /dev/tcp socket and assert a 200 status line.
-      test: ["CMD", "/bin/bash", "-c",
-             "exec 3<>/dev/tcp/localhost/8080; printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+    # No Docker healthcheck: the runtime image is aspnet:8.0-noble-chiseled (A-5), which ships
+    # neither a shell nor wget/curl, so a CMD-based probe isn't possible here. Nothing depends on
+    # this service's `service_healthy` condition (`make wait-oss-stack` already treats a container
+    # with no health status as OK), and the Helm/K8s deployment probes /health via kubelet's native
+    # httpGet (no exec, unaffected). Use `GET /health` manually or `docker compose logs` locally.
 
   # ── Mosquitto MQTT Broker — IoT デバイス接続入口 (Scenario A) ──────────────
   # ポート 1883: パスワード認証必須 (allow_anonymous false)
@@ -521,15 +517,12 @@ services:
       # No hard dependency on the MQTT broker: it is optional / behind the `mqtt` profile (#25), and
       # MqttIngressWorker connects only when MQTT_HOST is set, retrying on its own. A depends_on here
       # would couple the base stack to a profiled service.
-    healthcheck:
-      # Liveness: the health listener accepts a TCP connection (the process is up). bash /dev/tcp
-      # keeps the probe dependency-free (the aspnet base ships no curl/wget). Richer readiness
-      # (NATS Open) is exposed over HTTP at /health/ready and consumed by the status fan-out (#144).
-      test: ["CMD", "/bin/bash", "-c", "echo > /dev/tcp/localhost/8081"]
-      interval: 15s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+    # No Docker healthcheck: the runtime image is aspnet:8.0-noble-chiseled (A-5), which ships
+    # neither a shell nor wget/curl, so a CMD-based probe isn't possible here. Nothing depends on
+    # this service's `service_healthy` condition (`make wait-oss-stack` already treats a container
+    # with no health status as OK). Readiness (NATS Open) is exposed over HTTP at /health/ready
+    # (system-status fan-out, #144) — check it manually. Note: the Helm connector-worker Deployment
+    # has no liveness/readiness probe at all yet (pre-existing gap, not introduced here).
     networks:
       - oss
     restart: unless-stopped
@@ -560,14 +553,11 @@ services:
     depends_on:
       building-os.nats:
         condition: service_healthy
-    healthcheck:
-      # TCP liveness: the h2c listener accepts a connection (HTTP/1.1 probes can't speak to an
-      # h2c-only Kestrel, so check the socket, matching the connector-worker pattern).
-      test: ["CMD", "/bin/bash", "-c", "echo > /dev/tcp/localhost/5052"]
-      interval: 15s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+    # No Docker healthcheck: the runtime image is aspnet:8.0-noble-chiseled (A-5), which ships
+    # neither a shell nor wget/curl, so a CMD-based probe isn't possible here. Nothing depends on
+    # this service's `service_healthy` condition (`make wait-oss-stack` already treats a container
+    # with no health status as OK). The Helm Deployment already probes the gRPC port natively via
+    # `tcpSocket` (kubelet, no exec needed) — unaffected by the missing shell.
     networks:
       - oss
     restart: unless-stopped
