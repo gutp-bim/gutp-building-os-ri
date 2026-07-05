@@ -2,6 +2,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
+*[English summary below](#english-summary) — architecture, quick start, tech stack, license.*
+
 スマートビルディング管理のためのオープンソース IoT プラットフォーム。  
 gRPC / MQTT / NATS 経由でビル設備（HVAC・電力・環境センサー等）のデータを収集し、  
 MinIO 上の Parquet レイク（+ 最新値は NATS KV）にストア、REST + gRPC API と Next.js ダッシュボードで提供します。
@@ -67,7 +69,7 @@ IoT Devices / Integration Gateway
 |----------|------|
 | Backend / API | .NET 8, ASP.NET Core, REST, gRPC-web |
 | Worker | .NET `BackgroundService`, NATS JetStream durable consumers |
-| Frontend | Next.js 15, React 19, TypeScript 5, Tailwind CSS 4 |
+| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
 | 認証 | Keycloak, OIDC, JWT bearer |
 | メッセージバス | NATS JetStream |
 | テレメトリ | Hot=NATS KV（最新値）/ Warm・Cold=MinIO Parquet レイク（既定。TimescaleDB は opt-in）|
@@ -491,3 +493,105 @@ make test-oss-stack                         # スタック疎通テスト
 ## ライセンス
 
 Apache License 2.0. 上記「免責事項」もあわせて適用されます。詳細は [LICENSE](./LICENSE) および [NOTICE](./NOTICE) を参照してください。
+
+---
+
+## English Summary
+
+*This is a condensed summary for international readers — not a full translation. For complete
+details, see the Japanese sections above (architecture notes, environment variables, connector
+guide, etc.) or ask a maintainer to expand a specific section.*
+
+### What is Building OS
+
+Building OS is an open-source IoT platform for smart building management. It collects telemetry
+from building equipment (HVAC, power meters, environmental sensors) over gRPC / MQTT / NATS,
+stores it in a Parquet lake on MinIO (with the latest value cached in NATS KV), and serves it via
+a REST + gRPC API and a Next.js dashboard.
+
+> ℹ️ This product is a derivative of research output from the **UTokyo Green ICT Project**. It is
+> provided **AS IS, with no warranty** — see [Disclaimer](#免責事項-disclaimer) above. Report
+> security issues privately per [SECURITY.md](./SECURITY.md).
+
+### Architecture
+
+```
+IoT Devices / Integration Gateway
+   ├─ gRPC GatewayIngress (canonical: (gateway_id, point_id) contract)   ┐
+   ├─ MQTT (Mosquitto) → building-os.raw.mqtt ───────────────────────────┤→ ConnectorWorker
+   └─ Hono (AMQP)      → building-os.raw.hono ────────────────────────────┘ (twin-metadata enrichment, normalization)
+                                                                │
+                              NATS JetStream (core message bus)
+                              building-os.validated.telemetry
+                                       ├─► NATS KV telemetry-latest    ← Hot: latest 1 sample/point
+                                       └─► ParquetLakeWriterWorker ─► MinIO Parquet lake (Warm/Cold, default)
+                                                                │
+                                    API Server (ASP.NET Core REST + gRPC)
+                                    · /telemetries/query (auto Hot/Warm/Cold tier selection)
+                                    · /resources/search (cross-resource search)
+                                    · /gateways/{id}/pointlist (gateway point-list sync)
+                                                                │
+                                            Web Client (Next.js)
+                                  /resources tree explorer + /admin workspace
+
+Control: API → NATS control.request[.gw.{id}] → NatsPointControlWorker / GatewayBridge (GatewayEgress) → field device
+```
+
+- **Digital twin:** OxiGraph (SPARQL / SBCO) manages the building → floor → space → device → point
+  hierarchy (the canonical point list).
+- **Relational DB:** PostgreSQL 16 (users/groups/permissions + `point_control_audit`, EF Core).
+- **Telemetry:** Hot = NATS KV (latest value) / Warm & Cold = unified Parquet lake on MinIO
+  (S3-compatible).
+- **Auth:** Keycloak (OIDC / JWT). Gateway provisioning uses mTLS machine auth.
+- **Observability:** OpenTelemetry → Prometheus + Grafana + Loki + Tempo.
+
+> **Breaking change (#216 / #234):** the default Warm tier is now `parquet`; TimescaleDB is opt-in
+> (`WARM_STORE=timescale`). See [docs/oss-warm-parquet-lake.md](docs/oss-warm-parquet-lake.md).
+
+### Quick start
+
+```bash
+# 1. Start the OSS stack (NATS, PostgreSQL, OxiGraph, MinIO, Keycloak, ConnectorWorker, GatewayBridge)
+make local-up-oss
+# or: docker compose -f docker-compose.oss.yaml up -d
+
+# 2. Start the API Server (DISABLE_AUTH=true — no Keycloak needed for local dev)
+cd DotNet/BuildingOS.ApiServer
+dotnet run --launch-profile WithLocal
+# → http://localhost:5000  (Swagger UI at /swagger)
+
+# 3. Start the Web Client
+cd web-client
+yarn install
+yarn dev
+# → http://localhost:3000  (admin workspace at /admin, resource explorer at /resources)
+```
+
+For a full walkthrough (ingest → read → control), see
+[docs/getting-started.md](docs/getting-started.md) (Japanese; a maintainer can translate specific
+sections on request). Gateway integration: [docs/gateway-integration.md](docs/gateway-integration.md).
+
+### Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend / API | .NET 8, ASP.NET Core, REST, gRPC-web |
+| Worker | .NET `BackgroundService`, NATS JetStream durable consumers |
+| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
+| Auth | Keycloak, OIDC, JWT bearer |
+| Message bus | NATS JetStream |
+| Telemetry | Hot = NATS KV (latest) / Warm & Cold = MinIO Parquet lake (default; TimescaleDB opt-in) |
+| Relational DB | PostgreSQL 16 (users/groups/permissions + point_control_audit, EF Core) |
+| Digital twin | OxiGraph, RDF, SPARQL |
+| Blob / cold storage | MinIO, S3-compatible, Parquet |
+| IoT connectivity | MQTT, Mosquitto, Eclipse Hono (optional) |
+| Observability | OpenTelemetry, Prometheus, Grafana, Loki, Tempo |
+| IaC / delivery | Docker Compose, Helm, Argo CD, OpenTofu |
+
+### License
+
+Apache License 2.0, subject to the disclaimer above. See [LICENSE](./LICENSE) and
+[NOTICE](./NOTICE). Provided **AS IS**, with no warranty — the developers, contributors, and the
+UTokyo Green ICT Project accept no liability for use, modification, distribution, or operation of
+this software (including in production or on physical building equipment). Evaluate and use it at
+your own risk, with your own verification.

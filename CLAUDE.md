@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Building OS is an open-source IoT platform for smart building management. Built with .NET 8.0 backend and Next.js 15 frontend. Collects data from building equipment (HVAC, power meters, environmental sensors) via MQTT / NATS, stores telemetry in a Parquet lake on MinIO, and provides REST + gRPC APIs with a Next.js dashboard.
+Building OS is an open-source IoT platform for smart building management. Built with .NET 8.0 backend and Next.js 16 frontend. Collects data from building equipment (HVAC, power meters, environmental sensors) via MQTT / NATS, stores telemetry in a Parquet lake on MinIO, and provides REST + gRPC APIs with a Next.js dashboard.
 
 ## Architecture
 
@@ -348,7 +348,7 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 |-------|-----------|
 | Backend | .NET 8.0, ASP.NET Core |
 | Workers | .NET 8.0, `BackgroundService` (ConnectorWorker) |
-| Frontend | Next.js 15, React 19, TypeScript 5, Tailwind CSS 4 (web-client; `(admin)` workspace at `/admin`) |
+| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 (web-client; `(admin)` workspace at `/admin`) |
 | UI Components | Radix UI, Recharts, React Hook Form |
 | Authentication | Keycloak (OIDC / JWT), `JwtBearerDefaults` in ASP.NET Core |
 | Message Bus | NATS JetStream |
