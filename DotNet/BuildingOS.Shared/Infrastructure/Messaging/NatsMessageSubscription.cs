@@ -40,19 +40,29 @@ public class NatsMessageSubscription : IMessageSubscription, IAsyncDisposable
         // the stream is created with every subject it must capture, regardless
         // of which worker starts first. See docs/oss-nats-design.md.
         var (streamName, streamSubjects) = NatsStreamTopology.ResolveOrThrow(_subject);
-        try
-        {
-            await js.GetStreamAsync(streamName, cancellationToken: _cts.Token);
-        }
-        catch
-        {
-            await js.CreateStreamAsync(
-                new StreamConfig(streamName, streamSubjects),
-                _cts.Token);
-        }
 
-        var consumer = await js.CreateOrUpdateConsumerAsync(streamName,
-            new ConsumerConfig(_durableName) { FilterSubject = _subject }, _cts.Token);
+        // Retried: right after NATS/JetStream comes up, these calls can transiently time out
+        // (surfaces as OperationCanceledException from the client's own request timeout, not the
+        // caller's stoppingToken) — without a retry this crashes the whole worker host on first
+        // boot (#61). Genuine shutdown (cancellationToken itself signalled) still aborts immediately.
+        await TransientRetry.RunAsync(async ct =>
+        {
+            try
+            {
+                await js.GetStreamAsync(streamName, cancellationToken: ct);
+            }
+            catch
+            {
+                await js.CreateStreamAsync(new StreamConfig(streamName, streamSubjects), ct);
+            }
+            return true;
+        }, _cts.Token, logger: _logger, operationName: $"NatsMessageSubscription: ensure stream {streamName}");
+
+        var consumer = await TransientRetry.RunAsync(
+            ct => js.CreateOrUpdateConsumerAsync(streamName,
+                new ConsumerConfig(_durableName) { FilterSubject = _subject }, ct).AsTask(),
+            _cts.Token, logger: _logger,
+            operationName: $"NatsMessageSubscription: create consumer {_durableName}");
 
         _consumeLoop = Task.Run(async () =>
         {
