@@ -10,6 +10,16 @@ updates:
         update-types: ["patch"]
       dotnet-minor:
         update-types: ["minor"]
+    ignore:
+      # Corvus.Json.ExtendedTypes 5.x (and its matching dotnet-tools.json CLI companion,
+      # corvus.json.jsonschema.typegeneratortool) require System.Text.Json >= 10.0.7, which
+      # conflicts (NU1605 downgrade error) with the rest of the net8.0 solution pinned to
+      # System.Text.Json >= 9.0.3. Re-evaluate once the solution moves to a TFM whose default
+      # System.Text.Json is >= 10.
+      - dependency-name: "Corvus.Json.ExtendedTypes"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "corvus.json.jsonschema.typegeneratortool"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/web-client"
