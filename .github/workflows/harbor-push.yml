@@ -25,7 +25,7 @@ jobs:
       dotnet: ${{ steps.filter.outputs.dotnet == 'true' || steps.force.outputs.force == 'true' }}
       web-client: ${{ steps.filter.outputs['web-client'] == 'true' || steps.force.outputs.force == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Force full build on tag push
         id: force
@@ -71,7 +71,7 @@ jobs:
             changed: ${{ needs.changes.outputs['web-client'] }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
