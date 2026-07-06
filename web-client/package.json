@@ -62,7 +62,7 @@
     "embla-carousel-react": "8.6.0",
     "input-otp": "1.4.2",
     "js-cookie": "^3.0.8",
-    "lucide-react": "^0.454.0",
+    "lucide-react": "^1.23.0",
     "next": "16.2.10",
     "next-themes": "latest",
     "oidc-client-ts": "^3.5.0",
