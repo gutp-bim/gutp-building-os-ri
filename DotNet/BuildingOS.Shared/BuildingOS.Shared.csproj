@@ -10,6 +10,7 @@
     <ItemGroup>
         <PackageReference Include="AWSSDK.Core" Version="4.0.100.2" />
       <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
+      <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
       <PackageReference Include="Npgsql" Version="9.0.5" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
       <PackageReference Include="Parquet.Net" Version="4.25.0" />
