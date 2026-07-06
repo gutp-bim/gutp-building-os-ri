@@ -14,18 +14,18 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <!-- gRPC ingress (GatewayIngress server stub; optional, gated on GRPC_INGRESS_PORT) -->
     <PackageReference Include="Grpc.AspNetCore" Version="2.67.0" />
-    <PackageReference Include="NATS.Client.Core" Version="2.5.4" />
-    <PackageReference Include="NATS.Client.JetStream" Version="2.5.4" />
-    <PackageReference Include="System.Text.Json" Version="9.0.3" />
+    <PackageReference Include="NATS.Client.Core" Version="2.5.16" />
+    <PackageReference Include="NATS.Client.JetStream" Version="2.5.16" />
+    <PackageReference Include="System.Text.Json" Version="9.0.17" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
     <!-- MQTT ingress (Scenario A: Mosquitto) -->
     <PackageReference Include="MQTTnet" Version="4.3.7.1207" />
     <!-- AMQP ingress (Scenario B: Eclipse Hono AMQP 1.0 Northbound) -->
-    <PackageReference Include="AMQPNetLite.Core" Version="2.4.9" />
+    <PackageReference Include="AMQPNetLite.Core" Version="2.4.11" />
     <!-- Azure IoT Hub connector (Kandt gateway device control via IoT Hub direct method) -->
     <PackageReference Include="Microsoft.Azure.Devices" Version="1.40.0" />
     <!-- AWS SDK core — used for MinIO (S3-compatible) credentials in cold export -->
-    <PackageReference Include="AWSSDK.Core" Version="4.0.0.32" />
+    <PackageReference Include="AWSSDK.Core" Version="4.0.100.2" />
   </ItemGroup>
 
   <ItemGroup>
