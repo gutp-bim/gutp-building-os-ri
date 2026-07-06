@@ -13,7 +13,7 @@
       <PackageReference Include="Npgsql" Version="9.0.5" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
       <PackageReference Include="Parquet.Net" Version="4.25.0" />
-      <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.17" />
+      <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.9" />
       <PackageReference Include="Corvus.Json.ExtendedTypes" Version="2.0.20" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
       <!-- Pin Relational explicitly: the only non-private path to it is
