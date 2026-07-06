@@ -391,6 +391,39 @@ services:
     # with no health status as OK), and the Helm/K8s deployment probes /health via kubelet's native
     # httpGet (no exec, unaffected). Use `GET /health` manually or `docker compose logs` locally.
 
+  # ── Web Client (Next.js) — オプトイン (`--profile webclient`) ───────────────
+  # ダッシュボード + /admin + /resources + /admin/twin。最小構成を保つため既定スタックには含めず、
+  # `docker compose -f docker-compose.oss.yaml --profile webclient up -d` で起動する。
+  # NEXT_PUBLIC_* はブラウザバンドルへ *ビルド時* に焼き込まれるため build args で注入する
+  # (ブラウザはホスト側で動くので API はホストマップの http://localhost:5000 を指す)。SSR/route
+  # handler など *サーバ側* の呼び出しは API_BASE_URL 経由でコンテナ内 DNS を使う。
+  # ホスト開発ループを速くしたいときは compose ではなく `cd web-client && yarn dev` を使う。
+  building-os.web:
+    build:
+      context: ./web-client
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:5000}
+        NEXT_PUBLIC_KEYCLOAK_AUTHORITY: ${NEXT_PUBLIC_KEYCLOAK_AUTHORITY:-http://localhost:8080/realms/building-os}
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: ${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID:-web-client}
+        NEXT_PUBLIC_ASSISTANT_ENABLED: ${NEXT_PUBLIC_ASSISTANT_ENABLED:-false}
+    container_name: building-os.web
+    profiles: ["webclient"]
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # サーバ側 (SSR / route handler) の API ベース URL。ブラウザは上の build-time
+      # NEXT_PUBLIC_API_BASE_URL を使うが、サーバ側は oss ネットワーク内 DNS で API に到達する。
+      # aspida-client は API_BASE_URL ?? NEXT_PUBLIC_API_BASE_URL の順で解決する。
+      API_BASE_URL: http://building-os.api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - building-os.api
+    networks:
+      - oss
+    restart: unless-stopped
+
   # ── Mosquitto MQTT Broker — IoT デバイス接続入口 (Scenario A) ──────────────
   # ポート 1883: パスワード認証必須 (allow_anonymous false)
   # ポート 8883: TLS 準備済み (oss-stack/mosquitto/mosquitto.conf の Phase 2 設定を参照)

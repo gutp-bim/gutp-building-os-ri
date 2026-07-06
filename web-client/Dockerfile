@@ -9,6 +9,16 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* は Next.js がブラウザバンドルにビルド時へ焼き込む公開変数のため、実行時 env では
+# なく build args として渡す必要がある。既定値はローカル開発（ホストマップされたポート）に一致。
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+ARG NEXT_PUBLIC_KEYCLOAK_AUTHORITY=http://localhost:8080/realms/building-os
+ARG NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=web-client
+ARG NEXT_PUBLIC_ASSISTANT_ENABLED=false
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL} \
+    NEXT_PUBLIC_KEYCLOAK_AUTHORITY=${NEXT_PUBLIC_KEYCLOAK_AUTHORITY} \
+    NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID} \
+    NEXT_PUBLIC_ASSISTANT_ENABLED=${NEXT_PUBLIC_ASSISTANT_ENABLED}
 RUN yarn build --ignore-engines || npx next build && mkdir -p public
 
 FROM base AS runner

@@ -1,0 +1,198 @@
+# =============================================================================
+# E2E fixture — Building OS デジタルツイン シード (SBCO Turtle)
+# =============================================================================
+# 簡易的な E2E 実証で Building OS と ../nexus-gateway が共通で使うリソース定義です。
+#   - 1 site / 1 building / 1 floor / 1 room / 2 device / 8 point
+#   - gateway_id は GW-SOS-001（1 gateway = 1 building 制約を満たす）
+#   - point_id は SOS-PT-001 .. SOS-PT-008（ワイヤ契約 (gateway_id, point_id) の point_id）
+#   - BACnet ネイティブアドレス（analogInput,1001 等）+ control schema (bos:*) を保持
+#   - sbco:localId は設備側ポイント識別子（標準ポイントリストの local_id）。
+#     BACnet 側は deviceIdBacnet/objectTypeBacnet/instanceNoBacnet で表現されるため、
+#     localId には OPC-UA nodeId（ns=2;s=<point_id> = ns=2;s=SOS-PT-00X）を格納している。
+#     ※ ../opcua-sim-gateway は node_id を ns=2;s=<point_id> で生成する（node-id-numbering.md §2）ので、
+#       localId は point_id と同一のサフィックスを使うことでシミと一致する。
+#
+# 投入方法（いずれか）:
+#   1) Web UI: http://localhost:3000/admin/twin から本ファイルを replace でアップロード
+#   2) 起動時シード: OXIGRAPH_SEED_TTL_PATH=/path/to/twin.ttl で connector/api を起動
+#
+# 投入後、gateway は GET /gateways/GW-SOS-001/pointlist で
+# fixtures/e2e/pointlist.json と等価な JSON を取得できます（twin が正本）。
+# =============================================================================
+
+@prefix sbco: <https://www.sbco.or.jp/ont/> .
+@prefix sbr:  <https://www.sbco.or.jp/ont/resource/> .
+@prefix bos:  <http://buildingos.gutp.jp/ontology#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── 階層: Site → Building → Level → Room ─────────────────────────────────────
+sbr:site-e2e a sbco:Site ;
+  sbco:id "site-e2e" ;
+  sbco:name "E2E Demo Site" ;
+  sbco:hasPart sbr:bldg-e2e .
+
+sbr:bldg-e2e a sbco:Building ;
+  sbco:id "bldg-e2e" ;
+  sbco:name "E2E Demo Building" ;
+  sbco:hasPart sbr:floor-1 .
+
+sbr:floor-1 a sbco:Level ;
+  sbco:id "floor-1" ;
+  sbco:name "1F" ;
+  sbco:hasPart sbr:room-101 .
+
+sbr:room-101 a sbco:Room ;
+  sbco:id "room-101" ;
+  sbco:name "Room 101" .
+
+# ── 機器 1: 環境センサー (読み取り専用ポイント群) ────────────────────────────
+sbr:DEV-ENV-1 a sbco:EquipmentExt ;
+  sbco:id "DEV-ENV-1" ;
+  sbco:name "Environment Sensor 01" ;
+  sbco:deviceType "Sensor" ;
+  sbco:floor "floor-1" ;
+  sbco:locatedIn sbr:room-101 ;
+  sbco:hasPoint sbr:SOS-PT-001 ;
+  sbco:hasPoint sbr:SOS-PT-002 ;
+  sbco:hasPoint sbr:SOS-PT-003 ;
+  sbco:hasPoint sbr:SOS-PT-005 ;
+  sbco:hasPoint sbr:SOS-PT-008 .
+
+# ── 機器 2: AHU (書き込み可能な制御ポイント群) ───────────────────────────────
+sbr:DEV-AHU-1 a sbco:EquipmentExt ;
+  sbco:id "DEV-AHU-1" ;
+  sbco:name "Air Handling Unit 01" ;
+  sbco:deviceType "AHU" ;
+  sbco:floor "floor-1" ;
+  sbco:locatedIn sbr:room-101 ;
+  sbco:hasPoint sbr:SOS-PT-004 ;
+  sbco:hasPoint sbr:SOS-PT-006 ;
+  sbco:hasPoint sbr:SOS-PT-007 .
+
+# ── Point: SOS-PT-001 室温 (read-only, analogInput 1001) ─────────────────────
+sbr:SOS-PT-001 a sbco:PointExt ;
+  sbco:id "SOS-PT-001" ;
+  sbco:name "Room Temperature" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "ns=2;s=SOS-PT-001" ;
+  sbco:deviceIdBacnet "BAC-1" ;
+  sbco:objectTypeBacnet "analogInput" ;
+  sbco:instanceNoBacnet "1001" ;
+  bos:dataType "number" .
+
+# ── Point: SOS-PT-002 湿度 (read-only, analogInput 1002) ─────────────────────
+sbr:SOS-PT-002 a sbco:PointExt ;
+  sbco:id "SOS-PT-002" ;
+  sbco:name "Room Humidity" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "Humidity" ;
+  sbco:unit "%" ;
+  sbco:writable "false" ;
+  sbco:localId "ns=2;s=SOS-PT-002" ;
+  sbco:deviceIdBacnet "BAC-1" ;
+  sbco:objectTypeBacnet "analogInput" ;
+  sbco:instanceNoBacnet "1002" ;
+  bos:dataType "number" .
+
+# ── Point: SOS-PT-003 CO2 (read-only, analogInput 1003) ──────────────────────
+sbr:SOS-PT-003 a sbco:PointExt ;
+  sbco:id "SOS-PT-003" ;
+  sbco:name "CO2 Concentration" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "CO2" ;
+  sbco:unit "ppm" ;
+  sbco:writable "false" ;
+  sbco:localId "ns=2;s=SOS-PT-003" ;
+  sbco:deviceIdBacnet "BAC-1" ;
+  sbco:objectTypeBacnet "analogInput" ;
+  sbco:instanceNoBacnet "1003" ;
+  bos:dataType "number" .
+
+# ── Point: SOS-PT-004 照明 ON/OFF (writable, binaryOutput 2001) ──────────────
+sbr:SOS-PT-004 a sbco:PointExt ;
+  sbco:id "SOS-PT-004" ;
+  sbco:name "Lighting On/Off" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "Lighting" ;
+  sbco:writable "true" ;
+  sbco:localId "ns=2;s=SOS-PT-004" ;
+  sbco:deviceIdBacnet "BAC-2" ;
+  sbco:objectTypeBacnet "binaryOutput" ;
+  sbco:instanceNoBacnet "2001" ;
+  bos:dataType "boolean" .
+
+# ── Point: SOS-PT-005 在室 (read-only, binaryInput 2002) ─────────────────────
+sbr:SOS-PT-005 a sbco:PointExt ;
+  sbco:id "SOS-PT-005" ;
+  sbco:name "Occupancy" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "Occupancy" ;
+  sbco:writable "false" ;
+  sbco:localId "ns=2;s=SOS-PT-005" ;
+  sbco:deviceIdBacnet "BAC-1" ;
+  sbco:objectTypeBacnet "binaryInput" ;
+  sbco:instanceNoBacnet "2002" ;
+  bos:dataType "boolean" .
+
+# ── Point: SOS-PT-006 設定温度 (writable number 16..30, analogValue 1002) ────
+sbr:SOS-PT-006 a sbco:PointExt ;
+  sbco:id "SOS-PT-006" ;
+  sbco:name "Setpoint Temperature" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "ns=2;s=SOS-PT-006" ;
+  sbco:deviceIdBacnet "BAC-2" ;
+  sbco:objectTypeBacnet "analogValue" ;
+  sbco:instanceNoBacnet "1002" ;
+  bos:dataType "number" ;
+  bos:minValue "16" ;
+  bos:maxValue "30" .
+
+# ── Point: SOS-PT-007 ファン速度 (writable enum, multiStateValue 3001) ───────
+sbr:SOS-PT-007 a sbco:PointExt ;
+  sbco:id "SOS-PT-007" ;
+  sbco:name "Fan Speed" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "FanSpeed" ;
+  sbco:writable "true" ;
+  sbco:localId "ns=2;s=SOS-PT-007" ;
+  sbco:deviceIdBacnet "BAC-2" ;
+  sbco:objectTypeBacnet "multiStateValue" ;
+  sbco:instanceNoBacnet "3001" ;
+  bos:dataType "enum" ;
+  bos:enumLabels "Off&&Low&&Medium&&High" .
+
+# ── Point: SOS-PT-008 有効電力 (read-only, analogInput 1004) ─────────────────
+sbr:SOS-PT-008 a sbco:PointExt ;
+  sbco:id "SOS-PT-008" ;
+  sbco:name "Active Power" ;
+  sbco:gatewayId "GW-SOS-001" ;
+  sbco:building "bldg-e2e" ;
+  sbco:floor "floor-1" ;
+  sbco:pointType "Power" ;
+  sbco:unit "kW" ;
+  sbco:writable "false" ;
+  sbco:localId "ns=2;s=SOS-PT-008" ;
+  sbco:deviceIdBacnet "BAC-1" ;
+  sbco:objectTypeBacnet "analogInput" ;
+  sbco:instanceNoBacnet "1004" ;
+  bos:dataType "number" .

@@ -1,0 +1,79 @@
+{
+  "_comment": "fixtures/e2e/pointlist.json — twin.ttl 投入後に GET /gateways/GW-SOS-001/pointlist が返す JSON と等価な参照用スナップショット。'revision'(ETag) と 'generatedAt' はサーバが実行時に付与するためここでは省略/プレースホルダ。localId は設備側ポイント識別子（標準の local_id）で、BACnet アドレスは native に分離されるため localId には OPC-UA nodeId（ns=2;s=<point_id>=ns=2;s=SOS-PT-00X、../opcua-sim-gateway の node_id 採番と一致）を格納している。",
+  "gatewayId": "GW-SOS-001",
+  "revision": "(server-assigned ETag: sha256:...)",
+  "points": [
+    {
+      "pointId": "SOS-PT-001",
+      "localId": "ns=2;s=SOS-PT-001",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1001" },
+      "unit": "degC",
+      "writable": false,
+      "controlSchema": { "dataType": "number", "minValue": null, "maxValue": null, "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-ENV-1", "id": "DEV-ENV-1", "name": "Environment Sensor 01" }
+    },
+    {
+      "pointId": "SOS-PT-002",
+      "localId": "ns=2;s=SOS-PT-002",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1002" },
+      "unit": "%",
+      "writable": false,
+      "controlSchema": { "dataType": "number", "minValue": null, "maxValue": null, "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-ENV-1", "id": "DEV-ENV-1", "name": "Environment Sensor 01" }
+    },
+    {
+      "pointId": "SOS-PT-003",
+      "localId": "ns=2;s=SOS-PT-003",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1003" },
+      "unit": "ppm",
+      "writable": false,
+      "controlSchema": { "dataType": "number", "minValue": null, "maxValue": null, "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-ENV-1", "id": "DEV-ENV-1", "name": "Environment Sensor 01" }
+    },
+    {
+      "pointId": "SOS-PT-004",
+      "localId": "ns=2;s=SOS-PT-004",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "binaryOutput", "instanceNo": "2001" },
+      "unit": null,
+      "writable": true,
+      "controlSchema": { "dataType": "boolean", "minValue": null, "maxValue": null, "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-AHU-1", "id": "DEV-AHU-1", "name": "Air Handling Unit 01" }
+    },
+    {
+      "pointId": "SOS-PT-005",
+      "localId": "ns=2;s=SOS-PT-005",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "binaryInput", "instanceNo": "2002" },
+      "unit": null,
+      "writable": false,
+      "controlSchema": { "dataType": "boolean", "minValue": null, "maxValue": null, "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-ENV-1", "id": "DEV-ENV-1", "name": "Environment Sensor 01" }
+    },
+    {
+      "pointId": "SOS-PT-006",
+      "localId": "ns=2;s=SOS-PT-006",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "analogValue", "instanceNo": "1002" },
+      "unit": "degC",
+      "writable": true,
+      "controlSchema": { "dataType": "number", "minValue": "16", "maxValue": "30", "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-AHU-1", "id": "DEV-AHU-1", "name": "Air Handling Unit 01" }
+    },
+    {
+      "pointId": "SOS-PT-007",
+      "localId": "ns=2;s=SOS-PT-007",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "multiStateValue", "instanceNo": "3001" },
+      "unit": null,
+      "writable": true,
+      "controlSchema": { "dataType": "enum", "minValue": null, "maxValue": null, "enumLabels": "Off&&Low&&Medium&&High" },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-AHU-1", "id": "DEV-AHU-1", "name": "Air Handling Unit 01" }
+    },
+    {
+      "pointId": "SOS-PT-008",
+      "localId": "ns=2;s=SOS-PT-008",
+      "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1004" },
+      "unit": "kW",
+      "writable": false,
+      "controlSchema": { "dataType": "number", "minValue": null, "maxValue": null, "enumLabels": null },
+      "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-ENV-1", "id": "DEV-ENV-1", "name": "Environment Sensor 01" }
+    }
+  ]
+}
