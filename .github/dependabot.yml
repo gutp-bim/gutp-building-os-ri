@@ -10,6 +10,16 @@ updates:
         update-types: ["patch"]
       dotnet-minor:
         update-types: ["minor"]
+    ignore:
+      # Corvus.Json.ExtendedTypes 5.x (and its matching dotnet-tools.json CLI companion,
+      # corvus.json.jsonschema.typegeneratortool) require System.Text.Json >= 10.0.7, which
+      # conflicts (NU1605 downgrade error) with the rest of the net8.0 solution pinned to
+      # System.Text.Json >= 9.0.3. Re-evaluate once the solution moves to a TFM whose default
+      # System.Text.Json is >= 10.
+      - dependency-name: "Corvus.Json.ExtendedTypes"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "corvus.json.jsonschema.typegeneratortool"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/web-client"
@@ -33,9 +43,27 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      # Major bumps (8.0 -> 10.0) break at runtime: the app's TFM is net8.0 (fixed to the .csproj,
+      # not the base image tag), and .NET's default roll-forward policy does not cross major
+      # versions, so an aspnet:10.0(-noble-chiseled) image has no 8.0 runtime to run it with.
+      # Verified empirically: the container exits immediately with "You must install or update
+      # .NET to run this application ... Framework: Microsoft.NETCore.App, version 8.0.0 ...
+      # found: 10.0.9". Re-evaluate together with a coordinated TFM bump across the whole solution.
+      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: "/DotNet/BuildingOS.ConnectorWorker"
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      # Same reasoning as the ApiServer entry above — net8.0 TFM, verified the same runtime
+      # framework-resolution failure empirically.
+      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+        update-types: ["version-update:semver-major"]
