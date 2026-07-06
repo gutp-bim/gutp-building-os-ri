@@ -9,6 +9,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 ## まずここから（新規ユーザー向け）
 
 - 🚀 **[Getting Started（オンボーディング）](getting-started.md)** — 起動 → API/Web → テレメトリ投入 → 読取/制御 までの一筆書き
+- 🧭 **[E2E オンボーディング（ゲートウェイ + シミュレータ横断）](onboarding-e2e-gateway.md)** — nexus-gateway / bacnet-sim / opcua-sim を物理設備なしで結線する実践ガイド。**Windows での `make` なし起動**・**可観測性を除いた最小構成**の解説付き
 - 🏗️ **[リソース管理ガイド](resource-management.md)** — ツインへの設備インポート・更新・削除・複数ビル対応・ロール別表示制御
 - 🔑 **[Keycloak ユーザー・認証管理](keycloak-user-management.md)** — ユーザー作成・ロール付与・トークン取得・管理 UI の使い方
 - 🔌 **[コネクタ・ワーカー拡張ガイド](connector-development-guide.md)** — 新しいプロトコルコネクタを追加する step-by-step チュートリアル
