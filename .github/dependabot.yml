@@ -50,9 +50,9 @@ updates:
       # Verified empirically: the container exits immediately with "You must install or update
       # .NET to run this application ... Framework: Microsoft.NETCore.App, version 8.0.0 ...
       # found: 10.0.9". Re-evaluate together with a coordinated TFM bump across the whole solution.
-      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+      - dependency-name: "dotnet/sdk"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+      - dependency-name: "dotnet/aspnet"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
@@ -63,7 +63,7 @@ updates:
     ignore:
       # Same reasoning as the ApiServer entry above — net8.0 TFM, verified the same runtime
       # framework-resolution failure empirically.
-      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+      - dependency-name: "dotnet/sdk"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+      - dependency-name: "dotnet/aspnet"
         update-types: ["version-update:semver-major"]
