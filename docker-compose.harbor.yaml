@@ -12,8 +12,6 @@
 # Note: Harbor requires a robot account for CI. Create one via UI → Robot Accounts
 # and set HARBOR_ROBOT_NAME / HARBOR_ROBOT_SECRET as environment variables.
 
-version: "3.8"
-
 services:
   harbor-log:
     image: goharbor/harbor-log:v2.11.0

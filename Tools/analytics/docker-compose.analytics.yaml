@@ -10,8 +10,6 @@
 # Connect Superset to Trino:
 #   Host: trino, Port: 8080, Catalog: minio, Schema: telemetry
 
-version: "3.8"
-
 services:
   trino:
     image: trinodb/trino:435

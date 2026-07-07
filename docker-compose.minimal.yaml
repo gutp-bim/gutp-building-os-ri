@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Building OS — Minimum Profile
 #
 # 目的: PoC 導入や開発環境向けの最小構成。

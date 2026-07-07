@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Building OS — Dev プロファイル (ローカルデバイスシミュレーター)
 #
 # OSS スタック (make local-up-oss) が起動済みの状態で使用する。

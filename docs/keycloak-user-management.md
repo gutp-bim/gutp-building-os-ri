@@ -32,8 +32,10 @@ realm とユーザーが自動的にインポートされています（`oss-sta
 | ユーザー名 | パスワード | ロール |
 |------------|------------|--------|
 | `admin` | `admin` | admin（全操作可） |
-| `operator` | `operator` | operator（読取 + 制御） |
-| `viewer` | `viewer` | viewer（読取のみ） |
+| `testoperator` | `testpass` | operator（読取 + 制御） |
+
+> `realm.json` に含まれるのはこの 2 アカウントのみです（`viewer` は既定では未作成——
+> 必要なら「3. ユーザーの作成」で追加してください）。すべてラボ/CI 専用の既定資格情報です。
 
 Web Client（`http://localhost:3000`）にアクセスすると Keycloak ログイン画面にリダイレクトされます。
 
