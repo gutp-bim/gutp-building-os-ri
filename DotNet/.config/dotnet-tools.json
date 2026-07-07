@@ -3,19 +3,19 @@
   "isRoot": true,
   "tools": {
     "corvus.json.jsonschema.typegeneratortool": {
-      "version": "2.0.9",
+      "version": "2.0.20",
       "commands": [
         "generatejsonschematypes"
       ]
     },
     "swashbuckle.aspnetcore.cli": {
-      "version": "6.8.0",
+      "version": "6.8.1",
       "commands": [
         "swagger"
       ]
     },
     "dotnet-ef": {
-      "version": "9.0.3",
+      "version": "9.0.17",
       "commands": [
         "dotnet-ef"
       ]

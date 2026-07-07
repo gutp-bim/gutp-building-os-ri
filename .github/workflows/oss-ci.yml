@@ -25,10 +25,10 @@ jobs:
         working-directory: DotNet
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
@@ -76,7 +76,7 @@ jobs:
           fi
 
       - name: Publish Test Results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: .NET Tests
@@ -93,10 +93,10 @@ jobs:
           - { dir: web-client, node: "22.x", typecheck: "npx tsc --noEmit", lint: "yarn lint" }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.app.node }}
           cache: yarn
@@ -128,10 +128,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
@@ -153,7 +153,7 @@ jobs:
           fi
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
           cache: yarn
@@ -184,7 +184,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate frontend auth, Keycloak realm, and design docs
         run: bash scripts/validate-oss-issue-readiness.sh
@@ -195,7 +195,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
