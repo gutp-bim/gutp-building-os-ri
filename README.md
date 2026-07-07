@@ -87,8 +87,9 @@ IoT Devices / Integration Gateway
 | ツール | バージョン | 用途 |
 |--------|-----------|------|
 | Docker Desktop | 最新 | OSS スタック起動 |
-| .NET SDK | 8.0+ | バックエンドビルド |
+| .NET SDK | 8.0.126 以上の 8.0.x | バックエンドをホストで起動・ビルド（`DotNet/global.json` の SDK 固定に一致が必要） |
 | Node.js | 22+ | フロントエンドビルド |
+| Yarn | 1.22+（または Corepack 経由で有効化） | フロントエンドをホストで起動 |
 | Buf CLI | 最新 | proto → TypeScript コード生成 |
 
 ---
@@ -113,7 +114,58 @@ make local-up-oss
 make wait-oss-stack
 ```
 
-### 2. API サーバーを起動
+### 2. API / ConnectorWorker は compose で起動済み
+
+`docker compose -f docker-compose.oss.yaml up -d` で `building-os.api` と
+`building-os.connector-worker` は既に起動しています（追加の `dotnet run` は不要）。
+
+到達確認:
+
+```bash
+curl http://localhost:5000/health
+curl http://localhost:5000/swagger
+```
+
+### 3. Web クライアントを起動
+
+#### A) Docker で起動（セットアップ最小）
+
+```bash
+docker compose -f docker-compose.oss.yaml --profile webclient up -d
+# → http://localhost:3000
+```
+
+#### B) ホストで起動（開発ループ向け）
+
+```bash
+cd web-client
+yarn install
+yarn dev
+# → http://localhost:3000
+```
+
+### 4. API / ConnectorWorker をホストで直接起動したい場合（任意）
+
+compose 版を止めてから起動します（ポート競合回避）。
+
+```bash
+docker compose -f docker-compose.oss.yaml stop building-os.api building-os.connector-worker
+
+cd DotNet/BuildingOS.ApiServer
+dotnet run --launch-profile WithLocal
+
+cd ../BuildingOS.ConnectorWorker
+dotnet run
+```
+
+> `DotNet/global.json` は SDK `8.0.126` + `rollForward: latestPatch` を指定しています。
+> そのため `dotnet run` は 8.0.x SDK が必要で、10.x SDK のみでは起動できません。
+
+---
+
+### 5. 旧手順（参考）
+
+以下は「ホスト直接起動」を選ぶ場合のコマンドです。
 
 ```bash
 cd DotNet/BuildingOS.ApiServer
@@ -126,7 +178,7 @@ dotnet run --launch-profile WithLocal
 Keycloak なしでローカル開発できます。  
 認証を有効にする場合は `--launch-profile WithLocalAuth` を使用してください。
 
-### 3. Web クライアントを起動
+### 6. Web クライアントを起動（ホスト直接起動時）
 
 ```bash
 cd web-client
@@ -138,7 +190,7 @@ yarn dev
 > ユーザー・権限管理は web-client の `(admin)` ワークスペース（`http://localhost:3000/admin`）に統合済みです（別アプリの起動は不要）。
 > リソース閲覧は `/resources`（ツリーエクスプローラ + 横断検索）。
 
-### 4. ConnectorWorker を起動（NATS 稼働後）
+### 7. ConnectorWorker を起動（ホスト直接起動時）
 
 ```bash
 cd DotNet/BuildingOS.ConnectorWorker
