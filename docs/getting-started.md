@@ -41,8 +41,9 @@ NATS JetStream  building-os.validated.telemetry
 ## 1. 前提
 
 - Docker Desktop（ローカル開発の全サービスを compose で起動）
-- .NET SDK 8.0+（API Server / ConnectorWorker をホストで動かす場合）
-- Node.js 22+（Web Client を動かす場合）
+- .NET SDK 8.0.126 以上の 8.0.x（API Server / ConnectorWorker をホストで動かす場合。`DotNet/global.json` と一致が必要）
+- Node.js 22+（Web Client をホストで動かす場合）
+- Yarn 1.22+（または Corepack 経由で有効化。Web Client をホストで動かす場合）
 - 任意: `uv`（Python）+ k6（E2E 性能ハーネスを動かす場合）
 
 ---
@@ -82,7 +83,25 @@ docker compose -f docker-compose.oss.yaml up -d
 
 ## 3. API Server と Web Client を起動
 
+### A) Docker だけで起動する（推奨・最短）
+
+`docker compose -f docker-compose.oss.yaml up -d` で API Server と ConnectorWorker は既に起動済みです。
+この手順では Web Client だけ追加で起動します。
+
 ```bash
+docker compose -f docker-compose.oss.yaml --profile webclient up -d
+# API: http://localhost:5000
+# Swagger UI: http://localhost:5000/swagger
+# Web: http://localhost:3000
+```
+
+### B) ホストで直接起動する（開発ループ向け・任意）
+
+compose 版の API/ConnectorWorker と同時起動するとポート競合するため、先に停止します。
+
+```bash
+docker compose -f docker-compose.oss.yaml stop building-os.api building-os.connector-worker
+
 # API Server（ローカル Docker サービスに接続）
 cd DotNet/BuildingOS.ApiServer
 dotnet run --launch-profile WithLocal
@@ -93,6 +112,9 @@ cd web-client
 yarn install && yarn dev
 # → http://localhost:3000
 ```
+
+> `DotNet/global.json` は SDK `8.0.126` + `rollForward: latestPatch` を指定しています。
+> そのため `dotnet run` は 8.0.x SDK が必要で、10.x SDK のみでは起動できません。
 
 ローカル開発では API Server を `DISABLE_AUTH=true`（compose の API も同様）で動かせるため、
 Keycloak トークンなしで叩けます（本番は OIDC/JWT 必須）。
