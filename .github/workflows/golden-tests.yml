@@ -49,7 +49,7 @@ jobs:
       # (someone is watching the Actions tab), so they don't need an auto-filed issue.
       - name: File an issue on scheduled failure
         if: failure() && github.event_name == 'schedule'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.issues.create({
