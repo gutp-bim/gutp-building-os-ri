@@ -19,7 +19,7 @@
     <PackageReference Include="System.Text.Json" Version="9.0.17" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
     <!-- MQTT ingress (Scenario A: Mosquitto) -->
-    <PackageReference Include="MQTTnet" Version="4.3.7.1207" />
+    <PackageReference Include="MQTTnet" Version="5.2.0.1603" />
     <!-- AMQP ingress (Scenario B: Eclipse Hono AMQP 1.0 Northbound) -->
     <PackageReference Include="AMQPNetLite.Core" Version="2.4.11" />
     <!-- Azure IoT Hub connector (Kandt gateway device control via IoT Hub direct method) -->
