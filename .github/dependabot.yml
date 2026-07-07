@@ -29,6 +29,12 @@ updates:
       # one-at-a-time proposals.
       - dependency-name: "Microsoft.Extensions.*"
         update-types: ["version-update:semver-major"]
+      # MQTTnet 5.x removed the MQTTnet.Client namespace and reshaped the client API — a genuine
+      # source-level break, not a version mismatch. MqttIngressWorker.cs fails to compile
+      # (CS0234: 'Client' does not exist in namespace 'MQTTnet') until it's migrated to the v5
+      # API. Verified with #98. Needs a deliberate migration, not a routine dependency bump.
+      - dependency-name: "MQTTnet"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/web-client"
