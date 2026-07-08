@@ -102,7 +102,14 @@ public class OxiGraphSeedHostedServicePointListPushTest
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var encodedBody = request.Content is not null ? await request.Content.ReadAsStringAsync(ct) : string.Empty;
-            var sparql = WebUtility.UrlDecode(encodedBody);
+            // OxiGraphClient.QueryAsync posts a single "query" form field (FormUrlEncodedContent) —
+            // strip that key before decoding so the value round-trips to exactly the original SPARQL
+            // text, not "query=<sparql>".
+            const string queryPrefix = "query=";
+            var encodedValue = encodedBody.StartsWith(queryPrefix, StringComparison.Ordinal)
+                ? encodedBody[queryPrefix.Length..]
+                : encodedBody;
+            var sparql = WebUtility.UrlDecode(encodedValue);
 
             string body;
             if (sparql == OxiGraphSeedHostedService.GatewayUniquenessQuery)
