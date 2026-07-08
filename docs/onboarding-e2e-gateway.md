@@ -400,6 +400,29 @@ $env:MQTT_HOST="building-os.mosquitto"
 docker compose -f docker-compose.oss.yaml --profile mqtt up -d
 ```
 
+#### A-1c. 既存 MQTT ブローカー（例: localhost:11883）を使う場合（任意）
+
+ホスト上で既に MQTT ブローカーが動いている場合、ConnectorWorker をその接続先へ向けられます。
+Docker コンテナからホストへ接続するため、`MQTT_HOST=host.docker.internal` を使います。
+
+```bash
+MQTT_HOST=host.docker.internal MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  docker compose -f docker-compose.oss.yaml up -d --force-recreate --no-deps building-os.connector-worker
+```
+
+最小スモーク（1件 publish）例:
+
+```bash
+MQTT_HOST=localhost MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  TELEMETRY_INTERVAL=1 DEVICE_ID=device-001 TENANT_ID=default POINT_ID=PT001 \
+  python Tools/development-edge-device/mqtt_edge_device.py
+```
+
+受信条件（実装仕様）:
+
+- topic は `telemetry/{tenant}/{deviceId}`
+- payload は JSON（UTF-8 BOM なし推奨）
+
 ### A-2. API Server と Web Client を起動
 
 **API Server と Web Client は両方とも Docker（compose）に含められます。**
@@ -493,6 +516,9 @@ curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&latest=true'  
 | 点の最新値・履歴 | `http://localhost:3000/points/{pointId}` | Hot（最新値）・Warm（24h グラフ）・制御・Cold ダウンロード |
 | MinIO（Parquet 実体） | `http://localhost:9001` | オブジェクトストレージのコンソール（バケット `buildingos`） |
 
+> 補足: `http://localhost:3000/admin` はユーザ/グループ/権限・twin 管理用ワークスペースです。
+> テレメトリ時系列の確認は `/resources` → `/points/{pointId}` を使います。
+
 ---
 
 ## Step B — nexus-gateway を起動する（単体スモーク）
@@ -517,6 +543,27 @@ curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&latest=true'  
 cd nexus-gateway
 docker compose up --build
 docker compose ps        # 全サービスが ~60 秒で healthy になる
+```
+
+> 同一マシンで Building OS（`localhost:5000/5051/5052`）と共存させる場合は、
+> `docker-compose.live-bos.yml` オーバーレイを併用してください。
+> このオーバーレイは `mock-bos` を無効化し、gateway の接続先を
+> `host.docker.internal:5051/5052` に向ける前提です。
+
+```bash
+cd nexus-gateway
+docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
+```
+
+ポート競合時は `.env` でホスト公開ポートを上書きできます（ベース compose の環境変数化）。
+
+```env
+GATEWAY_HOST_PORT=18081
+ADMIN_UI_HOST_PORT=13001
+KEYCLOAK_HOST_PORT=18091
+NATS_HOST_PORT=14223
+NATS_MONITOR_HOST_PORT=18223
+MOCK_BOS_HOST_PORT=15052
 ```
 
 | エンドポイント | URL | 備考 |
@@ -732,6 +779,20 @@ docker compose -f docker-compose.oss.yaml up -d --force-recreate --no-deps build
 - egress（制御）: `building-os.gateway-bridge` の `GatewayEgress` = **:5052**（常時待受）
 
 ### D-2. gateway を Building OS に向けて起動
+
+同一マシン共存（Docker Compose）では、live-bos オーバーレイを使うのが最短です。
+
+```bash
+cd nexus-gateway
+docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
+```
+
+- このモードでは `mock-bos` を起動しません（BOS 既存環境と競合しにくい構成）。
+- gateway の上り/下り接続先は `host.docker.internal:5051/5052` を想定します。
+- `docker compose -f docker-compose.yml -f docker-compose.live-bos.yml config` で
+  `mock-bos` 依存が外れていることを事前確認できます。
+
+ホスト実行（`go run`）で直接つなぐ場合は従来どおり次の手順です。
 
 ```bash
 cd nexus-gateway
@@ -994,9 +1055,19 @@ go run ./cmd/gateway
 | `POST` アクションで `403 Forbidden` | トークンが `viewer`。`operator` で取得 |
 | gateway がコネクタを管理できない | コンテナに host Docker socket（`/var/run/docker.sock`）マウントが必要 |
 | `/telemetry` の `buffer_depth` が増え続ける | Building OS への上りが断。フレームが S&F バッファに滞留（Building OS 再起動時など想定内） |
+| BOS 側が `AlreadyExists: gateway <gateway_id> already connected` を返す | 同じ `gateway_id` の egress セッションが BOS 側に残留。重複起動を止め、BOS 側（`building-os.gateway-bridge`）を再起動してセッションを解放後、gateway を再起動して再接続 |
+| Building OS と同一マシンで nexus-gateway が起動競合する | `mock-bos` と固定ホストポートの衝突。`docker-compose.live-bos.yml` を併用し、必要なら `.env` で `GATEWAY_HOST_PORT` / `ADMIN_UI_HOST_PORT` / `NATS_HOST_PORT` などを上書き |
 | nexus-gateway 起動時に JetStream の `insufficient storage` / `maximum bytes exceeded` で落ちる | **環境（NATS 側の JetStream ストレージ上限）の問題であり、コードのバグではありません。** → [下記の詳細](#nexus-gateway-の-jetstream-ストレージ不足エラー) |
 | opcua-sim ビルドで `ffi.h: No such file` | `build-essential libffi-dev libssl-dev` を先に導入 |
 | BACnet で機器が見つからない | BACnet/IP は UDP ブロードキャスト。`network_mode: host`（統合 Compose では設定済み）が必要 |
+
+`AlreadyExists` の最短復旧手順:
+
+1. 同じ `GATEWAY_ID` を使う gateway プロセスが複数いないことを確認（重複を停止）
+2. BOS 側の残留セッションを解放（`docker restart building-os.gateway-bridge`）
+3. gateway を再起動して再接続（Compose 運用なら `docker compose restart <gateway-service>`）
+
+再接続後は `Gateway <gateway_id> connected (egress)` ログが出ることを確認します。
 
 ### nexus-gateway の JetStream ストレージ不足エラー
 
