@@ -62,6 +62,84 @@ public class GatewayEgressReplicaRoutingTest
     }
 
     [Fact]
+    public async Task Command_RoutesCorrectly_WithThreeConcurrentGateways()
+    {
+        // Extends the two-replica routing test to three simultaneous gateway connections spread
+        // across three replicas, asserting each command reaches only its own gateway's stream.
+        var bus = new SharedEgressBus();
+        var replicas = new[] { Replica(bus), Replica(bus), Replica(bus) };
+        var gatewayIds = new[] { "gw-1", "gw-2", "gw-3" };
+        var readers = gatewayIds.Select(_ => new FakeStreamReader<EgressUp>()).ToArray();
+        var writers = gatewayIds.Select(_ => new FakeStreamWriter<EgressDown>()).ToArray();
+
+        for (var i = 0; i < gatewayIds.Length; i++)
+            readers[i].Push(new EgressUp { Hello = new Hello { GatewayId = gatewayIds[i] } });
+
+        var runs = new Task[gatewayIds.Length];
+        for (var i = 0; i < gatewayIds.Length; i++)
+            runs[i] = replicas[i].RunAsync(readers[i], writers[i], CancellationToken.None);
+        foreach (var gatewayId in gatewayIds)
+            await bus.WaitForSubscription(gatewayId);
+
+        for (var i = 0; i < gatewayIds.Length; i++)
+        {
+            var id = Guid.NewGuid();
+            await bus.Deliver(gatewayIds[i], Command(id));
+            var down = await writers[i].ReadAsync();
+            Assert.Equal(id.ToString(), down.Command.ControlId);
+
+            // No other gateway's writer received this command.
+            for (var j = 0; j < gatewayIds.Length; j++)
+            {
+                if (j == i) continue;
+                Assert.False(writers[j].TryReadImmediately(out _));
+            }
+        }
+
+        foreach (var reader in readers) reader.Complete();
+        await Task.WhenAll(runs);
+    }
+
+    [Fact]
+    public async Task PointListUpdate_ReachesOnlyTheOwningGatewaysStream()
+    {
+        // #114/#224: a point-list push signal for gw-1 must not leak to gw-2's concurrently-open
+        // stream (or vice versa), mirroring the command-routing isolation above.
+        var bus = new SharedEgressBus();
+        var replicaA = Replica(bus);
+        var replicaB = Replica(bus);
+
+        var readerA = new FakeStreamReader<EgressUp>();
+        var writerA = new FakeStreamWriter<EgressDown>();
+        var readerB = new FakeStreamReader<EgressUp>();
+        var writerB = new FakeStreamWriter<EgressDown>();
+
+        readerA.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-1" } });
+        readerB.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-2" } });
+        var runA = replicaA.RunAsync(readerA, writerA, CancellationToken.None);
+        var runB = replicaB.RunAsync(readerB, writerB, CancellationToken.None);
+        await bus.WaitForPointListSubscription("gw-1");
+        await bus.WaitForPointListSubscription("gw-2");
+
+        await bus.DeliverPointListUpdate("gw-1", "\"sha256:gw1-rev\"");
+        var downA = await writerA.ReadAsync();
+        Assert.Equal(EgressDown.MOneofCase.PointListUpdate, downA.MCase);
+        Assert.Equal("gw-1", downA.PointListUpdate.GatewayId);
+        Assert.Equal("\"sha256:gw1-rev\"", downA.PointListUpdate.Revision);
+        Assert.False(writerB.TryReadImmediately(out _));
+
+        await bus.DeliverPointListUpdate("gw-2", "\"sha256:gw2-rev\"");
+        var downB = await writerB.ReadAsync();
+        Assert.Equal("gw-2", downB.PointListUpdate.GatewayId);
+        Assert.Equal("\"sha256:gw2-rev\"", downB.PointListUpdate.Revision);
+        Assert.False(writerA.TryReadImmediately(out _));
+
+        readerA.Complete();
+        readerB.Complete();
+        await Task.WhenAll(runA, runB);
+    }
+
+    [Fact]
     public async Task Gateway_FailsOverToAnotherReplica_OnReconnect()
     {
         var bus = new SharedEgressBus();
@@ -105,6 +183,8 @@ public class GatewayEgressReplicaRoutingTest
     {
         private readonly ConcurrentDictionary<string, Func<string, Task>> _byGateway = new();
         private readonly ConcurrentDictionary<string, TaskCompletionSource> _subscribed = new();
+        private readonly ConcurrentDictionary<string, Func<string, Task>> _pointListByGateway = new();
+        private readonly ConcurrentDictionary<string, TaskCompletionSource> _pointListSubscribed = new();
 
         public Task<IAsyncDisposable> SubscribeAsync(string gatewayId, Func<string, Task> onCommand, CancellationToken cancellationToken)
         {
@@ -123,7 +203,15 @@ public class GatewayEgressReplicaRoutingTest
             => Task.CompletedTask;
 
         public Task<IAsyncDisposable> SubscribePointListUpdatesAsync(string gatewayId, Func<string, Task> onUpdate, CancellationToken cancellationToken)
-            => Task.FromResult<IAsyncDisposable>(new Unsub(() => { }));
+        {
+            _pointListByGateway[gatewayId] = onUpdate;
+            PointListSignal(gatewayId).TrySetResult();
+            return Task.FromResult<IAsyncDisposable>(new Unsub(() =>
+            {
+                var wasCurrent = _pointListByGateway.TryRemove(new KeyValuePair<string, Func<string, Task>>(gatewayId, onUpdate));
+                if (wasCurrent) _pointListSubscribed.TryRemove(gatewayId, out _);
+            }));
+        }
 
         public async Task Deliver(string gatewayId, string commandJson)
         {
@@ -131,12 +219,23 @@ public class GatewayEgressReplicaRoutingTest
             await handler!(commandJson);
         }
 
+        public async Task DeliverPointListUpdate(string gatewayId, string revision)
+        {
+            Assert.True(_pointListByGateway.TryGetValue(gatewayId, out var handler), $"no point-list subscriber for {gatewayId}");
+            await handler!(revision);
+        }
+
         public bool HasSubscriber(string gatewayId) => _byGateway.ContainsKey(gatewayId);
 
         public Task WaitForSubscription(string gatewayId) => Signal(gatewayId).Task;
 
+        public Task WaitForPointListSubscription(string gatewayId) => PointListSignal(gatewayId).Task;
+
         private TaskCompletionSource Signal(string gatewayId)
             => _subscribed.GetOrAdd(gatewayId, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+
+        private TaskCompletionSource PointListSignal(string gatewayId)
+            => _pointListSubscribed.GetOrAdd(gatewayId, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
 
         private sealed class Unsub(Action onDispose) : IAsyncDisposable
         {

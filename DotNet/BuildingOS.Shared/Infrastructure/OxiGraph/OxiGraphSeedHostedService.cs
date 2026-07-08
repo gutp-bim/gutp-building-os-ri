@@ -1,4 +1,5 @@
 using BuildingOS.Shared.Infrastructure.ControlRouting;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -48,7 +49,9 @@ public sealed class OxiGraphSeedHostedService(
             await ValidateDeviceTemplatesAsync(templatePath, ct).ConfigureAwait(false);
     }
 
-    private const string DistinctGatewayQuery = """
+    // internal (not private): lets tests route a fake OxiGraph response by exact query text instead
+    // of a fragile content heuristic — see OxiGraphSeedHostedServicePointListPushTest.
+    internal const string DistinctGatewayQuery = """
         PREFIX sbco: <https://www.sbco.or.jp/ont/>
         SELECT DISTINCT ?gatewayId WHERE {
           ?point a sbco:PointExt ; sbco:gatewayId ?gatewayId .
@@ -58,29 +61,54 @@ public sealed class OxiGraphSeedHostedService(
     private async Task PublishPointListUpdatesAsync(CancellationToken ct)
     {
         if (pointListUpdatePublisher is null) return;
+
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows;
         try
         {
-            var rows = await client.QueryAsync(DistinctGatewayQuery, ct).ConfigureAwait(false);
-            foreach (var r in rows)
-            {
-                var gatewayId = r.GetValueOrDefault("gatewayId");
-                if (string.IsNullOrEmpty(gatewayId)) continue;
-                // Empty revision → gateway revalidates via ETag (the seed does not compute the etag).
-                await pointListUpdatePublisher.PublishAsync(gatewayId, string.Empty, ct).ConfigureAwait(false);
-            }
-            logger.LogInformation("Published point-list-update signals for {Count} gateway(s) after seed", rows.Count);
+            rows = await client.QueryAsync(DistinctGatewayQuery, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Point-list-update publish after seed failed (non-fatal)");
+            logger.LogWarning(ex, "Point-list-update publish after seed failed (non-fatal): could not list gateway ids");
+            CountPush("*", "query_failed");
+            return;
         }
+
+        // Each gateway is published independently (#114): one gateway's publish failure must not
+        // prevent the others from being signalled, so the try/catch is per-iteration, not around the
+        // whole loop.
+        var published = 0;
+        foreach (var r in rows)
+        {
+            var gatewayId = r.GetValueOrDefault("gatewayId");
+            if (string.IsNullOrEmpty(gatewayId)) continue;
+            try
+            {
+                // Empty revision → gateway revalidates via ETag (the seed does not compute the etag).
+                await pointListUpdatePublisher.PublishAsync(gatewayId, string.Empty, ct).ConfigureAwait(false);
+                published++;
+                CountPush(gatewayId, "published");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Point-list-update publish failed for gateway {GatewayId} (non-fatal)", gatewayId);
+                CountPush(gatewayId, "failed");
+            }
+        }
+        logger.LogInformation("Published point-list-update signals for {Count} gateway(s) after seed", published);
     }
+
+    private static void CountPush(string gatewayId, string result) =>
+        BuildingOsMetrics.PointListPushSignals.Add(
+            1,
+            new KeyValuePair<string, object?>("gateway", gatewayId),
+            new KeyValuePair<string, object?>("result", result));
 
     // Building membership is read from the denormalized sbco:building literal on PointExt — the same
     // convention the ingress metadata enrichment (OxiGraphPointMetadataDataSource) relies on. Points
     // that omit it are not covered; if a future twin models building only via the
     // Site→Building→Level→Room hierarchy, derive ?building through that path instead.
-    private const string GatewayUniquenessQuery = """
+    internal const string GatewayUniquenessQuery = """
         PREFIX sbco: <https://www.sbco.or.jp/ont/>
         SELECT ?gatewayId (COUNT(DISTINCT ?building) AS ?buildings) WHERE {
           ?point a sbco:PointExt ;
