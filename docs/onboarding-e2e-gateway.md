@@ -1058,6 +1058,8 @@ go run ./cmd/gateway
 | BOS 側が `AlreadyExists: gateway <gateway_id> already connected` を返す | 同じ `gateway_id` の egress セッションが BOS 側に残留。重複起動を止め、BOS 側（`building-os.gateway-bridge`）を再起動してセッションを解放後、gateway を再起動して再接続 |
 | Building OS と同一マシンで nexus-gateway が起動競合する | `mock-bos` と固定ホストポートの衝突。`docker-compose.live-bos.yml` を併用し、必要なら `.env` で `GATEWAY_HOST_PORT` / `ADMIN_UI_HOST_PORT` / `NATS_HOST_PORT` などを上書き |
 | nexus-gateway 起動時に JetStream の `insufficient storage` / `maximum bytes exceeded` で落ちる | **環境（NATS 側の JetStream ストレージ上限）の問題であり、コードのバグではありません。** → [下記の詳細](#nexus-gateway-の-jetstream-ストレージ不足エラー) |
+| `building-os.mosquitto` が `set: line 4: illegal option -` で再起動ループする（Windows） | `oss-stack/mosquitto/docker-entrypoint.sh` が CRLF 化されている可能性。`.gitattributes` で LF 固定し、既存 clone は `git add --renormalize .` 後に `docker compose -f docker-compose.oss.yaml --profile mqtt up -d --force-recreate building-os.mosquitto` で復旧 |
+| `building-os.connector-worker` が `Restarting` を繰り返し、JetStream/KV 作成で `insufficient storage resources available` が出る | NATS JetStream 上限不足。`oss-stack/nats/nats-server.conf` の `max_file_store` を確認（既定 4GB）。必要なら `docker compose -f docker-compose.oss.yaml up -d --force-recreate building-os.nats building-os.connector-worker`。既存予約が壊れている場合は `docker compose -f docker-compose.oss.yaml down -v` でデータ再初期化（ローカル検証用途のみ） |
 | opcua-sim ビルドで `ffi.h: No such file` | `build-essential libffi-dev libssl-dev` を先に導入 |
 | BACnet で機器が見つからない | BACnet/IP は UDP ブロードキャスト。`network_mode: host`（統合 Compose では設定済み）が必要 |
 
