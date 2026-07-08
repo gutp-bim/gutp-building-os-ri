@@ -27,10 +27,14 @@ public class GatewayProvisioningControllerTest
         string? callerGatewayHeader = null,
         AuthorizationContext? auth = null,
         string? ifNoneMatch = null,
-        IGatewayPointListSnapshotStore? snapshots = null)
+        IGatewayPointListSnapshotStore? snapshots = null,
+        string gatewayId = "GW001")
     {
-        var db = new Mock<IDigitalTwinDatabase>();
-        db.Setup(d => d.ListGatewayPointList(It.IsAny<string>())).ReturnsAsync(entries);
+        // #114: the mock is scoped to `gatewayId` (every existing call site here targets "GW001", the
+        // default) and returns empty for any *other* gatewayId, so a regression that drops/ignores the
+        // controller's gatewayId argument (e.g. always querying a hardcoded id) would surface as an
+        // empty-points assertion failure instead of silently passing every test.
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { [gatewayId] = entries });
 
         var controller = new GatewayProvisioningController(
             db.Object, new HeaderGatewayIdentityResolver(), snapshots ?? NewSnapshots());
@@ -41,6 +45,16 @@ public class GatewayProvisioningControllerTest
         if (auth is not null) ctx.Items[AuthorizationContextMiddleware.HttpContextKey] = auth;
         controller.ControllerContext = new ControllerContext { HttpContext = ctx };
         return (controller, ctx);
+    }
+
+    /// <summary>A db double keyed by gatewayId — unknown gatewayIds resolve to an empty list, never
+    /// another gateway's entries.</summary>
+    private static Mock<IDigitalTwinDatabase> NewScopedDb(IReadOnlyDictionary<string, GatewayPointEntry[]> byGatewayId)
+    {
+        var db = new Mock<IDigitalTwinDatabase>();
+        db.Setup(d => d.ListGatewayPointList(It.IsAny<string>()))
+            .ReturnsAsync((string gw) => byGatewayId.TryGetValue(gw, out var e) ? e : []);
+        return db;
     }
 
     // ── Full path ────────────────────────────────────────────────────────────
@@ -166,5 +180,56 @@ public class GatewayProvisioningControllerTest
         Assert.Equal(2, diff.Points.Length);
         Assert.Empty(diff.Added);
         Assert.Empty(diff.Removed);
+    }
+
+    // ── Multi-gateway isolation (#114) ──────────────────────────────────────────
+
+    [Fact]
+    public async Task Returns200_TwoRegisteredGateways_EachSeesOnlyOwnPoints()
+    {
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+            ["GW002"] = [Pt("PT101"), Pt("PT102")],
+        });
+        var snapshots = NewSnapshots();
+        var c1 = new GatewayProvisioningController(db.Object, new HeaderGatewayIdentityResolver(), snapshots);
+        c1.ControllerContext = new ControllerContext { HttpContext = HttpContextWithGatewayHeader("GW001") };
+        var c2 = new GatewayProvisioningController(db.Object, new HeaderGatewayIdentityResolver(), snapshots);
+        c2.ControllerContext = new ControllerContext { HttpContext = HttpContextWithGatewayHeader("GW002") };
+
+        var result1 = Assert.IsType<GatewayPointListResponse>(Assert.IsType<OkObjectResult>(await c1.GetPointList("GW001", null, default)).Value);
+        var result2 = Assert.IsType<GatewayPointListResponse>(Assert.IsType<OkObjectResult>(await c2.GetPointList("GW002", null, default)).Value);
+
+        Assert.Equal(["PT001"], result1.Points.Select(p => p.PointId));
+        Assert.Equal(["PT101", "PT102"], result2.Points.Select(p => p.PointId));
+        Assert.NotEqual(result1.Revision, result2.Revision);
+    }
+
+    [Fact]
+    public async Task Returns403_WhenLegitGatewayRequestsAnotherLegitGatewaysPath()
+    {
+        // Both GW001 and GW002 are real, registered gateways with their own points — the auth check
+        // must still reject GW002 reading GW001's path (not just the bogus-caller case already covered
+        // by Returns403_WhenCallerGatewayDiffersFromPath).
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+            ["GW002"] = [Pt("PT101")],
+        });
+        var controller = new GatewayProvisioningController(db.Object, new HeaderGatewayIdentityResolver(), NewSnapshots());
+        controller.ControllerContext = new ControllerContext { HttpContext = HttpContextWithGatewayHeader("GW002") };
+
+        var result = await controller.GetPointList("GW001", null, default);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
+    }
+
+    private static DefaultHttpContext HttpContextWithGatewayHeader(string gatewayId)
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Headers["X-Gateway-Id"] = gatewayId;
+        return ctx;
     }
 }
