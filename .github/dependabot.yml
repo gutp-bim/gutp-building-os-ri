@@ -20,6 +20,29 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "corvus.json.jsonschema.typegeneratortool"
         update-types: ["version-update:semver-major"]
+      # Microsoft.Extensions.* packages within a generation (8.x/9.x/10.x) require matching
+      # versions of their siblings (e.g. Microsoft.Extensions.Hosting 10.0.9 requires
+      # Microsoft.Extensions.Logging.Abstractions >= 10.0.9). Dependabot proposes these one
+      # package at a time, so a lone major bump always NU1605-conflicts against the rest of the
+      # solution still pinned to 9.x. Verified with #73/#75/#76. A real move to the 10.x
+      # generation needs one coordinated PR bumping the whole family together, not Dependabot's
+      # one-at-a-time proposals.
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      # MQTTnet 5.x removed the MQTTnet.Client namespace and reshaped the client API — a genuine
+      # source-level break, not a version mismatch. MqttIngressWorker.cs fails to compile
+      # (CS0234: 'Client' does not exist in namespace 'MQTTnet') until it's migrated to the v5
+      # API. Verified with #98. Needs a deliberate migration, not a routine dependency bump.
+      - dependency-name: "MQTTnet"
+        update-types: ["version-update:semver-major"]
+      # Parquet.Net 6.x reshaped the writer API: ParquetWriter is only async-Disposable now
+      # (needs "await using"), CompressionMethod was removed, DataColumn moved namespaces, and
+      # ParquetRowGroupWriter.WriteColumnAsync was removed. RollupSerializer.cs alone has 20+
+      # compile errors against it — a genuine break across the whole Parquet lake read/write
+      # layer (RollupSerializer, ParquetTelemetrySerializer, ParquetLakeWriterWorker, etc.).
+      # Verified with #100. Needs a deliberate migration, not a routine dependency bump.
+      - dependency-name: "Parquet.Net"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/web-client"

@@ -45,7 +45,7 @@ jobs:
         continue-on-error: false
       - name: Upload parity reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: parity-reports-golden
           path: /tmp/parity-reports/
