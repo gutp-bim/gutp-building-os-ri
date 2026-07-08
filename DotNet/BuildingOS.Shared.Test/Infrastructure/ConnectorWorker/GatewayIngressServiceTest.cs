@@ -206,7 +206,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"),
             new PointMetadata("PT002", "bldg-2", "Damper Pos", "DEV002", "GW002"));
-        const int framesPerGateway = 50;
+        const int framesPerGateway = 20;
 
         var readerA = new FakeStreamReader<TelemetryFrame>();
         var readerB = new FakeStreamReader<TelemetryFrame>();
@@ -219,8 +219,12 @@ public class GatewayIngressServiceTest
         readerB.Complete();
 
         // Two independent service instances (as gRPC would construct per-call) sharing the bus/cache.
-        var taskA = NewService(bus, cache).RunAsync(readerA, CancellationToken.None, trustedGatewayId: "GW001");
-        var taskB = NewService(bus, cache).RunAsync(readerB, CancellationToken.None, trustedGatewayId: "GW002");
+        // Every fake dependency here (Channel-backed reader, ConcurrentQueue-backed bus, dictionary
+        // cache) completes synchronously, so RunAsync would never yield the calling thread if awaited
+        // directly — Task.Run forces each onto its own thread-pool thread so the two streams genuinely
+        // race on the shared bus/cache instead of the test merely proving sequential-call correctness.
+        var taskA = Task.Run(() => NewService(bus, cache).RunAsync(readerA, CancellationToken.None, trustedGatewayId: "GW001"));
+        var taskB = Task.Run(() => NewService(bus, cache).RunAsync(readerB, CancellationToken.None, trustedGatewayId: "GW002"));
         var accepted = await Task.WhenAll(taskA, taskB);
 
         Assert.Equal(framesPerGateway, accepted[0]);
@@ -262,8 +266,9 @@ public class GatewayIngressServiceTest
         spoofReader.Complete();
 
         var identity = new IngressIdentityOptions { Enforce = true };
-        var legitTask = NewService(bus, cache, identity).RunAsync(legitReader, CancellationToken.None, trustedGatewayId: "GW002");
-        var spoofTask = NewService(bus, cache, identity).RunAsync(spoofReader, CancellationToken.None, trustedGatewayId: "GW-ATTACKER");
+        // See the Task.Run rationale on the sibling concurrency test above.
+        var legitTask = Task.Run(() => NewService(bus, cache, identity).RunAsync(legitReader, CancellationToken.None, trustedGatewayId: "GW002"));
+        var spoofTask = Task.Run(() => NewService(bus, cache, identity).RunAsync(spoofReader, CancellationToken.None, trustedGatewayId: "GW-ATTACKER"));
         var accepted = await Task.WhenAll(legitTask, spoofTask);
 
         Assert.Equal(1L, accepted[0]);

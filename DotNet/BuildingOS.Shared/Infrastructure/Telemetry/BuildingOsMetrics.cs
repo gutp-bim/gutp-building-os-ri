@@ -159,4 +159,13 @@ public static class BuildingOsMetrics
             "building_os.parquet_lake.tail_merge_errors",
             unit: "{error}",
             description: "Tail-merge JetStream fetch errors (degraded to lake-only result).");
+
+    // Point-list push fan-out after seed (#224/push)
+
+    /// <summary>Post-seed point-list-update push signals, by gateway and result (published|failed|query_failed).</summary>
+    public static readonly Counter<long> PointListPushSignals =
+        Meter.CreateCounter<long>(
+            "building_os.pointlist.push_signals",
+            unit: "{signal}",
+            description: "Post-seed point-list-update push signals sent per gateway, by result.");
 }

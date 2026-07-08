@@ -93,7 +93,9 @@ public class OxiGraphSeedHostedServicePointListPushTest
     /// <summary>
     /// Fakes the OxiGraph `/query` endpoint for the two SPARQL queries RunAsync issues once a (nonempty)
     /// seed path is set: the gateway-uniqueness check (always answered with no violations — out of scope
-    /// for this test) and the distinct-gateway-id query (answered from the fixture list).
+    /// for this test) and the distinct-gateway-id query (answered from the fixture list). Routes by an
+    /// exact match against the service's own query constants (internal, exposed for this reason) rather
+    /// than a content heuristic, so a future rewording of either query can't silently misroute the fake.
     /// </summary>
     private sealed class SeedQueryRoutingHandler(IReadOnlyList<string> gatewayIds) : HttpMessageHandler
     {
@@ -102,10 +104,14 @@ public class OxiGraphSeedHostedServicePointListPushTest
             var encodedBody = request.Content is not null ? await request.Content.ReadAsStringAsync(ct) : string.Empty;
             var sparql = WebUtility.UrlDecode(encodedBody);
 
-            var body = sparql.Contains("HAVING", StringComparison.Ordinal)
-                ? @"{ ""results"": { ""bindings"": [] } }" // uniqueness check: no violations
-                : $@"{{ ""results"": {{ ""bindings"": [{string.Join(",", gatewayIds.Select(g =>
+            string body;
+            if (sparql == OxiGraphSeedHostedService.GatewayUniquenessQuery)
+                body = @"{ ""results"": { ""bindings"": [] } }"; // uniqueness check: no violations
+            else if (sparql == OxiGraphSeedHostedService.DistinctGatewayQuery)
+                body = $@"{{ ""results"": {{ ""bindings"": [{string.Join(",", gatewayIds.Select(g =>
                     $@"{{ ""gatewayId"": {{""type"":""literal"",""value"":""{g}""}} }}"))}] }} }}";
+            else
+                throw new InvalidOperationException($"unexpected SPARQL query in test: {sparql}");
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {

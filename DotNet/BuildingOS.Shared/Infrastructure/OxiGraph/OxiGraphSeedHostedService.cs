@@ -1,4 +1,5 @@
 using BuildingOS.Shared.Infrastructure.ControlRouting;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -48,7 +49,9 @@ public sealed class OxiGraphSeedHostedService(
             await ValidateDeviceTemplatesAsync(templatePath, ct).ConfigureAwait(false);
     }
 
-    private const string DistinctGatewayQuery = """
+    // internal (not private): lets tests route a fake OxiGraph response by exact query text instead
+    // of a fragile content heuristic — see OxiGraphSeedHostedServicePointListPushTest.
+    internal const string DistinctGatewayQuery = """
         PREFIX sbco: <https://www.sbco.or.jp/ont/>
         SELECT DISTINCT ?gatewayId WHERE {
           ?point a sbco:PointExt ; sbco:gatewayId ?gatewayId .
@@ -67,6 +70,7 @@ public sealed class OxiGraphSeedHostedService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Point-list-update publish after seed failed (non-fatal): could not list gateway ids");
+            CountPush("*", "query_failed");
             return;
         }
 
@@ -83,20 +87,28 @@ public sealed class OxiGraphSeedHostedService(
                 // Empty revision → gateway revalidates via ETag (the seed does not compute the etag).
                 await pointListUpdatePublisher.PublishAsync(gatewayId, string.Empty, ct).ConfigureAwait(false);
                 published++;
+                CountPush(gatewayId, "published");
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Point-list-update publish failed for gateway {GatewayId} (non-fatal)", gatewayId);
+                CountPush(gatewayId, "failed");
             }
         }
         logger.LogInformation("Published point-list-update signals for {Count} gateway(s) after seed", published);
     }
 
+    private static void CountPush(string gatewayId, string result) =>
+        BuildingOsMetrics.PointListPushSignals.Add(
+            1,
+            new KeyValuePair<string, object?>("gateway", gatewayId),
+            new KeyValuePair<string, object?>("result", result));
+
     // Building membership is read from the denormalized sbco:building literal on PointExt — the same
     // convention the ingress metadata enrichment (OxiGraphPointMetadataDataSource) relies on. Points
     // that omit it are not covered; if a future twin models building only via the
     // Site→Building→Level→Room hierarchy, derive ?building through that path instead.
-    private const string GatewayUniquenessQuery = """
+    internal const string GatewayUniquenessQuery = """
         PREFIX sbco: <https://www.sbco.or.jp/ont/>
         SELECT ?gatewayId (COUNT(DISTINCT ?building) AS ?buildings) WHERE {
           ?point a sbco:PointExt ;

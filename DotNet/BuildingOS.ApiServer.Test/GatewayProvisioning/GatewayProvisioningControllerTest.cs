@@ -28,13 +28,15 @@ public class GatewayProvisioningControllerTest
         AuthorizationContext? auth = null,
         string? ifNoneMatch = null,
         IGatewayPointListSnapshotStore? snapshots = null,
-        string gatewayId = "GW001")
+        string gatewayId = "GW001",
+        Mock<IDigitalTwinDatabase>? db = null)
     {
-        // #114: the mock is scoped to `gatewayId` (every existing call site here targets "GW001", the
-        // default) and returns empty for any *other* gatewayId, so a regression that drops/ignores the
-        // controller's gatewayId argument (e.g. always querying a hardcoded id) would surface as an
-        // empty-points assertion failure instead of silently passing every test.
-        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { [gatewayId] = entries });
+        // #114: unless a shared `db` is supplied (multi-gateway tests below), the mock is scoped to
+        // `gatewayId` (every single-gateway call site here targets "GW001", the default) and returns
+        // empty for any *other* gatewayId, so a regression that drops/ignores the controller's
+        // gatewayId argument (e.g. always querying a hardcoded id) would surface as an empty-points
+        // assertion failure instead of silently passing every test.
+        db ??= NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { [gatewayId] = entries });
 
         var controller = new GatewayProvisioningController(
             db.Object, new HeaderGatewayIdentityResolver(), snapshots ?? NewSnapshots());
@@ -193,10 +195,8 @@ public class GatewayProvisioningControllerTest
             ["GW002"] = [Pt("PT101"), Pt("PT102")],
         });
         var snapshots = NewSnapshots();
-        var c1 = new GatewayProvisioningController(db.Object, new HeaderGatewayIdentityResolver(), snapshots);
-        c1.ControllerContext = new ControllerContext { HttpContext = HttpContextWithGatewayHeader("GW001") };
-        var c2 = new GatewayProvisioningController(db.Object, new HeaderGatewayIdentityResolver(), snapshots);
-        c2.ControllerContext = new ControllerContext { HttpContext = HttpContextWithGatewayHeader("GW002") };
+        var (c1, _) = Build([], callerGatewayHeader: "GW001", snapshots: snapshots, db: db);
+        var (c2, _) = Build([], callerGatewayHeader: "GW002", snapshots: snapshots, db: db);
 
         var result1 = Assert.IsType<GatewayPointListResponse>(Assert.IsType<OkObjectResult>(await c1.GetPointList("GW001", null, default)).Value);
         var result2 = Assert.IsType<GatewayPointListResponse>(Assert.IsType<OkObjectResult>(await c2.GetPointList("GW002", null, default)).Value);
@@ -217,19 +217,11 @@ public class GatewayProvisioningControllerTest
             ["GW001"] = [Pt("PT001")],
             ["GW002"] = [Pt("PT101")],
         });
-        var controller = new GatewayProvisioningController(db.Object, new HeaderGatewayIdentityResolver(), NewSnapshots());
-        controller.ControllerContext = new ControllerContext { HttpContext = HttpContextWithGatewayHeader("GW002") };
+        var (controller, _) = Build([], callerGatewayHeader: "GW002", db: db);
 
         var result = await controller.GetPointList("GW001", null, default);
 
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
-    }
-
-    private static DefaultHttpContext HttpContextWithGatewayHeader(string gatewayId)
-    {
-        var ctx = new DefaultHttpContext();
-        ctx.Request.Headers["X-Gateway-Id"] = gatewayId;
-        return ctx;
     }
 }
