@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>エコシステム | Building OS — OSS Edition</title>
+  <meta name="description" content="Building OS を中心としたエコシステム。エッジゲートウェイ nexus-gateway、BACnet / OPC UA シミュレータ、そして (gateway_id, point_id) 共有ポイントリスト契約を紹介します。">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="サイト内ナビゲーション">
+      <a href="index.html">ホーム</a>
+      <a href="product.html">プロダクト</a>
+      <a href="quickstart.html">クイックスタート</a>
+      <a href="architecture.html">アーキテクチャ</a>
+      <a href="ecosystem.html" aria-current="page">エコシステム</a>
+      <a href="index-en.html">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Building OS を中心とした、<br>エコシステム</h1>
+      <p class="hero-tagline">
+        エッジゲートウェイとシミュレータが、現場のプロトコルと Building OS をつなぎます。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>(gateway_id, point_id) — 共有ポイントリスト契約</h2>
+      <p>
+        Building OS とゲートウェイの間の約束事は、とてもシンプルです。
+        <strong>ポイントリストの正本は Building OS のデジタルツイン</strong>にあり、ゲートウェイは
+        現場ネイティブのアドレス(BACnet のオブジェクト番号や OPC UA のノード ID など)を
+        自分の側で <code>point_id</code> に解決します。ワイヤ上を流れるのは
+        <code>gateway_id + point_id + value + timestamp</code> だけ — プロトコルの詳細は
+        現場側に閉じ込められます。
+      </p>
+
+      <!-- 契約ミニ図: 箱は <rect>+<text>。スタイルは site.css の .svg-diagram -->
+      <div class="diagram-scroll">
+      <svg class="svg-diagram" viewBox="0 0 960 240" role="img" aria-label="ゲートウェイと Building OS の接続図。テレメトリは gRPC GatewayIngress(ポート 5051)で上り、制御は gRPC GatewayEgress(ポート 5052)で下る。ワイヤ上を流れるのは gateway_id、point_id、value、timestamp のみ。">
+        <title>共有ポイントリスト契約</title>
+        <defs>
+          <marker id="arrow-data-eco" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+          </marker>
+          <marker id="arrow-ctrl-eco" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0e6e5c"/>
+          </marker>
+        </defs>
+        <rect class="svg-box" x="20" y="40" width="340" height="120" rx="8"/>
+        <text class="svg-label svg-label--strong" x="190" y="80" text-anchor="middle">ゲートウェイ(nexus-gateway)</text>
+        <text class="svg-note" x="190" y="106" text-anchor="middle">ネイティブアドレス ⇄ point_id の正規化</text>
+        <text class="svg-note" x="190" y="126" text-anchor="middle">SQLite store-and-forward バッファ</text>
+        <rect class="svg-box" x="600" y="40" width="340" height="120" rx="8"/>
+        <text class="svg-label svg-label--strong" x="770" y="90" text-anchor="middle">Building OS</text>
+        <text class="svg-note" x="770" y="116" text-anchor="middle">デジタルツイン = ポイントリストの正本</text>
+        <text class="svg-note" x="480" y="60" text-anchor="middle">テレメトリ(gRPC GatewayIngress :5051)</text>
+        <line class="svg-flow" x1="360" y1="75" x2="596" y2="75" marker-end="url(#arrow-data-eco)"/>
+        <line class="svg-ctrl" x1="600" y1="125" x2="364" y2="125" marker-end="url(#arrow-ctrl-eco)"/>
+        <text class="svg-note" x="480" y="150" text-anchor="middle">制御(gRPC GatewayEgress :5052)</text>
+        <text class="svg-label" x="480" y="205" text-anchor="middle">ワイヤ上は gateway_id + point_id + value + timestamp のみ</text>
+      </svg>
+      </div>
+
+      <p>
+        ゲートウェイは <code>GET /gateways/{id}/pointlist</code> でポイントリストを同期します
+        (ETag による差分検知つきなので、変更がないときの問い合わせはほぼタダです)。接続は
+        mTLS によるマシン認証で保護されます。
+      </p>
+      <p class="fineprint">
+        →
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/gateway-integration.md" rel="noopener">gateway-integration.md</a> ・
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/oss-gateway-pointlist-sync.md" rel="noopener">oss-gateway-pointlist-sync.md</a> ・
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/oss-gateway-security-ops.md" rel="noopener">oss-gateway-security-ops.md</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>関連プロダクト</h2>
+      <ul class="cards">
+        <li class="card">
+          <h3>nexus-gateway</h3>
+          <p>参照実装のエッジ統合ゲートウェイ(Go)。BACnet / OPC UA / MQTT のプロトコルコネクタを
+          ホストし、ネイティブアドレスを <code>point_id</code> に正規化します。SQLite の
+          store-and-forward バッファで通信断にも耐え、上りは GatewayIngress、下りは
+          GatewayEgress に接続します。</p>
+          <p class="approach"><a href="https://github.com/gutp-bim/nexus-gateway" rel="noopener">gutp-bim/nexus-gateway →</a></p>
+        </li>
+        <li class="card">
+          <h3>bacnet-sim-gateway</h3>
+          <p>SBCO ポイントリストから、標準準拠の仮想 BACnet コントローラ(B-BC)を生成して
+          BACnet/IP で公開するシミュレータ(Python 3.12)。物理設備がなくても、BACnet 経由の
+          E2E 検証ができます。</p>
+          <p class="approach"><a href="https://github.com/takashikasuya/bacnet-sim-gateway" rel="noopener">takashikasuya/bacnet-sim-gateway →</a></p>
+        </li>
+        <li class="card">
+          <h3>opcua-sim-gateway</h3>
+          <p>SBCO ポイントリストから仮想 OPC UA サーバを生成し、opc.tcp で公開するシミュレータ
+          (Python 3.12)。工場・プラント系でよく使われる OPC UA 経由の検証に使えます。</p>
+          <p class="approach"><a href="https://github.com/takashikasuya/opcua-sim-gateway" rel="noopener">takashikasuya/opcua-sim-gateway →</a></p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>物理設備ゼロで、現場を再現する</h2>
+      <p>
+        Building OS 本体・nexus-gateway・2 つのシミュレータを組み合わせると、物理設備なしで
+        「センサーの値が上がってきて、制御が現場プロトコルまで届く」一連の流れを再現できます。
+        研究・検証・デモに便利です。
+      </p>
+      <pre><code>git clone https://github.com/gutp-bim/gutp-building-os-ri
+git clone https://github.com/gutp-bim/nexus-gateway
+git clone https://github.com/takashikasuya/bacnet-sim-gateway
+git clone https://github.com/takashikasuya/opcua-sim-gateway</code></pre>
+      <p>
+        4 リポジトリをつなぐ手順は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/onboarding-e2e-gateway.md" rel="noopener">onboarding-e2e-gateway.md</a>
+        にまとまっています。
+      </p>
+    </div>
+  </section>
+
+  <section class="cta-band">
+    <div class="container">
+      <h2>まず Building OS 本体を動かす</h2>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="quickstart.html">クイックスタート →</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全6ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>

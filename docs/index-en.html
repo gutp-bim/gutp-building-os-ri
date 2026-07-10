@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>English Summary | Building OS — OSS Edition</title>
+  <meta name="description" content="Building OS — OSS Edition is a self-hostable open-source IoT platform for smart buildings: telemetry collection, a Parquet lake, a SPARQL digital twin, REST + gRPC APIs, a dashboard, and point-level control with an audit trail.">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="Site navigation">
+      <a href="index.html">ホーム</a>
+      <a href="product.html">プロダクト</a>
+      <a href="quickstart.html">クイックスタート</a>
+      <a href="architecture.html">アーキテクチャ</a>
+      <a href="ecosystem.html">エコシステム</a>
+      <a href="index-en.html" aria-current="page">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>An open-source data platform<br>for smart buildings.</h1>
+      <p class="hero-tagline">
+        Building OS — OSS Edition collects telemetry from building equipment (HVAC, power meters,
+        environmental sensors), stores it in a Parquet lake, and serves it through REST + gRPC APIs
+        and a Next.js dashboard — with point-level control and a full audit trail.
+      </p>
+      <ul class="badge-row">
+        <li class="badge">Apache-2.0</li>
+        <li class="badge">Born from the UTokyo Green ICT Project</li>
+        <li class="badge">Runs with Docker Compose</li>
+      </ul>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">View on GitHub</a>
+        <a class="btn btn-ghost" href="index.html">日本語トップへ</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>What it is</h2>
+      <p class="lead">
+        A self-hostable IoT platform that turns building-equipment data into an asset you own —
+        no managed-cloud lock-in. The entire stack is open source: NATS, MinIO, OxiGraph,
+        Keycloak, and PostgreSQL, orchestrated by .NET workers and served to a Next.js web client.
+      </p>
+      <ul>
+        <li><strong>Digital twin at the core</strong> — the building → floor → space → device → point
+          hierarchy lives in OxiGraph (RDF / SPARQL) using the SBCO ontology, with a documented
+          mapping to Brick, REC, IFC, and DTDL.</li>
+        <li><strong>Tiered telemetry</strong> — latest values in NATS KV (hot), history and
+          aggregates in a Parquet lake on MinIO (warm / cold). A single
+          <code>GET /telemetries/query</code> endpoint picks the right tier automatically.</li>
+        <li><strong>Point-level control</strong> — per-gateway routing, immediate 503 fast-fail for
+          offline gateways, and a complete audit trail in PostgreSQL.</li>
+        <li><strong>Enterprise auth &amp; observability</strong> — Keycloak (OIDC / JWT) for users,
+          mTLS machine auth for gateways, and an opt-in OpenTelemetry → Prometheus / Grafana /
+          Loki / Tempo stack.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>Why it exists</h2>
+      <p>
+        Building OS — OSS Edition is a derivative of research output from the
+        <strong>UTokyo Green ICT Project (GUTP)</strong>. The original research platform depended on
+        managed cloud services; this edition re-architects it onto a fully open-source stack so that
+        practitioners and researchers can run it anywhere — on premises or in any cloud — under
+        their own control.
+      </p>
+      <p class="fineprint">
+        This project is not officially provided, endorsed, or supported by the University of Tokyo,
+        the Green ICT Project, or the original authors.
+      </p>
+      <div class="callout-warn" style="margin-top: 1.5rem;">
+        ⚠️ <strong>Provided AS IS, with no warranty.</strong> This software can control real building
+        equipment. Any use against real equipment or in production is entirely at your own risk —
+        validate thoroughly first. See the
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">disclaimer</a>.
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>Quick start</h2>
+      <pre><code>git clone https://github.com/gutp-bim/gutp-building-os-ri
+cd gutp-building-os-ri
+docker compose -f docker-compose.oss.yaml up -d
+docker compose -f docker-compose.oss.yaml --profile webclient up -d
+# Web:     http://localhost:3000
+# API:     http://localhost:5000
+# Swagger: http://localhost:5000/swagger
+
+# Read the latest value of a point
+curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;latest=true'
+
+# Send a (simulated, by default) control command
+curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
+  -H 'Content-Type: application/json' -d '{"value": 1}'</code></pre>
+      <p>
+        For the full walkthrough (twin import, telemetry ingestion, troubleshooting), see
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/getting-started.md" rel="noopener">Getting Started (Japanese)</a>
+        or the <a href="https://github.com/gutp-bim/gutp-building-os-ri#english-summary" rel="noopener">README English Summary</a>.
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>Ecosystem</h2>
+      <p>
+        Building OS talks to the field through a simple contract: the digital twin is the source of
+        truth for the shared point list, and only <code>gateway_id + point_id + value + timestamp</code>
+        travel on the wire. The reference edge gateway,
+        <a href="https://github.com/gutp-bim/nexus-gateway" rel="noopener">nexus-gateway</a> (Go),
+        hosts BACnet / OPC UA / MQTT connectors and normalizes native addresses to point IDs.
+        Two simulators — <a href="https://github.com/takashikasuya/bacnet-sim-gateway" rel="noopener">bacnet-sim-gateway</a>
+        and <a href="https://github.com/takashikasuya/opcua-sim-gateway" rel="noopener">opcua-sim-gateway</a> —
+        let you reproduce a full field-to-dashboard pipeline with zero physical equipment.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>Links</h2>
+      <ul class="link-list">
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">License (Apache-2.0)</a></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">Security policy</a></li>
+        <li><a href="index.html">日本語サイトトップ</a> <span class="note">— site content is primarily in Japanese</span></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全6ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>

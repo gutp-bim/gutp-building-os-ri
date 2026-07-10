@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>クイックスタート | Building OS — OSS Edition</title>
+  <meta name="description" content="Docker Compose だけで Building OS をローカルに起動し、テレメトリの投入・読み出し・ポイント制御までを体験するクイックスタートガイドです。">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="サイト内ナビゲーション">
+      <a href="index.html">ホーム</a>
+      <a href="product.html">プロダクト</a>
+      <a href="quickstart.html" aria-current="page">クイックスタート</a>
+      <a href="architecture.html">アーキテクチャ</a>
+      <a href="ecosystem.html">エコシステム</a>
+      <a href="index-en.html">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>15 分で、テレメトリが流れ出す。</h1>
+      <p class="hero-tagline">
+        必要なのは Docker Desktop だけ。収集 → 蓄積 → 読み出し → 制御までの一連の流れを、
+        ローカルマシンで体験できます。
+      </p>
+    </div>
+  </section>
+
+  <!--
+    コマンドの正本は docs/getting-started.md。
+    getting-started.md を更新したら、このページの手順・コマンドも必ず突き合わせて更新すること。
+    ここには 5 ステップのハッピーパスだけを載せ、詳細は blob リンクへ寄せる。
+  -->
+
+  <section class="section">
+    <div class="container">
+      <div class="callout-warn">
+        ⚠️ 本ソフトウェアは現状有姿(AS IS)・無保証です。なお OSS 版の既定は
+        <code>ENABLE_SIM_CONTROL=true</code>(シミュレート制御)のため、このクイックスタートで
+        実際の設備が動くことはありません。実機に接続する場合は必ず
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a>を確認し、
+        利用者自身の責任で十分に検証してください。
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>0. 前提条件</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ツール</th><th>必須?</th><th>用途</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Docker Desktop</td><td>必須</td><td>全サービスを Docker Compose で起動</td></tr>
+            <tr><td>Python 3</td><td>推奨</td><td>サンプルデバイス(MQTT シミュレータ)の実行</td></tr>
+            <tr><td>.NET SDK 8.0.x / Node.js 22+</td><td>任意</td><td>API / Web をホストで直接動かして開発する場合のみ</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>1. OSS スタックを起動する</h2>
+      <p>リポジトリを clone して、Docker Compose で一式を立ち上げます。</p>
+      <pre><code>git clone https://github.com/gutp-bim/gutp-building-os-ri
+cd gutp-building-os-ri
+docker compose -f docker-compose.oss.yaml up -d</code></pre>
+      <p>これで次のサービスが起動します(既定構成)。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>サービス</th><th>役割</th><th>ローカルポート</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>NATS JetStream</td><td>コアメッセージバス</td><td>4222 / 8222</td></tr>
+            <tr><td>PostgreSQL 16</td><td>ユーザー・グループ・監査</td><td>5433</td></tr>
+            <tr><td>OxiGraph</td><td>デジタルツイン(SPARQL)</td><td>7878</td></tr>
+            <tr><td>MinIO</td><td>Parquet レイク(S3 互換)</td><td>9000 / 9001(console)</td></tr>
+            <tr><td>Keycloak</td><td>認証(OIDC / JWT)</td><td>8080</td></tr>
+            <tr><td>API Server</td><td>REST + gRPC API</td><td>5000</td></tr>
+            <tr><td>ConnectorWorker</td><td>テレメトリ取り込みワーカー</td><td>8081(health)</td></tr>
+            <tr><td>GatewayBridge</td><td>制御 egress(gRPC)</td><td>5052</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>2. ダッシュボードと API を開く</h2>
+      <p>Web クライアントは <code>webclient</code> プロファイルで追加起動します。</p>
+      <pre><code>docker compose -f docker-compose.oss.yaml --profile webclient up -d
+# Web:     http://localhost:3000
+# API:     http://localhost:5000
+# Swagger: http://localhost:5000/swagger</code></pre>
+      <p>
+        サンプルのデジタルツイン(デモビル)は起動時に自動投入されます。
+        <code>http://localhost:3000/resources</code> を開くと、建物→フロア→空間→機器→ポイントの
+        階層をたどれます。
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>3. テレメトリを流す</h2>
+      <p>いちばん簡単なのは MQTT 経由です。Mosquitto プロファイルを有効化して起動します。</p>
+      <pre><code>MQTT_HOST=building-os.mosquitto docker compose -f docker-compose.oss.yaml --profile mqtt up -d</code></pre>
+      <p>付属のデバイスシミュレータで 1 件 publish してみます。</p>
+      <pre><code>MQTT_HOST=localhost MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  TELEMETRY_INTERVAL=1 DEVICE_ID=device-001 TENANT_ID=default POINT_ID=PT001 \
+  python Tools/development-edge-device/mqtt_edge_device.py</code></pre>
+      <p class="fineprint">
+        ※ ゲートウェイからの本来の取り込み経路は gRPC(GatewayIngress)です。gRPC 経由・持続負荷・
+        Parquet レイクへの反映確認などの詳細手順は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/getting-started.md" rel="noopener">getting-started.md</a>
+        を参照してください。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>4. API で読み出す</h2>
+      <p>統一エンドポイント <code>GET /telemetries/query</code> が、最新値・履歴・集計の置き場所を自動選択します。</p>
+      <pre><code># 最新値(Hot KV)
+curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;latest=true'
+
+# 期間レンジ(tier 自動選択: warm / cold / 集計)
+curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;start=2026-06-15T00:00:00Z&amp;end=2026-06-16T00:00:00Z&amp;granularity=Hour'</code></pre>
+      <p class="fineprint">※ <code>pointId</code> はデジタルツインに登録済みのポイント ID を指定します(未登録は 404)。</p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>5. ポイントを制御する</h2>
+      <pre><code>curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
+  -H 'Content-Type: application/json' -d '{"value": 1}'</code></pre>
+      <p>
+        <code>202 Accepted</code> と <code>controlId</code> が返り、実行結果は非同期で通知されます。
+        既定はシミュレート制御なので、安全に流れを確認できます。オフラインのゲートウェイ宛ての制御は
+        待たされずに即時 503 が返ります。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>さらに詳しく</h2>
+      <ul class="link-list">
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/getting-started.md" rel="noopener">getting-started.md</a> <span class="note">— オンボーディング完全版(ツイン登録・トラブルシュート含む)</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/gateway-integration.md" rel="noopener">gateway-integration.md</a> <span class="note">— ゲートウェイ接続モデル(ingress / egress・ポイントリスト同期・mTLS)</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/onboarding-e2e-gateway.md" rel="noopener">onboarding-e2e-gateway.md</a> <span class="note">— nexus-gateway + シミュレータを横断する E2E ハンズオン</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri#readme" rel="noopener">README</a> <span class="note">— 環境変数リファレンス・Kubernetes デプロイ</span></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全6ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>
