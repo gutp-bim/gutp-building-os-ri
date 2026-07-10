@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Building OS — OSS Edition | スマートビルのためのオープンソース IoT プラットフォーム</title>
+  <meta name="description" content="Building OS — OSS Edition は、ビル設備のテレメトリ収集・蓄積・可視化から機器制御までを一つに束ねた、セルフホスト型のオープンソース IoT プラットフォームです。東京大学グリーン ICT プロジェクトの研究成果物を基にした派生プロダクト。">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="サイト内ナビゲーション">
+      <a href="index.html" aria-current="page">ホーム</a>
+      <a href="product.html">プロダクト</a>
+      <a href="quickstart.html">クイックスタート</a>
+      <a href="architecture.html">アーキテクチャ</a>
+      <a href="ecosystem.html">エコシステム</a>
+      <a href="index-en.html">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>ビルのデータを、<br>オープンソースで動かす。</h1>
+      <p class="hero-tagline">
+        Building OS — OSS Edition は、ビル設備(空調・電力・環境センサー)のテレメトリ収集・蓄積・可視化から
+        機器制御までを一つに束ねた、セルフホスト型のオープンソース IoT プラットフォームです。
+      </p>
+      <ul class="badge-row">
+        <li class="badge">Apache-2.0</li>
+        <li class="badge">東大グリーン ICT プロジェクト発</li>
+        <li class="badge">Docker Compose で起動</li>
+      </ul>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="quickstart.html">クイックスタート →</a>
+        <a class="btn btn-ghost" href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub で見る</a>
+      </div>
+
+      <!-- 簡易データフロー図: 箱は <rect>+<text>、座標は 20px グリッド。スタイルは site.css の .svg-diagram -->
+      <div class="diagram-scroll">
+      <svg class="svg-diagram" viewBox="0 0 960 170" role="img" aria-label="データフロー概要: 設備・センサーからゲートウェイ、NATS JetStream、Parquet レイクと API を経てダッシュボードへ。制御は逆方向に流れる。">
+        <title>Building OS のデータフロー概要</title>
+        <defs>
+          <marker id="arrow-data-hero" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#dcebe4"/>
+          </marker>
+          <marker id="arrow-ctrl-hero" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#6fd3ba"/>
+          </marker>
+        </defs>
+        <rect class="svg-box" x="10"  y="30" width="160" height="50" rx="8"/>
+        <text class="svg-label" x="90"  y="60" text-anchor="middle">設備・センサー</text>
+        <rect class="svg-box" x="210" y="30" width="160" height="50" rx="8"/>
+        <text class="svg-label" x="290" y="60" text-anchor="middle">ゲートウェイ</text>
+        <rect class="svg-box" x="410" y="30" width="160" height="50" rx="8"/>
+        <text class="svg-label" x="490" y="60" text-anchor="middle">NATS JetStream</text>
+        <rect class="svg-box" x="610" y="30" width="180" height="50" rx="8"/>
+        <text class="svg-label" x="700" y="53" text-anchor="middle">Parquet レイク</text>
+        <text class="svg-label" x="700" y="71" text-anchor="middle">+ API</text>
+        <rect class="svg-box" x="830" y="30" width="120" height="50" rx="8"/>
+        <text class="svg-label" x="890" y="60" text-anchor="middle">ダッシュボード</text>
+        <line class="svg-flow" x1="170" y1="55" x2="206" y2="55" marker-end="url(#arrow-data-hero)"/>
+        <line class="svg-flow" x1="370" y1="55" x2="406" y2="55" marker-end="url(#arrow-data-hero)"/>
+        <line class="svg-flow" x1="570" y1="55" x2="606" y2="55" marker-end="url(#arrow-data-hero)"/>
+        <line class="svg-flow" x1="790" y1="55" x2="826" y2="55" marker-end="url(#arrow-data-hero)"/>
+        <path class="svg-ctrl" d="M700,80 L700,120 L90,120 L90,84" marker-end="url(#arrow-ctrl-hero)"/>
+        <text class="svg-note" x="395" y="140" text-anchor="middle">制御(API → ゲートウェイ → 設備)</text>
+      </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>東大グリーン ICT プロジェクトから、オープンソースへ</h2>
+      <p class="lead">
+        Building OS — OSS Edition は、<strong>東京大学グリーン ICT プロジェクト(GUTP)</strong>の研究成果物を
+        基にした派生プロダクトです。ビルの設備データを収集・活用する研究プラットフォームとして生まれ、
+        その知見を誰でも使えるかたちにするため、オープンソースとして再構成しました。
+      </p>
+      <p>
+        再構成にあたっては、クラウド(Azure)のマネージドサービスに依存していたスタックを、
+        NATS・MinIO・OxiGraph・Keycloak・PostgreSQL といった<strong>オープンソースだけで動く構成</strong>に
+        設計し直しています。オンプレミスでも、任意のクラウドでも、自分たちの手で運用できます。
+      </p>
+      <p class="fineprint">
+        ※ 本プロダクトは研究成果物の派生であり、東京大学・グリーン ICT プロジェクト・原著者らによって
+        公式に提供・保証・サポートされるものではありません。
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>主な特徴</h2>
+      <ul class="cards">
+        <li class="card">
+          <h3>デジタルツイン中心設計</h3>
+          <p>建物→フロア→空間→機器→ポイントの階層を、SPARQL(OxiGraph / SBCO オントロジー)で管理。
+          このデジタルツインが、システム全体のポイントリストの正本になります。</p>
+        </li>
+        <li class="card">
+          <h3>階層型テレメトリ基盤</h3>
+          <p>最新値は Hot(NATS KV)、履歴と集計は MinIO 上の Parquet レイク(Warm / Cold)。
+          単一の API がデータの置き場所を自動選択するので、利用者は階層を意識せずに読み出せます。</p>
+        </li>
+        <li class="card">
+          <h3>ポイント単位の制御</h3>
+          <p>空調の設定値変更などの制御を、ポイント単位・ゲートウェイ別ルーティングで実行。
+          オフラインのゲートウェイには即時にエラーを返し、すべての制御は監査証跡として記録されます。</p>
+        </li>
+        <li class="card">
+          <h3>標準への対応</h3>
+          <p>SBCO を主語彙としつつ、Brick / REC / IFC / DTDL といった主要な建物オントロジー標準への
+          対応表を整備。既存の標準的な資産との橋渡しができます。</p>
+        </li>
+        <li class="card">
+          <h3>認証・認可</h3>
+          <p>ユーザー認証は Keycloak(OIDC / JWT)。ゲートウェイなどの機器接続は mTLS による
+          マシン認証で、人と機械のアクセスを分けて守ります。</p>
+        </li>
+        <li class="card">
+          <h3>フル可観測性</h3>
+          <p>OpenTelemetry を軸に、Prometheus / Grafana / Loki / Tempo による監視スタックを
+          オプションで同梱。必要なときだけ有効化できます。</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <figure class="shot">
+        <img src="ui-screenshots/02-resources-explorer.png" alt="Building OS のリソースエクスプローラ画面。建物からポイントまでの階層ツリーと詳細情報が表示されている。" width="1440" height="900" loading="lazy">
+        <figcaption>リソースエクスプローラ — デジタルツインの階層(建物→フロア→空間→機器→ポイント)をそのまま閲覧できます。</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="callout-warn">
+        ⚠️ 本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。実際のビル設備を制御できる機能を含むため、
+        実機・本番環境での利用は必ず利用者自身の検証と安全確認のうえで行ってください。
+        詳細は <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a> を参照してください。
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-band">
+    <div class="container">
+      <h2>まずは手元で動かしてみる</h2>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="quickstart.html">クイックスタート →</a>
+        <a class="btn btn-ghost" href="product.html">プロダクトの詳細を見る</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全6ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>プロダクト | Building OS — OSS Edition</title>
+  <meta name="description" content="Building OS — OSS Edition が解決する課題、対象ユーザー、主要機能(デジタルツイン・階層型テレメトリ・ポイント制御・認証認可・ダッシュボード・可観測性)をスクリーンショットとともに紹介します。">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="サイト内ナビゲーション">
+      <a href="index.html">ホーム</a>
+      <a href="product.html" aria-current="page">プロダクト</a>
+      <a href="quickstart.html">クイックスタート</a>
+      <a href="architecture.html">アーキテクチャ</a>
+      <a href="ecosystem.html">エコシステム</a>
+      <a href="index-en.html">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>ビル運用のデータ基盤を、<br>自分たちの手に。</h1>
+      <p class="hero-tagline">
+        ベンダーロックインなしで、設備データの収集・蓄積・可視化・制御をワンストップに。
+        Building OS は、スマートビルの「データの土台」になるオープンソースプラットフォームです。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>スマートビルの現場が抱える課題</h2>
+      <ul class="cards">
+        <li class="card">
+          <h3>データのサイロ化</h3>
+          <p>空調は空調の、電力は電力のシステムに閉じてデータが分断され、横断的な分析や活用が難しい。</p>
+          <p class="approach">→ すべての設備データを共通のデータモデルと単一の API に集約します。</p>
+        </li>
+        <li class="card">
+          <h3>クラウド・ベンダー依存</h3>
+          <p>特定ベンダーのマネージドサービスに深く依存すると、コストと事業継続性のリスク、
+          そしてデータ主権の問題がつきまとう。</p>
+          <p class="approach">→ 全部オープンソース。オンプレでも任意のクラウドでも自前で運用できます。</p>
+        </li>
+        <li class="card">
+          <h3>プロトコルの差異</h3>
+          <p>BACnet / OPC UA / MQTT など、現場ごと・設備ごとに接続方式が異なり、つなぎ込みのたびに
+          個別開発が発生する。</p>
+          <p class="approach">→ ゲートウェイ層がプロトコル差異を吸収し、共通の契約でつながります。</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>誰のためのプラットフォームか</h2>
+      <ul class="cards">
+        <li class="card">
+          <h3>ビルオーナー・運用者</h3>
+          <p>設備データを自社の資産として蓄積。既存のビル管理システム(BAS)の横に置ける、
+          独立したデータ基盤として使えます。</p>
+        </li>
+        <li class="card">
+          <h3>実践者(SIer・アプリ開発者)</h3>
+          <p>REST + gRPC の API、Swagger 定義、生成済みクライアントで、ビルデータを使った
+          アプリケーションをすぐに作り始められます。</p>
+        </li>
+        <li class="card">
+          <h3>研究者・教育</h3>
+          <p>すべてオープンソースで、すべてローカルで再現可能。デジタルツインや
+          建物オントロジー研究の実験台としても使えます。</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>主要機能</h2>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>建物の構造をそのままデータモデルに</h3>
+          <p>建物→フロア→空間→機器→ポイントの階層をデジタルツイン(OxiGraph / SPARQL)として管理。
+          管理画面から Turtle ファイルをアップロードして、ツインの構築・更新ができます。</p>
+        </div>
+        <figure class="shot">
+          <img src="ui-screenshots/06-admin-twin.png" alt="デジタルツイン管理画面。Turtle ファイルのインポートとプレビューが表示されている。" width="1440" height="900" loading="lazy">
+          <figcaption>ツイン管理 — インポート前にトリプル数やエラーをプレビュー</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>最新値も 1 年前も、同じ API で</h3>
+          <p>直近の値は Hot(NATS KV)から、過去の履歴や集計は Parquet レイクから —
+          データの置き場所は API が自動選択します。利用者はポイントを選んで期間を指定するだけです。</p>
+        </div>
+        <figure class="shot">
+          <img src="ui-screenshots/02-resources-explorer.png" alt="リソースエクスプローラ画面。階層ツリーからポイントを選択して値を確認できる。" width="1440" height="900" loading="lazy">
+          <figcaption>リソースエクスプローラ — 階層をたどって最新値・履歴を確認</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>制御は、確実に・追跡可能に</h3>
+          <p>ポイント単位の制御はゲートウェイ別にルーティングされ、結果は非同期で返ります。
+          オフラインのゲートウェイには待たされずに即時エラー(503)。すべての制御操作は
+          監査証跡としてデータベースに記録されます。</p>
+        </div>
+        <figure class="shot">
+          <img src="ui-screenshots/07-admin-gateways.png" alt="ゲートウェイ管理画面。登録されたゲートウェイの一覧と接続状態が表示されている。" width="1440" height="900" loading="lazy">
+          <figcaption>ゲートウェイ管理 — 接続状態とポイントリスト同期を一覧</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>Keycloak によるエンタープライズ認証</h3>
+          <p>OIDC / JWT によるユーザー認証と、ロール・グループに基づくリソース単位の認可。
+          「このユーザーはこの建物のこのフロアまで」という粒度でアクセスを制御できます。</p>
+        </div>
+        <figure class="shot">
+          <img src="ui-screenshots/09-admin-users-roles.png" alt="ユーザーロール管理画面。ユーザーごとのロール割り当てが表示されている。" width="1440" height="900" loading="lazy">
+          <figcaption>ロール管理 — admin / operator / viewer のロールベース制御</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>プラットフォームの今を一目で</h3>
+          <p>API・ワーカー・メッセージバスなど各コンポーネントの稼働状態を、ダッシュボードで
+          ひと目で確認。外部の監視基盤がなくても、基本の運用は built-in の画面で回せます。</p>
+        </div>
+        <figure class="shot">
+          <img src="ui-screenshots/04-platform-status.png" alt="プラットフォームステータス画面。各サービスの稼働状態と KPI が表示されている。" width="1440" height="900" loading="lazy">
+          <figcaption>プラットフォームステータス — サービスの稼働状態と KPI</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>運用の解像度を上げる</h3>
+          <p>より深く見たいときは、OpenTelemetry → Prometheus / Grafana / Loki / Tempo の
+          可観測性スタックをオプションで有効化。メトリクス・ログ・トレースを横断して追えます。</p>
+        </div>
+        <figure class="shot">
+          <img src="ui-screenshots/d03-grafana.png" alt="Grafana ダッシュボード。テレメトリ処理のメトリクスがグラフ表示されている。" width="1440" height="900" loading="lazy">
+          <figcaption>Grafana — テレメトリパイプラインのメトリクス(オプション)</figcaption>
+        </figure>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>スクリーンショット</h2>
+      <div class="shot-grid">
+        <figure class="shot">
+          <img src="ui-screenshots/01-sign-in.png" alt="サインイン画面。" width="1440" height="900" loading="lazy">
+          <figcaption>サインイン(Keycloak OIDC)</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="ui-screenshots/05-admin-users.png" alt="ユーザー管理画面。" width="1440" height="900" loading="lazy">
+          <figcaption>ユーザー管理</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="ui-screenshots/08-admin-oidc-clients.png" alt="OIDC クライアント管理画面。" width="1440" height="900" loading="lazy">
+          <figcaption>OIDC クライアント管理</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="ui-screenshots/d04-nats-jetstream.png" alt="NATS JetStream のモニタリング画面。" width="1440" height="900" loading="lazy">
+          <figcaption>NATS JetStream モニタ(コアメッセージバス)</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="ui-screenshots/d02-minio-cold-bucket.png" alt="MinIO コンソール。Parquet レイクのバケットが表示されている。" width="1440" height="900" loading="lazy">
+          <figcaption>MinIO 上の Parquet レイク(テレメトリの蓄積先)</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-band">
+    <div class="container">
+      <h2>もっと深く知る・触ってみる</h2>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="quickstart.html">動かしてみる →</a>
+        <a class="btn btn-ghost" href="architecture.html">アーキテクチャを見る</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全6ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>
