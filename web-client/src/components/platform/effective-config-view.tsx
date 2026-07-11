@@ -26,7 +26,7 @@ export function EffectiveConfigView({ entries }: { entries: ConfigEntry[] }) {
         {entries.map((entry) => (
           <tr key={entry.key} className="border-b border-gray-100" data-testid={`config-row-${entry.key}`}>
             <td className="px-3 py-2 font-mono text-xs">{entry.key}</td>
-            <td className={`px-3 py-2 ${isUnset(entry) ? "text-gray-400" : "text-gray-800"}`}>
+            <td className={`px-3 py-2 ${isUnset(entry) ? "text-gray-500" : "text-gray-800"}`}>
               {configValueDisplay(entry)}
             </td>
             <td className="px-3 py-2">
@@ -35,7 +35,7 @@ export function EffectiveConfigView({ entries }: { entries: ConfigEntry[] }) {
                   シークレット
                 </span>
               ) : (
-                <span className="text-xs text-gray-400">—</span>
+                <span className="text-xs text-gray-500">—</span>
               )}
             </td>
           </tr>
