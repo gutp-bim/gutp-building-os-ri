@@ -64,7 +64,7 @@ function SettingRow({
     <li className="rounded border border-gray-200 p-3" data-testid={`setting-row-${setting.key}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-sm">{setting.key}</span>
-        <span className="text-xs text-gray-400">{setting.category}</span>
+        <span className="text-xs text-gray-500">{setting.category}</span>
       </div>
       <p className="mb-2 text-xs text-gray-500">{setting.description}</p>
 
@@ -111,7 +111,7 @@ function SettingRow({
             </span>
           </>
         ) : (
-          <span className="text-xs text-gray-400">既定値</span>
+          <span className="text-xs text-gray-500">既定値</span>
         )}
       </div>
       {error && (
