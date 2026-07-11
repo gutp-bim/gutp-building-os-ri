@@ -194,6 +194,90 @@ public class GatewayIngressServiceTest
         Assert.Empty(bus.Published);
     }
 
+    // ── Multi-gateway concurrency (#114) ──────────────────────────────────────
+    // GatewayIngress pods are stateless (CLAUDE.md), so concurrent client streams from distinct
+    // gateways are expected to be served by concurrent service instances sharing the singleton
+    // bus/cache. These tests assert that concurrency does not leak/mix telemetry between gateways.
+
+    [Fact]
+    public async Task StreamTelemetry_TwoGatewaysConcurrently_NoCrossContamination()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"),
+            new PointMetadata("PT002", "bldg-2", "Damper Pos", "DEV002", "GW002"));
+        const int framesPerGateway = 20;
+
+        var readerA = new FakeStreamReader<TelemetryFrame>();
+        var readerB = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < framesPerGateway; i++)
+        {
+            readerA.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = i });
+            readerB.Push(new TelemetryFrame { GatewayId = "GW002", PointId = "PT002", Value = i });
+        }
+        readerA.Complete();
+        readerB.Complete();
+
+        // Two independent service instances (as gRPC would construct per-call) sharing the bus/cache.
+        // Every fake dependency here (Channel-backed reader, ConcurrentQueue-backed bus, dictionary
+        // cache) completes synchronously, so RunAsync would never yield the calling thread if awaited
+        // directly — Task.Run forces each onto its own thread-pool thread so the two streams genuinely
+        // race on the shared bus/cache instead of the test merely proving sequential-call correctness.
+        var taskA = Task.Run(() => NewService(bus, cache).RunAsync(readerA, CancellationToken.None, trustedGatewayId: "GW001"));
+        var taskB = Task.Run(() => NewService(bus, cache).RunAsync(readerB, CancellationToken.None, trustedGatewayId: "GW002"));
+        var accepted = await Task.WhenAll(taskA, taskB);
+
+        Assert.Equal(framesPerGateway, accepted[0]);
+        Assert.Equal(framesPerGateway, accepted[1]);
+        Assert.Equal(framesPerGateway * 2, bus.Published.Count);
+
+        var gatewayIdsByPublishedPoint = bus.Published
+            .Select(p =>
+            {
+                using var doc = JsonDocument.Parse(p.Message);
+                var entity = doc.RootElement.GetProperty("telemetries")[0];
+                return (PointId: entity.GetProperty("point_id").GetString(),
+                    GatewayId: entity.GetProperty("data").GetProperty("gatewayId").GetString());
+            })
+            .ToArray();
+
+        // Every frame attributed to GW001 must carry PT001 (its own point) and never PT002, and vice versa.
+        Assert.All(gatewayIdsByPublishedPoint, e => Assert.Equal(e.GatewayId == "GW001" ? "PT001" : "PT002", e.PointId));
+        Assert.Equal(framesPerGateway, gatewayIdsByPublishedPoint.Count(e => e.GatewayId == "GW001"));
+        Assert.Equal(framesPerGateway, gatewayIdsByPublishedPoint.Count(e => e.GatewayId == "GW002"));
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_TwoGatewaysConcurrently_IdentityEnforced_SpoofAttemptIsolatedFromLegitStream()
+    {
+        // A concurrently-connected legitimate GW002 stream must keep publishing while a separate
+        // connection attempts to spoof frames as GW001 without the matching trusted identity.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"),
+            new PointMetadata("PT002", "bldg-2", "Damper Pos", "DEV002", "GW002"));
+
+        var legitReader = new FakeStreamReader<TelemetryFrame>();
+        legitReader.Push(new TelemetryFrame { GatewayId = "GW002", PointId = "PT002", Value = 1.0 });
+        legitReader.Complete();
+
+        var spoofReader = new FakeStreamReader<TelemetryFrame>();
+        spoofReader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 }); // claims GW001
+        spoofReader.Complete();
+
+        var identity = new IngressIdentityOptions { Enforce = true };
+        // See the Task.Run rationale on the sibling concurrency test above.
+        var legitTask = Task.Run(() => NewService(bus, cache, identity).RunAsync(legitReader, CancellationToken.None, trustedGatewayId: "GW002"));
+        var spoofTask = Task.Run(() => NewService(bus, cache, identity).RunAsync(spoofReader, CancellationToken.None, trustedGatewayId: "GW-ATTACKER"));
+        var accepted = await Task.WhenAll(legitTask, spoofTask);
+
+        Assert.Equal(1L, accepted[0]);
+        Assert.Equal(0L, accepted[1]);
+        var published = Assert.Single(bus.Published);
+        using var doc = JsonDocument.Parse(published.Message);
+        Assert.Equal("GW002", doc.RootElement.GetProperty("telemetries")[0].GetProperty("data").GetProperty("gatewayId").GetString());
+    }
+
     // ── Identity binding (#296) ───────────────────────────────────────────────
 
     [Fact]

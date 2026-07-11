@@ -144,6 +144,38 @@ yarn dev
 # → http://localhost:3000
 ```
 
+### 3.1 MQTT を外部ブローカー（例: localhost:11883）から取り込む
+
+ホスト上で既に MQTT ブローカーが起動している場合は、ConnectorWorker をその接続先へ向けます。
+
+```bash
+MQTT_HOST=host.docker.internal MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  docker compose -f docker-compose.oss.yaml up -d --force-recreate --no-deps building-os.connector-worker
+```
+
+最小スモーク（1件 publish）:
+
+```bash
+MQTT_HOST=localhost MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  TELEMETRY_INTERVAL=1 DEVICE_ID=device-001 TENANT_ID=default POINT_ID=PT001 \
+  python Tools/development-edge-device/mqtt_edge_device.py
+```
+
+受信条件:
+
+- topic は `telemetry/{tenant}/{deviceId}`
+- payload は JSON（UTF-8 BOM なし推奨）
+
+### 3.2 UI での確認手順（テレメトリー/管理）
+
+1. `http://localhost:3000/platform/status` を開き、API と worker の稼働を確認
+2. `http://localhost:3000/resources` を開き、対象の point を選択
+3. `http://localhost:3000/points/{pointId}` で最新値（Hot）と履歴（Warm）を確認
+4. twin を投入/更新する場合は `http://localhost:3000/admin/twin` を使用
+5. ユーザ/権限管理は `http://localhost:3000/admin` を使用
+
+> `/admin` は管理ワークスペースです。テレメトリー時系列の主画面は `/resources` → `/points/{pointId}` です。
+
 ### 4. API / ConnectorWorker をホストで直接起動したい場合（任意）
 
 compose 版を止めてから起動します（ポート競合回避）。

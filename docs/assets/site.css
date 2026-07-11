@@ -1,0 +1,570 @@
+/* ==========================================================================
+   Building OS — OSS Edition / GitHub Pages サイト デザインシステム
+   単一ファイル・ビルドなし。トークン → リセット → クローム → レイアウト →
+   コンポーネント → SVG 図 → レスポンシブ の順。
+   ルール: アクセントは --green-700 のみ。緑背景に本文テキストを載せない
+   (白文字 × green-700 の太字・大サイズのみ可)。
+   ========================================================================== */
+
+/* ---- design tokens ---- */
+:root {
+  --green-700: #0e6e5c; /* リンク/ボタン/nav active。白地で 6.2:1 (AA) */
+  --green-800: #0a5446; /* hover */
+  --green-050: #eef7f3; /* 交互セクション背景・インラインコード背景 */
+  --ink: #17251f;       /* hero / footer 帯 */
+  --paper: #ffffff;
+  --paper-dim: #dcebe4; /* --ink 上の弱調テキスト (11:1) */
+  --gray-900: #1f2937;
+  --gray-600: #4b5563;
+  --gray-300: #d1d5db;
+  --gray-100: #f3f4f6;
+  --code-bg: #111827;
+  --code-ink: #e5e7eb;
+  --warn-bg: #fef3c7;
+  --warn-ink: #92400e;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP",
+    "Yu Gothic UI", Meiryo, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --radius: 8px;
+}
+
+/* ---- reset ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body,
+h1,
+h2,
+h3,
+p,
+figure,
+blockquote,
+ul,
+ol,
+dl {
+  margin: 0;
+}
+img,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.9;
+  color: var(--gray-900);
+  background: var(--paper);
+  overflow-wrap: break-word;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+h2 {
+  font-size: 1.6rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin-bottom: 1.25rem;
+}
+h3 {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+a {
+  color: var(--green-700);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+a:hover {
+  color: var(--green-800);
+}
+
+/* ---- layout primitives ---- */
+.container {
+  max-width: 68rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+.section {
+  padding-block: 3.5rem;
+}
+.section--alt {
+  background: var(--green-050);
+}
+.section p + p {
+  margin-top: 1rem;
+}
+.lead {
+  font-size: 1.05rem;
+}
+.fineprint {
+  font-size: 0.85rem;
+  color: var(--gray-600);
+  margin-top: 1rem;
+}
+
+/* ---- site header ---- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  border-bottom: 1px solid var(--gray-300);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.5rem;
+  flex-wrap: wrap;
+}
+.brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--green-700);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand-sub {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-left: 0.25rem;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: var(--gray-900);
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding-block: 0.35rem;
+  border-bottom: 2px solid transparent;
+}
+.site-nav a:hover {
+  color: var(--green-800);
+}
+.site-nav a[aria-current="page"] {
+  color: var(--green-700);
+  font-weight: 700;
+  border-bottom-color: var(--green-700);
+}
+.nav-toggle {
+  display: none;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--gray-900);
+  cursor: pointer;
+}
+
+/* ---- hero ---- */
+.hero {
+  background: var(--ink);
+  color: var(--paper);
+  padding-block: 4rem;
+}
+.hero h1 {
+  color: var(--paper);
+  max-width: 40rem;
+}
+.hero-tagline {
+  color: var(--paper-dim);
+  max-width: 44rem;
+  margin-top: 1.25rem;
+}
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+.badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--paper-dim);
+  border: 1px solid rgba(220, 235, 228, 0.4);
+  border-radius: 999px;
+  padding: 0.15rem 0.75rem;
+}
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+.btn {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  border-radius: var(--radius);
+  padding: 0.65rem 1.4rem;
+  border: 2px solid transparent;
+}
+.btn-primary {
+  background: var(--green-700);
+  color: var(--paper);
+}
+.btn-primary:hover {
+  background: var(--green-800);
+  color: var(--paper);
+}
+.btn-ghost {
+  border-color: var(--paper-dim);
+  color: var(--paper);
+}
+.btn-ghost:hover {
+  border-color: var(--paper);
+  color: var(--paper);
+}
+/* 白背景セクション上の CTA 用 */
+.btn-outline {
+  border-color: var(--green-700);
+  color: var(--green-700);
+}
+.btn-outline:hover {
+  border-color: var(--green-800);
+  color: var(--green-800);
+}
+
+/* ---- cards ---- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  background: var(--paper);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.4rem;
+}
+.card h3 {
+  margin-bottom: 0.5rem;
+}
+.card p {
+  font-size: 0.95rem;
+}
+.card .approach {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--green-700);
+}
+
+/* ---- feature rows (テキスト + スクショ交互) ---- */
+.feature-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 2rem;
+  align-items: center;
+  padding-block: 2rem;
+}
+.feature-row + .feature-row {
+  border-top: 1px solid var(--gray-300);
+}
+.feature-row:nth-of-type(even) .feature-text {
+  order: 2;
+}
+.feature-row h3 {
+  margin-bottom: 0.5rem;
+}
+.feature-row p {
+  font-size: 0.95rem;
+}
+
+/* ---- screenshots ---- */
+.shot {
+  margin: 0;
+}
+.shot img {
+  width: 100%;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+}
+.shot figcaption {
+  font-size: 0.85rem;
+  color: var(--gray-600);
+  margin-top: 0.5rem;
+}
+.shot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+/* ---- tables ---- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+th,
+td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--gray-300);
+  vertical-align: top;
+}
+th {
+  background: var(--gray-100);
+  font-weight: 700;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+
+/* ---- callouts ---- */
+.callout-warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border-left: 4px solid var(--warn-ink);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 1rem 1.25rem;
+  font-size: 0.95rem;
+}
+.callout-warn a {
+  color: var(--warn-ink);
+  font-weight: 700;
+}
+
+/* ---- code ---- */
+pre {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  margin-block: 1rem;
+}
+pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--green-050);
+  color: var(--gray-900);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+
+/* ---- link list (さらに詳しく) ---- */
+.link-list {
+  padding-left: 1.4rem;
+}
+.link-list li {
+  margin-block: 0.4rem;
+}
+.link-list .note {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+}
+
+/* ---- closing CTA band ---- */
+.cta-band {
+  background: var(--ink);
+  color: var(--paper);
+  padding-block: 3rem;
+  text-align: center;
+}
+.cta-band h2 {
+  color: var(--paper);
+}
+.cta-band .cta-row {
+  justify-content: center;
+}
+
+/* ---- footer ---- */
+.site-footer {
+  background: var(--ink);
+  color: var(--paper-dim);
+  padding-block: 2.5rem;
+  font-size: 0.85rem;
+  line-height: 1.8;
+}
+.site-footer p + p {
+  margin-top: 0.75rem;
+}
+.footer-brand {
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 1rem;
+}
+.site-footer a {
+  color: var(--paper-dim);
+  text-decoration: underline;
+}
+.site-footer a:hover {
+  color: var(--paper);
+}
+
+/* ---- SVG diagrams ----
+   図は inline SVG。箱は <rect>+<text>、座標は 20px グリッド。
+   スタイルはここに集約し、SVG 側にはクラスだけ書く。 */
+.svg-diagram {
+  width: 100%;
+  height: auto;
+  margin-block: 1.5rem;
+}
+/* モバイルでは図を縮めず横スクロールさせる */
+.diagram-scroll {
+  overflow-x: auto;
+}
+.svg-diagram .svg-box {
+  fill: var(--paper);
+  stroke: var(--gray-300);
+  stroke-width: 1.5;
+  rx: 8;
+}
+.svg-diagram .svg-bus {
+  fill: var(--green-050);
+  stroke: var(--green-700);
+  stroke-width: 1.5;
+  rx: 8;
+}
+.svg-diagram .svg-store {
+  fill: var(--gray-100);
+  stroke: var(--gray-300);
+  stroke-width: 1.5;
+  rx: 8;
+}
+.svg-diagram .svg-label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  fill: var(--gray-900);
+}
+.svg-diagram .svg-label--strong {
+  font-weight: 700;
+}
+.svg-diagram .svg-note {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  fill: var(--gray-600);
+}
+.svg-diagram .svg-flow {
+  stroke: var(--gray-600);
+  stroke-width: 1.5;
+  fill: none;
+}
+.svg-diagram .svg-ctrl {
+  stroke: var(--green-700);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+  fill: none;
+}
+.svg-diagram .svg-link {
+  stroke: var(--gray-300);
+  stroke-width: 1.5;
+  fill: none;
+}
+/* hero 内(暗背景)の簡易ストリップ用 */
+.hero .svg-diagram .svg-box {
+  fill: rgba(255, 255, 255, 0.06);
+  stroke: rgba(220, 235, 228, 0.5);
+}
+.hero .svg-diagram .svg-label {
+  fill: var(--paper);
+}
+.hero .svg-diagram .svg-note {
+  fill: var(--paper-dim);
+}
+.hero .svg-diagram .svg-flow {
+  stroke: var(--paper-dim);
+}
+.hero .svg-diagram .svg-ctrl {
+  stroke: #6fd3ba;
+}
+
+/* ---- responsive ---- */
+@media (max-width: 768px) {
+  .nav-toggle {
+    display: inline-block;
+  }
+  .site-nav {
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    width: 100%;
+    padding-block: 0.5rem;
+  }
+  .site-nav.is-open {
+    display: flex;
+  }
+  /* JS 無効時は常時表示にフォールバック */
+  .no-js .site-nav {
+    display: flex;
+  }
+  .no-js .nav-toggle {
+    display: none;
+  }
+  .site-nav a {
+    width: 100%;
+    padding-block: 0.5rem;
+    border-bottom: none;
+  }
+  .site-nav a[aria-current="page"] {
+    border-bottom: none;
+  }
+  .hero {
+    padding-block: 2.5rem;
+  }
+  .section {
+    padding-block: 2.5rem;
+  }
+  .feature-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .feature-row:nth-of-type(even) .feature-text {
+    order: 0;
+  }
+  .shot-grid {
+    grid-template-columns: 1fr;
+  }
+  .diagram-scroll .svg-diagram {
+    min-width: 680px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  pre {
+    font-size: 0.8rem;
+  }
+}

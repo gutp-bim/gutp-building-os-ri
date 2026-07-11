@@ -153,7 +153,7 @@ export function OidcClientsPageClient() {
       </div>
 
       {clients === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        error ? null : <p className="text-gray-500">読み込み中…</p>
       ) : clients.length === 0 ? (
         <p className="text-gray-500" data-testid="oidc-empty">クライアントがありません</p>
       ) : (

@@ -35,6 +35,14 @@ updates:
       # API. Verified with #98. Needs a deliberate migration, not a routine dependency bump.
       - dependency-name: "MQTTnet"
         update-types: ["version-update:semver-major"]
+      # Parquet.Net 6.x reshaped the writer API: ParquetWriter is only async-Disposable now
+      # (needs "await using"), CompressionMethod was removed, DataColumn moved namespaces, and
+      # ParquetRowGroupWriter.WriteColumnAsync was removed. RollupSerializer.cs alone has 20+
+      # compile errors against it — a genuine break across the whole Parquet lake read/write
+      # layer (RollupSerializer, ParquetTelemetrySerializer, ParquetLakeWriterWorker, etc.).
+      # Verified with #100. Needs a deliberate migration, not a routine dependency bump.
+      - dependency-name: "Parquet.Net"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/web-client"

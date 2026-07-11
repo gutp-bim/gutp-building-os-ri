@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>アーキテクチャ | Building OS — OSS Edition</title>
+  <meta name="description" content="Building OS の全体アーキテクチャ、データフロー(収集から可視化まで)、制御フロー、Hot/Warm/Cold の 3 階層テレメトリ、デジタルツインと標準オントロジー対応、技術スタックを解説します。">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="サイト内ナビゲーション">
+      <a href="index.html">ホーム</a>
+      <a href="product.html">プロダクト</a>
+      <a href="quickstart.html">クイックスタート</a>
+      <a href="architecture.html" aria-current="page">アーキテクチャ</a>
+      <a href="ecosystem.html">エコシステム</a>
+      <a href="index-en.html">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>アーキテクチャ</h1>
+      <p class="hero-tagline">
+        入って、貯まって、取り出せて、制御できる — その全体像。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>全体構成</h2>
+      <p>
+        現場の設備からダッシュボードまで、データは上から下へ(実線)、制御は右側を通って
+        下から上へ(緑の破線)流れます。
+      </p>
+
+      <!-- 全体アーキテクチャ図: 箱は <rect>+<text>、座標は 20px グリッド基準。
+           スタイルは site.css の .svg-diagram に集約。箱の追加・移動は座標編集のみで可能。 -->
+      <div class="diagram-scroll">
+      <svg class="svg-diagram" viewBox="0 0 960 680" role="img" aria-label="Building OS の全体アーキテクチャ図。ビル設備と MQTT デバイスからゲートウェイやブローカーを経て NATS JetStream に入り、NATS KV・MinIO Parquet レイクに蓄積され、API Server から Web クライアントと外部アプリに提供される。制御は API から NATS と GatewayBridge を経てゲートウェイ・設備へ届く。">
+        <title>Building OS 全体アーキテクチャ</title>
+        <defs>
+          <marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/>
+          </marker>
+          <marker id="arrow-ctrl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0e6e5c"/>
+          </marker>
+        </defs>
+
+        <!-- 層1: 現場 -->
+        <text class="svg-note" x="230" y="12" text-anchor="middle">BACnet / OPC UA</text>
+        <rect class="svg-box" x="20" y="20" width="190" height="56" rx="8"/>
+        <text class="svg-label svg-label--strong" x="115" y="42" text-anchor="middle">ビル設備</text>
+        <text class="svg-note" x="115" y="60" text-anchor="middle">空調・電力・環境センサ</text>
+        <rect class="svg-box" x="250" y="20" width="200" height="56" rx="8"/>
+        <text class="svg-label svg-label--strong" x="350" y="42" text-anchor="middle">エッジゲートウェイ</text>
+        <text class="svg-note" x="350" y="60" text-anchor="middle">nexus-gateway</text>
+        <rect class="svg-box" x="490" y="20" width="170" height="56" rx="8"/>
+        <text class="svg-label" x="575" y="52" text-anchor="middle">MQTT デバイス</text>
+        <line class="svg-flow" x1="210" y1="40" x2="246" y2="40" marker-end="url(#arrow-data)"/>
+        <line class="svg-ctrl" x1="250" y1="60" x2="214" y2="60" marker-end="url(#arrow-ctrl)"/>
+
+        <!-- 層2: 入口 -->
+        <line class="svg-flow" x1="350" y1="76" x2="350" y2="116" marker-end="url(#arrow-data)"/>
+        <text class="svg-note" x="360" y="100">gRPC(テレメトリ)</text>
+        <line class="svg-flow" x1="575" y1="76" x2="575" y2="116" marker-end="url(#arrow-data)"/>
+        <rect class="svg-box" x="250" y="120" width="200" height="60" rx="8"/>
+        <text class="svg-label svg-label--strong" x="350" y="143" text-anchor="middle">GatewayIngress</text>
+        <text class="svg-note" x="350" y="161" text-anchor="middle">gRPC :5051 / ConnectorWorker</text>
+        <rect class="svg-box" x="490" y="120" width="170" height="60" rx="8"/>
+        <text class="svg-label svg-label--strong" x="575" y="143" text-anchor="middle">Mosquitto / Hono</text>
+        <text class="svg-note" x="575" y="161" text-anchor="middle">MQTT / AMQP ブローカー</text>
+        <line class="svg-flow" x1="575" y1="180" x2="575" y2="220" marker-end="url(#arrow-data)"/>
+        <rect class="svg-box" x="470" y="224" width="210" height="56" rx="8"/>
+        <text class="svg-label svg-label--strong" x="575" y="246" text-anchor="middle">ConnectorWorker</text>
+        <text class="svg-note" x="575" y="264" text-anchor="middle">検証・ツインメタデータ付与</text>
+        <line class="svg-flow" x1="350" y1="180" x2="350" y2="316" marker-end="url(#arrow-data)"/>
+        <line class="svg-flow" x1="575" y1="280" x2="575" y2="316" marker-end="url(#arrow-data)"/>
+
+        <!-- 層3: コアバス -->
+        <rect class="svg-bus" x="20" y="320" width="660" height="48" rx="8"/>
+        <text class="svg-label svg-label--strong" x="350" y="340" text-anchor="middle">NATS JetStream</text>
+        <text class="svg-note" x="350" y="358" text-anchor="middle">building-os.validated.telemetry</text>
+
+        <!-- 層4: ストア -->
+        <line class="svg-flow" x1="95" y1="368" x2="95" y2="396" marker-end="url(#arrow-data)"/>
+        <line class="svg-flow" x1="290" y1="368" x2="290" y2="396" marker-end="url(#arrow-data)"/>
+        <rect class="svg-store" x="20" y="400" width="150" height="64" rx="8"/>
+        <text class="svg-label svg-label--strong" x="95" y="424" text-anchor="middle">NATS KV</text>
+        <text class="svg-note" x="95" y="442" text-anchor="middle">Hot: 最新値</text>
+        <rect class="svg-store" x="190" y="400" width="200" height="64" rx="8"/>
+        <text class="svg-label svg-label--strong" x="290" y="424" text-anchor="middle">MinIO Parquet レイク</text>
+        <text class="svg-note" x="290" y="442" text-anchor="middle">Warm / Cold(履歴・集計)</text>
+        <rect class="svg-store" x="410" y="400" width="130" height="64" rx="8"/>
+        <text class="svg-label svg-label--strong" x="475" y="424" text-anchor="middle">OxiGraph</text>
+        <text class="svg-note" x="475" y="442" text-anchor="middle">デジタルツイン</text>
+        <rect class="svg-store" x="560" y="400" width="120" height="64" rx="8"/>
+        <text class="svg-label svg-label--strong" x="620" y="424" text-anchor="middle">PostgreSQL 16</text>
+        <text class="svg-note" x="620" y="442" text-anchor="middle">ユーザ・権限・監査</text>
+
+        <!-- 層5: API -->
+        <line class="svg-flow" x1="95" y1="464" x2="95" y2="492" marker-end="url(#arrow-data)"/>
+        <line class="svg-flow" x1="290" y1="464" x2="290" y2="492" marker-end="url(#arrow-data)"/>
+        <line class="svg-link" x1="475" y1="464" x2="475" y2="496"/>
+        <line class="svg-link" x1="620" y1="464" x2="620" y2="496"/>
+        <rect class="svg-box" x="20" y="500" width="660" height="56" rx="8"/>
+        <text class="svg-label svg-label--strong" x="350" y="522" text-anchor="middle">API Server(ASP.NET Core / REST + gRPC)</text>
+        <text class="svg-note" x="350" y="540" text-anchor="middle">/telemetries/query ・ /resources/search ・ /gateways/{id}/pointlist</text>
+
+        <!-- 層6: 利用者 -->
+        <line class="svg-flow" x1="200" y1="556" x2="200" y2="588" marker-end="url(#arrow-data)"/>
+        <line class="svg-flow" x1="500" y1="556" x2="500" y2="588" marker-end="url(#arrow-data)"/>
+        <rect class="svg-box" x="110" y="592" width="180" height="52" rx="8"/>
+        <text class="svg-label svg-label--strong" x="200" y="612" text-anchor="middle">Web Client</text>
+        <text class="svg-note" x="200" y="630" text-anchor="middle">Next.js ダッシュボード</text>
+        <rect class="svg-box" x="410" y="592" width="180" height="52" rx="8"/>
+        <text class="svg-label" x="500" y="622" text-anchor="middle">外部アプリ・研究ツール</text>
+
+        <!-- 制御パス(右側・緑破線・下から上へ) -->
+        <path class="svg-ctrl" d="M680,528 L825,528 L825,468" marker-end="url(#arrow-ctrl)"/>
+        <rect class="svg-bus" x="710" y="410" width="230" height="54" rx="8"/>
+        <text class="svg-label svg-label--strong" x="825" y="432" text-anchor="middle">NATS(制御)</text>
+        <text class="svg-note" x="825" y="450" text-anchor="middle">control.request.gw.{id}</text>
+        <line class="svg-ctrl" x1="825" y1="410" x2="825" y2="314" marker-end="url(#arrow-ctrl)"/>
+        <rect class="svg-box" x="710" y="250" width="230" height="60" rx="8"/>
+        <text class="svg-label svg-label--strong" x="825" y="274" text-anchor="middle">GatewayBridge</text>
+        <text class="svg-note" x="825" y="292" text-anchor="middle">GatewayEgress gRPC :5052</text>
+        <path class="svg-ctrl" d="M825,250 L825,10 L470,10 L470,48 L458,48" marker-end="url(#arrow-ctrl)"/>
+
+        <!-- 凡例 -->
+        <line class="svg-flow" x1="20" y1="666" x2="60" y2="666"/>
+        <text class="svg-note" x="70" y="670">データ(上り)</text>
+        <line class="svg-ctrl" x1="180" y1="666" x2="220" y2="666"/>
+        <text class="svg-note" x="230" y="670">制御(下り)</text>
+      </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>データフロー: 収集から可視化まで</h2>
+      <ol>
+        <li>デバイスやゲートウェイが、gRPC(GatewayIngress)・MQTT・AMQP のいずれかでテレメトリを送信します。</li>
+        <li>ConnectorWorker が JSON Schema でペイロードを検証し、デジタルツインの情報(建物・機器・ポイント名)を付与します。</li>
+        <li>検証済みデータは NATS JetStream の <code>building-os.validated.telemetry</code> に集約されます。</li>
+        <li>最新値は NATS KV(Hot)へ、履歴は ParquetLakeWriter が MinIO 上の Parquet レイク(Warm / Cold)へ書き込みます。</li>
+        <li>API の <code>GET /telemetries/query</code> が階層を自動選択して返し、Next.js ダッシュボードが表示します。</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>制御フロー: API から現場へ</h2>
+      <p>
+        <code>POST /points/{id}/control</code> を受けた API は <code>202 Accepted</code> と
+        <code>controlId</code> を返し、制御要求を NATS のゲートウェイ別サブジェクト
+        <code>control.request.gw.{id}</code> に送ります。GatewayBridge が gRPC の双方向ストリームで
+        ゲートウェイに届け、ゲートウェイが BACnet などの現場プロトコルで設備に書き込みます。
+      </p>
+      <p>
+        対象のゲートウェイがオフラインの場合はタイムアウトを待たずに<strong>即時 503</strong> を返します(fast-fail)。
+        すべての制御操作は PostgreSQL の監査テーブル(<code>point_control_audit</code>)に記録され、
+        「いつ・誰が・どのポイントに・何を書いたか」を後から追跡できます。
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>テレメトリの 3 階層</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>階層</th><th>置き場所</th><th>持つもの</th><th>主な用途</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Hot</strong></td><td>NATS KV</td><td>ポイントごとの最新値</td><td>ダッシュボードのリアルタイム表示</td></tr>
+            <tr><td><strong>Warm</strong></td><td>MinIO Parquet レイク</td><td>直近の履歴・集計</td><td>トレンド分析・レポート</td></tr>
+            <tr><td><strong>Cold</strong></td><td>MinIO Parquet レイク</td><td>長期アーカイブ</td><td>長期分析・研究データ</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        利用者が階層を意識する必要はありません。単一の API <code>GET /telemetries/query</code> が、
+        指定された期間と粒度から適切な階層を自動選択します。詳細は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/oss-tier-architecture.md" rel="noopener">oss-tier-architecture.md</a> /
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/oss-warm-parquet-lake.md" rel="noopener">oss-warm-parquet-lake.md</a>
+        を参照してください。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>デジタルツインと標準オントロジー</h2>
+      <p>
+        建物→フロア→空間→機器→ポイントの階層は、OxiGraph(RDF / SPARQL)上のデジタルツインとして
+        管理されます。主語彙は <strong>SBCO</strong> オントロジーで、これがシステム全体の
+        ポイントリストの正本です。主要な建物オントロジー標準への対応表も整備しています。
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>SBCO</th><th>Brick</th><th>REC</th><th>IFC</th><th>DTDL</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>sbco:Building</td><td>brick:Building</td><td>rec:Building</td><td>IfcBuilding</td><td>…:Building;1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="fineprint">
+        ※ 対応表の全体(フロア・空間・機器・ポイント含む)は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/standard-mapping.md" rel="noopener">standard-mapping.md</a> を参照。
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>技術スタック</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>レイヤー</th><th>技術</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>バックエンド</td><td>.NET 8.0, ASP.NET Core(REST + gRPC)</td></tr>
+            <tr><td>フロントエンド</td><td>Next.js, React, TypeScript, Tailwind CSS</td></tr>
+            <tr><td>メッセージバス</td><td>NATS JetStream</td></tr>
+            <tr><td>テレメトリレイク</td><td>MinIO(S3 互換)上の Parquet ファイル ※既定。TimescaleDB はオプトイン</td></tr>
+            <tr><td>リレーショナル DB</td><td>PostgreSQL 16(ユーザー・グループ・制御監査)</td></tr>
+            <tr><td>デジタルツイン</td><td>OxiGraph(SPARQL / RDF)</td></tr>
+            <tr><td>認証</td><td>Keycloak(OIDC / JWT)</td></tr>
+            <tr><td>可観測性</td><td>OpenTelemetry → Prometheus + Grafana + Loki + Tempo(オプション)</td></tr>
+            <tr><td>IoT 接続</td><td>gRPC(GatewayIngress), MQTT(Mosquitto), AMQP(Eclipse Hono), Azure IoT Hub(任意)</td></tr>
+            <tr><td>IaC / CD</td><td>Docker Compose, Helm, Argo CD(GitOps), OpenTofu</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>デプロイ</h2>
+      <ul class="cards">
+        <li class="card">
+          <h3>Docker Compose</h3>
+          <p>ローカル開発・小規模検証向け。<code>docker-compose.oss.yaml</code> 1 ファイルで全サービスが起動します。</p>
+        </li>
+        <li class="card">
+          <h3>Helm + Kubernetes</h3>
+          <p>本番運用向け。各コンポーネントの Helm チャートを同梱し、水平スケールに対応します。</p>
+        </li>
+        <li class="card">
+          <h3>Argo CD + OpenTofu</h3>
+          <p>GitOps による継続的デリバリと、OpenTofu によるインフラのコード管理を想定した構成例を提供します。</p>
+        </li>
+      </ul>
+      <p class="fineprint">
+        →
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/oss-production-deployment.md" rel="noopener">oss-production-deployment.md</a> ・
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/argocd-gitops-guide.md" rel="noopener">argocd-gitops-guide.md</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>さらに深く</h2>
+      <ul class="link-list">
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/system-architecture.md" rel="noopener">system-architecture.md</a> <span class="note">— 全体構成・データ/制御フロー・セキュリティ</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/oss-nats-design.md" rel="noopener">oss-nats-design.md</a> <span class="note">— NATS JetStream の設計</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/telemetry-specification.md" rel="noopener">telemetry-specification.md</a> <span class="note">— テレメトリ契約の仕様</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/evaluation-summary.md" rel="noopener">evaluation-summary.md</a> <span class="note">— E2E 評価とアーキテクチャ/性能の妥当性</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/gateway-bridge-ingress-egress-split.md" rel="noopener">gateway-bridge-ingress-egress-split.md</a> <span class="note">— ingress / egress 分離の設計メモ</span></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全6ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>

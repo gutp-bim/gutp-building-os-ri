@@ -184,8 +184,39 @@ MQTT_HOST=building-os.mosquitto docker compose -f docker-compose.oss.yaml --prof
 # Tools/development-edge-device/ のシミュレータで telemetry/# にパブリッシュ
 ```
 
+既にホスト上で MQTT ブローカーが動いている場合（例: `localhost:11883`）は、
+ConnectorWorker をそのブローカーへ向けます（コンテナからホストへ接続するため `host.docker.internal` を使用）:
+
+```bash
+MQTT_HOST=host.docker.internal MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  docker compose -f docker-compose.oss.yaml up -d --force-recreate --no-deps building-os.connector-worker
+```
+
+最小スモーク（1件 publish）例:
+
+```bash
+MQTT_HOST=localhost MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
+  TELEMETRY_INTERVAL=1 DEVICE_ID=device-001 TENANT_ID=default POINT_ID=PT001 \
+  python Tools/development-edge-device/mqtt_edge_device.py
+```
+
+> `MqttIngressWorker` は `telemetry/{tenant}/{deviceId}` を受信し、JSON payload のみ受理します。
+> PowerShell でファイル経由 publish する場合、UTF-8 BOM 付き JSON は `non-JSON payload` と判定されることがあるため、BOM なし UTF-8 を推奨します。
+
 ゲートウェイがどう繋がるか（ingress/egress・point list 同期・mTLS）は
 [gateway-integration.md](gateway-integration.md) を必読。
+
+同一マシンで `nexus-gateway` と Building OS を共存させる場合は、`nexus-gateway` 側で
+`docker-compose.live-bos.yml` オーバーレイを併用します。
+
+```bash
+cd nexus-gateway
+docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
+```
+
+- `mock-bos` を無効化し、gateway を `host.docker.internal:5051/5052` に接続します。
+- ポート競合時は `nexus-gateway/.env` で `GATEWAY_HOST_PORT` / `ADMIN_UI_HOST_PORT` /
+  `NATS_HOST_PORT` などを上書きしてください。
 
 ---
 
@@ -205,6 +236,11 @@ curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
 
 統一読み取りエンドポイント `GET /telemetries/query` が tier（latest / warm / cold / 集計）を自動選択します。
 
+UI で確認する場合:
+
+- テレメトリ表示: `http://localhost:3000/resources` から点を選択し、`/points/{pointId}` で最新値・履歴を確認
+- 管理 UI: `http://localhost:3000/admin` はユーザ/グループ/権限・twin 管理用（テレメトリ時系列の主画面ではない）
+
 ---
 
 ## 7. 動作確認・トラブルシュート
@@ -214,6 +250,7 @@ curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
 | API が DB に繋がらない | `--no-deps` での個別 recreate はネットワークから外れることがある → `--force-recreate`（deps 込み）で再生成 |
 | gRPC ingest が `Unimplemented`/接続不可 | connector に `GRPC_INGRESS_PORT` 未設定（health のみ）。設定して recreate |
 | 制御が常に成功扱いで 503 にならない | OSS 既定は `ENABLE_SIM_CONTROL=true`（シミュレート制御）。実 egress は gateway binding を `bacnet-sim` にし GatewayBridge 経由 |
+| BOS 側が `AlreadyExists: gateway <gateway_id> already connected` を返す | 同じ `gateway_id` の egress セッションが残留。重複起動を停止し、`building-os.gateway-bridge` を再起動してから gateway を再接続 |
 | latest/range が空 | point が twin 未登録（404）／flush 前（既定 5 分、テストは `PARQUET_FLUSH_INTERVAL=1`） |
 | 各サービスの health | `GET /api/system/status`（API）、`/health/ready`（worker 8081）、MinIO console 9001、Grafana 3010（`--profile observability` 起動時のみ） |
 
