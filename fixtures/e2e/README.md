@@ -47,18 +47,29 @@
 
 ## Building OS 側の使い方
 
-### A) Web UI からインポート（推奨）
+**`docker compose -f docker-compose.oss.yaml up -d` は既定で `twin.ttl` を自動投入します**
+（`building-os.api` の `OXIGRAPH_SEED_TTL_PATH=/fixtures/e2e/twin.ttl` — #124）。追加の操作は
+不要で、起動後は `/resources` や下記の投入確認コマンドでそのまま確認できます。
+
+### A) Web UI からインポート(別の Turtle に差し替えたい場合)
 
 1. スタックを起動: `docker compose -f docker-compose.oss.yaml up -d`
-2. `http://localhost:3000/admin/twin` を開く（`--profile webclient` で Web も compose 起動可）
-3. `twin.ttl` を **replace** モードでアップロード → プレビューで 8 point / gateway 1 を確認して適用
+2. `http://localhost:3000/admin/twin` を開く(`--profile webclient` で Web も compose 起動可)
+3. 任意の Turtle を **replace** モードでアップロード → プレビューで件数を確認して適用
 
-### B) 起動時シードで自動投入
+> 注意: 起動時シードは**起動のたびに**デフォルトグラフを全置換するため、ここでの手動編集は
+> 次回起動時に `twin.ttl` へ巻き戻ります。恒久的に差し替えたい場合は B) を使ってください。
+
+### B) 起動時シードで別の Turtle を使う
 
 ```bash
-# connector-worker / api を OXIGRAPH_SEED_TTL_PATH 付きで起動（起動のたびに全置換）
-OXIGRAPH_SEED_TTL_PATH=/fixtures/e2e/twin.ttl \
+# 既定は twin.ttl。別ファイルに差し替える場合(./fixtures 配下のパスのみ有効。
+# api サービスが ./fixtures を /fixtures として bind mount 済み):
+OXIGRAPH_SEED_TTL_PATH=/fixtures/e2e/other.ttl \
   docker compose -f docker-compose.oss.yaml up -d
+
+# 起動時シードを無効化し、手動投入(A)のみにする場合:
+OXIGRAPH_SEED_TTL_PATH= docker compose -f docker-compose.oss.yaml up -d
 ```
 
 投入確認:

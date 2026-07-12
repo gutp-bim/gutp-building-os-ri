@@ -128,7 +128,13 @@ Keycloak トークンなしで叩けます（本番は OIDC/JWT 必須）。
 ### 起動時シード（ローカル開発向け）
 
 環境変数 `OXIGRAPH_SEED_TTL_PATH` に Turtle ファイルを指定すると起動のたびにデフォルトグラフを
-全置換します。サンプルツインは `OxiGraphSeedHostedService` が自動投入します（OSS compose 既定）。
+全置換します。サンプルツインは `OxiGraphSeedHostedService` が自動投入します（OSS compose 既定 —
+`fixtures/e2e/twin.ttl`、1 building / 8 point、`gateway_id=GW-SOS-001` を読み込みます。起動後は
+`/resources` で確認できます）。
+
+別の Turtle に差し替える場合は、`./fixtures` が bind mount されているコンテナ内パス
+（`/fixtures/` 配下）を `OXIGRAPH_SEED_TTL_PATH` に指定してください。起動時シードを無効化し
+`/admin/twin` 経由の手動投入のみにしたい場合は、`OXIGRAPH_SEED_TTL_PATH=` と空文字を渡します。
 
 ### 管理 UI からのインポート（推奨）
 
