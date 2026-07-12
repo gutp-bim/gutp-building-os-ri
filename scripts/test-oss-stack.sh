@@ -7,7 +7,9 @@ set -euo pipefail
 
 PASS=0
 FAIL=0
+SKIP=0
 ERRORS=()
+SKIPPED=()
 
 check() {
   local name="$1"
@@ -20,6 +22,22 @@ check() {
     FAIL=$((FAIL+1))
     ERRORS+=("$name")
   fi
+}
+
+# True if a container with this exact name is currently running. Used to gate
+# checks for services that live behind a compose profile (observability/mqtt)
+# and are not part of the default `make local-up-oss` stack — so a healthy
+# default stack does not fail this script for services it never started.
+container_running() {
+  docker ps --filter "name=^${1}\$" --filter "status=running" --format '{{.Names}}' | grep -qx "$1"
+}
+
+skip() {
+  local name="$1"
+  local reason="$2"
+  echo "  [SKIP] $name ($reason)"
+  SKIP=$((SKIP+1))
+  SKIPPED+=("$name — $reason")
 }
 
 wait_for() {
@@ -42,14 +60,15 @@ check "management HTTP (8222)"  "curl -sf http://localhost:8222/varz"
 check "JetStream enabled"       "curl -sf http://localhost:8222/jsz | grep -q '\"config\"'"
 check "client port (4222) open" "nc -z localhost 4222"
 
-# ── PostgreSQL + TimescaleDB ─────────────────────────────────────────────────
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+# `building-os.postgres` is always plain postgres:16 (#216/#234 dropped
+# TimescaleDB from the default stack) — WARM_STORE=timescale brings your own
+# external TimescaleDB via TIMESCALE_CONNECTION_STRING, it is never this
+# container, so there is no in-stack TimescaleDB extension to check here.
 echo
-echo "[PostgreSQL + TimescaleDB]"
+echo "[PostgreSQL]"
 check "TCP port 5433"        "nc -z localhost 5433"
 check "pg_isready"           "docker exec building-os.postgres pg_isready -U buildingos -d buildingos"
-check "TimescaleDB extension" \
-  "docker exec building-os.postgres psql -U buildingos -d buildingos -tAc \
-   \"SELECT extname FROM pg_extension WHERE extname='timescaledb'\" | grep -q timescaledb"
 
 # ── OxiGraph ─────────────────────────────────────────────────────────────────
 echo
@@ -72,38 +91,62 @@ echo "[Keycloak]"
 check "health endpoint (8180/management)" "curl -sf http://localhost:8180/health/ready | grep -qi 'UP\|healthy'"
 check "realms endpoint (master)"          "curl -sf http://localhost:8080/realms/master | grep -q realm"
 
-# ── Prometheus ────────────────────────────────────────────────────────────────
+# ── Prometheus / Grafana / Loki / Tempo (--profile observability) ─────────────
+# Not part of the default `make local-up-oss` stack (CLAUDE.md A-7, cost
+# optimization) — only check these when the profile was actually started.
 echo
 echo "[Prometheus]"
-check "healthy (9090)"   "curl -sf http://localhost:9090/-/healthy"
-check "ready  (9090)"    "curl -sf http://localhost:9090/-/ready"
+if container_running "building-os.prometheus"; then
+  check "healthy (9090)"   "curl -sf http://localhost:9090/-/healthy"
+  check "ready  (9090)"    "curl -sf http://localhost:9090/-/ready"
+else
+  skip "Prometheus checks" "building-os.prometheus not running — needs --profile observability"
+fi
 
-# ── Grafana ───────────────────────────────────────────────────────────────────
 echo
 echo "[Grafana]"
-check "health (3010)"    "curl -sf http://localhost:3010/api/health"
+if container_running "building-os.grafana"; then
+  check "health (3010)"    "curl -sf http://localhost:3010/api/health"
+else
+  skip "Grafana health check" "building-os.grafana not running — needs --profile observability"
+fi
 
-# ── Loki ──────────────────────────────────────────────────────────────────────
 echo
 echo "[Loki]"
-check "ready (3100)"     "curl -sf http://localhost:3100/ready"
+if container_running "building-os.loki"; then
+  check "ready (3100)"     "curl -sf http://localhost:3100/ready"
+else
+  skip "Loki ready check" "building-os.loki not running — needs --profile observability"
+fi
 
-# ── Tempo ─────────────────────────────────────────────────────────────────────
 echo
 echo "[Tempo]"
-check "ready (3200)"         "curl -sf http://localhost:3200/ready"
-check "OTLP gRPC port (4317)" "nc -z localhost 4317"
-check "OTLP HTTP port (4318)" "nc -z localhost 4318"
+if container_running "building-os.tempo"; then
+  check "ready (3200)"         "curl -sf http://localhost:3200/ready"
+  check "OTLP gRPC port (4317)" "nc -z localhost 4317"
+  check "OTLP HTTP port (4318)" "nc -z localhost 4318"
+else
+  skip "Tempo checks" "building-os.tempo not running — needs --profile observability"
+fi
 
-# ── Mosquitto (MQTT) ──────────────────────────────────────────────────────────
+# ── Mosquitto (MQTT, --profile mqtt) ───────────────────────────────────────────
+# Not part of the default stack either (#25) — Scenario A (Mosquitto) is opt-in.
 echo
 echo "[Mosquitto MQTT]"
-check "MQTT port (1883)"  "nc -z localhost 1883"
+if container_running "building-os.mosquitto"; then
+  check "MQTT port (1883)"  "nc -z localhost 1883"
+else
+  skip "Mosquitto MQTT port check" "building-os.mosquitto not running — needs --profile mqtt"
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo
 echo "========================================"
-echo "  PASS: $PASS   FAIL: $FAIL"
+echo "  PASS: $PASS   FAIL: $FAIL   SKIP: $SKIP"
+if (( SKIP > 0 )); then
+  echo "  Skipped (profile not started):"
+  for s in "${SKIPPED[@]}"; do echo "    - $s"; done
+fi
 if (( FAIL > 0 )); then
   echo "  Failed checks:"
   for e in "${ERRORS[@]}"; do echo "    - $e"; done
