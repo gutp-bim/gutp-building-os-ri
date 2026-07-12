@@ -1,19 +1,21 @@
 @import "tailwindcss";
 
+/*
+ * The app is light-theme only for now (#118): components carry no `dark:`
+ * variants, so the previous prefers-color-scheme block inverted only the body
+ * and left gray text unreadable on a near-black background. `color-scheme:
+ * light` also stops the UA from dark-styling native form controls. A future
+ * full dark theme should wire real design tokens (`.dark` class strategy)
+ * across every component instead of reintroducing a body-only flip.
+ */
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }

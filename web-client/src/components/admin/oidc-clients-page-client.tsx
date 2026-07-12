@@ -153,13 +153,14 @@ export function OidcClientsPageClient() {
       </div>
 
       {clients === null ? (
-        error ? null : <p className="text-gray-500">読み込み中…</p>
+        error ? null : <p className="text-gray-600">読み込み中…</p>
       ) : clients.length === 0 ? (
-        <p className="text-gray-500" data-testid="oidc-empty">クライアントがありません</p>
+        <p className="text-gray-600" data-testid="oidc-empty">クライアントがありません</p>
       ) : (
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm" data-testid="oidc-table">
           <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
+            <tr className="border-b border-gray-200 text-gray-700">
               <th className="px-3 py-2 font-medium">clientId</th>
               <th className="px-3 py-2 font-medium">種別</th>
               <th className="px-3 py-2 font-medium">状態</th>
@@ -213,6 +214,7 @@ export function OidcClientsPageClient() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

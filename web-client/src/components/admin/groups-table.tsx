@@ -6,15 +6,16 @@ import type { AdminGroup } from "@/lib/admin/types";
 export function GroupsTable({ groups }: { groups: AdminGroup[] }) {
   if (groups.length === 0) {
     return (
-      <p className="text-gray-500" data-testid="groups-empty">
+      <p className="text-gray-600" data-testid="groups-empty">
         グループがありません
       </p>
     );
   }
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-left text-sm" data-testid="groups-table">
       <thead>
-        <tr className="border-b border-gray-200 text-gray-500">
+        <tr className="border-b border-gray-200 text-gray-700">
           <th className="px-3 py-2 font-medium">名前</th>
           <th className="px-3 py-2 font-medium">ID</th>
           <th className="px-3 py-2 font-medium">説明</th>
@@ -33,12 +34,15 @@ export function GroupsTable({ groups }: { groups: AdminGroup[] }) {
                 <span>{g.name || "—"}</span>
               )}
             </td>
-            <td className="px-3 py-2 font-mono text-xs text-gray-600">{g.id || "—"}</td>
+            <td className="px-3 py-2 font-mono text-xs text-gray-700">
+              <span className="block max-w-[16rem] truncate" title={g.id || undefined}>{g.id || "—"}</span>
+            </td>
             <td className="px-3 py-2 text-gray-600">{g.description || "—"}</td>
             <td className="px-3 py-2 text-gray-600">{formatDate(g.createdAt)}</td>
           </tr>
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

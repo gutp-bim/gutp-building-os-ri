@@ -96,7 +96,7 @@ export function TwinAdminPageClient() {
             実行
           </button>
           {result && (
-            <span className="text-xs text-gray-500" data-testid="query-meta">
+            <span className="text-xs text-gray-600" data-testid="query-meta">
               {result.rowCount} 行 / {result.elapsedMs} ms{result.truncated ? "（上限で切り詰め）" : ""}
             </span>
           )}
@@ -106,7 +106,7 @@ export function TwinAdminPageClient() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-xs" data-testid="query-result">
               <thead>
-                <tr className="border-b border-gray-200 text-gray-500">
+                <tr className="border-b border-gray-200 text-gray-700">
                   {result.columns.map((col) => (
                     <th key={col} className="px-2 py-1 font-medium">{col}</th>
                   ))}
@@ -129,7 +129,7 @@ export function TwinAdminPageClient() {
       {/* Import */}
       <section data-testid="twin-import">
         <h2 className="mb-2 text-lg font-semibold">RDF / pointlist 取込</h2>
-        <p className="mb-2 text-sm text-gray-500">
+        <p className="mb-2 text-sm text-gray-600">
           TTL を貼り付けるかアップロードし、プレビューで件数と gateway_id 一意性を確認してから適用します。
           全置換は破壊的操作です。
         </p>
