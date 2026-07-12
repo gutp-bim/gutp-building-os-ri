@@ -376,6 +376,9 @@ services:
       OTEL_METRIC_EXPORT_INTERVAL: "15000"
       # nexus-gateway (gw-001) の制御を GatewayBridge 経由にルーティング (#178)
       GatewayConnectionTypes__Map__gw-001: "bacnet-sim"
+      # SoS デモ(#124 で既定シードした twin.ttl の gateway_id)向けの制御 binding (#81)。
+      # gw-001 のエントリとキーが異なるため共存可能 — 辞書全体を読むだけの単純なマップ。
+      GatewayConnectionTypes__Map__GW-SOS-001: "bacnet-sim"
       # Dev サンプルツイン(#124)。空文字を渡せば起動時シードを無効化できる。起動のたびに
       # デフォルトグラフを全置換するため、/admin/twin 経由の手動編集は再起動で失われる —
       # dev quickstart として意図的な挙動(docs/getting-started.md に明記)。
