@@ -20,8 +20,8 @@ Next.js、TypeScript、Tailwind CSS を使用したモダンな Web クライア
 
 ### 認証
 
-- **MSAL (Microsoft Authentication Library)**: Azure AD 認証
-- **@azure/msal-react**: React 統合
+- **Keycloak**: OIDC 認証(realm `building-os`)
+- **oidc-client-ts**: ブラウザ側 OIDC クライアント(`UserManager`)
 
 ### API 通信
 
@@ -81,10 +81,10 @@ yarn install
 # API エンドポイント
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 
-# Azure AD 認証
-NEXT_PUBLIC_AZURE_CLIENT_ID=your-client-id
-NEXT_PUBLIC_AZURE_TENANT_ID=your-tenant-id
-NEXT_PUBLIC_MSAL_TOKEN_SCOPE=api://your-api-scope/.default
+# Keycloak (OIDC) 認証 — docker-compose.oss.yaml の building-os.keycloak が
+# ホストポート 8080 に公開する(realm: building-os, client: web-client)
+NEXT_PUBLIC_KEYCLOAK_AUTHORITY=http://localhost:8080/realms/building-os
+NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=web-client
 ```
 
 ### 開発サーバーの起動
@@ -138,7 +138,7 @@ graph LR
     A[/ Root] --> B{認証済み?}
     B -->|No| C[/sign-in]
     B -->|Yes| D[/buildings]
-    C --> E[Azure AD Login]
+    C --> E[Keycloak Login]
     E --> D
 ```
 
@@ -156,15 +156,15 @@ graph LR
 ```mermaid
 graph LR
     A[Web Client] --> B[API Server]
-    B --> C[CosmosDB]
-    B --> D[Digital Twins]
-    A --> E[MSAL]
-    E --> F[Azure AD]
+    B --> C[PostgreSQL]
+    B --> D[OxiGraph Digital Twin]
+    A --> E[oidc-client-ts]
+    E --> F[Keycloak]
 ```
 
 ### 状態管理
 
-- **認証状態**: MSAL Context
+- **認証状態**: `AuthProvider` (`src/lib/auth/auth-context.tsx`, oidc-client-ts の `UserManager` をラップ)
 - **API データ**: Server Components + Client Hooks
 - **ローカル状態**: React State / Context API
 - **フォーム**: React Hook Form
@@ -223,27 +223,29 @@ CMD ["node", "server.js"]
 
 ## 🔒 認証
 
-### MSAL 設定
+### OIDC 設定
 
-Azure AD 認証は MSAL (Microsoft Authentication Library) で実装されています。
+Keycloak 認証は [`oidc-client-ts`](https://github.com/authts/oidc-client-ts) の `UserManager` で実装されています。
 
 ```typescript
-// lib/auth/msal-config.ts
-export const msalConfig = {
-  auth: {
-    clientId: process.env.NEXT_PUBLIC_AZURE_CLIENT_ID!,
-    authority: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_AZURE_TENANT_ID}`,
-    redirectUri: window.location.origin,
-  },
-};
+// src/lib/auth/oidc-config.ts
+export function createOidcUserManager(): UserManager {
+  return new UserManager({
+    authority: process.env.NEXT_PUBLIC_KEYCLOAK_AUTHORITY ?? "",
+    client_id: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? "",
+    redirect_uri: `${window.location.origin}/auth/oidc-callback`,
+    post_logout_redirect_uri: window.location.origin,
+    scope: "openid profile email building-os-api",
+  });
+}
 ```
 
 ### 認証フロー
 
 1. ユーザーが保護されたページにアクセス
 2. 未認証の場合、`/sign-in` へリダイレクト
-3. Azure AD でログイン
-4. トークン取得後、元のページへリダイレクト
+3. Keycloak でログイン
+4. `/auth/oidc-callback` でトークン取得後、元のページへリダイレクト(アクセストークンは `oidc.access_token` Cookie に保持)
 
 ## 📡 API 通信
 
@@ -310,7 +312,8 @@ Tailwind CSS v4 を使用しており、`postcss.config.mjs` で `@tailwindcss/p
 - [React ドキュメント](https://react.dev/)
 - [Tailwind CSS ドキュメント](https://tailwindcss.com/docs)
 - [Radix UI ドキュメント](https://www.radix-ui.com/docs/primitives/overview/introduction)
-- [MSAL.js ドキュメント](https://github.com/AzureAD/microsoft-authentication-library-for-js)
+- [oidc-client-ts ドキュメント](https://github.com/authts/oidc-client-ts)
+- [Keycloak ドキュメント](https://www.keycloak.org/documentation)
 
 ## 🤝 コントリビューション
 
