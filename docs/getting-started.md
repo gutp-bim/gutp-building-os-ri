@@ -117,7 +117,12 @@ yarn install && yarn dev
 > そのため `dotnet run` は 8.0.x SDK が必要で、10.x SDK のみでは起動できません。
 
 ローカル開発では API Server を `DISABLE_AUTH=true`（compose の API も同様）で動かせるため、
-Keycloak トークンなしで叩けます（本番は OIDC/JWT 必須）。
+Keycloak トークンなしで叩けます(本番は OIDC/JWT 必須)。**`DISABLE_AUTH` は API Server 自身の
+チェックのみに効き、Web Client(`http://localhost:3000`)は引き続き実際の Keycloak ログイン
+画面にリダイレクトします。** 既定の dev realm(`oss-stack/keycloak/realm.json`)には
+`admin`/`admin`(全操作可)と `testoperator`/`testpass`(読取 + 制御)の2アカウントが
+自動投入済みです — 詳細は [docs/keycloak-user-management.md](keycloak-user-management.md)。
+**ラボ/CI 専用の既定資格情報です — 本番前に必ず変更してください。**
 
 ---
 

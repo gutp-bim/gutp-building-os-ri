@@ -67,4 +67,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     ],
     relatedTerms: ["鮮度切れ閾値"],
   },
+  {
+    key: "admin.gateways",
+    title: "ゲートウェイ",
+    body: [
+      "binding / 接続設定と pointlist 同期状態の観測画面です。binding や twin 上のポイント登録は GitOps / デジタルツインが正本のため、この画面自体に作成・登録操作はありません。",
+      "新しいゲートウェイをオンボードする手順(twin へのポイント登録・制御 binding・ingress/egress ポート・pointlist 同期)は docs/gateway-onboarding-checklist.md に集約されています。",
+    ],
+    relatedTerms: [],
+  },
 ];
