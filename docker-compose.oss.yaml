@@ -358,13 +358,17 @@ services:
       # Prometheus query API for KPIs — unset → KPIs degrade to null (Grafana not required).
       PROMETHEUS_URL: http://building-os.prometheus:9090
       # Per-service up/down via /health fan-out (Prometheus-independent). "name=healthUrl" CSV.
-      # Worker /health endpoints are added in #145 (B-2); for now probe the core dependencies.
+      # ConnectorWorker's /health/ready was added by #145 and is wired here (#127). GatewayBridge has
+      # no HTTP health surface yet (gRPC h2c only) — a follow-up, not included here. Prometheus is
+      # intentionally NOT in this default list: it's --profile observability only (A-7), so probing it
+      # here would always report "down" on the default stack. Running with --profile observability?
+      # Override this var yourself to add prometheus=http://building-os.prometheus:9090/-/healthy.
       SYSTEM_STATUS_HEALTH_TARGETS: >-
         nats=http://building-os.nats:8222/healthz,
         oxigraph=http://building-os.oxigraph:7878/,
         minio=http://building-os.minio:9000/minio/health/live,
         keycloak=http://building-os.keycloak:9000/health/ready,
-        prometheus=http://building-os.prometheus:9090/-/healthy
+        connector-worker=http://building-os.connector-worker:8081/health/ready
       # OpenTelemetry: export traces/metrics/logs to the collector (no-op if unset).
       OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
       OTEL_SERVICE_NAME: building-os-api
@@ -393,9 +397,9 @@ services:
       - oss
     # No Docker healthcheck: the runtime image is aspnet:8.0-noble-chiseled (A-5), which ships
     # neither a shell nor wget/curl, so a CMD-based probe isn't possible here. Nothing depends on
-    # this service's `service_healthy` condition (`make wait-oss-stack` already treats a container
-    # with no health status as OK), and the Helm/K8s deployment probes /health via kubelet's native
-    # httpGet (no exec, unaffected). Use `GET /health` manually or `docker compose logs` locally.
+    # this service's `service_healthy` condition, and the Helm/K8s deployment probes /health via
+    # kubelet's native httpGet (no exec, unaffected). `make wait-oss-stack` polls `GET /health`
+    # directly since #127 (host port 5000, already published below).
 
   # ── Web Client (Next.js) — オプトイン (`--profile webclient`) ───────────────
   # ダッシュボード + /admin + /resources + /admin/twin。最小構成を保つため既定スタックには含めず、
@@ -550,6 +554,9 @@ services:
       # this publishes it to the host on the same port). Default 5051 keeps a stable host port for the
       # E5 harness; with the listener disabled nothing accepts on it.
       - "${GRPC_INGRESS_PORT:-5051}:${GRPC_INGRESS_PORT:-5051}"
+      # HEALTH_PORT (#127) — published so `make wait-oss-stack` can poll /health/ready from the host
+      # (the chiseled runtime image has no shell/curl for an in-container Docker HEALTHCHECK).
+      - "8081:8081"
     depends_on:
       building-os.nats:
         condition: service_healthy
@@ -562,9 +569,9 @@ services:
       # would couple the base stack to a profiled service.
     # No Docker healthcheck: the runtime image is aspnet:8.0-noble-chiseled (A-5), which ships
     # neither a shell nor wget/curl, so a CMD-based probe isn't possible here. Nothing depends on
-    # this service's `service_healthy` condition (`make wait-oss-stack` already treats a container
-    # with no health status as OK). Readiness (NATS Open) is exposed over HTTP at /health/ready
-    # (system-status fan-out, #144) — check it manually. Note: the Helm connector-worker Deployment
+    # this service's `service_healthy` condition. Readiness (NATS Open) is exposed over HTTP at
+    # /health/ready — `make wait-oss-stack` polls it directly since #127 (port published above),
+    # and it also feeds the system-status fan-out (#144). Note: the Helm connector-worker Deployment
     # has no liveness/readiness probe at all yet (pre-existing gap, not introduced here).
     networks:
       - oss
