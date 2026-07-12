@@ -57,6 +57,17 @@ dotnet run --launch-profile WithLocal
 
 開発・本番ともに `BasicAuthenticationMiddleware` が Swagger / ReDoc パスの保護に使用されます。
 
+## 管理系 API と Swagger（#18）
+
+`/api/Users` / `/api/Groups` / `/api/Permissions` などの管理系エンドポイントは現状
+Swagger / OpenAPI 定義の対象外で、web-client はこれらを Aspida 生成クライアントでは
+なく bespoke fetch（`web-client/src/lib/admin/http.ts`）で直接呼び出しています。
+管理系コントローラへの Swagger アノテーション付与 → OpenAPI 再生成 → Aspida 型生成
+→ bespoke fetch の置換、が follow-up です（#18 Phase 2 / #38）。
+
+なお匿名の `GET /health` は環境名（`ASPNETCORE_ENVIRONMENT`）を返さない仕様です
+（#18 Phase 1 で情報開示を解消。Status / Timestamp / Version のみ）。
+
 ## 今後の設計拡張（例）
 
 - ビジネスロジックが複雑化し、Controller が Fat化してきたタイミングで UseCase を作成し、Controller へ DI
