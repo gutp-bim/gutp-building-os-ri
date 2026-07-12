@@ -777,18 +777,34 @@ docker compose -f docker-compose.oss.yaml up -d --force-recreate --no-deps build
 ### D-2. gateway を Building OS に向けて起動
 
 同一マシン共存（Docker Compose）では、live-bos オーバーレイを使うのが最短です。
+**このオーバーレイだけでは足りません**(#81) — nexus-gateway の既定 namespace
+(`GATEWAY_ID=gw-001`、点 `supply_air_temp`/`fan_run`)は、Building OS の既定 OSS スタックが
+自動 seed する SoS twin(`GATEWAY_ID=GW-SOS-001`、点 `SOS-PT-001..008`、#124)と一致しません。
+一致しないまま起動すると、全フレームが unknown-point としてスキップされます。
+`docker-compose.sos-demo.yml` オーバーレイも重ねて、nexus-gateway 側を SoS namespace に
+揃えてください:
 
 ```bash
 cd nexus-gateway
-docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.live-bos.yml \
+  -f docker-compose.sos-demo.yml up --build
 ```
 
 - `mock-bos` も一緒に起動しますが(override から `depends_on` は外せません)、
   gateway の接続先は下記のとおり切り替わるので未使用のまま放置して構いません。
 - gateway の上り/下り接続先は `host.docker.internal:5051/5052` を想定します。
-- `docker compose -f docker-compose.yml -f docker-compose.live-bos.yml config` で
-  gateway の `BOS_INGRESS_ADDR`/`BOS_EGRESS_ADDR` が `host.docker.internal:5051`/
-  `:5052` になっていることを事前確認できます。
+- `docker-compose.sos-demo.yml` は `GATEWAY_ID=GW-SOS-001` を設定し、既定の sim コネクタを
+  無効化し、`PROVISIONING_FILE` をこのリポジトリの `fixtures/e2e/pointlist.csv`(sibling
+  checkout を bind mount)に向けます — 新しい fixture ファイルは不要です。
+- `docker compose -f docker-compose.yml -f docker-compose.live-bos.yml -f docker-compose.sos-demo.yml config`
+  で gateway の `GATEWAY_ID`/`BOS_INGRESS_ADDR`/`BOS_EGRESS_ADDR`/`PROVISIONING_FILE` が
+  意図通りマージされていることを事前確認できます。
+- `GET /gateways/{id}/pointlist` による twin 駆動の同期は、認証を要求します
+  (`GatewayProvisioningController`: admin または `X-Gateway-Id` trusted header 一致)。
+  nexus-gateway の provisioning クライアントはこのヘッダを送らないため、**ローカルデモでは
+  Building OS 側の既定 `DISABLE_AUTH=true` により偶然成立しています**(twin 変更が
+  `PROVISIONING_FILE` のスナップショットへ反映されるには手動再取得が必要な点に注意)。
+  本番では [Step F](#step-f--証明書と-mtls本番寄り) の mTLS 経由 trusted header が必要です。
 
 ホスト実行(`go run`)で直接つなぐ場合は従来どおり次の手順です。**ingress と egress は
 別ポート**なので両方指定してください — `BOS_ADDR` 単体では egress が ingress 側の
