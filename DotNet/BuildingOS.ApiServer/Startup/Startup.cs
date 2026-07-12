@@ -410,11 +410,13 @@ namespace BuildingOs.ApiServer
 
                 endpoints.MapGet(HealthPath, async context =>
                 {
+                    // Environment name is deliberately not exposed here: /health is
+                    // anonymous and leaking Production/Staging is a minor information
+                    // disclosure (#18 Phase 1).
                     var healthData = new
                     {
                         Status = "Healthy",
                         Timestamp = DateTime.UtcNow,
-                        Environment = env.EnvironmentName,
                         Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0"
                     };
                     context.Response.ContentType = "application/json";
