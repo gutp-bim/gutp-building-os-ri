@@ -244,6 +244,10 @@ header (`IGatewayIdentityResolver`, default `X-Gateway-Id`); the endpoint requir
 oneof); the gateway revalidates via ETag (push is an optimization, ETag polling is the reliability
 backstop).
 
+> **Onboarding a new gateway (#127):** the steps above (twin seed, control binding, ingress/egress
+> ports, point-list polling) are consolidated into one checklist:
+> `docs/gateway-onboarding-checklist.md`.
+
 ### Device Control Flow
 
 `ControlTypeResolver` resolves the egress ControlType + Body from the point's gateway **binding type**

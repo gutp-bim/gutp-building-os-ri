@@ -41,6 +41,11 @@ local-up-dual: local-up-azure local-up-oss
 local-down-all: local-down-azure local-down-oss
 
 # ── テスト ───────────────────────────────────────────────────────────────────
+# (#127) 2 段階: ①Docker Health 宣言サービス(nats/postgres/oxigraph/minio/keycloak 等)の
+# 待機、②HTTP readiness(api/connector-worker — chiseled image のため Docker HEALTHCHECK 自体が
+# 宣言できず ①は「Health 未宣言 = 健全扱い」で見逃す)。どちらのフェーズもタイムアウトで
+# exit 1 する(以前は両分岐とも echo で終わり、常に exit 0 になっていたバグの修正)。
+# GatewayBridge は HTTP health 自体が未実装のため対象外(#127 の既知の残課題)。
 wait-oss-stack:
 	@echo "Waiting for OSS stack to be healthy (max 120s)..."
 	@timeout 120 bash -c '\
@@ -50,8 +55,14 @@ wait-oss-stack:
 		    unhealthy=[s[\"Name\"] for s in services if s.get(\"Health\") not in (\"healthy\",\"\")]; \
 		    exit(1 if unhealthy else 0)" 2>/dev/null; \
 		do sleep 3; done' \
-	  && echo "OSS stack is healthy!" \
-	  || echo "Timed out waiting for OSS stack"
+	  || { echo "Timed out waiting for OSS stack (Docker Health)"; exit 1; }
+	@echo "Waiting for application readiness (API /health, ConnectorWorker /health/ready, max 60s)..."
+	@timeout 60 bash -c '\
+		until curl -sf http://localhost:5000/health >/dev/null 2>&1 \
+		   && curl -sf http://localhost:8081/health/ready >/dev/null 2>&1; \
+		do sleep 3; done' \
+	  || { echo "Timed out waiting for application readiness — API or ConnectorWorker may be crash-looping"; exit 1; }
+	@echo "OSS stack is healthy!"
 
 test-oss-stack:
 	@bash scripts/test-oss-stack.sh
