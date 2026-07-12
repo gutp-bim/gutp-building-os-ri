@@ -1,3 +1,8 @@
+# NOTE on image tags (#9): the buildingos/* app images below default to `latest`
+# only as a chart-standalone placeholder — real deployments pin them per commit
+# via argocd-image-update (argocd/values/*.yaml), so they are never floating in
+# practice. Third-party images in docker-compose.oss.yaml are version-pinned.
+
 # Global settings
 global:
   imageRegistry: ""
