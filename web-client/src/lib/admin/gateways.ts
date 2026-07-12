@@ -1,4 +1,5 @@
-import { API_BASE_URL, authHeaders, mutationError } from "./http";
+import { apiClient } from "@/lib/infra/aspida-client";
+import { mutationError, requestError } from "./api-error";
 
 /** Admin view of one gateway (`GET /api/admin/gateways`). Secret settings are masked server-side (#323). */
 export interface GatewayAdminView {
@@ -32,17 +33,23 @@ export function shortRevision(revision: string): string {
 }
 
 export async function fetchGateways(signal?: AbortSignal): Promise<GatewayAdminView[]> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/gateways`, { headers: authHeaders(), signal });
-  if (!res.ok) throw new Error(`gateways request failed: ${res.status}`);
-  return (await res.json()) as GatewayAdminView[];
+  try {
+    return (await apiClient().api.admin.gateways.$get({
+      config: { signal },
+    })) as GatewayAdminView[];
+  } catch (e) {
+    throw requestError(e, "gateways request failed");
+  }
 }
 
 /** Trigger a point-list resync push to the gateway. Returns the new revision. */
 export async function resyncGatewayPointList(id: string): Promise<string> {
-  const res = await fetch(
-    `${API_BASE_URL}/api/admin/gateways/${encodeURIComponent(id)}/resync-pointlist`,
-    { method: "POST", headers: authHeaders(true) },
-  );
-  if (!res.ok) throw await mutationError(res, "pointlist の再同期に失敗しました");
-  return ((await res.json()) as { revision: string }).revision;
+  try {
+    // Swagger documents the 202 without a body, so the generated method is typed void — the server
+    // does return `{ revision }` (see GatewayAdminController); read it from the raw response.
+    const res = await apiClient().api.admin.gateways._id(encodeURIComponent(id)).resync_pointlist.post();
+    return (res.body as unknown as { revision: string }).revision;
+  } catch (e) {
+    throw mutationError(e, "pointlist の再同期に失敗しました");
+  }
 }

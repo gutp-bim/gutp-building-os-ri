@@ -1,6 +1,11 @@
 import Cookies from "js-cookie";
 
-/** Shared base URL + auth/error helpers for the admin bespoke-fetch clients (#143). */
+/**
+ * Base URL + auth/error helpers for the remaining bespoke-fetch callers (#143). The admin API
+ * modules in this directory now use the generated aspida client (#38, see `api-error.ts` for their
+ * error translation); the only consumer left is the resource-metadata write path in
+ * `src/lib/resources/repository.ts`.
+ */
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
