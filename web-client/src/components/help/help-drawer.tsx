@@ -27,7 +27,7 @@ export function HelpDrawer({
       />
       <aside className="flex w-full max-w-md flex-col overflow-auto bg-white p-5 shadow-xl">
         {entry === null ? (
-          <p className="text-sm text-gray-500" data-testid="help-missing">
+          <p className="text-sm text-gray-600" data-testid="help-missing">
             この画面のヘルプはまだありません。
           </p>
         ) : (

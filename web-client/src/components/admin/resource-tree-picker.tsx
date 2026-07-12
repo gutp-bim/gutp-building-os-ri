@@ -71,9 +71,9 @@ export function ResourceTreePicker({
               階層の取得に失敗しました: {error}
             </p>
           ) : roots === null ? (
-            <p className="text-sm text-gray-500">読み込み中…</p>
+            <p className="text-sm text-gray-600">読み込み中…</p>
           ) : roots.length === 0 ? (
-            <p className="text-sm text-gray-500" data-testid="tree-empty">
+            <p className="text-sm text-gray-600" data-testid="tree-empty">
               建物がありません
             </p>
           ) : (
@@ -172,7 +172,7 @@ function TreeNode({
           ) : children === null ? (
             !loading && null
           ) : children.length === 0 ? (
-            <p className="ml-3 py-1 text-xs text-gray-500">子要素がありません</p>
+            <p className="ml-3 py-1 text-xs text-gray-600">子要素がありません</p>
           ) : (
             <ul>
               {children.map((child) => (

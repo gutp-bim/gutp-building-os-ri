@@ -26,7 +26,7 @@ export function ResourceDetail({
   if (!resource) {
     return (
       <div
-        className="flex h-full items-center justify-center text-sm text-gray-500"
+        className="flex h-full items-center justify-center text-sm text-gray-600"
         data-testid="detail-empty"
       >
         左のツリーから選択するか、検索してください。
@@ -62,7 +62,7 @@ export function ResourceDetail({
           {resource.id}
         </dd>
         <dt className="font-semibold text-gray-600">dtId</dt>
-        <dd className="truncate text-gray-500" title={resource.dtId} data-testid="dtid">
+        <dd className="truncate text-gray-600" title={resource.dtId} data-testid="dtid">
           {decodeDtIdForDisplay(resource.dtId)}
         </dd>
       </dl>
@@ -85,7 +85,7 @@ export function ResourceDetail({
 
           {Object.keys(metadata.identifiers).length > 0 && (
             <div className="mb-2">
-              <p className="mb-1 text-xs font-medium text-gray-500">identifiers</p>
+              <p className="mb-1 text-xs font-medium text-gray-700">identifiers</p>
               <dl className="grid grid-cols-[8rem_1fr] gap-y-1 text-xs">
                 {Object.entries(metadata.identifiers).map(([k, v]) => (
                   <>
@@ -99,7 +99,7 @@ export function ResourceDetail({
 
           {Object.keys(metadata.customTags).length > 0 && (
             <div>
-              <p className="mb-1 text-xs font-medium text-gray-500">customTags</p>
+              <p className="mb-1 text-xs font-medium text-gray-700">customTags</p>
               <dl className="grid grid-cols-[8rem_1fr] gap-y-1 text-xs">
                 {Object.entries(metadata.customTags).map(([k, v]) => (
                   <>

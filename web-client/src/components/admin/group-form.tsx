@@ -67,7 +67,7 @@ export function GroupForm({
           placeholder="hvac-team"
         />
         {mode === "create" && (
-          <p className="mt-1 text-xs text-gray-500">英数字とハイフンのみ使用できます</p>
+          <p className="mt-1 text-xs text-gray-600">英数字とハイフンのみ使用できます</p>
         )}
       </div>
       <div>

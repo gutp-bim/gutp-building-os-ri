@@ -17,7 +17,7 @@ export function UserDetailView({ user }: { user: AdminUser }) {
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
-      <dt className="text-sm text-gray-500">{label}</dt>
+      <dt className="text-sm text-gray-600">{label}</dt>
       <dd className="font-medium">{value || "—"}</dd>
     </div>
   );

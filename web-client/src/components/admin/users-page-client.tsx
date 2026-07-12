@@ -57,7 +57,7 @@ export function UsersPageClient() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="mb-1 text-2xl font-bold">ユーザー＆ロール</h1>
-      <p className="mb-4 text-sm text-gray-500" data-testid="keycloak-notice">
+      <p className="mb-4 text-sm text-gray-600" data-testid="keycloak-notice">
         新規ユーザーの作成・パスワード・MFA は Keycloak で行います。ここではロール割当・権限・有効/無効を管理します。
       </p>
 
@@ -66,7 +66,7 @@ export function UsersPageClient() {
           ユーザーの取得に失敗しました: {error}
         </p>
       ) : users === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        <p className="text-gray-600">読み込み中…</p>
       ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3" data-testid="user-filters">
@@ -101,7 +101,7 @@ export function UsersPageClient() {
               <option value="enabled">有効のみ</option>
               <option value="disabled">無効のみ</option>
             </select>
-            <span className="text-xs text-gray-500" data-testid="filter-count">
+            <span className="text-xs text-gray-600" data-testid="filter-count">
               {filtered.length} / {users.length} 件
             </span>
           </div>

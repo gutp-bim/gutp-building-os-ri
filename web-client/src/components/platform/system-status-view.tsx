@@ -29,7 +29,7 @@ export function SystemStatusView({
           <HelpButton helpKey="platform.status" />
         </div>
         {updatedAt ? (
-          <span className="text-sm text-gray-500" data-testid="updated-at">
+          <span className="text-sm text-gray-600" data-testid="updated-at">
             最終更新: {updatedAt.toLocaleTimeString()}
           </span>
         ) : null}
@@ -107,7 +107,7 @@ function KpiCard({
 }) {
   return (
     <div className="rounded border border-gray-200 px-4 py-3" data-testid={testId}>
-      <div className="text-sm text-gray-500">{label}</div>
+      <div className="text-sm text-gray-600">{label}</div>
       <div className="text-2xl font-bold">{value}</div>
     </div>
   );

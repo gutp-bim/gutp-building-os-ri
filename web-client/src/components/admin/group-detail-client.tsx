@@ -140,7 +140,7 @@ export function GroupDetailClient({ id }: { id: string }) {
           グループの取得に失敗しました: {error}
         </p>
       ) : group === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        <p className="text-gray-600">読み込み中…</p>
       ) : editing ? (
         <>
           <GroupForm
@@ -156,7 +156,7 @@ export function GroupDetailClient({ id }: { id: string }) {
               setEditing(false);
               setMutationError(null);
             }}
-            className="mt-2 text-sm text-gray-500 hover:underline"
+            className="mt-2 text-sm text-gray-600 hover:underline"
           >
             キャンセル
           </button>

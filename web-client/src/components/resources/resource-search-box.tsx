@@ -144,12 +144,12 @@ export function ResourceSearchBox({
         )}
       </div>
 
-      {loading && <p className="mt-2 text-xs text-gray-500">検索中…</p>}
+      {loading && <p className="mt-2 text-xs text-gray-600">検索中…</p>}
       {error && (
         <p className="mt-2 text-xs text-red-600">検索に失敗しました: {error}</p>
       )}
       {hits !== null && !loading && hits.length === 0 && (
-        <p className="mt-2 text-xs text-gray-500" data-testid="search-empty">
+        <p className="mt-2 text-xs text-gray-600" data-testid="search-empty">
           該当なし
         </p>
       )}

@@ -34,7 +34,7 @@ export function EffectiveConfigClient() {
         <h1 className="text-2xl font-bold">設定（実効値）</h1>
         <HelpButton helpKey="platform.config" />
       </div>
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-4 text-sm text-gray-600">
         読み取り専用です。設定の source of truth は IaC / ArgoCD で、シークレットは値を表示しません。
       </p>
       {error ? (
@@ -42,7 +42,7 @@ export function EffectiveConfigClient() {
           設定の取得に失敗しました: {error}
         </p>
       ) : config === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        <p className="text-gray-600">読み込み中…</p>
       ) : (
         <EffectiveConfigView entries={config.entries} />
       )}

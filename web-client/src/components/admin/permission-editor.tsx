@@ -98,12 +98,12 @@ export function PermissionEditor({
                         </span>
                       );
                     })()}
-                    <span className="text-gray-500">
+                    <span className="text-gray-600">
                       {parsed.actions.map(actionLabel).join(" / ")}
                     </span>
                   </>
                 ) : (
-                  <span className="text-gray-500">{perm}</span>
+                  <span className="text-gray-600">{perm}</span>
                 )}
                 <button
                   type="button"

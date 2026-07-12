@@ -89,7 +89,7 @@ export function OidcAuthProvider({
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">認証を初期化中...</p>
+        <p className="text-gray-600">認証を初期化中...</p>
       </div>
     );
   }

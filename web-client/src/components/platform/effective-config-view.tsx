@@ -8,7 +8,7 @@ import type { ConfigEntry } from "@/lib/system-config/types";
 export function EffectiveConfigView({ entries }: { entries: ConfigEntry[] }) {
   if (entries.length === 0) {
     return (
-      <p className="text-gray-500" data-testid="config-empty">
+      <p className="text-gray-600" data-testid="config-empty">
         設定がありません
       </p>
     );
@@ -16,7 +16,7 @@ export function EffectiveConfigView({ entries }: { entries: ConfigEntry[] }) {
   return (
     <table className="w-full text-left text-sm" data-testid="config-table">
       <thead>
-        <tr className="border-b border-gray-200 text-gray-500">
+        <tr className="border-b border-gray-200 text-gray-700">
           <th className="px-3 py-2 font-medium">キー</th>
           <th className="px-3 py-2 font-medium">実効値</th>
           <th className="px-3 py-2 font-medium">種別</th>
@@ -26,7 +26,7 @@ export function EffectiveConfigView({ entries }: { entries: ConfigEntry[] }) {
         {entries.map((entry) => (
           <tr key={entry.key} className="border-b border-gray-100" data-testid={`config-row-${entry.key}`}>
             <td className="px-3 py-2 font-mono text-xs">{entry.key}</td>
-            <td className={`px-3 py-2 ${isUnset(entry) ? "text-gray-500" : "text-gray-800"}`}>
+            <td className={`px-3 py-2 ${isUnset(entry) ? "text-gray-600" : "text-gray-800"}`}>
               {configValueDisplay(entry)}
             </td>
             <td className="px-3 py-2">
@@ -35,7 +35,7 @@ export function EffectiveConfigView({ entries }: { entries: ConfigEntry[] }) {
                   シークレット
                 </span>
               ) : (
-                <span className="text-xs text-gray-500">—</span>
+                <span className="text-xs text-gray-600">—</span>
               )}
             </td>
           </tr>

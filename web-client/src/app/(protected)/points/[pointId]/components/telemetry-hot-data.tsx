@@ -50,7 +50,7 @@ export function TelemetryHotData({
           </div>
           <div className="text-center">
             <div className="text-4xl font-bold mb-2">{displayHotData}</div>
-            <div className="text-gray-500">
+            <div className="text-gray-600">
               {hotData?.datetime &&
                 new Date(hotData.datetime).toLocaleString("ja-JP")}
             </div>

@@ -37,7 +37,7 @@ export function TourStepView({
           <button
             type="button"
             onClick={onSkip}
-            className="text-sm text-gray-500 hover:underline"
+            className="text-sm text-gray-600 hover:underline"
           >
             スキップ
           </button>
