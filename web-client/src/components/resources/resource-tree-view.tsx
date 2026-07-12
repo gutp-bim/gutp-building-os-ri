@@ -9,8 +9,9 @@ import { useEffect, useRef, useState } from "react";
 
 /**
  * Left-pane resource browser over the digital-twin hierarchy (building→…→point). Lazily loads each
- * level on expand, highlights the selected node, and notifies the parent via `onSelect`. Loaders are
- * injectable for tests; the page wires {@link defaultTreeLoaders}.
+ * level on expand, highlights the selected node, and notifies the parent via `onSelect`. The first
+ * root auto-expands, and with exactly one building and no prior selection it auto-selects too (#135).
+ * Loaders are injectable for tests; the page wires {@link defaultTreeLoaders}.
  */
 export function ResourceTreeView({
   loaders,
@@ -27,6 +28,7 @@ export function ResourceTreeView({
   const [roots, setRoots] = useState<ResourceRef[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
+  const autoSelectedOnce = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -44,6 +46,20 @@ export function ResourceTreeView({
       controller.abort();
     };
   }, [loaders]);
+
+  // First-login "aha" (#135): with exactly one building and nothing selected yet, jump straight to
+  // it instead of leaving the operator looking at an empty detail pane until they click.
+  useEffect(() => {
+    if (
+      roots &&
+      roots.length === 1 &&
+      !selectedKey &&
+      !autoSelectedOnce.current
+    ) {
+      autoSelectedOnce.current = true;
+      onSelect(roots[0]);
+    }
+  }, [roots, selectedKey, onSelect]);
 
   if (error) {
     return (
@@ -64,7 +80,7 @@ export function ResourceTreeView({
 
   return (
     <ul>
-      {roots.map((node) => (
+      {roots.map((node, index) => (
         <TreeNode
           key={refKey(node)}
           node={node}
@@ -72,7 +88,9 @@ export function ResourceTreeView({
           onSelect={onSelect}
           selectedKey={selectedKey}
           defaultExpanded={
-            node.type === "building" && node.dtId === autoExpandBuildingDtId
+            autoExpandBuildingDtId
+              ? node.type === "building" && node.dtId === autoExpandBuildingDtId
+              : index === 0
           }
         />
       ))}
