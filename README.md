@@ -144,6 +144,12 @@ yarn dev
 # → http://localhost:3000
 ```
 
+`http://localhost:3000` は Keycloak ログイン画面にリダイレクトされます。既定の dev realm
+(`oss-stack/keycloak/realm.json`)には `admin`/`admin`（全操作可）と
+`testoperator`/`testpass`（読取 + 制御)の2アカウントが自動投入済みです。詳細・追加ユーザー作成は
+[docs/keycloak-user-management.md](docs/keycloak-user-management.md)。**ラボ/CI 専用の既定資格情報
+です — 本番前に必ず変更してください。**
+
 ### 3.1 MQTT を外部ブローカー（例: localhost:11883）から取り込む
 
 ホスト上で既に MQTT ブローカーが起動している場合は、ConnectorWorker をその接続先へ向けます。

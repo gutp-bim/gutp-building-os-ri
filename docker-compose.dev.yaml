@@ -1,12 +1,16 @@
 # Building OS — Dev プロファイル (ローカルデバイスシミュレーター)
 #
-# OSS スタック (make local-up-oss) が起動済みの状態で使用する。
-# Mosquitto は docker-compose.oss.yaml に含まれており、このファイルは
-# 仮想エッジデバイス (mqtt_edge_device.py) のみを追加起動する。
+# このファイルは仮想エッジデバイス (mqtt_edge_device.py) のみを起動する。
+# Mosquitto は docker-compose.oss.yaml に含まれるが --profile mqtt 限定で、
+# make local-up-oss(プロファイルなし)には含まれない(#25)。`make local-up-dev`
+# が OSS スタックを `--profile mqtt` + `MQTT_HOST` 付きで(再)起動してから
+# このファイルを up するため、Mosquitto はそちらの手順で用意される —
+# このファイル単体を直接 `docker compose -f docker-compose.dev.yaml up -d`
+# するだけでは Mosquitto は起動しないので注意。
 #
 # 使い方:
-#   make local-up-oss        # OSS フルスタック起動 (Mosquitto 含む)
-#   make local-up-dev        # デバイスシミュレーター追加起動
+#   make local-up-oss        # OSS フルスタック起動(Mosquitto は含まれない)
+#   make local-up-dev        # OSS スタックを --profile mqtt で再起動 + デバイスシミュレーター起動
 
 networks:
   oss:

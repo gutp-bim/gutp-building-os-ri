@@ -12,7 +12,10 @@
         "NATS_URL": "nats://localhost:4222",
         "POSTGRES_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
         "TIMESCALE_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
-        "OXIGRAPH_ENDPOINT": "http://localhost:7878"
+        "OXIGRAPH_ENDPOINT": "http://localhost:7878",
+        "MINIO_ENDPOINT": "http://localhost:9000",
+        "MINIO_ACCESS_KEY": "buildingos",
+        "MINIO_SECRET_KEY": "buildingos123"
       }
     },
     "WithLocalAuth": {
@@ -27,6 +30,9 @@
         "POSTGRES_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
         "TIMESCALE_CONNECTION_STRING": "Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos",
         "OXIGRAPH_ENDPOINT": "http://localhost:7878",
+        "MINIO_ENDPOINT": "http://localhost:9000",
+        "MINIO_ACCESS_KEY": "buildingos",
+        "MINIO_SECRET_KEY": "buildingos123",
         "KEYCLOAK_AUTHORITY": "http://localhost:8080/realms/building-os",
         "KEYCLOAK_CLIENT_ID": "building-os-api",
         "KEYCLOAK_REALM": "building-os",
