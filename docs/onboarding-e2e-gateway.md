@@ -547,24 +547,20 @@ docker compose ps        # 全サービスが ~60 秒で healthy になる
 
 > 同一マシンで Building OS（`localhost:5000/5051/5052`）と共存させる場合は、
 > `docker-compose.live-bos.yml` オーバーレイを併用してください。
-> このオーバーレイは `mock-bos` を無効化し、gateway の接続先を
-> `host.docker.internal:5051/5052` に向ける前提です。
+> このオーバーレイは gateway の接続先(ingress/egress)を
+> `host.docker.internal:5051/5052` に向けます。`mock-bos` も一緒に起動しますが
+> (Compose の仕様上、override ファイルからベースの `depends_on` エントリを
+> 削除できないため)、gateway はこちらを見なくなるので未使用のまま放置して
+> 問題ありません(ポートの衝突もありません)。
 
 ```bash
 cd nexus-gateway
 docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
 ```
 
-ポート競合時は `.env` でホスト公開ポートを上書きできます（ベース compose の環境変数化）。
-
-```env
-GATEWAY_HOST_PORT=18081
-ADMIN_UI_HOST_PORT=13001
-KEYCLOAK_HOST_PORT=18091
-NATS_HOST_PORT=14223
-NATS_MONITOR_HOST_PORT=18223
-MOCK_BOS_HOST_PORT=15052
-```
+ポートが競合する場合は、nexus-gateway の `docker-compose.yml` はホスト公開ポートを
+すべて固定値でハードコードしているため(`.env` での上書きには対応していません)、
+競合するポートの行を直接編集してください(例: `"18080:8080"` → `"18081:8080"`)。
 
 | エンドポイント | URL | 備考 |
 |---|---|---|
@@ -787,17 +783,23 @@ cd nexus-gateway
 docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
 ```
 
-- このモードでは `mock-bos` を起動しません（BOS 既存環境と競合しにくい構成）。
+- `mock-bos` も一緒に起動しますが(override から `depends_on` は外せません)、
+  gateway の接続先は下記のとおり切り替わるので未使用のまま放置して構いません。
 - gateway の上り/下り接続先は `host.docker.internal:5051/5052` を想定します。
 - `docker compose -f docker-compose.yml -f docker-compose.live-bos.yml config` で
-  `mock-bos` 依存が外れていることを事前確認できます。
+  gateway の `BOS_INGRESS_ADDR`/`BOS_EGRESS_ADDR` が `host.docker.internal:5051`/
+  `:5052` になっていることを事前確認できます。
 
-ホスト実行（`go run`）で直接つなぐ場合は従来どおり次の手順です。
+ホスト実行(`go run`)で直接つなぐ場合は従来どおり次の手順です。**ingress と egress は
+別ポート**なので両方指定してください — `BOS_ADDR` 単体では egress が ingress 側の
+ポートへフォールバックし、制御コマンドが無言で届かなくなります(nexus-gateway の
+`resolveBOSAddr()` フォールバック挙動)。
 
 ```bash
 cd nexus-gateway
 GATEWAY_ID=GW-SOS-001 \
-BOS_ADDR=localhost:5051 \
+BOS_INGRESS_ADDR=localhost:5051 \
+BOS_EGRESS_ADDR=localhost:5052 \
 BOS_INSECURE=true \
 PROVISIONING_FILE=/path/to/mvp-pointlist.csv \
 go run ./cmd/gateway
@@ -1056,7 +1058,7 @@ go run ./cmd/gateway
 | gateway がコネクタを管理できない | コンテナに host Docker socket（`/var/run/docker.sock`）マウントが必要 |
 | `/telemetry` の `buffer_depth` が増え続ける | Building OS への上りが断。フレームが S&F バッファに滞留（Building OS 再起動時など想定内） |
 | BOS 側が `AlreadyExists: gateway <gateway_id> already connected` を返す | 同じ `gateway_id` の egress セッションが BOS 側に残留。重複起動を止め、BOS 側（`building-os.gateway-bridge`）を再起動してセッションを解放後、gateway を再起動して再接続 |
-| Building OS と同一マシンで nexus-gateway が起動競合する | `mock-bos` と固定ホストポートの衝突。`docker-compose.live-bos.yml` を併用し、必要なら `.env` で `GATEWAY_HOST_PORT` / `ADMIN_UI_HOST_PORT` / `NATS_HOST_PORT` などを上書き |
+| Building OS と同一マシンで nexus-gateway が起動競合する | 固定ホストポートの衝突。`docker-compose.live-bos.yml` を併用し、それでも競合する場合は nexus-gateway の `docker-compose.yml` の該当ポート行を直接編集(`.env` での上書きには対応していません) |
 | nexus-gateway 起動時に JetStream の `insufficient storage` / `maximum bytes exceeded` で落ちる | **環境（NATS 側の JetStream ストレージ上限）の問題であり、コードのバグではありません。** → [下記の詳細](#nexus-gateway-の-jetstream-ストレージ不足エラー) |
 | `building-os.mosquitto` が `set: line 4: illegal option -` で再起動ループする（Windows） | `oss-stack/mosquitto/docker-entrypoint.sh` が CRLF 化されている可能性。`.gitattributes` で LF 固定し、既存 clone は `git add --renormalize .` 後に `docker compose -f docker-compose.oss.yaml --profile mqtt up -d --force-recreate building-os.mosquitto` で復旧 |
 | `building-os.connector-worker` が `Restarting` を繰り返し、JetStream/KV 作成で `insufficient storage resources available` が出る | NATS JetStream 上限不足。`oss-stack/nats/nats-server.conf` の `max_file_store` を確認（既定 4GB）。必要なら `docker compose -f docker-compose.oss.yaml up -d --force-recreate building-os.nats building-os.connector-worker`。既存予約が壊れている場合は `docker compose -f docker-compose.oss.yaml down -v` でデータ再初期化（ローカル検証用途のみ） |
