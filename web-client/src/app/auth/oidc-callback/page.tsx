@@ -29,7 +29,7 @@ export default function OidcCallbackPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">認証処理中...</p>
+      <p className="text-gray-600">認証処理中...</p>
     </div>
   );
 }

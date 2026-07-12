@@ -74,7 +74,7 @@ export default function BuildingDetailPageComponent({
       <h1 className="text-2xl font-bold mb-6">フロア一覧</h1>
 
       {floors.length === 0 ? (
-        <p className="text-gray-500">フロアがありません。</p>
+        <p className="text-gray-600">フロアがありません。</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {floors.map((floor) => (

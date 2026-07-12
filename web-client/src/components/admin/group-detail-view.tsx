@@ -22,7 +22,7 @@ export function GroupDetailView({ group }: { group: AdminGroupDetail }) {
 function Field({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-sm text-gray-500">{label}</dt>
+      <dt className="text-sm text-gray-600">{label}</dt>
       <dd className={mono ? "font-mono text-sm" : "font-medium"}>{value || "—"}</dd>
     </div>
   );

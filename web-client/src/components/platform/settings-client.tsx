@@ -58,7 +58,7 @@ export function SettingsClient() {
         <h1 className="text-2xl font-bold">アプリ設定</h1>
         <HelpButton helpKey="platform.settings" />
       </div>
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-4 text-sm text-gray-600">
         フィーチャーフラグ/閾値など、GitOps と衝突しないアプリ設定のみを編集できます。インフラ/シークレットは
         読み取り専用の「設定（実効値）」で確認してください。
       </p>
@@ -72,7 +72,7 @@ export function SettingsClient() {
           設定の取得に失敗しました: {error}
         </p>
       ) : settings === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        <p className="text-gray-600">読み込み中…</p>
       ) : (
         <SettingsEditor
           settings={settings}

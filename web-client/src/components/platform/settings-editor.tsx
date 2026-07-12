@@ -22,7 +22,7 @@ export function SettingsEditor({
 }) {
   if (settings.length === 0) {
     return (
-      <p className="text-gray-500" data-testid="settings-empty">
+      <p className="text-gray-600" data-testid="settings-empty">
         編集可能な設定がありません
       </p>
     );
@@ -64,9 +64,9 @@ function SettingRow({
     <li className="rounded border border-gray-200 p-3" data-testid={`setting-row-${setting.key}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-sm">{setting.key}</span>
-        <span className="text-xs text-gray-500">{setting.category}</span>
+        <span className="text-xs text-gray-600">{setting.category}</span>
       </div>
-      <p className="mb-2 text-xs text-gray-500">{setting.description}</p>
+      <p className="mb-2 text-xs text-gray-600">{setting.description}</p>
 
       <div className="flex flex-wrap items-center gap-2">
         {setting.type === "Boolean" ? (
@@ -111,7 +111,7 @@ function SettingRow({
             </span>
           </>
         ) : (
-          <span className="text-xs text-gray-500">既定値</span>
+          <span className="text-xs text-gray-600">既定値</span>
         )}
       </div>
       {error && (

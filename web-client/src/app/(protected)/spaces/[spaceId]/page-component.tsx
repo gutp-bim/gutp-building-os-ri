@@ -76,12 +76,12 @@ export default function SpaceDetailPageComponent({
       </div>
 
       <h1 className="text-2xl font-bold mb-2">{space.name}</h1>
-      <p className="text-gray-500 mb-6">スペース</p>
+      <p className="text-gray-600 mb-6">スペース</p>
 
       <h2 className="text-xl font-semibold mb-4">デバイス一覧</h2>
 
       {devices.length === 0 ? (
-        <p className="text-gray-500">デバイスがありません。</p>
+        <p className="text-gray-600">デバイスがありません。</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {devices.map((device) => (

@@ -45,7 +45,7 @@ export function GroupResourceManager({
   return (
     <div data-testid="group-resource-manager">
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" data-testid="resources-empty">
+        <p className="text-sm text-gray-600" data-testid="resources-empty">
           リソースはありません
         </p>
       ) : (

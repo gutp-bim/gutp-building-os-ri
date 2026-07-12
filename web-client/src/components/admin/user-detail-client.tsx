@@ -89,7 +89,7 @@ export function UserDetailClient({ id }: { id: string }) {
           ユーザーの取得に失敗しました: {error}
         </p>
       ) : user === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        <p className="text-gray-600">読み込み中…</p>
       ) : (
         <>
           <UserDetailView user={user} />

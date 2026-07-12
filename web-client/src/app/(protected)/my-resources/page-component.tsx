@@ -150,7 +150,7 @@ export default function MyResourcesPageComponent() {
       <h1 className="text-2xl font-bold mb-6">マイリソース</h1>
 
       {hasNoResources && (
-        <p className="text-gray-500">
+        <p className="text-gray-600">
           アクセス可能なリソースがありません。管理者にお問い合わせください。
         </p>
       )}
@@ -270,12 +270,12 @@ export default function MyResourcesPageComponent() {
                   </p>
                 )}
                 {pd.floor && (
-                  <p className="text-gray-500 text-sm truncate">
+                  <p className="text-gray-600 text-sm truncate">
                     フロア: {pd.floor.name}
                   </p>
                 )}
                 {pd.space && (
-                  <p className="text-gray-500 text-sm truncate">
+                  <p className="text-gray-600 text-sm truncate">
                     スペース: {pd.space.name}
                   </p>
                 )}

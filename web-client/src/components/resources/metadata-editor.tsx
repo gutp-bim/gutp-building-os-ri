@@ -81,7 +81,7 @@ export function MetadataEditor({
       {/* identifiers */}
       <section>
         <div className="mb-1 flex items-center justify-between">
-          <p className="text-xs font-medium text-gray-500">identifiers</p>
+          <p className="text-xs font-medium text-gray-700">identifiers</p>
           <button
             type="button"
             className="rounded bg-gray-100 px-2 py-0.5 text-xs hover:bg-gray-200"
@@ -138,7 +138,7 @@ export function MetadataEditor({
       {/* customTags */}
       <section>
         <div className="mb-1 flex items-center justify-between">
-          <p className="text-xs font-medium text-gray-500">customTags</p>
+          <p className="text-xs font-medium text-gray-700">customTags</p>
           <button
             type="button"
             className="rounded bg-gray-100 px-2 py-0.5 text-xs hover:bg-gray-200"

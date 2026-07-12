@@ -75,12 +75,12 @@ export default function FloorDetailPageComponent({
       </div>
 
       <h1 className="text-2xl font-bold mb-2">{floor.name}</h1>
-      <p className="text-gray-500 mb-6">フロア</p>
+      <p className="text-gray-600 mb-6">フロア</p>
 
       <h2 className="text-xl font-semibold mb-4">スペース一覧</h2>
 
       {spaces.length === 0 ? (
-        <p className="text-gray-500">スペースがありません。</p>
+        <p className="text-gray-600">スペースがありません。</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {spaces.map((space) => (
