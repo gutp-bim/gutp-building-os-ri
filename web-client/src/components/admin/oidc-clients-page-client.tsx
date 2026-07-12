@@ -96,7 +96,7 @@ export function OidcClientsPageClient() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="mb-1 text-2xl font-bold">OIDC クライアントアプリ</h1>
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-4 text-sm text-gray-600">
         外部連携アプリ／サービスアカウントの認証情報を管理します。トラストアンカーは Keycloak の
         クライアントシークレット（ゲートウェイの mTLS 証明書とは別系統）です。
       </p>

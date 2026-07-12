@@ -59,7 +59,7 @@ export function GatewaysPageClient() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="mb-1 text-2xl font-bold">ゲートウェイ</h1>
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-4 text-sm text-gray-600">
         binding / 接続設定（シークレットはマスク）と pointlist 同期状態の観測。binding/設定は GitOps が正本のため
         読み取り専用です。アイデンティティは mTLS クライアント証明書（OIDC クライアントの secret とは別系統）。
       </p>
