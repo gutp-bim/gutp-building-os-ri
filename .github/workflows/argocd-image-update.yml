@@ -46,10 +46,11 @@ jobs:
       - name: Update ArgoCD values image tags
         run: |
           TAG="${{ steps.tag.outputs.IMAGE_TAG }}"
-          # Update all environment-specific values files under argocd/values/.
-          # "utokyo-eng2" is a reference environment — adapt or add entries for
-          # your own deployment targets.
-          VALUES_FILE="argocd/values/utokyo-eng2.yaml"
+          # Target values file is injected via the ARGOCD_VALUES_FILE repository
+          # variable so other deployments can point CI at their own file (#17);
+          # the default preserves the reference environment ("utokyo-eng2").
+          # See argocd/values/example.yaml for a generalized template.
+          VALUES_FILE="${{ vars.ARGOCD_VALUES_FILE || 'argocd/values/utokyo-eng2.yaml' }}"
 
           sed -i "s/^  tag: .*/  tag: ${TAG}/" "${VALUES_FILE}"
 

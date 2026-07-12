@@ -1,7 +1,11 @@
 # Argo CD Helm values overlay — example environment ("utokyo-eng2").
-# This is a REFERENCE CONFIGURATION for an on-premises Kubernetes deployment.
-# Domain names (*.eng2.buildingos.local) and image tags are site-specific;
-# replace them with your own values.
+# This is a REFERENCE CONFIGURATION for an on-premises Kubernetes deployment,
+# kept in this repo only as a working sample (#17): production environment
+# values are recommended to live in a dedicated GitOps repository. Start your
+# own environment from argocd/values/example.yaml and point the
+# argocd-image-update workflow at it via the ARGOCD_VALUES_FILE repository
+# variable. Domain names (*.eng2.buildingos.local) and image tags are
+# site-specific; the tag is rewritten by CI on every main merge.
 # Referenced by argocd/apps/utokyo-eng2.yaml.
 
 replicaCount: 1

@@ -1,0 +1,45 @@
+# Argo CD Helm values overlay — GENERALIZED TEMPLATE (#17).
+#
+# Copy this file to argocd/values/<your-env>.yaml, replace every
+# <angle-bracket> placeholder, and point an Argo CD Application at it
+# (see argocd/apps/ for the reference app manifests).
+#
+# Notes:
+# - `image.tag` is managed by CI: the argocd-image-update workflow rewrites it
+#   to the short commit SHA on every main merge (set the ARGOCD_VALUES_FILE
+#   repository variable to target your file instead of the reference one).
+# - The utokyo-eng2*.yaml files alongside this template are a REFERENCE
+#   environment kept in this repo as a working sample; production environment
+#   values are recommended to live in a dedicated GitOps repository long-term.
+
+replicaCount: 1
+
+image:
+  repository: <your-registry>/building-os/building-os-api-server
+  tag: latest # overwritten by CI (argocd-image-update) with the commit SHA
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+secretName: api-server-env
+
+keycloak:
+  realm: building-os
+  clientId: api-server
+  issuerUri: https://<your-keycloak-host>/realms/building-os
+
+oxigraph:
+  endpoint: http://oxigraph.building-os.svc.cluster.local:7878
+
+nats:
+  url: nats://nats.building-os.svc.cluster.local:4222
+
+ingress:
+  enabled: true
+  host: <your-api-host>
+
+autoscaling:
+  enabled: false
