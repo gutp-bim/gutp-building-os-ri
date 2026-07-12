@@ -1,4 +1,5 @@
-import { API_BASE_URL, authHeaders, mutationError } from "./http";
+import { apiClient } from "@/lib/infra/aspida-client";
+import { mutationError } from "./api-error";
 
 export interface SparqlQueryResult {
   columns: string[];
@@ -36,31 +37,31 @@ export function previewSummary(preview: TwinImportPreview): string {
 }
 
 export async function runReadOnlySparql(query: string, maxRows = 200): Promise<SparqlQueryResult> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/twin/query`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({ query, maxRows }),
-  });
-  if (!res.ok) throw await mutationError(res, "クエリの実行に失敗しました");
-  return (await res.json()) as SparqlQueryResult;
+  try {
+    return (await apiClient().api.admin.twin.query.$post({
+      body: { query, maxRows },
+    })) as SparqlQueryResult;
+  } catch (e) {
+    throw mutationError(e, "クエリの実行に失敗しました");
+  }
 }
 
 export async function previewTwinImport(turtle: string): Promise<TwinImportPreview> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/twin/import/preview`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({ turtle }),
-  });
-  if (!res.ok) throw await mutationError(res, "プレビューに失敗しました");
-  return (await res.json()) as TwinImportPreview;
+  try {
+    return (await apiClient().api.admin.twin.import.preview.$post({
+      body: { turtle },
+    })) as TwinImportPreview;
+  } catch (e) {
+    throw mutationError(e, "プレビューに失敗しました");
+  }
 }
 
 export async function applyTwinImport(turtle: string, mode: TwinImportMode): Promise<TwinImportPreview> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/twin/import/apply`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({ turtle, mode }),
-  });
-  if (!res.ok) throw await mutationError(res, "適用に失敗しました");
-  return (await res.json()) as TwinImportPreview;
+  try {
+    return (await apiClient().api.admin.twin.import.apply.$post({
+      body: { turtle, mode },
+    })) as TwinImportPreview;
+  } catch (e) {
+    throw mutationError(e, "適用に失敗しました");
+  }
 }

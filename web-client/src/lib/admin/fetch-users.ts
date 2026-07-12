@@ -1,18 +1,23 @@
 import type { AdminUser, RoleCatalogEntry } from "./types";
-import { API_BASE_URL, authHeaders, mutationError } from "./http";
+import { apiClient } from "@/lib/infra/aspida-client";
+import { mutationError, requestError } from "./api-error";
 
 /** `GET /api/Users` — admin-gated list. */
 export async function fetchUsers(signal?: AbortSignal): Promise<AdminUser[]> {
-  const res = await fetch(`${API_BASE_URL}/api/Users`, { headers: authHeaders(), signal });
-  if (!res.ok) throw new Error(`users request failed: ${res.status}`);
-  return (await res.json()) as AdminUser[];
+  try {
+    return await apiClient().api.Users.$get({ config: { signal } });
+  } catch (e) {
+    throw requestError(e, "users request failed");
+  }
 }
 
 /** `GET /api/Users/roles` — read-only role catalog (admin/operator/viewer + workspaces). */
 export async function fetchRoles(signal?: AbortSignal): Promise<RoleCatalogEntry[]> {
-  const res = await fetch(`${API_BASE_URL}/api/Users/roles`, { headers: authHeaders(), signal });
-  if (!res.ok) throw new Error(`roles request failed: ${res.status}`);
-  return (await res.json()) as RoleCatalogEntry[];
+  try {
+    return (await apiClient().api.Users.roles.$get({ config: { signal } })) as RoleCatalogEntry[];
+  } catch (e) {
+    throw requestError(e, "roles request failed");
+  }
 }
 
 /**
@@ -20,43 +25,42 @@ export async function fetchRoles(signal?: AbortSignal): Promise<RoleCatalogEntry
  * The server returns 409 when the change would lock the actor out or remove the last admin (#325).
  */
 export async function setUserEnabled(id: string, enabled: boolean): Promise<AdminUser> {
-  const res = await fetch(`${API_BASE_URL}/api/Users/${encodeURIComponent(id)}/enabled`, {
-    method: "PUT",
-    headers: authHeaders(true),
-    body: JSON.stringify({ enabled }),
-  });
-  if (!res.ok) throw await mutationError(res, "有効/無効の切り替えに失敗しました");
-  return (await res.json()) as AdminUser;
+  try {
+    return await apiClient().api.Users._id(encodeURIComponent(id)).enabled.$put({
+      body: { enabled },
+    });
+  } catch (e) {
+    throw mutationError(e, "有効/無効の切り替えに失敗しました");
+  }
 }
 
 /** `GET /api/Users/{id}` — admin-gated detail. */
 export async function fetchUser(id: string, signal?: AbortSignal): Promise<AdminUser> {
-  const res = await fetch(`${API_BASE_URL}/api/Users/${encodeURIComponent(id)}`, {
-    headers: authHeaders(),
-    signal,
-  });
-  if (!res.ok) throw new Error(`user request failed: ${res.status}`);
-  return (await res.json()) as AdminUser;
+  try {
+    return await apiClient().api.Users._id(encodeURIComponent(id)).$get({ config: { signal } });
+  } catch (e) {
+    throw requestError(e, "user request failed");
+  }
 }
 
 /** `POST /api/Users/{id}/permissions` — adds a permission, returns the updated user. */
 export async function addUserPermission(id: string, permission: string): Promise<AdminUser> {
-  const res = await fetch(`${API_BASE_URL}/api/Users/${encodeURIComponent(id)}/permissions`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({ permission }),
-  });
-  if (!res.ok) throw await mutationError(res, "権限の追加に失敗しました");
-  return (await res.json()) as AdminUser;
+  try {
+    return await apiClient().api.Users._id(encodeURIComponent(id)).permissions.$post({
+      body: { permission },
+    });
+  } catch (e) {
+    throw mutationError(e, "権限の追加に失敗しました");
+  }
 }
 
 /** `DELETE /api/Users/{id}/permissions` — removes a permission, returns the updated user. */
 export async function removeUserPermission(id: string, permission: string): Promise<AdminUser> {
-  const res = await fetch(`${API_BASE_URL}/api/Users/${encodeURIComponent(id)}/permissions`, {
-    method: "DELETE",
-    headers: authHeaders(true),
-    body: JSON.stringify({ permission }),
-  });
-  if (!res.ok) throw await mutationError(res, "権限の削除に失敗しました");
-  return (await res.json()) as AdminUser;
+  try {
+    return await apiClient().api.Users._id(encodeURIComponent(id)).permissions.$delete({
+      body: { permission },
+    });
+  } catch (e) {
+    throw mutationError(e, "権限の削除に失敗しました");
+  }
 }

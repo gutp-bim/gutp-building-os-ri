@@ -1,4 +1,5 @@
-import { API_BASE_URL, authHeaders, mutationError } from "./http";
+import { apiClient } from "@/lib/infra/aspida-client";
+import { errorStatus, mutationError, requestError } from "./api-error";
 
 /** OIDC client summary (`GET /api/admin/oidc-clients`). Never carries the secret (#324). */
 export interface OidcClientSummary {
@@ -42,48 +43,54 @@ export function clientTypeLabel(c: { serviceAccountsEnabled: boolean }): string 
   return c.serviceAccountsEnabled ? "サービスアカウント" : "標準クライアント";
 }
 
-// ── Fetchers (bespoke admin fetch) ───────────────────────────────────────────
+// ── Fetchers (generated aspida client) ───────────────────────────────────────
 
 export async function fetchOidcClients(signal?: AbortSignal): Promise<OidcClientSummary[]> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/oidc-clients`, { headers: authHeaders(), signal });
-  if (res.status === 503) throw new Error("OIDC クライアント管理は未設定です（Keycloak admin API）");
-  if (!res.ok) throw new Error(`oidc clients request failed: ${res.status}`);
-  return (await res.json()) as OidcClientSummary[];
+  try {
+    return (await apiClient().api.admin.oidc_clients.$get({
+      config: { signal },
+    })) as OidcClientSummary[];
+  } catch (e) {
+    if (errorStatus(e) === 503) {
+      throw new Error("OIDC クライアント管理は未設定です（Keycloak admin API）");
+    }
+    throw requestError(e, "oidc clients request failed");
+  }
 }
 
 export async function createOidcClient(req: CreateOidcClientRequest): Promise<CreatedOidcClient> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/oidc-clients`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw await mutationError(res, "クライアントの作成に失敗しました");
-  return (await res.json()) as CreatedOidcClient;
+  try {
+    return (await apiClient().api.admin.oidc_clients.$post({ body: req })) as CreatedOidcClient;
+  } catch (e) {
+    throw mutationError(e, "クライアントの作成に失敗しました");
+  }
 }
 
 export async function rotateOidcSecret(id: string): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/oidc-clients/${encodeURIComponent(id)}/rotate-secret`, {
-    method: "POST",
-    headers: authHeaders(true),
-  });
-  if (!res.ok) throw await mutationError(res, "シークレットの再生成に失敗しました");
-  return ((await res.json()) as { secret: string }).secret;
+  try {
+    const res = await apiClient()
+      .api.admin.oidc_clients._id(encodeURIComponent(id))
+      .rotate_secret.$post();
+    return (res as { secret: string }).secret;
+  } catch (e) {
+    throw mutationError(e, "シークレットの再生成に失敗しました");
+  }
 }
 
 export async function setOidcClientEnabled(id: string, enabled: boolean): Promise<OidcClientDetail> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/oidc-clients/${encodeURIComponent(id)}/enabled`, {
-    method: "PUT",
-    headers: authHeaders(true),
-    body: JSON.stringify({ enabled }),
-  });
-  if (!res.ok) throw await mutationError(res, "有効/無効の切り替えに失敗しました");
-  return (await res.json()) as OidcClientDetail;
+  try {
+    return (await apiClient().api.admin.oidc_clients._id(encodeURIComponent(id)).enabled.$put({
+      body: { enabled },
+    })) as OidcClientDetail;
+  } catch (e) {
+    throw mutationError(e, "有効/無効の切り替えに失敗しました");
+  }
 }
 
 export async function deleteOidcClient(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/admin/oidc-clients/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw await mutationError(res, "クライアントの削除に失敗しました");
+  try {
+    await apiClient().api.admin.oidc_clients._id(encodeURIComponent(id)).$delete();
+  } catch (e) {
+    throw mutationError(e, "クライアントの削除に失敗しました");
+  }
 }

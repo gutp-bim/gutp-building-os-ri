@@ -1,5 +1,6 @@
 import type { ResolvedMap } from "./permission-resolve";
-import { API_BASE_URL, authHeaders } from "./http";
+import { apiClient } from "@/lib/infra/aspida-client";
+import { requestError } from "./api-error";
 
 /**
  * `POST /api/Permissions/resolve` — resolves hashed resource ids to original id / type / display name
@@ -10,12 +11,12 @@ export async function resolvePermissionIds(
   signal?: AbortSignal,
 ): Promise<ResolvedMap> {
   if (hashedIds.length === 0) return {};
-  const res = await fetch(`${API_BASE_URL}/api/Permissions/resolve`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify(hashedIds),
-    signal,
-  });
-  if (!res.ok) throw new Error(`resolve request failed: ${res.status}`);
-  return (await res.json()) as ResolvedMap;
+  try {
+    return await apiClient().api.Permissions.resolve.$post({
+      body: hashedIds,
+      config: { signal },
+    });
+  } catch (e) {
+    throw requestError(e, "resolve request failed");
+  }
 }

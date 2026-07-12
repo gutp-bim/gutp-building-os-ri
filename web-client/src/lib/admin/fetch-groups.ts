@@ -1,36 +1,38 @@
 import type { AdminGroup, AdminGroupDetail, AdminGroupResourceItem, GroupFormValues } from "./types";
-import { API_BASE_URL, authHeaders, mutationError } from "./http";
+import { apiClient } from "@/lib/infra/aspida-client";
+import { mutationError, requestError } from "./api-error";
 
 /** `GET /api/Groups` — admin-gated list (no members). */
 export async function fetchGroups(signal?: AbortSignal): Promise<AdminGroup[]> {
-  const res = await fetch(`${API_BASE_URL}/api/Groups`, { headers: authHeaders(), signal });
-  if (!res.ok) throw new Error(`groups request failed: ${res.status}`);
-  return (await res.json()) as AdminGroup[];
+  try {
+    return await apiClient().api.Groups.$get({ config: { signal } });
+  } catch (e) {
+    throw requestError(e, "groups request failed");
+  }
 }
 
 /** `GET /api/Groups/{id}` — admin-gated detail with members. */
 export async function fetchGroup(id: string, signal?: AbortSignal): Promise<AdminGroupDetail> {
-  const res = await fetch(`${API_BASE_URL}/api/Groups/${encodeURIComponent(id)}`, {
-    headers: authHeaders(),
-    signal,
-  });
-  if (!res.ok) throw new Error(`group request failed: ${res.status}`);
-  return (await res.json()) as AdminGroupDetail;
+  try {
+    return await apiClient().api.Groups._id(encodeURIComponent(id)).$get({ config: { signal } });
+  } catch (e) {
+    throw requestError(e, "group request failed");
+  }
 }
 
 /** `POST /api/Groups` — creates a group (admin-gated). Returns the created group. */
 export async function createGroup(values: GroupFormValues): Promise<AdminGroup> {
-  const res = await fetch(`${API_BASE_URL}/api/Groups`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({
-      id: values.id.trim(),
-      name: values.name.trim(),
-      description: values.description.trim() || undefined,
-    }),
-  });
-  if (!res.ok) throw await mutationError(res, "グループの作成に失敗しました");
-  return (await res.json()) as AdminGroup;
+  try {
+    return await apiClient().api.Groups.$post({
+      body: {
+        id: values.id.trim(),
+        name: values.name.trim(),
+        description: values.description.trim() || undefined,
+      },
+    });
+  } catch (e) {
+    throw mutationError(e, "グループの作成に失敗しました");
+  }
 }
 
 /** `PUT /api/Groups/{id}` — updates name/description (admin-gated, id immutable). */
@@ -38,24 +40,25 @@ export async function updateGroup(
   id: string,
   values: Pick<GroupFormValues, "name" | "description">,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/Groups/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: authHeaders(true),
-    body: JSON.stringify({
-      name: values.name.trim(),
-      description: values.description.trim() || undefined,
-    }),
-  });
-  if (!res.ok) throw await mutationError(res, "グループの更新に失敗しました");
+  try {
+    await apiClient().api.Groups._id(encodeURIComponent(id)).$put({
+      body: {
+        name: values.name.trim(),
+        description: values.description.trim() || undefined,
+      },
+    });
+  } catch (e) {
+    throw mutationError(e, "グループの更新に失敗しました");
+  }
 }
 
 /** `DELETE /api/Groups/{id}` — deletes a group (admin-gated). */
 export async function deleteGroup(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/Groups/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw await mutationError(res, "グループの削除に失敗しました");
+  try {
+    await apiClient().api.Groups._id(encodeURIComponent(id)).$delete();
+  } catch (e) {
+    throw mutationError(e, "グループの削除に失敗しました");
+  }
 }
 
 /** `POST /api/Groups/{id}/resources` — adds a resource item (raw type/id, no hashing). */
@@ -64,20 +67,23 @@ export async function addGroupResource(
   resourceType: string,
   resourceId: string,
 ): Promise<AdminGroupResourceItem> {
-  const res = await fetch(`${API_BASE_URL}/api/Groups/${encodeURIComponent(groupId)}/resources`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({ resourceType, resourceId: resourceId.trim() }),
-  });
-  if (!res.ok) throw await mutationError(res, "リソースの追加に失敗しました");
-  return (await res.json()) as AdminGroupResourceItem;
+  try {
+    return await apiClient().api.Groups._id(encodeURIComponent(groupId)).resources.$post({
+      body: { resourceType, resourceId: resourceId.trim() },
+    });
+  } catch (e) {
+    throw mutationError(e, "リソースの追加に失敗しました");
+  }
 }
 
 /** `DELETE /api/Groups/{id}/resources/{itemId}` — removes a resource item. */
 export async function removeGroupResource(groupId: string, itemId: string): Promise<void> {
-  const res = await fetch(
-    `${API_BASE_URL}/api/Groups/${encodeURIComponent(groupId)}/resources/${encodeURIComponent(itemId)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  if (!res.ok) throw await mutationError(res, "リソースの削除に失敗しました");
+  try {
+    await apiClient()
+      .api.Groups._id(encodeURIComponent(groupId))
+      .resources._itemId(encodeURIComponent(itemId))
+      .$delete();
+  } catch (e) {
+    throw mutationError(e, "リソースの削除に失敗しました");
+  }
 }
