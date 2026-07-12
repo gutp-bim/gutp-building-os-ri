@@ -298,7 +298,7 @@ OpenAPI スキーマから自動生成されたクライアントを使用して
 
 ### Tailwind CSS 設定
 
-Tailwind CSS v4 を使用しており、`postcss.config.mjs` で `@tailwindcss/postcss` プラグインを設定しています。カラー設定は `styles/globals.css` の CSS カスタムプロパティで定義されています。
+Tailwind CSS v4 を使用しており、`postcss.config.mjs` で `@tailwindcss/postcss` プラグインを設定しています。グローバルなカラー設定は `src/app/globals.css` の CSS カスタムプロパティで定義されています(現状は**ライトテーマ固定** — `dark:` バリアント未対応のため、フルダークモード対応はデザイントークン接続込みで将来対応。#118 参照)。
 
 ## 🚧 既知の問題
 

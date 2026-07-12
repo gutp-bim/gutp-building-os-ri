@@ -20,7 +20,7 @@ export function RoleCatalogPanel({ roles }: { roles: RoleCatalogEntry[] }) {
               {r.isAdmin && (
                 <span className="rounded bg-purple-50 px-1.5 py-0.5 text-xs text-purple-700">管理者権限</span>
               )}
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-600">
                 ワークスペース: {r.workspaces.join(" / ")}
               </span>
             </div>

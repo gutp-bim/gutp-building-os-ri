@@ -67,7 +67,7 @@ export function PermissionEditor({
   return (
     <div data-testid="permission-editor">
       {permissions.length === 0 ? (
-        <p className="text-sm text-gray-500" data-testid="permissions-empty">
+        <p className="text-sm text-gray-600" data-testid="permissions-empty">
           権限はありません
         </p>
       ) : (
@@ -176,7 +176,7 @@ export function PermissionEditor({
             追加
           </button>
         </div>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-600">
           リソース ID はサーバ側でハッシュ化されます（グループを除く）。
         </p>
       </div>

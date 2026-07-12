@@ -15,15 +15,16 @@ import {
 export function UsersTable({ users }: { users: AdminUser[] }) {
   if (users.length === 0) {
     return (
-      <p className="text-gray-500" data-testid="users-empty">
+      <p className="text-gray-600" data-testid="users-empty">
         ユーザーがいません
       </p>
     );
   }
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-left text-sm" data-testid="users-table">
       <thead>
-        <tr className="border-b border-gray-200 text-gray-500">
+        <tr className="border-b border-gray-200 text-gray-700">
           <th className="px-3 py-2 font-medium">名前</th>
           <th className="px-3 py-2 font-medium">メール</th>
           <th className="px-3 py-2 font-medium">ロール</th>
@@ -62,5 +63,6 @@ export function UsersTable({ users }: { users: AdminUser[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

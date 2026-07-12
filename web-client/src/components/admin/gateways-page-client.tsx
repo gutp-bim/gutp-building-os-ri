@@ -59,7 +59,7 @@ export function GatewaysPageClient() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="mb-1 text-2xl font-bold">ゲートウェイ</h1>
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-4 text-sm text-gray-600">
         binding / 接続設定（シークレットはマスク）と pointlist 同期状態の観測。binding/設定は GitOps が正本のため
         読み取り専用です。アイデンティティは mTLS クライアント証明書（OIDC クライアントの secret とは別系統）。
       </p>
@@ -68,13 +68,14 @@ export function GatewaysPageClient() {
       {notice && <p className="mb-3 text-sm text-green-700" data-testid="gw-notice">{notice}</p>}
 
       {gateways === null ? (
-        <p className="text-gray-500">読み込み中…</p>
+        <p className="text-gray-600">読み込み中…</p>
       ) : gateways.length === 0 ? (
-        <p className="text-gray-500" data-testid="gw-empty">ツインにゲートウェイが登録されていません</p>
+        <p className="text-gray-600" data-testid="gw-empty">ツインにゲートウェイが登録されていません</p>
       ) : (
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm" data-testid="gw-table">
           <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
+            <tr className="border-b border-gray-200 text-gray-700">
               <th className="px-3 py-2 font-medium">gatewayId</th>
               <th className="px-3 py-2 font-medium">binding</th>
               <th className="px-3 py-2 font-medium">point 数</th>
@@ -88,7 +89,7 @@ export function GatewaysPageClient() {
                 <td className="px-3 py-2 font-mono">{gw.gatewayId}</td>
                 <td className="px-3 py-2">{bindingLabel(gw.bindingType)}</td>
                 <td className="px-3 py-2 text-gray-600">{gw.pointCount}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500">{shortRevision(gw.revision)}</td>
+                <td className="px-3 py-2 font-mono text-xs text-gray-700">{shortRevision(gw.revision)}</td>
                 <td className="px-3 py-2">
                   <button
                     type="button"
@@ -104,6 +105,7 @@ export function GatewaysPageClient() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

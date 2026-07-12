@@ -52,7 +52,7 @@ export function roleBadgeClass(role: string | null | undefined): string {
     case "viewer":
       return "bg-gray-100 text-gray-700";
     default:
-      return "bg-gray-100 text-gray-500";
+      return "bg-gray-100 text-gray-600";
   }
 }
 
