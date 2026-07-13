@@ -91,7 +91,7 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.3",
     "dotenv": "^17.4.2",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
