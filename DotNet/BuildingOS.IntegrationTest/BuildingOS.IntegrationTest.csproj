@@ -18,9 +18,9 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Testcontainers" Version="3.7.0" />
+        <PackageReference Include="Testcontainers" Version="4.13.0" />
         <PackageReference Include="Testcontainers.PostgreSql" Version="3.7.0" />
-        <PackageReference Include="Testcontainers.Minio" Version="3.7.0" />
+        <PackageReference Include="Testcontainers.Minio" Version="4.13.0" />
         <PackageReference Include="Npgsql" Version="10.0.3" />
         <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
         <PackageReference Include="NATS.Client.Core" Version="2.5.16" />
