@@ -25,7 +25,7 @@
     <!-- Azure IoT Hub connector (Kandt gateway device control via IoT Hub direct method) -->
     <PackageReference Include="Microsoft.Azure.Devices" Version="1.40.0" />
     <!-- AWS SDK core — used for MinIO (S3-compatible) credentials in cold export -->
-    <PackageReference Include="AWSSDK.Core" Version="4.0.100.2" />
+    <PackageReference Include="AWSSDK.Core" Version="4.0.100.4" />
   </ItemGroup>
 
   <ItemGroup>
