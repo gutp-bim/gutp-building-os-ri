@@ -10,6 +10,12 @@ describe("GlossaryTooltip", () => {
     expect(el.getAttribute("title")).toContain("計測点");
   });
 
+  it("decorates a newly-added core concept term end-to-end (#160)", () => {
+    render(<GlossaryTooltip term="デジタルツイン" />);
+    const el = screen.getByTestId("glossary-デジタルツイン");
+    expect(el.getAttribute("title")).toContain("source of truth");
+  });
+
   it("renders children plainly for an unknown term", () => {
     render(<GlossaryTooltip term="unknown-term">ラベル</GlossaryTooltip>);
     expect(screen.getByText("ラベル")).toBeInTheDocument();

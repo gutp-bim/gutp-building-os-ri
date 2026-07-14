@@ -37,6 +37,79 @@ export const GLOSSARY: GlossaryTerm[] = [
       "テレメトリを「鮮度切れ（stale）」とみなすまでの秒数。アプリ設定で変更でき、表示や警告の判定に使われます。",
     category: "setting",
   },
+  {
+    term: "デジタルツイン",
+    reading: "でじたるついん",
+    definition:
+      "建物 → フロア → 空間 → 機器 → ポイントの階層と、その静的メタデータを保持するグラフモデル。OxiGraph（SPARQL）で管理され、共有ポイントリストの正本（source of truth）です。単に「ツイン」とも呼びます。",
+    category: "concept",
+  },
+  {
+    term: "リソース",
+    reading: "りそーす",
+    definition:
+      "デジタルツイン上のノードの総称。建物・フロア・空間・機器・ポイントのいずれかで、SBCO オントロジーのクラス（sbco:Building / sbco:Level / sbco:Room / sbco:EquipmentExt / sbco:PointExt）に対応します。/resources 画面はこの階層を辿るための入口です。",
+    category: "concept",
+  },
+  {
+    term: "ゲートウェイ",
+    reading: "げーとうぇい",
+    definition:
+      "現場の設備（BACnet・OPC-UA 等）と BuildingOS の間を仲介する機器。共有ポイントリストに従ってプロトコル固有アドレスを point_id に解決し、テレメトリを送信（ingress）・制御を受信（egress）します。",
+    category: "concept",
+  },
+  {
+    term: "point_id",
+    definition:
+      "ポイントを一意に識別する BuildingOS 内の正本 ID。テレメトリ・制御・認可はすべてこの ID を主語に扱います。ゲートウェイ内のプロトコル固有アドレス（localId）とは別物で、両者はポイントリストで対応づけられます。",
+    category: "id",
+  },
+  {
+    term: "localId",
+    reading: "ろーかるあいでぃー",
+    definition:
+      "ゲートウェイ側でポイントを指すプロトコル固有のローカルアドレス（例: BACnet の object/instance）。ゲートウェイがこれを BuildingOS の point_id に解決します。point_id が全体の正本、localId は現場側の別名です。",
+    category: "id",
+  },
+  {
+    term: "GatewayIngress",
+    definition:
+      "テレメトリ取り込みの gRPC サービス（ConnectorWorker がホスト）。ゲートウェイから gateway_id + point_id + value + timestamp を受け取り、ツインで静的メタデータを補完して検証済みテレメトリとして配信します。制御は扱いません。",
+    category: "architecture",
+  },
+  {
+    term: "GatewayEgress",
+    definition:
+      "制御プレーンの gRPC サービス（GatewayBridge がホスト）。BuildingOS からゲートウェイへ制御コマンドを送る双方向ストリームで、テレメトリの入力（GatewayIngress）とは別経路・別ポートに分離されています。",
+    category: "architecture",
+  },
+  {
+    term: "ポイントリスト",
+    reading: "ぽいんとりすと",
+    definition:
+      "ゲートウェイが担当するポイントの一覧（native アドレス・単位・書込可否・制御スキーマ等）。ツインが正本で、ゲートウェイは GET /gateways/{id}/pointlist で追従します。バージョンは内容ハッシュの ETag（revision）で表され、変化時のみ再取得されます。",
+    category: "architecture",
+  },
+  {
+    term: "SBCO",
+    definition:
+      "BuildingOS が採用するビル設備のオントロジー（語彙）。建物・フロア・空間・機器・ポイントを sbco:Building / sbco:Level / sbco:Room / sbco:EquipmentExt / sbco:PointExt として定義します。Brick / REC / IFC / DTDL 標準との対応は docs/standard-mapping.md にあります。",
+    category: "architecture",
+  },
+  {
+    term: "OxiGraph",
+    reading: "おきしぐらふ",
+    definition:
+      "デジタルツインを格納する SPARQL / RDF グラフデータベース。建物階層とポイントの静的メタデータを保持し、リソース検索やポイント解決の基盤になります。",
+    category: "architecture",
+  },
+  {
+    term: "階層ストレージ",
+    reading: "かいそうすとれーじ",
+    definition:
+      "テレメトリを用途別に分けて保存する方式。Hot（NATS KV の最新値・即時参照）と Warm/Cold（MinIO 上の Parquet レイクにまとめた履歴）を使い分けます。利用者視点では「最新値」と「履歴」の違いで、/telemetries/query が層を自動選択します。",
+    category: "architecture",
+  },
 ];
 
 export const HELP_ENTRIES: HelpEntry[] = [
