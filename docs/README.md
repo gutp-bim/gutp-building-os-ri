@@ -8,6 +8,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 
 ## まずここから（新規ユーザー向け）
 
+- 📖 **[基本概念（1ページ入門）](concepts.md)** — Point / Resource / point_id vs localId / gateway_id vs device_id / Hot・Warm・Cold / GatewayIngress・Egress / ツイン・ポイントリストを1ページで整理。**最初に読むと以降が楽になります**
 - 🚀 **[Getting Started（オンボーディング）](getting-started.md)** — 起動 → API/Web → テレメトリ投入 → 読取/制御 までの一筆書き
 - 🧭 **[E2E オンボーディング（ゲートウェイ + シミュレータ横断）](onboarding-e2e-gateway.md)** — nexus-gateway / bacnet-sim / opcua-sim を物理設備なしで結線する実践ガイド。**Windows での `make` なし起動**・**可観測性を除いた最小構成**の解説付き
 - 🏗️ **[リソース管理ガイド](resource-management.md)** — ツインへの設備インポート・更新・削除・複数ビル対応・ロール別表示制御
