@@ -12,7 +12,7 @@
     <ProjectReference Include="../BuildingOS.Shared/BuildingOS.Shared.csproj" />
     <!-- Microsoft.Extensions.Caching.Memory comes transitively from BuildingOS.Shared (9.0.x). -->
     <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
-    <PackageReference Include="AWSSDK.Core" Version="4.0.100.2" />
+    <PackageReference Include="AWSSDK.Core" Version="4.0.100.4" />
   </ItemGroup>
 
 </Project>
