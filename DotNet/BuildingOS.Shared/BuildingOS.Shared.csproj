@@ -23,6 +23,7 @@
            (EntityFrameworkCore.Design carries 9.0.3 but is PrivateAssets=all.) -->
       <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.17" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+      <PackageReference Include="System.Text.Json" Version="10.0.9" />
       <PackageReference Include="TinyCsvParser" Version="2.7.2" />
       <!-- OpenTelemetry -->
       <PackageReference Include="OpenTelemetry" Version="1.9.0" />
