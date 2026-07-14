@@ -88,7 +88,7 @@ IoT Devices / Integration Gateway
 |--------|-----------|------|
 | Docker Desktop | 最新 | OSS スタック起動 |
 | .NET SDK | 8.0.126 以上の 8.0.x | バックエンドをホストで起動・ビルド（`DotNet/global.json` の SDK 固定に一致が必要） |
-| Node.js | 22+ | フロントエンドビルド |
+| Node.js | 20.19.5 以上（`.nvmrc`/`engines` の最低要件、推奨 22.x） | フロントエンドビルド |
 | Yarn | 1.22+（または Corepack 経由で有効化） | フロントエンドをホストで起動 |
 | Buf CLI | 最新 | proto → TypeScript コード生成 |
 

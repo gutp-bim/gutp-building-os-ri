@@ -44,7 +44,7 @@ Open an issue with the `enhancement` label. Describe the use case and why the fe
 See [README.md](./README.md) for setup instructions. The OSS local stack requires:
 - Docker Desktop (WSL2 on Windows / native on Linux/macOS)
 - .NET SDK 8.0+
-- Node.js 22+
+- Node.js 20.19.5+（`.nvmrc`/`engines` の最低要件、推奨 22.x）
 
 ```bash
 docker compose -f docker-compose.oss.yaml up -d
