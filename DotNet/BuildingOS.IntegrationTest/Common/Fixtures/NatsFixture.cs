@@ -17,7 +17,7 @@ public class NatsFixture : IAsyncLifetime
         .WithImage("nats:2.10-alpine")
         .WithCommand("-js")  // enable JetStream
         .WithPortBinding(NatsPort, true)
-        .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(NatsPort))
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(NatsPort))
         .Build();
 
     public string NatsUrl =>
