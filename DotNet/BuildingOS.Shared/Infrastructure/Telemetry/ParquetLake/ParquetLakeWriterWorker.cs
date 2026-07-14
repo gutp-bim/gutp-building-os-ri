@@ -79,7 +79,7 @@ public sealed class ParquetLakeWriterWorker : BackgroundService
         }, stoppingToken).ConfigureAwait(false);
 
         var accumulator = new TelemetryBatchAccumulator();
-        var pending = new List<NatsJSMsg<string>>();
+        var pending = new List<INatsJSMsg<string>>();
         var sinceFlush = Stopwatch.StartNew();
 
         _logger.LogInformation(
@@ -142,7 +142,7 @@ public sealed class ParquetLakeWriterWorker : BackgroundService
     }
 
     private async Task FlushAsync(
-        TelemetryBatchAccumulator accumulator, List<NatsJSMsg<string>> pending, Stopwatch sinceFlush, CancellationToken ct)
+        TelemetryBatchAccumulator accumulator, List<INatsJSMsg<string>> pending, Stopwatch sinceFlush, CancellationToken ct)
     {
         var dropped = accumulator.SkippedNoTimestamp;
         var batches = accumulator.Drain();
@@ -186,7 +186,7 @@ public sealed class ParquetLakeWriterWorker : BackgroundService
         }
     }
 
-    private async Task AckAllAsync(List<NatsJSMsg<string>> pending, CancellationToken ct)
+    private async Task AckAllAsync(List<INatsJSMsg<string>> pending, CancellationToken ct)
     {
         foreach (var msg in pending)
         {

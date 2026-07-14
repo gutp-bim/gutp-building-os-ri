@@ -14,8 +14,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <!-- gRPC ingress (GatewayIngress server stub; optional, gated on GRPC_INGRESS_PORT) -->
     <PackageReference Include="Grpc.AspNetCore" Version="2.67.0" />
-    <PackageReference Include="NATS.Client.Core" Version="2.5.16" />
-    <PackageReference Include="NATS.Client.JetStream" Version="2.5.16" />
+    <PackageReference Include="NATS.Client.Core" Version="3.0.0" />
+    <PackageReference Include="NATS.Client.JetStream" Version="3.0.0" />
     <PackageReference Include="System.Text.Json" Version="9.0.17" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.3.7" />
     <!-- MQTT ingress (Scenario A: Mosquitto) -->
