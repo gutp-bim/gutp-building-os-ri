@@ -224,4 +224,37 @@ public class GatewayProvisioningControllerTest
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
     }
+
+    [Fact]
+    public async Task Diff_SnapshotIsolatedPerGateway_CrossGatewaySinceFallsBackToFull()
+    {
+        // #114: the diff-path snapshot store (IGatewayPointListSnapshotStore) is a single shared
+        // instance across every gateway in production (one MemoryCache-backed service). Its keys are
+        // "gwpl-snapshot:{gatewayId}:{etag}", so a regression that dropped gatewayId from the key
+        // could let one gateway's `?since=<etag>` resolve against another gateway's retained snapshot.
+        // Only the full-fetch path (Returns200_TwoRegisteredGateways_EachSeesOnlyOwnPoints) has an
+        // isolation test today — this covers the same isolation on the diff path.
+        var snapshots = NewSnapshots();
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+            ["GW002"] = [Pt("PT101"), Pt("PT102")],
+        });
+
+        // GW001 fetches first, retaining its snapshot under its own etag.
+        var (c1, _) = Build([], callerGatewayHeader: "GW001", snapshots: snapshots, db: db);
+        var full1 = Assert.IsType<GatewayPointListResponse>(
+            Assert.IsType<OkObjectResult>(await c1.GetPointList("GW001", null, default)).Value);
+
+        // GW002 presents GW001's etag as `since` — a real etag in the shared store, just under a
+        // different gateway's key. It must not resolve, so this falls back to a full response for
+        // GW002's own points rather than diffing against (or otherwise being influenced by) GW001's.
+        var (c2, _) = Build([], callerGatewayHeader: "GW002", snapshots: snapshots, db: db);
+        var result = await c2.GetPointList("GW002", since: full1.Revision, default);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var diff = Assert.IsType<GatewayPointListDiffResponse>(ok.Value);
+        Assert.True(diff.Full);
+        Assert.Equal(["PT101", "PT102"], diff.Points.Select(p => p.PointId));
+    }
 }
