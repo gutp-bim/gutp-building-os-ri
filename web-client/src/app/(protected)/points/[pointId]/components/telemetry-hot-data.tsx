@@ -1,4 +1,9 @@
+import { FreshnessBadge } from "@/components/telemetry/freshness-badge";
 import { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
+import {
+  DEFAULT_STALE_THRESHOLD_SECONDS,
+  classifyPointFreshness,
+} from "@/lib/telemetry/freshness";
 import { unitLabelMap } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
@@ -33,6 +38,18 @@ export function TelemetryHotData({
     return `${hotData.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
   }, [hotData, scale, splitLabels, unit]);
 
+  // Freshness of the latest sample, evaluated against the current time on each render. Uses the
+  // registry default threshold (300s); wiring the live telemetry.staleThresholdSeconds setting is a
+  // follow-up. (Not wrapped in useMemo: `new Date()` is impure, so memoizing it is neither safe nor
+  // worthwhile — the classify call is a single cheap comparison.)
+  const freshness = hotData?.datetime
+    ? classifyPointFreshness(
+        [{ pointId: "", lastSeen: hotData.datetime }],
+        new Date(),
+        DEFAULT_STALE_THRESHOLD_SECONDS,
+      )[0]
+    : null;
+
   return (
     <div className={"flex flex-col gap-2 grow-4"}>
       <div className={"flex justify-center"}>
@@ -54,6 +71,11 @@ export function TelemetryHotData({
               {hotData?.datetime &&
                 new Date(hotData.datetime).toLocaleString("ja-JP")}
             </div>
+            {freshness && (
+              <div className="mt-2 flex justify-center">
+                <FreshnessBadge freshness={freshness} />
+              </div>
+            )}
           </div>
         </div>
       </div>
