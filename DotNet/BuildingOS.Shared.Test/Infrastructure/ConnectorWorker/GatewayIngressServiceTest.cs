@@ -278,6 +278,60 @@ public class GatewayIngressServiceTest
         Assert.Equal("GW002", doc.RootElement.GetProperty("telemetries")[0].GetProperty("data").GetProperty("gatewayId").GetString());
     }
 
+    [Fact]
+    public async Task StreamTelemetry_ThreeGatewaysConcurrently_NoCrossContamination()
+    {
+        // Extends the two-gateway concurrency test above to three simultaneous streams, matching the
+        // depth of GatewayEgress's Command_RoutesCorrectly_WithThreeConcurrentGateways (#114) — the
+        // original issue's own gap analysis called out Ingress as having zero multi-gateway coverage,
+        // and the fix landed with only two; this brings it to parity with Egress's three.
+        var bus = new FakeIngressTelemetryBus();
+        var gatewayIds = new[] { "GW001", "GW002", "GW003" };
+        var pointIds = new[] { "PT001", "PT002", "PT003" };
+        var cache = new FakePointMetadataCache(
+            new PointMetadata(pointIds[0], "bldg-1", "Room Temp", "DEV001", gatewayIds[0]),
+            new PointMetadata(pointIds[1], "bldg-2", "Damper Pos", "DEV002", gatewayIds[1]),
+            new PointMetadata(pointIds[2], "bldg-3", "CO2 Level", "DEV003", gatewayIds[2]));
+        const int framesPerGateway = 15;
+
+        var readers = gatewayIds.Select(_ => new FakeStreamReader<TelemetryFrame>()).ToArray();
+        for (var g = 0; g < gatewayIds.Length; g++)
+        {
+            for (var i = 0; i < framesPerGateway; i++)
+                readers[g].Push(new TelemetryFrame { GatewayId = gatewayIds[g], PointId = pointIds[g], Value = i });
+            readers[g].Complete();
+        }
+
+        // See the Task.Run rationale on the two-gateway concurrency test above.
+        var tasks = new Task<long>[gatewayIds.Length];
+        for (var g = 0; g < gatewayIds.Length; g++)
+        {
+            var idx = g;
+            tasks[g] = Task.Run(() => NewService(bus, cache).RunAsync(readers[idx], CancellationToken.None, trustedGatewayId: gatewayIds[idx]));
+        }
+        var accepted = await Task.WhenAll(tasks);
+
+        Assert.All(accepted, a => Assert.Equal(framesPerGateway, a));
+        Assert.Equal(framesPerGateway * gatewayIds.Length, bus.Published.Count);
+
+        var byGateway = bus.Published
+            .Select(p =>
+            {
+                using var doc = JsonDocument.Parse(p.Message);
+                var entity = doc.RootElement.GetProperty("telemetries")[0];
+                return (PointId: entity.GetProperty("point_id").GetString(),
+                    GatewayId: entity.GetProperty("data").GetProperty("gatewayId").GetString());
+            })
+            .ToArray();
+
+        for (var g = 0; g < gatewayIds.Length; g++)
+        {
+            var forThisGateway = byGateway.Where(e => e.GatewayId == gatewayIds[g]).ToArray();
+            Assert.Equal(framesPerGateway, forThisGateway.Length);
+            Assert.All(forThisGateway, e => Assert.Equal(pointIds[g], e.PointId));
+        }
+    }
+
     // ── Identity binding (#296) ───────────────────────────────────────────────
 
     [Fact]
