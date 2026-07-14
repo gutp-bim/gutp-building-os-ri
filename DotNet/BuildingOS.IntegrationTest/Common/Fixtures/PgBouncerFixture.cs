@@ -65,7 +65,7 @@ public class PgBouncerFixture : IAsyncLifetime
             .WithEnvironment("SERVER_RESET_QUERY", "")
             .WithNetwork(_network)
             .WithPortBinding(PgBouncerPort, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(PgBouncerPort))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(PgBouncerPort))
             .Build();
 
         await _pgbouncer.StartAsync();
