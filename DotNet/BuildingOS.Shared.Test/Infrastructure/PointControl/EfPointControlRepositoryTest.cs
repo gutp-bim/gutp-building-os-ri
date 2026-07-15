@@ -216,6 +216,28 @@ public class EfPointControlRepositoryTest
         Assert.Null(info.Response);
     }
 
+    // ─── PointControlAuditSerializer: ReadStatus (#162) ────────────────────
+
+    [Fact]
+    public void ReadStatus_NullResult_IsPending()
+    {
+        Assert.Equal("pending", PointControlAuditSerializer.ReadStatus(null));
+    }
+
+    [Fact]
+    public void ReadStatus_ParsesSuccessAndFailed()
+    {
+        Assert.Equal("success", PointControlAuditSerializer.ReadStatus("""{"status":"success","response":"{}"}"""));
+        Assert.Equal("failed", PointControlAuditSerializer.ReadStatus("""{"status":"failed","response":"err"}"""));
+    }
+
+    [Fact]
+    public void ReadStatus_MalformedOrMissingStatus_IsPending()
+    {
+        Assert.Equal("pending", PointControlAuditSerializer.ReadStatus("not json"));
+        Assert.Equal("pending", PointControlAuditSerializer.ReadStatus("""{"response":"{}"}"""));
+    }
+
     // ─── Round-trip ────────────────────────────────────────────────────────
 
     [Fact]

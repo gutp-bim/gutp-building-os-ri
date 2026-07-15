@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain;
+using BuildingOS.Shared.Domain.PointControl;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.PointControl;
@@ -23,7 +24,8 @@ public class PointController(
     IAuthorizedTwinView twinView,
     IControlTypeResolver controlTypeResolver,
     IControlSchemaResolver controlSchemaResolver,
-    IPointControlCommandPublisher commandPublisher) : ControllerBase
+    IPointControlCommandPublisher commandPublisher,
+    IPointControlRepository pointControlRepository) : ControllerBase
 {
     /// <summary>
     /// ポイント情報の一括取得
@@ -133,6 +135,38 @@ public class PointController(
         }
     }
 
+    /// <summary>
+    /// ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。監査データは
+    /// 記録済みだが閲覧画面が無かったギャップを埋める。閲覧にはポイントの**読み取り**権限を要求する
+    /// （制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。
+    /// </summary>
+    [HttpGet]
+    [Route("{pointId}/control-audit")]
+    [ProducesResponseType(typeof(PointControlAuditResponse[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PointControlAuditResponse[]>> ControlAudit(
+        string pointId, [FromQuery] int limit = 50, CancellationToken ct = default)
+    {
+        var auth = HttpContext.GetAuthorizationContext();
+        var decodedPointId = Uri.UnescapeDataString(pointId);
+
+        // Read-authorization: the history reveals control activity on the point, so gate it on read
+        // access to the point itself — the same check as GET /points/{id} (admin bypasses via twinView).
+        switch (await twinView.GetPointAsync(auth, decodedPointId, ct).ConfigureAwait(false))
+        {
+            case TwinGetResult<Point>.Ok: break;
+            case TwinGetResult<Point>.Forbidden: return Forbid();
+            case TwinGetResult<Point>.NotFound: return NotFound();
+            default: throw new UnreachableException();
+        }
+
+        var capped = Math.Clamp(limit, 1, 200);
+        var entries = await pointControlRepository
+            .ListAuditByPointAsync(decodedPointId, capped, ct)
+            .ConfigureAwait(false);
+        return entries.Select(PointControlAuditResponse.From).ToArray();
+    }
+
     public class PointControlRequest
     {
         public double? Value { get; set; }
@@ -143,4 +177,25 @@ public class PointController(
         [Required]
         public Guid ControlId { get; init; }
     }
+}
+
+/// <summary>
+/// 制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`
+/// （"success" / "failed" / "pending"）に正規化して返す。`Request` は送信時のコマンド JSON。
+/// </summary>
+public sealed record PointControlAuditResponse(
+    Guid ControlId,
+    string? PointId,
+    string Request,
+    string Status,
+    DateTime CreatedAt,
+    DateTime? CompletedAt)
+{
+    public static PointControlAuditResponse From(PointControlAuditEntry e) => new(
+        e.Id,
+        e.PointId,
+        e.Request,
+        PointControlAuditSerializer.ReadStatus(e.Result),
+        e.CreatedAt,
+        e.CompletedAt);
 }
