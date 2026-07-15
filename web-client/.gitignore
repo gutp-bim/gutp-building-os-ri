@@ -47,3 +47,4 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 .last-run.json
+/e9-results/
