@@ -256,6 +256,11 @@ UI で確認する場合:
 
 ## 7. 動作確認・トラブルシュート
 
+> **まず `make doctor` を実行してください。** 起動が通らないときの一次診断コマンドです（#157）。
+> 各サービスの疎通（NATS / PostgreSQL / OxiGraph + ツイン seed 件数 / MinIO / Keycloak / API /
+> ConnectorWorker）をチェックし、**失敗したチェックごとに「次に何をすべきか」の対処ヒント**を出します。
+> 健全なら exit 0、どれか失敗すれば非ゼロで終了します（`--profile` 限定サービスは skip 扱い）。
+
 | 症状 | 確認 |
 |---|---|
 | API が DB に繋がらない | `--no-deps` での個別 recreate はネットワークから外れることがある → `--force-recreate`（deps 込み）で再生成 |

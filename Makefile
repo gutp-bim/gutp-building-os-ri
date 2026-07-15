@@ -1,6 +1,6 @@
 .PHONY: local-up-azure local-up-oss local-up-dual local-up-minimal local-up-dev \
         local-down-azure local-down-oss local-down-all local-down-minimal local-down-dev \
-        test-oss-stack wait-oss-stack validate-oss-issues mvp-test help
+        test-oss-stack wait-oss-stack validate-oss-issues doctor mvp-test help
 
 # ── Azure ローカル互換スタック (既存 docker-compose.yaml) ─────────────────────
 local-up-azure:
@@ -67,6 +67,13 @@ wait-oss-stack:
 test-oss-stack:
 	@bash scripts/test-oss-stack.sh
 
+# ── 起動失敗の自己診断 (#157) ─────────────────────────────────────────────────
+# 起動が通らないときに「次に何をすべきか」を各チェックの失敗ごとに提示する診断コマンド。
+# 依存サービスが多いため、ポート競合 / seed 失敗 / API クラッシュループ等を切り分けて対処
+# ヒントを出す。scripts/test-oss-stack.sh と同じエンドポイントを使い、対処ヒントを追加。
+doctor:
+	@bash scripts/doctor.sh
+
 validate-oss-issues:
 	@bash scripts/validate-oss-issue-readiness.sh
 
@@ -105,5 +112,6 @@ help:
 	@echo "  make local-down-dev    Stop device simulator"
 	@echo "  make wait-oss-stack    Wait until OSS stack is healthy"
 	@echo "  make test-oss-stack    Run health-check tests against OSS stack"
+	@echo "  make doctor            Diagnose a running stack; print a fix hint for each failed check"
 	@echo "  make validate-oss-issues Validate OSS issue readiness checks"
 	@echo "  make mvp-test          MVP gate: dotnet test → web typecheck/build → stack health → E2E runner"
