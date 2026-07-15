@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate": "buf generate"
+    "generate": "buf generate",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@aspida/axios": "^1.14.0",
@@ -80,9 +81,11 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@bufbuild/buf": "^1.71.0",
     "@bufbuild/protoc-gen-es": "^2.12.1",
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
