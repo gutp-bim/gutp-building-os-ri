@@ -468,6 +468,6 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 ## Environment Requirements
 
 - .NET SDK 8.0+
-- Node.js 22+ (22.19.5 specified in `web-client/package.json`)
+- Node.js 20.19.5+ minimum (`web-client/.node-version` + `package.json` `engines`); 22.x recommended (CI runs 22.x)
 - Docker Desktop (for local development)
 - Buf CLI (for proto → TypeScript generation)
