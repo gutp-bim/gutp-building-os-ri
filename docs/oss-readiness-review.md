@@ -105,7 +105,7 @@ README 手順どおりに `yarn dev` + `dotnet run` すると素の状態では 
 - `README.md` の ConnectorWorker 環境変数表が 3 変数のみで、実際の必須群
   （`OXIGRAPH_ENDPOINT`、`WARM_STORE`/`MINIO_*` など）と乖離。CLAUDE.md 側の詳細表へのリンクか転記を。
 - ~~`oss-ci.yml` の frontend-check が Node `20.x`、README / CLAUDE.md の要求は Node 22+。統一を。~~
-  → **解消済み (#164):** CI（`oss-ci.yml` / `pr-check.yml`）は Node `22.x`、`.nvmrc`/`engines` は
+  → **解消済み (#164):** CI（`oss-ci.yml` / `pr-check.yml`）は Node `22.x`、`.node-version`/`engines` は
   `20.19.5`。README / CLAUDE.md / getting-started / CONTRIBUTING を「最低 20.19.5 / 推奨 22.x」に統一。
 
 ### 9. Helm チャートの Azure 残滓（ベンダーロック掃除の残り）

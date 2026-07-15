@@ -42,7 +42,7 @@ NATS JetStream  building-os.validated.telemetry
 
 - Docker Desktop（ローカル開発の全サービスを compose で起動）
 - .NET SDK 8.0.126 以上の 8.0.x（API Server / ConnectorWorker をホストで動かす場合。`DotNet/global.json` と一致が必要）
-- Node.js 20.19.5 以上（`web-client/.nvmrc`・`engines` の最低要件。推奨は CI と同じ 22.x）（Web Client をホストで動かす場合）
+- Node.js 20.19.5 以上（`web-client/.node-version`・`engines` の最低要件。推奨は CI と同じ 22.x）（Web Client をホストで動かす場合）
 - Yarn 1.22+（または Corepack 経由で有効化。Web Client をホストで動かす場合）
 - 任意: `uv`（Python）+ k6（E2E 性能ハーネスを動かす場合）
 
