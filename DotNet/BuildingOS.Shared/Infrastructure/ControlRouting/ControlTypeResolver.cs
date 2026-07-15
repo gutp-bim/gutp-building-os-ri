@@ -27,6 +27,7 @@ public sealed class ControlTypeResolver : IControlTypeResolver
         return binding switch
         {
             BindingTypes.Hono      => new ControlDispatch(DeviceControlType.Hono, BuildHonoBody(value), gatewayId),
+            BindingTypes.Simulated => new ControlDispatch(DeviceControlType.Simulated, BuildHonoBody(value), gatewayId),
             BindingTypes.BacnetSim => BuildBacnetSimDispatch(value, gatewayId),
             _                      => null, // unsupported binding (e.g. kandt body building is not API-wired yet)
         };

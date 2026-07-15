@@ -1,0 +1,55 @@
+# Building OS — Demo overlay (#155)
+#
+# 1コマンドで「データが流れている（見る→制御する）」状態にするオーバーレイ。単体では使わず、
+# docker-compose.oss.yaml に重ねて使う（`make demo` が全部やる）:
+#
+#   make demo
+#   # = docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml \
+#   #       --profile demo --profile webclient up -d --build
+#
+# 構成:
+#  1) building-os.demo-feeder — 既定シード twin（#124, `fixtures/e2e/twin.ttl` の GW-SOS-001 /
+#     SOS-PT-001..008）へ gRPC GatewayIngress で周期テレメトリを投入（`profiles: [demo]`）。
+#     受け口（connector-worker の `GRPC_INGRESS_PORT=5051`）は oss.yaml で既定 ON なので追加設定不要。
+#  2) api / connector-worker の GW-SOS-001 制御 binding を `bacnet-sim` → `simulated` に上書き。
+#     OSS 単体（実ゲートウェイ無し）でも制御が in-process の SimulatedDeviceControlHandler で 200 で
+#     返る（`bacnet-sim` のままだと GatewayBridge 経由 egress となり実 gateway 不在で 503 gateway_offline）。
+#     この上書きはオーバーレイを重ねた「デモ時だけ」効き、既定スタック（oss.yaml）の binding は非破壊。
+#
+# 実ゲートウェイ（nexus-gateway / bacnet-sim）を繋いだ実経路デモは別軸（#81 / docs/onboarding-e2e-gateway.md）。
+
+services:
+  building-os.api:
+    environment:
+      # Demo: route GW-SOS-001 control to the in-process simulated handler so control
+      # returns 200 without an external gateway. Overrides oss.yaml's bacnet-sim binding.
+      GatewayConnectionTypes__Map__GW-SOS-001: "simulated"
+
+  building-os.connector-worker:
+    environment:
+      GatewayConnectionTypes__Map__GW-SOS-001: "simulated"
+      # Flush warm-tier every minute (default 5) so the point-detail history chart
+      # fills in quickly during the demo.
+      PARQUET_FLUSH_INTERVAL: "1"
+
+  # ── Demo telemetry feeder ─────────────────────────────────────────────────
+  building-os.demo-feeder:
+    build:
+      context: ./Tools/development-edge-device
+      dockerfile: Dockerfile.demo-feeder
+    container_name: building-os.demo-feeder
+    profiles: ["demo"]
+    environment:
+      # Track the same port the connector-worker's gRPC ingress listens on (oss.yaml default 5051),
+      # so `GRPC_INGRESS_PORT=<n> make demo` keeps the feeder pointed at the right port.
+      INGRESS_TARGET: building-os.connector-worker:${GRPC_INGRESS_PORT:-5051}
+      GATEWAY_ID: GW-SOS-001
+      INTERVAL_SECONDS: "5"
+      PROTO_PATH: /proto/gateway_ingress.proto
+    volumes:
+      - ./proto:/proto:ro
+    depends_on:
+      - building-os.connector-worker
+    networks:
+      - oss
+    restart: unless-stopped

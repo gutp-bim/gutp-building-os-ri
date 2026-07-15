@@ -48,5 +48,7 @@ public static class DeviceControlType
     /// </summary>
     public const string BacnetSim = "BacnetSim";
 
+    public const string Simulated = "Simulated";
+
     public const string Hono = "Hono";
 }

@@ -27,17 +27,18 @@ MinIO 上の Parquet レイク（+ 最新値は NATS KV）にストア、REST + 
 > 📸 **スクリーンショット準備中** — 中心となる画面は `/resources`（設備ツリー）→ `/points/{id}`（最新値＋履歴グラフ）
 > → 制御ダイアログ の3つです。ローカルで `make local-up-oss` 後にブラウザで確認できます。
 
-**5分で動かす（最短）:**
+**5分で動かす（最短・1コマンド）:**
 
 ```bash
-make local-up-oss                                                   # ① フルスタック起動
-docker compose -f docker-compose.oss.yaml --profile webclient up -d # ② Web クライアント
-# → http://localhost:3000 （既定 dev アカウント admin/admin — ラボ/CI 専用）
+make demo
+# → http://localhost:3000 （ログイン: admin / admin — ラボ/CI 専用）
 ```
 
-サンプルツインは既定で自動投入されます（#124）。起動後 `/resources` から設備→ポイントを辿れます。
-テレメトリ投入・読取・制御まで通す詳細は **[docs/getting-started.md](docs/getting-started.md)**、
-用語は **[docs/concepts.md](docs/concepts.md)** を参照してください。
+これ 1 つで OSS スタック + Web Client + テレメトリ生成器が起動し、サンプルツイン（`GW-SOS-001` /
+`SOS-PT-001..008`、#124 で自動シード）に**動いている値**が流れます。`/resources` → ポイント詳細で
+最新値と履歴を見て、書込可ポイント（照明/設定温度/ファン）で**制御まで**実行できます（#155）。停止は
+`make demo-down`。詳細は **[docs/getting-started.md](docs/getting-started.md)**、用語は
+**[docs/concepts.md](docs/concepts.md)** を参照してください。
 
 ## ✨ 主要機能
 

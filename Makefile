@@ -1,6 +1,6 @@
 .PHONY: local-up-azure local-up-oss local-up-dual local-up-minimal local-up-dev \
         local-down-azure local-down-oss local-down-all local-down-minimal local-down-dev \
-        test-oss-stack wait-oss-stack validate-oss-issues doctor mvp-test help
+        demo demo-down test-oss-stack wait-oss-stack validate-oss-issues doctor mvp-test help
 
 # ── Azure ローカル互換スタック (既存 docker-compose.yaml) ─────────────────────
 local-up-azure:
@@ -34,6 +34,24 @@ local-up-dev:
 
 local-down-dev:
 	docker compose -f docker-compose.dev.yaml down
+
+# ── デモ (#155): 1コマンドで「データが流れている（見る→制御する）」状態へ ──────────
+# OSS スタック + Web Client + テレメトリ feeder（GW-SOS-001 / SOS-PT-001..008 へ gRPC 周期投入）を
+# 起動し、GW-SOS-001 の制御 binding を simulated に上書き（実ゲートウェイ無しでも制御が 200 で通る）。
+# 既定 twin は #124 で自動シード済み。起動後 http://localhost:3000（admin/admin）で
+# /resources → point 詳細に動く値が出て、書込可点（SOS-PT-004/006/007）の制御が実行できる。
+demo:
+	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml \
+		--profile demo --profile webclient up -d --build
+	@echo ""
+	@echo "Demo up. Open http://localhost:3000 (admin/admin)."
+	@echo "  /resources → SOS-PT-001..008 に動く値（feeder が GW-SOS-001 へ gRPC 投入中）"
+	@echo "  制御は書込可の SOS-PT-004(照明)/006(設定温度)/007(ファン)で実行 → 200 が返る"
+	@echo "  停止: make demo-down"
+
+demo-down:
+	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml \
+		--profile demo --profile webclient down
 
 # ── デュアルモード (両方同時起動) ────────────────────────────────────────────
 local-up-dual: local-up-azure local-up-oss
@@ -102,6 +120,8 @@ help:
 	@echo ""
 	@echo "  make local-up-azure    Start Azure-compatible local stack"
 	@echo "  make local-up-oss      Start OSS stack"
+	@echo "  make demo              One-command demo: OSS + Web + live telemetry feeder + control (see→control)"
+	@echo "  make demo-down         Stop the demo stack"
 	@echo "  make local-up-dual     Start both stacks simultaneously"
 	@echo "  make local-up-minimal  Start minimal stack (NATS + TimescaleDB + pgBouncer only)"
 	@echo "  make local-down-azure  Stop Azure stack"
