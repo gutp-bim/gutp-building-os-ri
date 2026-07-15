@@ -58,6 +58,19 @@ public class ControlTypeResolverTest
         Assert.Equal(DeviceControlType.Hono, dispatch!.ControlType);
     }
 
+    [Fact]
+    public void Resolve_MapsSimulatedConnectionType_ToSimulatedControlType()
+    {
+        var resolver = Build(new() { ["gw-sim"] = "simulated" });
+        var dispatch = resolver.Resolve(WritablePoint(), Gateway("gw-sim"), 1.0);
+
+        Assert.NotNull(dispatch);
+        Assert.Equal(DeviceControlType.Simulated, dispatch!.ControlType);
+        Assert.Equal("gw-sim", dispatch.GatewayId);
+        using var doc = JsonDocument.Parse(dispatch.Body);
+        Assert.Equal(1.0, doc.RootElement.GetProperty("value").GetDouble());
+    }
+
     // ── BacnetSim body builder (point-id canonical, #181) ───────────────────
 
     [Fact]

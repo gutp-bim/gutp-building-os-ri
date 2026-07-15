@@ -27,6 +27,13 @@ public class ControlRequestRoutingTest
     }
 
     [Fact]
+    public void SubjectFor_RoutesSimulated_ToGenericSubject()
+    {
+        Assert.Equal(EgressSubjects.GenericRequest,
+            ControlRequestRouting.SubjectFor(DeviceControlType.Simulated, "gw-1"));
+    }
+
+    [Fact]
     public void SubjectFor_FallsBackToGeneric_ForBacnetSimWithoutGateway()
     {
         // Without a gatewayId there is no per-gateway subject to route to.
@@ -47,6 +54,7 @@ public class ControlRequestRoutingTest
     [InlineData(DeviceControlType.BacnetSim, null)] // no gateway → generic
     [InlineData(DeviceControlType.Hono, "gw-1")]    // durable in-process path
     [InlineData(DeviceControlType.Kandt, "gw-1")]
+    [InlineData(DeviceControlType.Simulated, "gw-1")]
     public void IsPerGatewayEgress_False_ForDurableOrUnroutable(string controlType, string? gatewayId)
     {
         Assert.False(ControlRequestRouting.IsPerGatewayEgress(controlType, gatewayId));
