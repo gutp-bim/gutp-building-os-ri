@@ -1,0 +1,13 @@
+# Demo telemetry feeder (#155) — streams gRPC GatewayIngress telemetry for the
+# seeded demo twin (GW-SOS-001 / SOS-PT-001..008) so `make demo` shows live data.
+# The ingress proto is compiled at runtime (grpc_tools), mounted at /proto.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir grpcio grpcio-tools
+
+COPY grpc_demo_feeder.py .
+
+# -u: unbuffered stdout so the per-tick accepted counts show up in `docker logs`.
+CMD ["python", "-u", "grpc_demo_feeder.py"]

@@ -13,6 +13,35 @@ localId / Hot・Warm・Cold / ツイン等）でつまずいたら [基本概念
 
 ---
 
+## 🚀 最短デモ — `make demo`（1コマンド）
+
+「まず動いている状態を見たい」なら、これだけで **データが流れている画面**まで到達します（#155）。
+
+```bash
+make demo
+# → http://localhost:3000 （ログイン: admin / admin）
+```
+
+これ 1 つで、OSS スタック + Web Client + テレメトリ生成器（feeder）が起動し、
+サンプルツイン（`GW-SOS-001` / `SOS-PT-001..008`、#124 で自動シード）へ gRPC で周期テレメトリが
+投入され続けます。ブラウザで:
+
+1. `/resources` を開き、建物 → 機器 → ポイントへ辿る
+2. ポイント詳細（`/points/{id}`）で **動いている最新値**と履歴グラフを見る
+3. **書込可のポイント**（`SOS-PT-004` 照明 / `SOS-PT-006` 設定温度 / `SOS-PT-007` ファン）で
+   制御を実行 → 結果が返る（デモでは in-process のシミュレート制御ハンドラが応答するため、
+   実ゲートウェイ無しでも成功します）
+
+> 仕組み: `make demo` は `docker-compose.oss.yaml` に `docker-compose.demo.yaml` を重ね、feeder
+> サービス（`--profile demo`）と Web Client（`--profile webclient`）を起動し、`GW-SOS-001` の制御
+> binding をデモ時だけ `simulated` に上書きします（既定スタックの binding は非破壊）。停止は
+> `make demo-down`。実ゲートウェイ（nexus-gateway 等）を繋ぐ実経路デモは
+> [onboarding-e2e-gateway.md](onboarding-e2e-gateway.md) を参照。
+
+以下は、この 1 コマンドの中身を段階的に理解したい人向けの詳細手順です。
+
+---
+
 ## 0. これは何か（30 秒）
 
 スマートビル向けのオープンソース IoT プラットフォームです。ビル設備（HVAC・電力計・環境センサ等）の
