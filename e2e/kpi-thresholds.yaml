@@ -55,6 +55,16 @@ axes:
     backlog_drain_seconds:      { op: report, unit: s }
     graceful_degradation:       { op: report, note: "Hot/Warm/Cold 部分障害時の代替経路可否" }
 
+  # E9: 運用者ユーザビリティ（#159）。web-client の Playwright(route-mock)ハーネスが計測して
+  # {axis:E9_operator_usability, metrics} を run ディレクトリに出力し、この gate が採点する。
+  # docker 不要の route-mock サブセット。実ログイン/実制御まで含む計測はフルスタック E2E（別軸）。
+  E9_operator_usability:
+    axe_critical_violations:    { op: eq,  value: 0, unit: count }      # WCAG2 A/AA 重大（axe-core）
+    axe_serious_violations:     { op: lte, value: 0, unit: count }      # WCAG2 A/AA 深刻
+    time_to_sample_seconds:     { op: lte, value: 5, unit: s }          # ポイント表示 → 最新値が可視になるまで
+    login_to_point_clicks:      { op: report, unit: count, note: "ログイン後、主要ポイントの値到達までのクリック数" }
+    keyboard_first_focusable:   { op: report, unit: bool, note: "Tab で最初の操作要素にフォーカスできるか（1/0）" }
+
 # 論文ヘッドライン 5 指標（強調表示用）
 headline:
   - E2_ingest_latency.ingest_e2e_p95_ms

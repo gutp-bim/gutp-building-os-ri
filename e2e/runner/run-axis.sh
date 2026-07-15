@@ -99,6 +99,12 @@ case "$AXIS" in
   E8) command -v docker >/dev/null || gap "docker 未導入（障害注入できない）"
       # Primary: connector 停止→再起動の RTO + 復旧後データ損失（#246）。{axis:E8, metrics} を直接出力。
       PHASE2="${PHASE2:-2000}" bash "$PERF/s16_resilience_rto.sh" "$OUT/E8-resilience" || true ;;
+  E9) command -v yarn >/dev/null || gap "yarn 未導入（web-client Playwright を実行できない）"
+      # 運用者ユーザビリティ（#159）: web-client の Playwright(route-mock) が axe/鮮度表示時間などを
+      # 計測して {axis:E9_operator_usability, metrics} を $OUT/E9.json に出力（docker 不要）。
+      # ブラウザは CI では `npx playwright install chromium`、preinstall 環境では
+      # PLAYWRIGHT_CHROMIUM_EXECUTABLE で指定（web-client/playwright.config.ts 参照）。
+      ( cd "$REPO_ROOT/web-client" && E9_OUT="$OUT/E9.json" yarn test:e2e e9-metrics ) || true ;;
   *)  echo "[run-axis] unknown axis: $AXIS" >&2; exit 2 ;;
 esac
 
