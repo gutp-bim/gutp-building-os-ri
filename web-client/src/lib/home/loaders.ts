@@ -35,14 +35,26 @@ export const productionHomeLoaders: HomeLoaders = {
   loadFloors: (buildingDtId) => listFloors(buildingDtId),
   loadFloorPoints: async (floorDtId) => {
     const spaces = await listSpaces(floorDtId);
-    const deviceLists = await Promise.all(
-      spaces.map((s) => listDevices(s.dtId).catch(() => [] as ResourceRef[])),
+    // Carry the owning space + device names down to each point so the attention list can show where
+    // a stale/missing point lives (space → device) without a second lookup.
+    const perSpace = await Promise.all(
+      spaces.map(async (s) => {
+        const devices = await listDevices(s.dtId).catch(() => [] as ResourceRef[]);
+        const perDevice = await Promise.all(
+          devices.map(async (d) => {
+            const points = await listPoints(d.dtId).catch(() => []);
+            return points.map((p) => ({
+              pointId: p.id,
+              name: p.name,
+              deviceName: d.name,
+              spaceName: s.name,
+            }));
+          }),
+        );
+        return perDevice.flat();
+      }),
     );
-    const devices = deviceLists.flat();
-    const pointLists = await Promise.all(
-      devices.map((d) => listPoints(d.dtId).catch(() => [])),
-    );
-    return pointLists.flat().map((p) => ({ pointId: p.id, name: p.name }));
+    return perSpace.flat();
   },
   loadFreshness: (pointIds) =>
     loadPointsFreshness(pointIds, {

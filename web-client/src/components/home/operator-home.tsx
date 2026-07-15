@@ -10,6 +10,7 @@ import {
   summarizeFreshness,
 } from "@/lib/telemetry/freshness";
 import { formatAge } from "@/lib/telemetry/freshness-format";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GatewayStatusPanel, type GatewaysFetcher } from "./gateway-status-panel";
 
@@ -174,24 +175,29 @@ export function OperatorHome({
         ) : (
           <ul data-testid="home-attention-list" className="divide-y divide-gray-100 rounded-lg border border-gray-200">
             {attention.map((item) => (
-              <li
-                key={item.pointId}
-                data-testid="home-attention-row"
-                className="flex items-center justify-between px-4 py-2 text-sm"
-              >
-                <span className="font-medium text-gray-800">{item.name}</span>
-                <span
-                  data-testid={`attention-${item.status}`}
-                  className={
-                    item.status === "missing"
-                      ? "text-gray-700"
-                      : "text-amber-800"
-                  }
+              <li key={item.pointId} data-testid="home-attention-row">
+                <Link
+                  href={`/points/${encodeURIComponent(item.pointId)}`}
+                  data-testid="home-attention-link"
+                  className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-gray-50"
                 >
-                  {item.status === "missing"
-                    ? "欠測"
-                    : `鮮度切れ（${item.ageSeconds !== null ? formatAge(item.ageSeconds) : "不明"}）`}
-                </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-gray-800">{item.name}</span>
+                    {(item.spaceName || item.deviceName) && (
+                      <span className="block truncate text-xs text-gray-600">
+                        {[item.spaceName, item.deviceName].filter(Boolean).join(" / ")}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    data-testid={`attention-${item.status}`}
+                    className={`shrink-0 ${item.status === "missing" ? "text-gray-700" : "text-amber-800"}`}
+                  >
+                    {item.status === "missing"
+                      ? "欠測（データなし）"
+                      : `鮮度切れ（${item.ageSeconds !== null ? formatAge(item.ageSeconds) : "不明"}）`}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

@@ -50,6 +50,12 @@ test("operator home shows freshness counts and worst-first attention list", asyn
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("電力"); // missing first
   await expect(rows.nth(1)).toContainText("CO2"); // then stale
+
+  // Each row links to the point detail and shows its space / device context (#179).
+  const firstLink = page.getByTestId("home-attention-link").first();
+  await expect(firstLink).toHaveAttribute("href", "/points/pt-3");
+  await expect(firstLink).toContainText("執務室"); // space name
+  await expect(firstLink).toContainText("AHU-1"); // device name
 });
 
 test("gateway panel is hidden for operators", async ({ context, page }) => {

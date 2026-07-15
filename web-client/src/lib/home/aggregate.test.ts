@@ -43,4 +43,18 @@ describe("buildAttentionList", () => {
     }));
     expect(buildAttentionList(named, allFresh)).toEqual([]);
   });
+
+  it("carries the device and space names from the named points", () => {
+    const namedWithCtx = [
+      { pointId: "p2", name: "湿度", deviceName: "AHU-1", spaceName: "会議室A" },
+      { pointId: "p3", name: "CO2", deviceName: "CO2-Sensor-01", spaceName: "会議室A" },
+    ];
+    const items = buildAttentionList(namedWithCtx, freshness);
+    const p3 = items.find((i) => i.pointId === "p3");
+    expect(p3?.spaceName).toBe("会議室A");
+    expect(p3?.deviceName).toBe("CO2-Sensor-01");
+    // Points without context still resolve (undefined device/space, name falls back to id).
+    const p4 = items.find((i) => i.pointId === "p4");
+    expect(p4?.deviceName).toBeUndefined();
+  });
 });
