@@ -3,6 +3,7 @@ using BuildingOs.ApiServer.Controllers;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain;
 using BuildingOS.Shared.Domain.Authorization;
+using BuildingOS.Shared.Domain.PointControl;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.PointControl;
@@ -57,8 +58,9 @@ public class PointControllerTest
         schemaResolver.Setup(r => r.ResolveAsync(It.IsAny<Point>(), It.IsAny<Device?>())).ReturnsAsync(schema);
 
         var publisher = new Mock<IPointControlCommandPublisher>();
+        var repository = new Mock<IPointControlRepository>();
 
-        var controller = new PointController(twinView.Object, resolver, schemaResolver.Object, publisher.Object);
+        var controller = new PointController(twinView.Object, resolver, schemaResolver.Object, publisher.Object, repository.Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContext(AdminAuth()),
@@ -66,6 +68,49 @@ public class PointControllerTest
 
         return (controller, publisher);
     }
+
+    /// <summary>
+    /// Builds a PointController wired for the ControlAudit (read history) tests: a stubbed
+    /// GetPointAsync gate + an injectable audit repository. Returns the twinView mock so a test can
+    /// override the read-authorization result (Ok/Forbidden/NotFound).
+    /// </summary>
+    private static (PointController controller, Mock<IPointControlRepository> repo, Mock<IAuthorizedTwinView> twinView)
+        BuildAuditController(
+            IReadOnlyList<PointControlAuditEntry>? entries = null,
+            TwinGetResult<Point>? pointAccess = null)
+    {
+        var twinView = new Mock<IAuthorizedTwinView>();
+        twinView.Setup(v => v.GetPointAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(pointAccess ?? new TwinGetResult<Point>.Ok(MakePoint()));
+
+        var repo = new Mock<IPointControlRepository>();
+        repo.Setup(r => r.ListAuditByPointAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(entries ?? []);
+
+        var resolver = new ControlTypeResolver(
+            new ConfigGatewayConnectionRegistry(
+                new Dictionary<string, string>(), "hono",
+                new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+                new Dictionary<string, IReadOnlyDictionary<string, string>>()));
+        var schemaResolver = new Mock<IControlSchemaResolver>();
+        var publisher = new Mock<IPointControlCommandPublisher>();
+
+        var controller = new PointController(twinView.Object, resolver, schemaResolver.Object, publisher.Object, repo.Object)
+        {
+            ControllerContext = new ControllerContext { HttpContext = BuildHttpContext(AdminAuth()) },
+        };
+        return (controller, repo, twinView);
+    }
+
+    private static PointControlAuditEntry AuditEntry(string pointId, string? resultJson, DateTime createdAt) => new()
+    {
+        Id = Guid.NewGuid(),
+        PointId = pointId,
+        Request = """{"value":21.5}""",
+        Result = resultJson,
+        CreatedAt = createdAt,
+        CompletedAt = resultJson is null ? null : createdAt.AddSeconds(1),
+    };
 
     private static DefaultHttpContext BuildHttpContext(AuthorizationContext auth)
     {
@@ -279,5 +324,83 @@ public class PointControllerTest
 
         Assert.IsType<BadRequestObjectResult>(result);
         publisher.Verify(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── ControlAudit (制御監査履歴 read, #162) ───────────────────────────────
+
+    [Fact]
+    public async Task ControlAudit_ReturnsMappedEntries_WithNormalizedStatus()
+    {
+        var now = DateTime.UtcNow;
+        var entries = new List<PointControlAuditEntry>
+        {
+            AuditEntry("PT001", """{"status":"success","response":"{}"}""", now),
+            AuditEntry("PT001", """{"status":"failed","response":"timeout"}""", now.AddSeconds(-10)),
+            AuditEntry("PT001", null, now.AddSeconds(-20)), // in-flight → pending
+        };
+        var (controller, _, _) = BuildAuditController(entries);
+
+        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+
+        var value = Assert.IsType<PointControlAuditResponse[]>(result.Value);
+        Assert.Equal(3, value.Length);
+        Assert.Equal("success", value[0].Status);
+        Assert.Equal("failed", value[1].Status);
+        Assert.Equal("pending", value[2].Status);
+        Assert.Equal("""{"value":21.5}""", value[0].Request);
+    }
+
+    [Fact]
+    public async Task ControlAudit_PassesDecodedPointIdAndCappedLimit_ToRepository()
+    {
+        var (controller, repo, _) = BuildAuditController();
+
+        await controller.ControlAudit("PT001%2Ftemp", 999, CancellationToken.None);
+
+        // limit is clamped to [1,200]; the pointId is URL-decoded before the query.
+        repo.Verify(r => r.ListAuditByPointAsync("PT001/temp", 200, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ControlAudit_ClampsNonPositiveLimit_ToOne()
+    {
+        var (controller, repo, _) = BuildAuditController();
+
+        await controller.ControlAudit("PT001", 0, CancellationToken.None);
+
+        repo.Verify(r => r.ListAuditByPointAsync("PT001", 1, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ControlAudit_Returns403_WhenPointReadForbidden()
+    {
+        var (controller, repo, _) = BuildAuditController(pointAccess: new TwinGetResult<Point>.Forbidden());
+
+        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result.Result);
+        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ControlAudit_Returns404_WhenPointNotFound()
+    {
+        var (controller, repo, _) = BuildAuditController(pointAccess: new TwinGetResult<Point>.NotFound());
+
+        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ControlAudit_ReturnsEmptyArray_WhenNoHistory()
+    {
+        var (controller, _, _) = BuildAuditController(entries: []);
+
+        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+
+        var value = Assert.IsType<PointControlAuditResponse[]>(result.Value);
+        Assert.Empty(value);
     }
 }

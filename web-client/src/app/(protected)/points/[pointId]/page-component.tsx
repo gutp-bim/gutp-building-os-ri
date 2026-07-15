@@ -9,6 +9,7 @@ import { latestTelemetry, queryTelemetry } from "@/lib/telemetry/repository";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
+import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
 import { PointInfo } from "./components/point-info";
 import { TelemetryHotData } from "./components/telemetry-hot-data";
@@ -172,6 +173,8 @@ export default function PointDetailPageComponent({
         warmLoading={warmLoading}
         onRefresh={fetchWarmData}
       />
+
+      <ControlAuditHistory pointId={pointDetail.point.id} />
 
       <ColdDataDownloadModal
         isOpen={isModalOpen}

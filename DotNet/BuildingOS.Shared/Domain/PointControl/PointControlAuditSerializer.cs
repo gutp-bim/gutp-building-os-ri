@@ -53,6 +53,24 @@ public static class PointControlAuditSerializer
         };
     }
 
+    /// <summary>
+    /// Read the persisted result's status string ("success" / "failed") for the audit view (#162), or
+    /// "pending" when the command has no result yet (null) or the stored JSON is malformed / carries no
+    /// status. Pure; distinct from <see cref="ToDomain"/> which maps to the success/failed enum only.
+    /// </summary>
+    public static string ReadStatus(string? resultJson)
+    {
+        if (resultJson is null) return "pending";
+        try
+        {
+            var doc = JsonDocument.Parse(resultJson);
+            if (doc.RootElement.TryGetProperty("status", out var s))
+                return s.GetString() ?? "pending";
+        }
+        catch { /* malformed → pending */ }
+        return "pending";
+    }
+
     private static string? ExtractProperty(string? json, string key)
     {
         if (json is null) return null;
