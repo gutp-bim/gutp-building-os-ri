@@ -15,6 +15,56 @@ MinIO 上の Parquet レイク（+ 最新値は NATS KV）にストア、REST + 
 
 ---
 
+## 👀 見た目と最初の1コマンド
+
+<!--
+📸 スクリーンショット / デモ GIF プレースホルダ（#156）
+  実 UI のキャプチャ（推奨3点: /resources ツリー・/points/{id} 時系列・制御ダイアログ）を
+  docs/images/ 配下に追加し、ここに ![説明](docs/images/xxx.png) で差し込んでください。
+  ※ 本リポジトリの自動化環境では実 UI を起動できないため画像は未添付です（メンテナ対応）。
+-->
+
+> 📸 **スクリーンショット準備中** — 中心となる画面は `/resources`（設備ツリー）→ `/points/{id}`（最新値＋履歴グラフ）
+> → 制御ダイアログ の3つです。ローカルで `make local-up-oss` 後にブラウザで確認できます。
+
+**5分で動かす（最短）:**
+
+```bash
+make local-up-oss                                                   # ① フルスタック起動
+docker compose -f docker-compose.oss.yaml --profile webclient up -d # ② Web クライアント
+# → http://localhost:3000 （既定 dev アカウント admin/admin — ラボ/CI 専用）
+```
+
+サンプルツインは既定で自動投入されます（#124）。起動後 `/resources` から設備→ポイントを辿れます。
+テレメトリ投入・読取・制御まで通す詳細は **[docs/getting-started.md](docs/getting-started.md)**、
+用語は **[docs/concepts.md](docs/concepts.md)** を参照してください。
+
+## ✨ 主要機能
+
+- 🌳 **リソースエクスプローラ** — 建物→フロア→空間→機器→ポイントの階層を辿る（`/resources`）＋横断検索
+- 📈 **テレメトリ可視化** — 最新値（Hot=NATS KV）と履歴（Warm/Cold=Parquet レイク）を層自動選択で表示
+- 🎛️ **ポイント制御** — 確認付きの書き込み制御（gRPC ストリーミング）＋監査ログ
+- 🔌 **ゲートウェイ連携** — `(gateway_id, point_id)` 契約の gRPC ingress/egress ＋ Point List 同期（ETag）
+- 🧭 **デジタルツイン** — OxiGraph（SPARQL/SBCO）でビル階層を管理、point list の正本
+- 🔐 **認証・認可** — Keycloak（OIDC/JWT）＋リソース単位の権限モデル
+- 🛠️ **管理ワークスペース** — ユーザー/グループ/権限・ツイン投入・プラットフォーム設定（`/admin`・`/platform`）
+
+## 🧭 目的別の入口
+
+| やりたいこと | 参照 |
+|---|---|
+| **A.** まず動くデモ画面を見たい | [docs/getting-started.md](docs/getting-started.md)（＋ [基本概念](docs/concepts.md)） |
+| **B.** センサーデータを MQTT で送りたい | [docs/oss-hono-design.md](docs/oss-hono-design.md)（下の [MQTT 取り込み手順](#31-mqtt-を外部ブローカー例-localhost11883から取り込む)も参照） |
+| **C.** Building OS 対応ゲートウェイを開発したい | [docs/gateway-integration.md](docs/gateway-integration.md) ＋ [オンボーディングチェックリスト](docs/gateway-onboarding-checklist.md) |
+| **D.** 独自のビルモデル（ツイン）を登録したい | [docs/resource-management.md](docs/resource-management.md)（`/admin/twin`） |
+| **E.** 本番環境へ展開したい | [docs/oss-production-deployment.md](docs/oss-production-deployment.md) |
+| **F.** API でアプリを作りたい | [docs/api-client-guide.md](docs/api-client-guide.md) |
+
+> 以下はアーキテクチャ詳細・環境変数・デプロイ構成など**踏み込んだ内容**です。初見の方は上の「目的別の入口」から
+> 必要な doc へ進むのがおすすめです。
+
+---
+
 ## アーキテクチャ
 
 ```
@@ -45,21 +95,18 @@ IoT Devices / Integration Gateway
 **認証:** Keycloak（OIDC / JWT）。ゲートウェイ provisioning は mTLS マシン認証。  
 **可観測性:** OpenTelemetry → Prometheus + Grafana + Loki + Tempo。
 
-> **⚠️ Breaking change（#216 / #234）: 既定の Warm 層が `parquet` になり、TimescaleDB は既定スタックから外して選択式（opt-in）になりました。**
-> 既定ではテレメトリ Warm/Cold は MinIO 上の統合 Parquet レイク、`point_control_audit` は PostgreSQL
-> （EF Core）を使い、**TimescaleDB は既定では不要**です（compose の DB イメージは `postgres:16`）。TimescaleDB
-> Warm 構成を選ぶ場合は `WARM_STORE=timescale`（compose は `--profile timescale` +
-> `TIMESCALE_CONNECTION_STRING` を手動指定）。
-> 詳細は [docs/oss-warm-parquet-lake.md](docs/oss-warm-parquet-lake.md) / [docs/oss-tier-architecture.md](docs/oss-tier-architecture.md)。
+> **⚠️ Breaking change（#216 / #234）:** 既定の Warm 層が `parquet`（MinIO 上の統合 Parquet レイク）になり、
+> **TimescaleDB は選択式（opt-in、`WARM_STORE=timescale`）** になりました。既定 DB イメージは `postgres:16`。
+> 背景・移行手順は [docs/oss-warm-parquet-lake.md](docs/oss-warm-parquet-lake.md) /
+> [docs/oss-tier-architecture.md](docs/oss-tier-architecture.md)。
 
 > **ゲートウェイ Point List 同期（#224）**：twin を正本に、`GET /gateways/{id}/pointlist` でゲートウェイが
-> native addressing 付き Point List を取得（内容ハッシュ ETag / `If-None-Match`→304 / `?since=` 差分）。
-> twin 更新時は GatewayEgress ストリーム経由で push 通知。認証は mTLS 由来の信頼ヘッダ。
+> native addressing 付き Point List を取得（ETag / `If-None-Match`→304 / `?since=` 差分・push 通知・mTLS 信頼ヘッダ）。
 > 詳細は [docs/oss-gateway-pointlist-sync.md](docs/oss-gateway-pointlist-sync.md)。
 
-> **Azure IoT Hub について**  
-> `ConnectorWorker` は Kandt ゲートウェイへの制御コマンドを Azure IoT Hub ダイレクトメソッド経由で送信するオプションハンドラ（`KandtDeviceControlHandler`、下流は BACnet）を含みます。  
-> これは既存設備との後方互換ブリッジであり、新規デプロイメントには不要です。
+> **Azure IoT Hub 互換（任意）:** 既存 BACnet エッジ向けに IoT Hub ダイレクトメソッド経由の制御ハンドラ
+> （`KandtDeviceControlHandler`）を同梱しますが、後方互換ブリッジであり新規デプロイには不要です。
+> 詳細は [docs/system-architecture.md](docs/system-architecture.md)。
 
 ---
 
@@ -94,13 +141,13 @@ IoT Devices / Integration Gateway
 
 ---
 
-## クイックスタート
+## 起動手順（詳細）
 
-> 🚀 はじめての方は **[docs/getting-started.md（オンボーディング）](docs/getting-started.md)** が、起動→API/Web→
-> テレメトリ投入→読取/制御 までを一筆書きで案内します。用語でつまずいたら
-> **[docs/concepts.md（基本概念・1ページ入門）](docs/concepts.md)** を先にどうぞ。ゲートウェイ接続は
-> **[docs/gateway-integration.md](docs/gateway-integration.md)**、評価結果は
-> **[docs/evaluation-summary.md](docs/evaluation-summary.md)**。
+> 上の「見た目と最初の1コマンド」が最短ルートです。ここではプロファイル別の詳細手順を示します。
+> 起動→API/Web→テレメトリ投入→読取/制御 までの一筆書きは
+> **[docs/getting-started.md](docs/getting-started.md)**、用語は **[docs/concepts.md](docs/concepts.md)**、
+> ゲートウェイ接続は **[docs/gateway-integration.md](docs/gateway-integration.md)**、評価結果は
+> **[docs/evaluation-summary.md](docs/evaluation-summary.md)** を参照してください。
 
 ### 1. OSS スタックを起動
 
@@ -202,39 +249,9 @@ dotnet run
 
 ---
 
-### 5. 旧手順（参考）
-
-以下は「ホスト直接起動」を選ぶ場合のコマンドです。
-
-```bash
-cd DotNet/BuildingOS.ApiServer
-dotnet run --launch-profile WithLocal
-# → http://localhost:5000
-# → http://localhost:5000/swagger  （Swagger UI）
-```
-
-`WithLocal` プロファイルは `DISABLE_AUTH=true` を設定しており、  
-Keycloak なしでローカル開発できます。  
-認証を有効にする場合は `--launch-profile WithLocalAuth` を使用してください。
-
-### 6. Web クライアントを起動（ホスト直接起動時）
-
-```bash
-cd web-client
-yarn install
-yarn dev
-# → http://localhost:3000
-```
-
-> ユーザー・権限管理は web-client の `(admin)` ワークスペース（`http://localhost:3000/admin`）に統合済みです（別アプリの起動は不要）。
-> リソース閲覧は `/resources`（ツリーエクスプローラ + 横断検索）。
-
-### 7. ConnectorWorker を起動（ホスト直接起動時）
-
-```bash
-cd DotNet/BuildingOS.ConnectorWorker
-dotnet run
-```
+> ホスト直接起動時、`WithLocal` プロファイルは `DISABLE_AUTH=true`（Keycloak なし）です。認証を有効にするには
+> `--launch-profile WithLocalAuth` を使います。ユーザー・権限管理は `/admin`、リソース閲覧は `/resources`。
+> ホスト起動の全手順は [docs/getting-started.md](docs/getting-started.md) を参照してください。
 
 ---
 
@@ -604,6 +621,20 @@ a REST + gRPC API and a Next.js dashboard.
 > ℹ️ This product is a derivative of research output from the **UTokyo Green ICT Project**. It is
 > provided **AS IS, with no warranty** — see [Disclaimer](#免責事項-disclaimer) above. Report
 > security issues privately per [SECURITY.md](./SECURITY.md).
+
+> 📸 Screenshots pending — the core screens are `/resources` (equipment tree) → `/points/{id}`
+> (latest value + history chart) → the control dialog. Run `make local-up-oss` and open them locally.
+
+### Where to start (by goal)
+
+| I want to… | See |
+|---|---|
+| **A.** see a working demo screen | [docs/getting-started.md](docs/getting-started.md) (+ [concepts](docs/concepts.md)) |
+| **B.** send sensor data over MQTT | [docs/oss-hono-design.md](docs/oss-hono-design.md) |
+| **C.** develop a Building-OS gateway | [docs/gateway-integration.md](docs/gateway-integration.md) + [onboarding checklist](docs/gateway-onboarding-checklist.md) |
+| **D.** register my own building model | [docs/resource-management.md](docs/resource-management.md) |
+| **E.** deploy to production | [docs/oss-production-deployment.md](docs/oss-production-deployment.md) |
+| **F.** build an app on the API | [docs/api-client-guide.md](docs/api-client-guide.md) |
 
 ### Architecture
 
