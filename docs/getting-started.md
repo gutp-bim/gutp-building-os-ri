@@ -1,7 +1,9 @@
 # Getting Started — Building OS OSS オンボーディング
 
 このドキュメントは **初めて Building OS OSS を触る人**向けに、ローカルでの起動から「テレメトリが
-入って・読めて・制御できる」までを一筆書きで案内します。アーキテクチャ全体は
+入って・読めて・制御できる」までを一筆書きで案内します。用語（Point / Resource / point_id vs
+localId / Hot・Warm・Cold / ツイン等）でつまずいたら [基本概念（1ページ入門）](concepts.md) を先に
+読むと以降が楽になります。アーキテクチャ全体は
 [system-architecture.md](system-architecture.md)、ゲートウェイ接続は
 [gateway-integration.md](gateway-integration.md)、性能・妥当性は
 [evaluation-summary.md](evaluation-summary.md) を参照してください。

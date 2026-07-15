@@ -97,7 +97,8 @@ IoT Devices / Integration Gateway
 ## クイックスタート
 
 > 🚀 はじめての方は **[docs/getting-started.md（オンボーディング）](docs/getting-started.md)** が、起動→API/Web→
-> テレメトリ投入→読取/制御 までを一筆書きで案内します。ゲートウェイ接続は
+> テレメトリ投入→読取/制御 までを一筆書きで案内します。用語でつまずいたら
+> **[docs/concepts.md（基本概念・1ページ入門）](docs/concepts.md)** を先にどうぞ。ゲートウェイ接続は
 > **[docs/gateway-integration.md](docs/gateway-integration.md)**、評価結果は
 > **[docs/evaluation-summary.md](docs/evaluation-summary.md)**。
 
@@ -535,6 +536,7 @@ make test-oss-stack                         # スタック疎通テスト
 
 | ドキュメント | 内容 |
 |-------------|------|
+| [`docs/concepts.md`](docs/concepts.md) | 📖 基本概念（1ページ入門）— Point / Resource / ID の使い分け / Hot・Warm・Cold / ツイン・ポイントリスト |
 | [`docs/getting-started.md`](docs/getting-started.md) | 🚀 オンボーディング（起動→API/Web→投入→読取/制御） |
 | [`docs/keycloak-user-management.md`](docs/keycloak-user-management.md) | 🔑 Keycloak ユーザー管理・ロール付与・トークン取得 |
 | [`docs/connector-development-guide.md`](docs/connector-development-guide.md) | 🔧 コネクタ・ワーカー拡張（新プロトコル対応の step-by-step） |

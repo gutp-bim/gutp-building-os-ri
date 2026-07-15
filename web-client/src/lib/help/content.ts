@@ -72,6 +72,18 @@ export const GLOSSARY: GlossaryTerm[] = [
     category: "id",
   },
   {
+    term: "gateway_id",
+    definition:
+      "ゲートウェイを一意に識別する ID。テレメトリ・制御・ポイントリスト同期はこの ID を軸にゲートウェイ単位で振り分けられます。ツイン全体で一意（1 ゲートウェイ = 1 建物）で、そのゲートウェイが「所有」するポイントの範囲を決めます。個々の設備を指す device_id とは別の粒度です。",
+    category: "id",
+  },
+  {
+    term: "device_id",
+    definition:
+      "設備（機器 / Equipment）を一意に識別する ID。ポイントはいずれかの device に属し、複数の device が 1 つの gateway_id にぶら下がります。device_id は「どの設備か」、gateway_id は「どの中継器か」を表し、粒度が異なります。",
+    category: "id",
+  },
+  {
     term: "GatewayIngress",
     definition:
       "テレメトリ取り込みの gRPC サービス（ConnectorWorker がホスト）。ゲートウェイから gateway_id + point_id + value + timestamp を受け取り、ツインで静的メタデータを補完して検証済みテレメトリとして配信します。制御は扱いません。",
@@ -88,6 +100,13 @@ export const GLOSSARY: GlossaryTerm[] = [
     reading: "ぽいんとりすと",
     definition:
       "ゲートウェイが担当するポイントの一覧（native アドレス・単位・書込可否・制御スキーマ等）。ツインが正本で、ゲートウェイは GET /gateways/{id}/pointlist で追従します。バージョンは内容ハッシュの ETag（revision）で表され、変化時のみ再取得されます。",
+    category: "architecture",
+  },
+  {
+    term: "リビジョン",
+    reading: "りびじょん",
+    definition:
+      "ポイントリストの版数。内容から算出する順序非依存のハッシュ（\"sha256:...\" 形式の ETag）で表され、ポイントリストが変わったときだけ値が変わります。ゲートウェイは If-None-Match で問い合わせ、変化が無ければ 304 が返るので、無駄な再取得を避けられます。",
     category: "architecture",
   },
   {
