@@ -17,7 +17,7 @@ PERF_DIR="$REPO_ROOT/Tools/e2e-performance"
 SCALE="${SCALE:-medium}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${SCALE}}"
 OUT_DIR="$REPO_ROOT/e2e/results/$RUN_ID"
-ONLY="${ONLY:-E1,E2,E3,E4,E5,E6,E7,E8}"
+ONLY="${ONLY:-E1,E2,E3,E4,E5,E6,E7,E8,E9}"
 
 mkdir -p "$OUT_DIR"
 echo "[run-all] run_id=$RUN_ID scale=$SCALE only=$ONLY"
@@ -37,7 +37,7 @@ echo "[run-all] output=$OUT_DIR"
 want() { [[ ",$ONLY," == *",$1,"* ]]; }
 run_axis() { bash "$REPO_ROOT/e2e/runner/run-axis.sh" "$1" --scale "$SCALE" --out "$OUT_DIR"; }
 
-for axis in E1 E2 E3 E4 E5 E6 E7 E8; do
+for axis in E1 E2 E3 E4 E5 E6 E7 E8 E9; do
   if want "$axis"; then
     echo "[run-all] === $axis ==="
     run_axis "$axis" || echo "[run-all] $axis exited non-zero (recorded)"

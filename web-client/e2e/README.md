@@ -35,14 +35,21 @@ tour. Use `loginAs(context, "admin" | "operator" | "viewer")` in `beforeEach`.
 - auth gate: unauthenticated → `/sign-in`; authenticated → allowed
 - accessibility: axe-core WCAG 2 A/AA on `/resources` (no critical/serious)
 
+## E9 "Operator Usability" KPI axis (#159)
+
+`e9-metrics.spec.ts` measures a11y (axe), time-to-sample, and keyboard/first-focus and
+writes `{ axis: "E9_operator_usability", metrics }` to `E9_OUT` (default `e9-results/E9.json`),
+which `e2e/runner/gate.py` scores against `e2e/kpi-thresholds.yaml`. It is wired into the
+evaluation runner (`bash e2e/runner/run-axis.sh E9 --out <dir>`; also in `run-all.sh`).
+See `e2e/scenarios/E9-operator-usability.md`.
+
 ## Out of scope (full-stack, follow-up)
 
 Scenarios that need a real backend — actual Keycloak login, control **success**
 (gRPC-web streaming result), live telemetry values, `/platform/status` health
 fan-out — belong to the full-stack UI E2E driven by `make demo`, a separate
-`workflow_dispatch` job. The E9 "Operator Usability" KPI axis
-(`e2e/kpi-thresholds.yaml`) is a follow-up that reuses this harness to emit
-click-count / time-to-sample / axe metrics.
+`workflow_dispatch` job. That job would also add real-login variants of the E9
+navigation-click / task-timing metrics.
 
 ## Conventions
 
