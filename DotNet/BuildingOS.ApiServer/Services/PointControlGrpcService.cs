@@ -42,7 +42,8 @@ public class PointControlGrpcService : PointControlService.PointControlServiceBa
         var controlId = request.ControlId;
         _logger.LogInformation("WaitForResult started: controlId={ControlId}", controlId);
 
-        var reader = _eventBus.Subscribe(controlId);
+        var reader = await _eventBus.SubscribeAsync(controlId, context.CancellationToken)
+            .ConfigureAwait(false);
 
         using var timeoutCts = new CancellationTokenSource(Timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -68,7 +69,7 @@ public class PointControlGrpcService : PointControlService.PointControlServiceBa
         }
         finally
         {
-            _eventBus.Unsubscribe(controlId);
+            await _eventBus.UnsubscribeAsync(controlId).ConfigureAwait(false);
         }
     }
 }

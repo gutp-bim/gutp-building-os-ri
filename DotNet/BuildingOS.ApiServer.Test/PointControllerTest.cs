@@ -111,24 +111,42 @@ public class PointControllerTest
     }
 
     [Fact]
-    public async Task Control_PreparesResultSubscription_BeforePublishing()
+    public async Task Control_WaitsForResultSubscription_BeforePublishing()
     {
         var (controller, publisher, resultBus) = BuildControllerWithResultBus(Detail(MakePoint()));
-        var sequence = new MockSequence();
+        var prepareStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscriptionReady = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         string? preparedControlId = null;
 
-        resultBus.InSequence(sequence)
-                 .Setup(b => b.Prepare(It.IsAny<string>()))
-                 .Callback<string>(controlId => preparedControlId = controlId);
-        publisher.InSequence(sequence)
-                 .Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+        resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .Callback<string, CancellationToken>((controlId, _) =>
+                 {
+                     preparedControlId = controlId;
+                     prepareStarted.SetResult();
+                 })
+                 .Returns(subscriptionReady.Task);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.Delivered);
 
-        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+        var controlTask = controller.Control(
+            "PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+
+        await prepareStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        publisher.Verify(
+            p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        subscriptionReady.SetResult();
+        var result = await controlTask;
 
         var accepted = Assert.IsType<AcceptedResult>(result);
         var body = Assert.IsType<PointController.ControlAcceptedResponse>(accepted.Value);
         Assert.Equal(body.ControlId.ToString(), preparedControlId);
+        publisher.Verify(
+            p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -139,8 +157,9 @@ public class PointControllerTest
             Detail(MakePoint(), device), connectionTypeMap: new() { ["gw-sim"] = "bacnet-sim" });
         string? preparedControlId = null;
 
-        resultBus.Setup(b => b.Prepare(It.IsAny<string>()))
-                 .Callback<string>(controlId => preparedControlId = controlId);
+        resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .Callback<string, CancellationToken>((controlId, _) => preparedControlId = controlId)
+                 .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.GatewayOffline);
 
@@ -148,7 +167,27 @@ public class PointControllerTest
 
         var status = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, status.StatusCode);
-        resultBus.Verify(b => b.Unsubscribe(preparedControlId!), Times.Once);
+        resultBus.Verify(b => b.UnsubscribeAsync(preparedControlId!), Times.Once);
+    }
+
+    [Fact]
+    public async Task Control_UnsubscribesPreparedResult_WhenPublishingFails()
+    {
+        var (controller, publisher, resultBus) = BuildControllerWithResultBus(Detail(MakePoint()));
+        string? preparedControlId = null;
+
+        resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .Callback<string, CancellationToken>((controlId, _) => preparedControlId = controlId)
+                 .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ThrowsAsync(new InvalidOperationException("publish failed"));
+
+        var result = await controller.Control(
+            "PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.NotNull(badRequest.Value);
+        resultBus.Verify(b => b.UnsubscribeAsync(preparedControlId!), Times.Once);
     }
 
     [Fact]

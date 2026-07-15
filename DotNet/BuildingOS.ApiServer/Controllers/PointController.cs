@@ -101,6 +101,7 @@ public class PointController(
                 return BadRequest(new { error = validation.Error, dataType = schema.DataType });
         }
 
+        string? preparedControlId = null;
         try
         {
             var pointControlInfo = new PointControlInfo
@@ -112,12 +113,14 @@ public class PointController(
                 GatewayId = dispatch.GatewayId,
             };
             var controlId = pointControlInfo.id.ToString();
-            controlResultBus.Prepare(controlId);
+            await controlResultBus.PrepareAsync(controlId, ct).ConfigureAwait(false);
+            preparedControlId = controlId;
 
-            var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct);
+            var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
             {
-                controlResultBus.Unsubscribe(controlId);
+                await controlResultBus.UnsubscribeAsync(controlId).ConfigureAwait(false);
+                preparedControlId = null;
                 // The target gateway has no live egress stream → fail fast instead of letting the
                 // client wait out the result timeout (#186).
                 BuildingOsMetrics.ControlRequests.Add(1,
@@ -134,6 +137,8 @@ public class PointController(
         }
         catch (Exception ex)
         {
+            if (preparedControlId is not null)
+                await controlResultBus.UnsubscribeAsync(preparedControlId).ConfigureAwait(false);
             return BadRequest(new { error = ex.Message });
         }
     }

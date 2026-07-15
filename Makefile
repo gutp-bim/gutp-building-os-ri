@@ -51,9 +51,12 @@ demo:
 
 demo-e2e:
 	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \
-		--profile demo --profile webclient --profile demo-e2e up -d --build
+		--profile demo --profile webclient --profile demo-e2e up -d --build \
+		building-os.oxigraph building-os.keycloak building-os.connector-worker \
+		building-os.demo-feeder building-os.web
+	bash scripts/prepare-demo-e2e.sh
 	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \
-		--profile demo --profile webclient --profile demo-e2e run --rm building-os.demo-e2e
+		--profile demo --profile webclient --profile demo-e2e run --rm --no-deps building-os.demo-e2e
 
 demo-down:
 	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \

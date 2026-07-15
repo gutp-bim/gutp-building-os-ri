@@ -52,7 +52,9 @@ See `e2e/scenarios/E9-operator-usability.md`.
 The demo tier (`make demo-e2e`, or `yarn test:e2e:demo` against an already-running
 stack) uses real Keycloak login, real API calls, live demo telemetry, and the
 simulated control binding configured by the demo overlay. It is intended for the
-manual `workflow_dispatch` CI path, not push/PR triggers.
+manual `workflow_dispatch` CI path, not push/PR triggers. `make demo-e2e` waits for
+the browser-facing services and reconciles the Keycloak client redirects, including
+when the local Keycloak volume already exists.
 
 ## Conventions
 

@@ -9,8 +9,8 @@ namespace BuildingOs.ApiServer.Services;
 /// </summary>
 public interface IControlResultBus
 {
-    void Prepare(string controlId);
-    ChannelReader<ControlResultEvent> Subscribe(string controlId);
+    Task PrepareAsync(string controlId, CancellationToken cancellationToken);
+    Task<ChannelReader<ControlResultEvent>> SubscribeAsync(string controlId, CancellationToken cancellationToken);
     bool Publish(string controlId, ControlResultEvent evt);
-    void Unsubscribe(string controlId);
+    Task UnsubscribeAsync(string controlId);
 }
