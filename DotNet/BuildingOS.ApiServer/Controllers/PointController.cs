@@ -9,6 +9,7 @@ using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
+using BuildingOs.ApiServer.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BuildingOs.ApiServer.Controllers;
@@ -23,6 +24,7 @@ public class PointController(
     IAuthorizedTwinView twinView,
     IControlTypeResolver controlTypeResolver,
     IControlSchemaResolver controlSchemaResolver,
+    IControlResultBus controlResultBus,
     IPointControlCommandPublisher commandPublisher) : ControllerBase
 {
     /// <summary>
@@ -109,10 +111,13 @@ public class PointController(
                 Body = dispatch.Body,
                 GatewayId = dispatch.GatewayId,
             };
+            var controlId = pointControlInfo.id.ToString();
+            controlResultBus.Prepare(controlId);
 
             var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
             {
+                controlResultBus.Unsubscribe(controlId);
                 // The target gateway has no live egress stream → fail fast instead of letting the
                 // client wait out the result timeout (#186).
                 BuildingOsMetrics.ControlRequests.Add(1,

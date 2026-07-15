@@ -9,7 +9,11 @@ need **no backend** (no OSS stack, no Keycloak). They run in CI (`ui-e2e-mock` j
 
 ```bash
 cd web-client
-yarn test:e2e                 # starts `yarn dev` and runs the specs
+yarn test:e2e                 # starts `yarn dev` and runs non-@demo specs
+yarn test:e2e:all             # runs every spec, including @demo
+yarn test:e2e:demo            # drives an already-running demo stack
+cd ..
+make demo-e2e                 # starts the demo stack and runs @demo inside Docker
 ```
 
 CI installs the version-matched browser with `npx playwright install chromium`. If
@@ -43,13 +47,12 @@ which `e2e/runner/gate.py` scores against `e2e/kpi-thresholds.yaml`. It is wired
 evaluation runner (`bash e2e/runner/run-axis.sh E9 --out <dir>`; also in `run-all.sh`).
 See `e2e/scenarios/E9-operator-usability.md`.
 
-## Out of scope (full-stack, follow-up)
+## Full-stack demo tier
 
-Scenarios that need a real backend — actual Keycloak login, control **success**
-(gRPC-web streaming result), live telemetry values, `/platform/status` health
-fan-out — belong to the full-stack UI E2E driven by `make demo`, a separate
-`workflow_dispatch` job. That job would also add real-login variants of the E9
-navigation-click / task-timing metrics.
+The demo tier (`make demo-e2e`, or `yarn test:e2e:demo` against an already-running
+stack) uses real Keycloak login, real API calls, live demo telemetry, and the
+simulated control binding configured by the demo overlay. It is intended for the
+manual `workflow_dispatch` CI path, not push/PR triggers.
 
 ## Conventions
 

@@ -14,7 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate": "buf generate",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --grep-invert @demo",
+    "test:e2e:all": "playwright test",
+    "test:e2e:demo": "E2E_BASE_URL=${E2E_BASE_URL:-http://localhost:3000} E2E_NO_SERVER=1 playwright test --grep @demo"
   },
   "dependencies": {
     "@aspida/axios": "^1.14.0",

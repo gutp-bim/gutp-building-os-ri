@@ -14,19 +14,30 @@ namespace BuildingOs.ApiServer.Services;
 public sealed class NatsControlResultBus(INatsConnection nats, ILogger<NatsControlResultBus> logger)
     : IControlResultBus, IAsyncDisposable
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     private readonly ConcurrentDictionary<string, Channel<ControlResultEvent>> _channels = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscriptions = new();
 
-    public ChannelReader<ControlResultEvent> Subscribe(string controlId)
+    public void Prepare(string controlId)
     {
         var channel = _channels.GetOrAdd(controlId, _ => Channel.CreateBounded<ControlResultEvent>(1));
 
-        var cts = new CancellationTokenSource();
-        _subscriptions[controlId] = cts;
+        _subscriptions.GetOrAdd(controlId, _controlId =>
+        {
+            var cts = new CancellationTokenSource();
+            _ = Task.Run(() => ConsumeAsync(controlId, channel, cts.Token), cts.Token);
+            return cts;
+        });
+    }
 
-        _ = Task.Run(() => ConsumeAsync(controlId, channel, cts.Token), cts.Token);
-
-        return channel.Reader;
+    public ChannelReader<ControlResultEvent> Subscribe(string controlId)
+    {
+        Prepare(controlId);
+        return _channels[controlId].Reader;
     }
 
     public bool Publish(string controlId, ControlResultEvent evt)
@@ -58,7 +69,7 @@ public sealed class NatsControlResultBus(INatsConnection nats, ILogger<NatsContr
             {
                 if (msg.Data == null) continue;
                 var json = Encoding.UTF8.GetString(msg.Data);
-                var dto = JsonSerializer.Deserialize<ControlResultDto>(json);
+                var dto = JsonSerializer.Deserialize<ControlResultDto>(json, JsonOptions);
                 if (dto == null) continue;
 
                 var evt = new ControlResultEvent

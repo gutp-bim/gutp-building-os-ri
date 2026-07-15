@@ -103,10 +103,14 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost:3000/auth/oidc-callback",
+        "http://web.localhost:3000/auth/oidc-callback",
+        "http://building-os.web:3000/auth/oidc-callback",
         "https://building-os.example.com/auth/oidc-callback"
       ],
       "webOrigins": [
         "http://localhost:3000",
+        "http://web.localhost:3000",
+        "http://building-os.web:3000",
         "https://building-os.example.com"
       ],
       "defaultClientScopes": [

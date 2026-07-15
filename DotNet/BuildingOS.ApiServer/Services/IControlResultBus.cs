@@ -9,6 +9,7 @@ namespace BuildingOs.ApiServer.Services;
 /// </summary>
 public interface IControlResultBus
 {
+    void Prepare(string controlId);
     ChannelReader<ControlResultEvent> Subscribe(string controlId);
     bool Publish(string controlId, ControlResultEvent evt);
     void Unsubscribe(string controlId);

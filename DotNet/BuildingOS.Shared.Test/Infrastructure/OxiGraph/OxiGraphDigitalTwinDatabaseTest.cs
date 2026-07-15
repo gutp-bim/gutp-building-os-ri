@@ -138,6 +138,27 @@ public class OxiGraphDigitalTwinDatabaseTest
         Assert.False(point!.Writable);
     }
 
+    [Fact]
+    public async Task GetPoint_MapsBacnetNativeFields()
+    {
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""ptDt"": {""type"":""uri"",""value"":""urn:dtid:pt1""},
+      ""ptId"": {""type"":""literal"",""value"":""PT001""},
+      ""ptName"": {""type"":""literal"",""value"":""Lighting""},
+      ""devIdBac"": {""type"":""literal"",""value"":""BAC-2""},
+      ""objType"": {""type"":""literal"",""value"":""binaryOutput""},
+      ""instNo"": {""type"":""literal"",""value"":""2001""} }
+  ]}}");
+
+        var point = await db.GetPoint("PT001");
+
+        Assert.NotNull(point);
+        Assert.Equal("BAC-2", point!.DeviceIdBacnet);
+        Assert.Equal("binaryOutput", point.ObjectTypeBacnet);
+        Assert.Equal(2001, point.InstanceNoBacnet);
+    }
+
     // ── Metadata read (identifiers / customTags) ──────────────────────────────
 
     [Fact]

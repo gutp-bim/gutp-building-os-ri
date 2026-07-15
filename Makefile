@@ -1,6 +1,6 @@
 .PHONY: local-up-azure local-up-oss local-up-dual local-up-minimal local-up-dev \
         local-down-azure local-down-oss local-down-all local-down-minimal local-down-dev \
-        demo demo-down test-oss-stack wait-oss-stack validate-oss-issues doctor mvp-test help
+        demo demo-e2e demo-down test-oss-stack wait-oss-stack validate-oss-issues doctor mvp-test help
 
 # ── Azure ローカル互換スタック (既存 docker-compose.yaml) ─────────────────────
 local-up-azure:
@@ -49,9 +49,15 @@ demo:
 	@echo "  制御は書込可の SOS-PT-004(照明)/006(設定温度)/007(ファン)で実行 → 200 が返る"
 	@echo "  停止: make demo-down"
 
+demo-e2e:
+	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \
+		--profile demo --profile webclient --profile demo-e2e up -d --build
+	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \
+		--profile demo --profile webclient --profile demo-e2e run --rm building-os.demo-e2e
+
 demo-down:
-	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml \
-		--profile demo --profile webclient down
+	docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \
+		--profile demo --profile webclient --profile demo-e2e down
 
 # ── デュアルモード (両方同時起動) ────────────────────────────────────────────
 local-up-dual: local-up-azure local-up-oss
@@ -121,6 +127,7 @@ help:
 	@echo "  make local-up-azure    Start Azure-compatible local stack"
 	@echo "  make local-up-oss      Start OSS stack"
 	@echo "  make demo              One-command demo: OSS + Web + live telemetry feeder + control (see→control)"
+	@echo "  make demo-e2e          Run full-stack Playwright demo E2E inside the compose network"
 	@echo "  make demo-down         Stop the demo stack"
 	@echo "  make local-up-dual     Start both stacks simultaneously"
 	@echo "  make local-up-minimal  Start minimal stack (NATS + TimescaleDB + pgBouncer only)"

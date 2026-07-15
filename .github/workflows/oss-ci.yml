@@ -122,7 +122,7 @@ jobs:
   # Browser-level E2E for the web client that stubs all API/telemetry calls via
   # page.route(), so it needs neither the OSS stack nor Keycloak (login is injected).
   # The full-stack UI E2E (real login/control/telemetry against `make demo`) is a
-  # separate workflow_dispatch job (#159, follow-up).
+  # separate workflow_dispatch job (#159).
   ui-e2e-mock:
     name: UI E2E (route-mock)
     runs-on: ubuntu-latest
@@ -155,6 +155,40 @@ jobs:
           name: playwright-report
           path: web-client/playwright-report/
           retention-days: 7
+
+  # ── UI E2E (Playwright, demo full-stack) ───────────────────────
+  # Runs the browser inside the compose network against the real demo stack:
+  # Keycloak login, API, live demo telemetry, and simulated control execution.
+  ui-e2e-demo:
+    name: UI E2E (demo full-stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run demo full-stack E2E
+        run: make demo-e2e
+
+      - name: Collect demo logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml -f docker-compose.demo-e2e.yaml \
+            --profile demo --profile webclient --profile demo-e2e logs --tail=300 \
+            > demo-e2e-compose.log
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-demo-report
+          path: |
+            web-client/playwright-report/
+            web-client/test-results/
+            demo-e2e-compose.log
+          retention-days: 7
+
+      - name: Stop demo stack
+        if: always()
+        run: make demo-down
 
   # ── Swagger / Aspida drift check (B-7) ─────────────────────────
   # Regenerates docs/schema/swagger.yaml from the built API Server and the Aspida client from
@@ -252,4 +286,3 @@ jobs:
         run: |
           helm template building-os kubernetes/helm/building-os \
             -f kubernetes/helm/building-os/values-prod.yaml
-
