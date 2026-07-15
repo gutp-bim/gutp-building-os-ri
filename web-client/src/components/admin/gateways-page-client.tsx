@@ -60,12 +60,13 @@ export function GatewaysPageClient() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-1 flex items-center gap-2">
-        <h1 className="text-2xl font-bold">ゲートウェイ</h1>
+        <h1 className="text-2xl font-bold">登録済みゲートウェイ</h1>
         <HelpButton helpKey="admin.gateways" />
       </div>
       <p className="mb-4 text-sm text-gray-600">
         binding / 接続設定（シークレットはマスク）と pointlist 同期状態の観測。binding/設定は GitOps が正本のため
         読み取り専用です。アイデンティティは mTLS クライアント証明書（OIDC クライアントの secret とは別系統）。
+        これは<strong>登録情報</strong>であり、接続状態（connected / last seen）は表示しません。
       </p>
 
       {error && <p className="mb-3 text-sm text-red-600" data-testid="gw-error">{error}</p>}

@@ -22,6 +22,12 @@ describe("GatewayStatusPanel", () => {
     expect(row).toHaveTextContent("abcdef123456"); // first 12 hex chars of the sha256 revision
   });
 
+  it("labels itself as registration info, not connection state (#181)", async () => {
+    render(<GatewayStatusPanel fetchGateways={vi.fn().mockResolvedValue([gateway])} />);
+    expect(await screen.findByText("登録済みゲートウェイ")).toBeInTheDocument();
+    expect(screen.getByTestId("home-gateway-panel-note")).toHaveTextContent("接続状態");
+  });
+
   it("shows the empty state when no gateways are registered", async () => {
     render(<GatewayStatusPanel fetchGateways={vi.fn().mockResolvedValue([])} />);
     expect(await screen.findByText("ゲートウェイは登録されていません。")).toBeInTheDocument();
