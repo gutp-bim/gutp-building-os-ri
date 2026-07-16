@@ -7,6 +7,7 @@ import {
   mockDevices,
   mockFloors,
   mockLatestTelemetry,
+  mockLatestTelemetryFailure,
   mockPoints,
   mockSpaces,
 } from "./support/mock";
@@ -56,6 +57,53 @@ test("operator home shows freshness counts and worst-first attention list", asyn
   await expect(firstLink).toHaveAttribute("href", "/points/pt-3");
   await expect(firstLink).toContainText("執務室"); // space name
   await expect(firstLink).toContainText("AHU-1"); // device name
+});
+
+test("shows an error, not false 欠測, when the freshness batch fails", async ({
+  context,
+  page,
+}) => {
+  await loginAs(context, "operator");
+  await mockBuildings(page);
+  await mockFloors(page);
+  await mockSpaces(page);
+  await mockDevices(page);
+  await mockPoints(page, POINTS);
+  // The batch-latest endpoint is down; the home must surface it rather than showing every point as
+  // missing (#182 review point 1).
+  await mockLatestTelemetryFailure(page, 503);
+  await page.goto("/home");
+
+  await expect(page.getByTestId("home-error")).toBeVisible();
+  await expect(page.getByTestId("home-attention-row")).toHaveCount(0);
+});
+
+test("classifies a floor larger than the batch cap by chunking client-side", async ({
+  context,
+  page,
+}) => {
+  // 501 points > the 500-id server cap: the client must split into <=500 chunks instead of tripping
+  // the server's 400 and misclassifying the whole floor as missing (#182 review point 2).
+  const manyPoints = Array.from({ length: 501 }, (_, i) => ({
+    dtId: `bulk-${i}`,
+    id: `bulk-${i}`,
+    name: `点${i}`,
+  }));
+  const allFresh = Object.fromEntries(
+    manyPoints.map((p) => [p.id, isoSecondsAgo(10)]),
+  );
+
+  await loginAs(context, "operator");
+  await mockBuildings(page);
+  await mockFloors(page);
+  await mockSpaces(page);
+  await mockDevices(page);
+  await mockPoints(page, manyPoints);
+  await mockLatestTelemetry(page, allFresh);
+  await page.goto("/home");
+
+  await expect(page.getByTestId("summary-fresh")).toContainText("501");
+  await expect(page.getByTestId("summary-missing")).toContainText("0");
 });
 
 test("gateway panel is hidden for operators", async ({ context, page }) => {

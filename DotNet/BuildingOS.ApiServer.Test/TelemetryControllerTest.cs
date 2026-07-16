@@ -115,4 +115,70 @@ public class TelemetryControllerTest
         var result = await controller.QueryBatchLatest(new BatchLatestRequest(tooMany), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
+
+    /// <summary>
+    /// The non-admin authorization path (<c>DefaultAuthorizationService → GroupMembershipResolver →
+    /// GroupRepository</c>) reads the request-scoped EF <c>RelationalDbContext</c>, which is not
+    /// thread-safe. The batch endpoint must therefore authorize points one at a time — never fan the
+    /// authorization out concurrently over the shared context. This fake fails the moment two
+    /// authorization calls overlap.
+    /// </summary>
+    [Fact]
+    public async Task BatchLatest_AuthorizesSequentially_ForNonAdmin()
+    {
+        var twin = new Mock<IDigitalTwinDatabase>();
+        var telemetryDb = new Mock<ITelemetryDatabase>();
+        var router = new Mock<ITelemetryQueryRouter>();
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(Array.Empty<ValidTelemetryData>());
+
+        var authz = new ConcurrencyTrackingAuthorizationService();
+        var controller = new TelemetryController(twin.Object, telemetryDb.Object, router.Object, authz)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = "u1", Role = "operator", Permissions = [] } },
+                },
+            },
+        };
+
+        var ids = Enumerable.Range(0, 20).Select(i => $"p{i}").ToArray();
+        await controller.QueryBatchLatest(new BatchLatestRequest(ids), CancellationToken.None);
+
+        Assert.Equal(20, authz.CallCount);
+        Assert.Equal(1, authz.MaxConcurrency);
+    }
+
+    /// <summary>An <see cref="IAuthorizationService"/> that records the peak number of overlapping
+    /// <see cref="CanAccessAsync"/> calls, so a test can assert authorization is never concurrent.</summary>
+    private sealed class ConcurrencyTrackingAuthorizationService : IAuthorizationService
+    {
+        private int _active;
+        private readonly object _gate = new();
+        public int MaxConcurrency { get; private set; }
+        public int CallCount { get; private set; }
+
+        public async Task<bool> CanAccessAsync(
+            AuthorizationContext context, string resourceType, string resourceId, string action,
+            CancellationToken cancellationToken = default)
+        {
+            var active = Interlocked.Increment(ref _active);
+            lock (_gate)
+            {
+                CallCount++;
+                if (active > MaxConcurrency) MaxConcurrency = active;
+            }
+            // Yield long enough that any concurrent callers would overlap here.
+            await Task.Delay(15, cancellationToken).ConfigureAwait(false);
+            Interlocked.Decrement(ref _active);
+            return true;
+        }
+
+        public Task<IReadOnlyList<string>> GetAccessibleResourceIdsAsync(
+            AuthorizationContext context, string resourceType, string action,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+    }
 }

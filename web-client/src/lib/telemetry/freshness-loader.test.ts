@@ -48,16 +48,17 @@ describe("loadPointsFreshness", () => {
     ]);
   });
 
-  it("degrades to all-missing when the batch fetch rejects, not a thrown load", async () => {
-    const results = await loadPointsFreshness(["A", "B"], {
-      now: NOW,
-      thresholdSeconds: 300,
-      fetchLatestBatch: () => Promise.reject(new Error("network")),
-    });
-    expect(results).toEqual([
-      { pointId: "A", status: "missing", ageSeconds: null },
-      { pointId: "B", status: "missing", ageSeconds: null },
-    ]);
+  it("propagates a batch fetch failure instead of masking it as all-missing", async () => {
+    // A transient fetch failure must be distinguishable from "the points genuinely have no data":
+    // the loader rethrows so the operator home renders its error banner rather than silently
+    // showing every point as 欠測 (missing). #182 review point 1.
+    await expect(
+      loadPointsFreshness(["A", "B"], {
+        now: NOW,
+        thresholdSeconds: 300,
+        fetchLatestBatch: () => Promise.reject(new Error("network")),
+      }),
+    ).rejects.toThrow("network");
   });
 
   it("makes exactly one batch call for all points", async () => {

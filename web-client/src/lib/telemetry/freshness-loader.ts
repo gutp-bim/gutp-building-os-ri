@@ -20,10 +20,12 @@ export type LoadPointsFreshnessOptions = {
  *
  * A single batch request (`POST /telemetries/query/batch-latest`, #182) replaces the previous
  * per-point N+1 fan-out, so a floor with hundreds of points is one round-trip instead of hundreds of
- * concurrent browser requests. Every requested point is represented in the result: a point the batch
- * omits (a non-admin cannot read it), or a failed batch, is treated as `missing` rather than dropped,
- * so one dead point / a transient error never sinks the whole view — matching {@link classifyPointFreshness}'s
- * "no sample ⇒ missing" rule.
+ * concurrent browser requests. A point the batch *omits* (a non-admin cannot read it) is classified
+ * `missing`, matching {@link classifyPointFreshness}'s "no sample ⇒ missing" rule.
+ *
+ * A *failed* fetch, by contrast, is rethrown rather than masked as all-missing (#182 review): the
+ * caller (operator home) must be able to tell "the data is unavailable" apart from "the points
+ * genuinely have no data", so it can show an error instead of a fleet of false 欠測.
  */
 export async function loadPointsFreshness(
   pointIds: string[],
@@ -35,14 +37,8 @@ export async function loadPointsFreshness(
 ): Promise<PointFreshness[]> {
   if (pointIds.length === 0) return [];
 
-  let seen: Map<string, string | null>;
-  try {
-    const rows = await fetchLatestBatch(pointIds);
-    seen = new Map(rows.map((r) => [r.pointId, r.lastSeen]));
-  } catch {
-    // A failed batch degrades to "everything missing" rather than throwing the whole view.
-    seen = new Map();
-  }
+  const rows = await fetchLatestBatch(pointIds);
+  const seen = new Map(rows.map((r) => [r.pointId, r.lastSeen]));
 
   const lastSeen: PointLastSeen[] = pointIds.map((pointId) => ({
     pointId,

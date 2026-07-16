@@ -238,18 +238,33 @@ public class TelemetryController(
 
         var authContext = HttpContext.GetAuthorizationContext();
 
-        var samples = await Task.WhenAll(ids.Select(async pointId =>
+        // Phase 1 — authorization. For a non-admin this resolves group membership through the
+        // request-scoped EF DbContext (DefaultAuthorizationService → GroupMembershipResolver →
+        // GroupRepository), which is NOT thread-safe, so we must authorize sequentially rather than
+        // fan out with Task.WhenAll over the shared context. Inaccessible points are dropped —
+        // omission (not 403) keeps the batch usable for a mixed-permission point set.
+        string[] accessibleIds;
+        if (authContext.IsAdmin)
         {
-            // Per-point read authorization (admin bypasses). Inaccessible points are dropped below —
-            // omission (not 403) keeps the batch usable for a mixed-permission point set.
-            if (!authContext.IsAdmin)
+            accessibleIds = ids;
+        }
+        else
+        {
+            var allowed = new List<string>(ids.Length);
+            foreach (var pointId in ids)
             {
                 var canAccess = await authorizationService
                     .CanAccessAsync(authContext, "point", pointId, "read", ct)
                     .ConfigureAwait(false);
-                if (!canAccess) return null;
+                if (canAccess) allowed.Add(pointId);
             }
+            accessibleIds = allowed.ToArray();
+        }
 
+        // Phase 2 — telemetry fan-out. The latest path reads the Hot KV / Parquet lake (not the EF
+        // DbContext), so this stays concurrent to keep the batch a single fast round-trip.
+        var samples = await Task.WhenAll(accessibleIds.Select(async pointId =>
+        {
             var result = await telemetryQueryRouter
                 .QueryAsync(new TelemetryQueryRequest(pointId, null, null, TelemetryGranularity.Raw, true), ct)
                 .ConfigureAwait(false);
@@ -258,7 +273,7 @@ public class TelemetryController(
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
-        return Ok(samples.OfType<LatestSample>().ToArray());
+        return Ok(samples);
     }
 
     private async Task<bool> CheckExistPoint(string pointId)
