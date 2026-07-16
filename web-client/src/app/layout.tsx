@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Building OS Client Demo App",
-  description: "This is a demo app for Building OS Client",
+  title: "Building OS",
+  description: "スマートビル管理のためのオープンソース IoT プラットフォーム",
 };
 
 export default function RootLayout({

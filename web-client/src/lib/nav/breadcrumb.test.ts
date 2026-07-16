@@ -30,6 +30,13 @@ describe("breadcrumbForPath", () => {
     expect(breadcrumbForPath("/")).toEqual([]);
   });
 
+  it("builds a trail for the newly-linked admin gateway screen (#192)", () => {
+    expect(breadcrumbForPath("/admin/gateways")).toEqual([
+      { label: "管理", href: "/admin/users" },
+      { label: "ゲートウェイ" },
+    ]);
+  });
+
   it("builds a platform trail", () => {
     expect(breadcrumbForPath("/platform/config")).toEqual([
       { label: "プラットフォーム", href: "/platform/status" },

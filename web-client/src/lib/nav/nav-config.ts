@@ -35,6 +35,12 @@ export const NAV_ITEMS: NavItem[] = [
   // admin workspace (screens migrated in #143)
   { label: "ユーザー", href: "/admin/users", workspace: "admin" },
   { label: "グループ", href: "/admin/groups", workspace: "admin" },
+  // Shipped admin screens that previously had no sidebar entry (#192): reachable only by URL before,
+  // now surfaced so breadcrumb/workspace resolution and active-highlight work. admin-role only via
+  // the workspace gate (no per-item permission needed, matching users/groups).
+  { label: "ゲートウェイ", href: "/admin/gateways", workspace: "admin" },
+  { label: "OIDC クライアント", href: "/admin/oidc-clients", workspace: "admin" },
+  { label: "Twin 管理", href: "/admin/twin", workspace: "admin" },
   // platform workspace (screens added in #146 / #147 / #148)
   {
     label: "システム稼働状態",

@@ -12,7 +12,11 @@ export async function loginWithKeycloak(page: Page): Promise<void> {
   await page.getByRole("textbox", { name: /password|パスワード/i }).fill(DEMO_ADMIN_PASSWORD);
   await page.getByRole("button", { name: /sign in|ログイン/i }).click();
 
-  await expect(page).toHaveURL(/\/buildings|\/resources|\/points\//, { timeout: 30_000 });
+  // Post-login landing is the operator home (#191/#200); keep the legacy targets so the helper works
+  // against older builds too.
+  await expect(page).toHaveURL(/\/home|\/buildings|\/resources|\/points\//, {
+    timeout: 30_000,
+  });
   await page.evaluate(() => {
     localStorage.setItem("buildingos.onboarding.completed.v1", "1");
   });
