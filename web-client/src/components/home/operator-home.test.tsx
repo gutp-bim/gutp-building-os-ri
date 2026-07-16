@@ -10,9 +10,9 @@ const building: ResourceRef = { type: "building", dtId: "b1", id: "b1", name: "�
 const floor: ResourceRef = { type: "floor", dtId: "f1", id: "f1", name: "1F" };
 
 const namedPoints = [
-  { pointId: "p1", name: "室温" },
-  { pointId: "p2", name: "湿度" },
-  { pointId: "p3", name: "CO2" },
+  { pointId: "p1", name: "室温", deviceName: "AHU-1", spaceName: "会議室A" },
+  { pointId: "p2", name: "湿度", deviceName: "AHU-1", spaceName: "会議室A" },
+  { pointId: "p3", name: "CO2", deviceName: "CO2-Sensor-01", spaceName: "会議室A" },
 ];
 
 const freshness: PointFreshness[] = [
@@ -59,6 +59,17 @@ describe("OperatorHome", () => {
     expect(rows[0]).toHaveTextContent("CO2"); // missing sorts first
     expect(rows[0]).toHaveTextContent("欠測");
     expect(rows[1]).toHaveTextContent("湿度"); // stale
+  });
+
+  it("links each attention row to the point detail and shows its space/device", async () => {
+    render(<OperatorHome loaders={makeLoaders()} isAdmin={false} fetchGateways={vi.fn()} />);
+
+    const links = await screen.findAllByTestId("home-attention-link");
+    // p3 (CO2) is missing → sorts first.
+    expect(links[0]).toHaveAttribute("href", "/points/p3");
+    expect(links[0]).toHaveTextContent("CO2");
+    expect(links[0]).toHaveTextContent("会議室A");
+    expect(links[0]).toHaveTextContent("CO2-Sensor-01");
   });
 
   it("shows the empty state when every point is fresh", async () => {

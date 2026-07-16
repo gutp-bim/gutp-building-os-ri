@@ -1,7 +1,15 @@
 import type { PointFreshness } from "@/lib/telemetry/freshness";
 
-/** A point id paired with its human-readable name (from the twin). */
-export type NamedPoint = { pointId: string; name: string };
+/**
+ * A point id paired with its human-readable name and (optionally) the twin context an operator needs
+ * to locate it — the owning device (equipment) and space (room). Populated by the floor traversal.
+ */
+export type NamedPoint = {
+  pointId: string;
+  name: string;
+  deviceName?: string;
+  spaceName?: string;
+};
 
 /** A point needing operator attention: stale (old) or missing (never/unparseable). */
 export type AttentionItem = {
@@ -9,29 +17,36 @@ export type AttentionItem = {
   name: string;
   status: "stale" | "missing";
   ageSeconds: number | null;
+  deviceName?: string;
+  spaceName?: string;
 };
 
 /**
  * Build the operator "needs attention" list from per-point freshness: keep only stale/missing
- * points, join their names, and sort worst-first — missing points before stale, then stale by
- * age descending (oldest first). Pure and deterministic (unit-tested).
+ * points, join their twin context (name + device + space), and sort worst-first — missing points
+ * before stale, then stale by age descending (oldest first). Pure and deterministic (unit-tested).
  */
 export function buildAttentionList(
   named: NamedPoint[],
   freshness: PointFreshness[],
 ): AttentionItem[] {
-  const nameById = new Map(named.map((n) => [n.pointId, n.name]));
+  const byId = new Map(named.map((n) => [n.pointId, n]));
 
   const items: AttentionItem[] = freshness
     .filter((f): f is PointFreshness & { status: "stale" | "missing" } =>
       f.status === "stale" || f.status === "missing",
     )
-    .map((f) => ({
-      pointId: f.pointId,
-      name: nameById.get(f.pointId) ?? f.pointId,
-      status: f.status,
-      ageSeconds: f.ageSeconds,
-    }));
+    .map((f) => {
+      const meta = byId.get(f.pointId);
+      return {
+        pointId: f.pointId,
+        name: meta?.name ?? f.pointId,
+        status: f.status,
+        ageSeconds: f.ageSeconds,
+        deviceName: meta?.deviceName,
+        spaceName: meta?.spaceName,
+      };
+    });
 
   return items.sort((a, b) => {
     if (a.status !== b.status) return a.status === "missing" ? -1 : 1;
