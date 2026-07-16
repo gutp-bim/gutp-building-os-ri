@@ -210,9 +210,69 @@ public class TelemetryController(
         return Ok(result);
     }
 
+    /// <summary>
+    /// 複数ポイントの最新値を1リクエストで取得する（#182）。オペレーターホームの鮮度表示が行っていた
+    /// ポイント単位の N+1 fan-out（ブラウザから <c>GET /query?latest=true</c> をポイント数だけ発行）を
+    /// サーバー側の1往復に置き換える。各ポイントは read 権限で個別に認可し（admin はバイパス）、
+    /// アクセス不可のポイントは結果から除外する（存在を漏らさない）。値が無いポイントは
+    /// <c>datetime=null</c> で返る（鮮度判定では「欠測」に分類される）。
+    /// </summary>
+    [HttpPost("query/batch-latest")]
+    [ProducesResponseType(typeof(LatestSample[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<LatestSample[]>> QueryBatchLatest(
+        [FromBody] BatchLatestRequest request,
+        CancellationToken ct = default)
+    {
+        if (request?.PointIds is null || request.PointIds.Length == 0)
+            return BadRequest("pointIds is required");
+
+        var ids = request.PointIds
+            .Where(id => !string.IsNullOrEmpty(id))
+            .Distinct()
+            .ToArray();
+        if (ids.Length == 0)
+            return BadRequest("pointIds is required");
+        if (ids.Length > MaxBatchPointIds)
+            return BadRequest($"pointIds exceeds the maximum of {MaxBatchPointIds}");
+
+        var authContext = HttpContext.GetAuthorizationContext();
+
+        var samples = await Task.WhenAll(ids.Select(async pointId =>
+        {
+            // Per-point read authorization (admin bypasses). Inaccessible points are dropped below —
+            // omission (not 403) keeps the batch usable for a mixed-permission point set.
+            if (!authContext.IsAdmin)
+            {
+                var canAccess = await authorizationService
+                    .CanAccessAsync(authContext, "point", pointId, "read", ct)
+                    .ConfigureAwait(false);
+                if (!canAccess) return null;
+            }
+
+            var result = await telemetryQueryRouter
+                .QueryAsync(new TelemetryQueryRequest(pointId, null, null, TelemetryGranularity.Raw, true), ct)
+                .ConfigureAwait(false);
+            var latest = result.LastOrDefault();
+            return new LatestSample(pointId, latest?.Datetime, latest?.Value);
+        })).ConfigureAwait(false);
+
+        Response.Headers["Cache-Control"] = "max-age=60";
+        return Ok(samples.OfType<LatestSample>().ToArray());
+    }
+
     private async Task<bool> CheckExistPoint(string pointId)
     {
         var point = await digitalTwinDatabase.GetPoint(pointId);
         return point != null;
     }
+
+    /// <summary>Upper bound on a single batch-latest request (bounds server-side fan-out). #182</summary>
+    private const int MaxBatchPointIds = 500;
 }
+
+/// <summary>Request body for <c>POST /telemetries/query/batch-latest</c> (#182).</summary>
+public sealed record BatchLatestRequest(string[] PointIds);
+
+/// <summary>One point's latest sample; <c>Datetime</c>/<c>Value</c> are null when it has no data (#182).</summary>
+public sealed record LatestSample(string PointId, string? Datetime, double? Value);

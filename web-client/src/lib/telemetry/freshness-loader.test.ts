@@ -1,25 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
+import type { PointLastSeen } from "./freshness";
 import { loadPointsFreshness } from "./freshness-loader";
-import type { TelemetryPoint } from "./types";
 
 const NOW = new Date("2026-07-15T12:00:00Z");
 
-function ago(seconds: number): TelemetryPoint {
-  return { t: new Date(NOW.getTime() - seconds * 1000).toISOString(), v: 1 };
+/** ISO timestamp `seconds` before NOW. */
+function ago(seconds: number): string {
+  return new Date(NOW.getTime() - seconds * 1000).toISOString();
 }
 
 describe("loadPointsFreshness", () => {
-  it("classifies each point from its injected latest sample", async () => {
-    const latest: Record<string, TelemetryPoint | null> = {
-      FRESH: ago(10),
-      STALE: ago(1000),
-      MISSING: null,
-    };
+  it("classifies each point from the batch latest samples", async () => {
+    const fetchLatestBatch = vi.fn().mockResolvedValue([
+      { pointId: "FRESH", lastSeen: ago(10) },
+      { pointId: "STALE", lastSeen: ago(1000) },
+      { pointId: "MISSING", lastSeen: null },
+    ] satisfies PointLastSeen[]);
+
     const results = await loadPointsFreshness(["FRESH", "STALE", "MISSING"], {
       now: NOW,
       thresholdSeconds: 300,
-      fetchLatest: (id) => Promise.resolve(latest[id]),
+      fetchLatestBatch,
     });
+
     expect(results.map((r) => [r.pointId, r.status])).toEqual([
       ["FRESH", "fresh"],
       ["STALE", "stale"],
@@ -27,41 +30,56 @@ describe("loadPointsFreshness", () => {
     ]);
   });
 
-  it("treats a point whose latest fetch rejects as missing, not a thrown load", async () => {
-    const results = await loadPointsFreshness(["OK", "BOOM"], {
+  it("fills a point the batch omits as missing (order follows the request)", async () => {
+    // The server drops points a non-admin cannot read; the caller must still account for them.
+    const fetchLatestBatch = vi
+      .fn()
+      .mockResolvedValue([{ pointId: "B", lastSeen: ago(5) }] satisfies PointLastSeen[]);
+
+    const results = await loadPointsFreshness(["A", "B"], {
       now: NOW,
       thresholdSeconds: 300,
-      fetchLatest: (id) =>
-        id === "BOOM"
-          ? Promise.reject(new Error("network"))
-          : Promise.resolve(ago(5)),
+      fetchLatestBatch,
     });
+
     expect(results).toEqual([
-      { pointId: "OK", status: "fresh", ageSeconds: 5 },
-      { pointId: "BOOM", status: "missing", ageSeconds: null },
+      { pointId: "A", status: "missing", ageSeconds: null },
+      { pointId: "B", status: "fresh", ageSeconds: 5 },
     ]);
   });
 
-  it("fetches the latest sample exactly once per point", async () => {
-    const fetchLatest = vi.fn((_id: string) => Promise.resolve(ago(5)));
+  it("degrades to all-missing when the batch fetch rejects, not a thrown load", async () => {
+    const results = await loadPointsFreshness(["A", "B"], {
+      now: NOW,
+      thresholdSeconds: 300,
+      fetchLatestBatch: () => Promise.reject(new Error("network")),
+    });
+    expect(results).toEqual([
+      { pointId: "A", status: "missing", ageSeconds: null },
+      { pointId: "B", status: "missing", ageSeconds: null },
+    ]);
+  });
+
+  it("makes exactly one batch call for all points", async () => {
+    const fetchLatestBatch = vi.fn().mockResolvedValue([]);
     await loadPointsFreshness(["A", "B", "C"], {
       now: NOW,
       thresholdSeconds: 300,
-      fetchLatest,
+      fetchLatestBatch,
     });
-    expect(fetchLatest).toHaveBeenCalledTimes(3);
-    expect(fetchLatest.mock.calls.map((c) => c[0])).toEqual(["A", "B", "C"]);
+    expect(fetchLatestBatch).toHaveBeenCalledTimes(1);
+    expect(fetchLatestBatch).toHaveBeenCalledWith(["A", "B", "C"]);
   });
 
   it("returns an empty array for no points without calling the fetcher", async () => {
-    const fetchLatest = vi.fn();
+    const fetchLatestBatch = vi.fn();
     expect(
       await loadPointsFreshness([], {
         now: NOW,
         thresholdSeconds: 300,
-        fetchLatest,
+        fetchLatestBatch,
       }),
     ).toEqual([]);
-    expect(fetchLatest).not.toHaveBeenCalled();
+    expect(fetchLatestBatch).not.toHaveBeenCalled();
   });
 });
