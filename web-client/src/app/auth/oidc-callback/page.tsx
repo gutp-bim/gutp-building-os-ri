@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createOidcUserManager } from "@/lib/auth/oidc-config";
+import Cookies from "js-cookie";
+import { createOidcUserManager, OIDC_TOKEN_COOKIE } from "@/lib/auth/oidc-config";
 
 // Module-level flag: survives StrictMode's simulated unmount/remount cycle.
 let _processing = false;
@@ -17,7 +18,12 @@ export default function OidcCallbackPage() {
     const manager = createOidcUserManager();
     manager
       .signinRedirectCallback()
-      .then(() => {
+      .then((user) => {
+        const expiresIn = user.expires_in ?? 3600;
+        Cookies.set(OIDC_TOKEN_COOKIE, user.access_token, {
+          expires: expiresIn / (24 * 60 * 60),
+          sameSite: "Lax",
+        });
         router.replace("/buildings");
       })
       .catch((err) => {

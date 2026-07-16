@@ -10,6 +10,7 @@ using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
+using BuildingOs.ApiServer.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BuildingOs.ApiServer.Controllers;
@@ -24,6 +25,7 @@ public class PointController(
     IAuthorizedTwinView twinView,
     IControlTypeResolver controlTypeResolver,
     IControlSchemaResolver controlSchemaResolver,
+    IControlResultBus controlResultBus,
     IPointControlCommandPublisher commandPublisher,
     IPointControlRepository pointControlRepository) : ControllerBase
 {
@@ -101,6 +103,7 @@ public class PointController(
                 return BadRequest(new { error = validation.Error, dataType = schema.DataType });
         }
 
+        string? preparedControlId = null;
         try
         {
             var pointControlInfo = new PointControlInfo
@@ -111,10 +114,15 @@ public class PointController(
                 Body = dispatch.Body,
                 GatewayId = dispatch.GatewayId,
             };
+            var controlId = pointControlInfo.id.ToString();
+            await controlResultBus.PrepareAsync(controlId, ct).ConfigureAwait(false);
+            preparedControlId = controlId;
 
-            var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct);
+            var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
             {
+                await controlResultBus.UnsubscribeAsync(controlId).ConfigureAwait(false);
+                preparedControlId = null;
                 // The target gateway has no live egress stream → fail fast instead of letting the
                 // client wait out the result timeout (#186).
                 BuildingOsMetrics.ControlRequests.Add(1,
@@ -131,6 +139,8 @@ public class PointController(
         }
         catch (Exception ex)
         {
+            if (preparedControlId is not null)
+                await controlResultBus.UnsubscribeAsync(preparedControlId).ConfigureAwait(false);
             return BadRequest(new { error = ex.Message });
         }
     }

@@ -1,0 +1,39 @@
+# Building OS — Demo full-stack UI E2E overlay (#159 PR3)
+#
+# Runs the Playwright browser inside the compose network. Browser-facing URLs use
+# *.localhost names so OIDC PKCE gets a secure context, then Chromium host-resolver
+# rules map those names to compose service DNS.
+
+services:
+  building-os.web:
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://api.localhost:8080
+        NEXT_PUBLIC_KEYCLOAK_AUTHORITY: http://keycloak.localhost:8080/realms/building-os
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
+
+  building-os.demo-e2e:
+    image: mcr.microsoft.com/playwright:v1.61.1-noble
+    container_name: building-os.demo-e2e
+    profiles: ["demo-e2e"]
+    working_dir: /work/web-client
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      HOME: /tmp
+      E2E_BASE_URL: http://web.localhost:3000
+      E2E_NO_SERVER: "1"
+      E2E_CHROMIUM_HOST_RESOLVER_RULES: MAP web.localhost building-os.web,MAP keycloak.localhost building-os.keycloak,MAP api.localhost building-os.api
+      NEXT_PUBLIC_KEYCLOAK_AUTHORITY: http://keycloak.localhost:8080/realms/building-os
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
+    volumes:
+      - .:/work
+    command: >
+      bash -lc "yarn install --frozen-lockfile && yarn test:e2e:demo"
+    depends_on:
+      - building-os.web
+      - building-os.api
+      - building-os.connector-worker
+      - building-os.demo-feeder
+      - building-os.keycloak
+    networks:
+      - oss

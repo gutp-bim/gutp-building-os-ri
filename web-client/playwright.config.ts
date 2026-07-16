@@ -11,10 +11,12 @@ import { defineConfig, devices } from "@playwright/test";
  *    calls are stubbed per-test via `page.route()`. Chromium is the preinstalled
  *    browser (chromium-1194, matches @playwright/test 1.61).
  *  - Full-stack (CI `workflow_dispatch`, against `make demo`): set
- *    `E2E_BASE_URL=http://localhost:3000` and `E2E_NO_SERVER=1` so Playwright
+ *    `E2E_BASE_URL=http://web.localhost:3000` and `E2E_NO_SERVER=1` so Playwright
  *    drives the already-running demo stack instead of spawning `yarn dev`.
  */
 const BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+const CHROMIUM_HOST_RESOLVER_RULES =
+  process.env.E2E_CHROMIUM_HOST_RESOLVER_RULES?.trim();
 
 // Fixed OIDC identity used to (a) build the dev server's public env and (b) derive
 // the oidc-client-ts localStorage key when injecting a logged-in storageState.
@@ -44,9 +46,16 @@ export default defineConfig({
         // CI installs the version-matched browser via `npx playwright install chromium`
         // (leave unset). In environments with a preinstalled browser whose revision
         // differs from this @playwright/test pin, point at it via this env var.
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-          ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } }
-          : {}),
+        launchOptions: {
+          ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+            ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+            : {}),
+          ...(CHROMIUM_HOST_RESOLVER_RULES
+            ? {
+                args: [`--host-resolver-rules=${CHROMIUM_HOST_RESOLVER_RULES}`],
+              }
+            : {}),
+        },
       },
     },
   ],

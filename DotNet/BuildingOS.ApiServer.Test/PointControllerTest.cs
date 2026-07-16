@@ -1,5 +1,6 @@
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.Services;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain;
 using BuildingOS.Shared.Domain.Authorization;
@@ -39,6 +40,20 @@ public class PointControllerTest
             string connectionTypeDefault = "hono",
             ControlSchema? schema = null)
     {
+        var (controller, publisher, _) = BuildControllerWithResultBus(
+            detail, canWrite, connectionTypeMap, connectionTypeDefault, schema);
+
+        return (controller, publisher);
+    }
+
+    private static (PointController controller, Mock<IPointControlCommandPublisher> publisher, Mock<IControlResultBus> resultBus)
+        BuildControllerWithResultBus(
+            PointDetail? detail,
+            bool canWrite = true,
+            Dictionary<string, string>? connectionTypeMap = null,
+            string connectionTypeDefault = "hono",
+            ControlSchema? schema = null)
+    {
         var twinView = new Mock<IAuthorizedTwinView>();
         twinView.Setup(v => v.CanWritePointAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(canWrite);
@@ -58,15 +73,22 @@ public class PointControllerTest
         schemaResolver.Setup(r => r.ResolveAsync(It.IsAny<Point>(), It.IsAny<Device?>())).ReturnsAsync(schema);
 
         var publisher = new Mock<IPointControlCommandPublisher>();
+        var resultBus = new Mock<IControlResultBus>();
         var repository = new Mock<IPointControlRepository>();
 
-        var controller = new PointController(twinView.Object, resolver, schemaResolver.Object, publisher.Object, repository.Object);
+        var controller = new PointController(
+            twinView.Object,
+            resolver,
+            schemaResolver.Object,
+            resultBus.Object,
+            publisher.Object,
+            repository.Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContext(AdminAuth()),
         };
 
-        return (controller, publisher);
+        return (controller, publisher, resultBus);
     }
 
     /// <summary>
@@ -93,9 +115,16 @@ public class PointControllerTest
                 new Dictionary<string, IReadOnlyDictionary<string, string>>(),
                 new Dictionary<string, IReadOnlyDictionary<string, string>>()));
         var schemaResolver = new Mock<IControlSchemaResolver>();
+        var resultBus = new Mock<IControlResultBus>();
         var publisher = new Mock<IPointControlCommandPublisher>();
 
-        var controller = new PointController(twinView.Object, resolver, schemaResolver.Object, publisher.Object, repo.Object)
+        var controller = new PointController(
+            twinView.Object,
+            resolver,
+            schemaResolver.Object,
+            resultBus.Object,
+            publisher.Object,
+            repo.Object)
         {
             ControllerContext = new ControllerContext { HttpContext = BuildHttpContext(AdminAuth()) },
         };
@@ -137,6 +166,86 @@ public class PointControllerTest
         Assert.NotNull(captured);
         Assert.NotEqual(Guid.Empty, captured!.id);
         Assert.Equal(captured.id, body.ControlId);
+    }
+
+    [Fact]
+    public async Task Control_WaitsForResultSubscription_BeforePublishing()
+    {
+        var (controller, publisher, resultBus) = BuildControllerWithResultBus(Detail(MakePoint()));
+        var prepareStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscriptionReady = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        string? preparedControlId = null;
+
+        resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .Callback<string, CancellationToken>((controlId, _) =>
+                 {
+                     preparedControlId = controlId;
+                     prepareStarted.SetResult();
+                 })
+                 .Returns(subscriptionReady.Task);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        var controlTask = controller.Control(
+            "PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+
+        await prepareStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        publisher.Verify(
+            p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        subscriptionReady.SetResult();
+        var result = await controlTask;
+
+        var accepted = Assert.IsType<AcceptedResult>(result);
+        var body = Assert.IsType<PointController.ControlAcceptedResponse>(accepted.Value);
+        Assert.Equal(body.ControlId.ToString(), preparedControlId);
+        publisher.Verify(
+            p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Control_UnsubscribesPreparedResult_WhenGatewayOffline()
+    {
+        var device = new Device { DtId = "d", Id = "D", Name = "g", GatewayId = "gw-sim" };
+        var (controller, publisher, resultBus) = BuildControllerWithResultBus(
+            Detail(MakePoint(), device), connectionTypeMap: new() { ["gw-sim"] = "bacnet-sim" });
+        string? preparedControlId = null;
+
+        resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .Callback<string, CancellationToken>((controlId, _) => preparedControlId = controlId)
+                 .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.GatewayOffline);
+
+        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+
+        var status = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, status.StatusCode);
+        resultBus.Verify(b => b.UnsubscribeAsync(preparedControlId!), Times.Once);
+    }
+
+    [Fact]
+    public async Task Control_UnsubscribesPreparedResult_WhenPublishingFails()
+    {
+        var (controller, publisher, resultBus) = BuildControllerWithResultBus(Detail(MakePoint()));
+        string? preparedControlId = null;
+
+        resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .Callback<string, CancellationToken>((controlId, _) => preparedControlId = controlId)
+                 .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ThrowsAsync(new InvalidOperationException("publish failed"));
+
+        var result = await controller.Control(
+            "PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.NotNull(badRequest.Value);
+        resultBus.Verify(b => b.UnsubscribeAsync(preparedControlId!), Times.Once);
     }
 
     [Fact]
