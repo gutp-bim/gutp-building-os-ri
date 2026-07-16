@@ -1,32 +1,13 @@
-import Cookies from "js-cookie";
 import { apiClient } from "@/lib/infra/aspida-client";
-import { OIDC_TOKEN_COOKIE } from "@/lib/auth/oidc-config";
 import type { PointLastSeen } from "./freshness";
 import { toGranularityParam, toSeries } from "./mapping";
 import type { TelemetryPoint, TelemetryQuery, TelemetrySeries } from "./types";
 
 /**
- * Telemetry access façade. Everything routes through `/telemetries/query` (tier auto-selection +
- * granularity + latest), so callers never choose between hot/warm/cold. An API change is absorbed
- * here, not in the UI.
+ * Telemetry access façade. Everything routes through the generated Aspida client (`apiClient()`),
+ * so callers never choose between hot/warm/cold and an API/Swagger change is absorbed here, not in
+ * the UI. The `/telemetries/query` read auto-selects the tier (granularity + latest).
  */
-
-/**
- * Base URL + bearer for the one telemetry endpoint not yet in the aspida schema (`batch-latest`).
- * Kept module-local (Keycloak bearer from the `oidc.access_token` cookie) rather than importing the
- * `@/lib/admin/http` helpers — those are for admin endpoints, and telemetry is not an admin surface.
- * This mirrors the other bespoke non-admin fetchers (`system-config`, `assistant`, …). Migrating the
- * endpoint into the generated client (Swagger + `sync-type`) is the tracked follow-up.
- */
-const TELEMETRY_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
-
-function telemetryJsonHeaders(): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${Cookies.get(OIDC_TOKEN_COOKIE) || ""}`,
-  };
-}
 
 export async function queryTelemetry(
   q: TelemetryQuery,
@@ -70,9 +51,6 @@ export const MAX_BATCH_POINT_IDS = 500;
  * the results merged, so a large floor still resolves instead of tripping the server's 400 (#182
  * review). A failure in any chunk rejects the whole call so the caller surfaces an error rather than
  * mistaking the request-limit for genuinely-missing data.
- *
- * Bespoke fetch (module-local base URL/bearer above) because the endpoint is not yet in the
- * Swagger/aspida schema; wiring it into the generated client is the tracked follow-up.
  */
 export async function latestTelemetryBatch(
   pointIds: string[],
@@ -89,14 +67,29 @@ export async function latestTelemetryBatch(
 }
 
 async function fetchLatestBatchChunk(pointIds: string[]): Promise<PointLastSeen[]> {
-  const res = await fetch(`${TELEMETRY_API_BASE_URL}/telemetries/query/batch-latest`, {
-    method: "POST",
-    headers: telemetryJsonHeaders(),
-    body: JSON.stringify({ pointIds }),
-  });
-  if (!res.ok) {
-    throw new Error(`最新値の一括取得に失敗しました (${res.status})`);
+  let rows: { pointId?: string; datetime?: string | null }[];
+  try {
+    rows = await apiClient().telemetries.query.batch_latest.$post({
+      body: { pointIds },
+    });
+  } catch (e) {
+    const status = httpStatusOf(e);
+    throw new Error(
+      `最新値の一括取得に失敗しました${status !== undefined ? ` (${status})` : ""}`,
+    );
   }
-  const rows = (await res.json()) as { pointId: string; datetime: string | null }[];
-  return rows.map((r) => ({ pointId: r.pointId, lastSeen: r.datetime ?? null }));
+  return rows
+    .filter((r): r is { pointId: string; datetime?: string | null } =>
+      typeof r.pointId === "string",
+    )
+    .map((r) => ({ pointId: r.pointId, lastSeen: r.datetime ?? null }));
+}
+
+/** Best-effort HTTP status from an Aspida/axios rejection, for a friendlier error message. */
+function httpStatusOf(e: unknown): number | undefined {
+  if (e && typeof e === "object" && "response" in e) {
+    const status = (e as { response?: { status?: unknown } }).response?.status;
+    if (typeof status === "number") return status;
+  }
+  return undefined;
 }

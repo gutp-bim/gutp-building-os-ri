@@ -1,4 +1,4 @@
-openapi: 3.0.1
+openapi: 3.0.4
 info:
   title: Building OS API
   description: An ASP.NET Core API for Building OS
@@ -349,8 +349,8 @@ paths:
     get:
       tags:
         - GatewayProvisioning
-      summary: "当該 gateway が所有する全 point（native addressing / unit / writable / control schema / device）を\r\n返す。`If-None-Match` が現在の ETag と一致すれば 304。`?since={etag}` 指定時は差分\r\n（added/removed/changed）を返す（スナップショット未保持なら full にフォールバック）。"
-      description: "The 200 response is BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse for the full list (no `since`, or\r\nsnapshot evicted) and BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListDiffResponse for a resolvable `?since=`\r\ndiff. Swagger documents only the full-list shape (Swashbuckle doesn't merge two response types\r\nunder one status code without a custom schema filter) — treat it as the primary contract."
+      summary: "当該 gateway が所有する全 point（native addressing / unit / writable / control schema / device）を\n返す。`If-None-Match` が現在の ETag と一致すれば 304。`?since={etag}` 指定時は差分\n（added/removed/changed）を返す（スナップショット未保持なら full にフォールバック）。"
+      description: "The 200 response is BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse for the full list (no `since`, or\nsnapshot evicted) and BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListDiffResponse for a resolvable `?since=`\ndiff. Swagger documents only the full-list shape (Swashbuckle doesn't merge two response types\nunder one status code without a custom schema filter) — treat it as the primary contract."
       parameters:
         - name: gatewayId
           in: path
@@ -458,7 +458,7 @@ paths:
     post:
       tags:
         - Gateways
-      summary: "pointlist の再同期 push 通知を送る（`building-os.pointlist.updated.gw.{id}`）。ゲートウェイは\r\nETag で再検証する（push は最適化、ETag ポーリングが信頼性のバックストップ）。監査必須。管理者のみ。"
+      summary: "pointlist の再同期 push 通知を送る（`building-os.pointlist.updated.gw.{id}`）。ゲートウェイは\nETag で再検証する（push は最適化、ETag ポーリングが信頼性のバックストップ）。監査必須。管理者のみ。"
       parameters:
         - name: id
           in: path
@@ -1213,7 +1213,7 @@ paths:
     post:
       tags:
         - Point
-      summary: "機器制御コマンドを送信する。\r\n結果は gRPC PointControlService.WaitForResult ストリームで通知される。"
+      summary: "機器制御コマンドを送信する。\n結果は gRPC PointControlService.WaitForResult ストリームで通知される。"
       parameters:
         - name: pointId
           in: path
@@ -1250,6 +1250,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PointControllerControlAcceptedResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  '/points/{pointId}/control-audit':
+    get:
+      tags:
+        - Point
+      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。監査データは\n記録済みだが閲覧画面が無かったギャップを埋める。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。"
+      parameters:
+        - name: pointId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            format: int32
+            default: 50
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PointControlAuditResponse'
         '404':
           description: Not Found
           content:
@@ -1673,7 +1717,7 @@ paths:
     patch:
       tags:
         - ResourceMetadata
-      summary: "Points use the logical pointId in the URL (matching the existing PointController convention).\r\nThe logical pointId is resolved to the twin DtId (RDF IRI) before writing SPARQL,\r\nso triples land under the correct subject and are readable via the twin's standard IRI."
+      summary: "Points use the logical pointId in the URL (matching the existing PointController convention).\nThe logical pointId is resolved to the twin DtId (RDF IRI) before writing SPARQL,\nso triples land under the correct subject and are readable via the twin's standard IRI."
       parameters:
         - name: pointId
           in: path
@@ -1882,7 +1926,7 @@ paths:
     get:
       tags:
         - System
-      summary: "実効設定（許可リストのキーのみ、シークレットはマスク）を読み取り専用で取得する。管理者のみ。\r\nIaC/ArgoCD が source of truth であり、本エンドポイントは観測専用（編集不可）。"
+      summary: "実効設定（許可リストのキーのみ、シークレットはマスク）を読み取り専用で取得する。管理者のみ。\nIaC/ArgoCD が source of truth であり、本エンドポイントは観測専用（編集不可）。"
       responses:
         '200':
           description: OK
@@ -2032,7 +2076,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /telemetries/query?latest=true`。\r\nこの per-tier エンドポイントは後方互換のため残置。"
+      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /telemetries/query?latest=true`。\nこの per-tier エンドポイントは後方互換のため残置。"
       parameters:
         - name: pointId
           in: query
@@ -2365,7 +2409,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: "テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を\r\n自動選択する。per-tier の `/hot`・`/warm`・`/cold`・`/cold-multi-point` は非推奨。"
+      summary: "テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を\n自動選択する。per-tier の `/hot`・`/warm`・`/cold`・`/cold-multi-point` は非推奨。"
       parameters:
         - name: pointId
           in: query
@@ -2452,6 +2496,77 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '404':
           description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /telemetries/query/batch-latest:
+    post:
+      tags:
+        - Telemetry
+      summary: "複数ポイントの最新値を1リクエストで取得する（#182）。オペレーターホームの鮮度表示が行っていた\nポイント単位の N+1 fan-out（ブラウザから `GET /query?latest=true` をポイント数だけ発行）を\nサーバー側の1往復に置き換える。各ポイントは read 権限で個別に認可し（admin はバイパス）、\nアクセス不可のポイントは結果から除外する（存在を漏らさない）。値が無いポイントは\n`datetime=null` で返る（鮮度判定では「欠測」に分類される）。"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchLatestRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/BatchLatestRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/BatchLatestRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LatestSample'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LatestSample'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LatestSample'
+        '401':
+          description: Unauthorized
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '400':
+          description: Bad Request
           content:
             text/plain:
               schema:
@@ -2732,7 +2847,7 @@ paths:
     get:
       tags:
         - Users
-      summary: "割当可能なロール（admin / operator / viewer）のカタログを取得する。各ロールが見えるワークスペースと\r\nadmin 権限の有無を含む（読み取り専用 SSOT）。管理者のみ。"
+      summary: "割当可能なロール（admin / operator / viewer）のカタログを取得する。各ロールが見えるワークスペースと\nadmin 権限の有無を含む（読み取り専用 SSOT）。管理者のみ。"
       responses:
         '403':
           description: Forbidden
@@ -2768,7 +2883,7 @@ paths:
     put:
       tags:
         - Users
-      summary: "ユーザーを有効化／無効化する（Keycloak `enabled`）。削除はせず、認証だけを止める（可逆）。\r\n自己無効化・最後の admin 無効化はロックアウト防止のため 409。管理者のみ。"
+      summary: "ユーザーを有効化／無効化する（Keycloak `enabled`）。削除はせず、認証だけを止める（可逆）。\n自己無効化・最後の admin 無効化はロックアウト防止のため 409。管理者のみ。"
       parameters:
         - name: id
           in: path
@@ -3021,6 +3136,15 @@ components:
           items:
             $ref: '#/components/schemas/AssistantContextTerm'
       additionalProperties: false
+    BatchLatestRequest:
+      type: object
+      properties:
+        pointIds:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+      description: Request body for `POST /telemetries/query/batch-latest` (#182).
     Building:
       required:
         - dtId
@@ -3371,6 +3495,20 @@ components:
           type: string
           nullable: true
       additionalProperties: false
+    LatestSample:
+      type: object
+      properties:
+        pointId:
+          type: string
+        datetime:
+          type: string
+          nullable: true
+        value:
+          type: number
+          format: double
+          nullable: true
+      additionalProperties: false
+      description: One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).
     MyResourcesResponse:
       type: object
       properties:
@@ -3564,6 +3702,28 @@ components:
           additionalProperties:
             type: boolean
       additionalProperties: false
+    PointControlAuditResponse:
+      type: object
+      properties:
+        controlId:
+          type: string
+          format: uuid
+        pointId:
+          type: string
+          nullable: true
+        request:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+      description: "制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`\n（\"success\" / \"failed\" / \"pending\"）に正規化して返す。`Request` は送信時のコマンド JSON。"
     PointControllerControlAcceptedResponse:
       required:
         - controlId
@@ -3939,3 +4099,27 @@ components:
           format: double
           nullable: true
       additionalProperties: false
+tags:
+  - name: AdminAudit
+  - name: Assistant
+  - name: Auth
+  - name: Building
+  - name: Device
+  - name: DeviceDetail
+  - name: Floor
+  - name: GatewayProvisioning
+  - name: Gateways
+  - name: Groups
+  - name: MyResources
+  - name: OidcClients
+  - name: Permissions
+  - name: Point
+  - name: PointDetail
+  - name: ResourceMetadata
+  - name: ResourceSearch
+  - name: Space
+  - name: System
+  - name: SystemConfig
+  - name: Telemetry
+  - name: TwinAdmin
+  - name: Users
