@@ -22,6 +22,8 @@ export const NAV_ITEMS: NavItem[] = [
   // operator workspace — the per-type list links (/floors, /spaces, /points had no list page) are
   // replaced by a single tree+search resource explorer (#UI-improve). Deep-link detail routes
   // (/buildings/[id] etc.) are unchanged.
+  // "ホーム" (#158): non-disruptive freshness/attention landing; does not change the login redirect.
+  { label: "ホーム", href: "/home", workspace: "operator" },
   { label: "リソース", href: "/resources", workspace: "operator" },
   { label: "マイリソース", href: "/my-resources", workspace: "operator" },
   // Hidden: deep-link detail routes keep their workspace/breadcrumb mapping without a sidebar entry.

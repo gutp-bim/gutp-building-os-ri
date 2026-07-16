@@ -46,4 +46,16 @@ public sealed class EfPointControlRepository : IPointControlRepository
         PointControlAuditSerializer.ApplyResult(entry, info);
         await _context.SaveChangesAsync().ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(
+        string pointId, int limit, CancellationToken ct)
+    {
+        return await _context.PointControlAudits
+            .AsNoTracking()
+            .Where(e => e.PointId == pointId)
+            .OrderByDescending(e => e.CreatedAt)
+            .Take(limit)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+    }
 }

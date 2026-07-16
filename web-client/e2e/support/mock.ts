@@ -27,3 +27,42 @@ export async function mockBuildings(page: Page, buildings = [BUILDING]): Promise
 export async function mockFloors(page: Page, floors = [FLOOR]): Promise<void> {
   await page.route("**/floors*", (route) => fulfillJson(route, floors));
 }
+
+// Deeper twin fixtures for floor→point traversal (space → device → point).
+export const SPACE = { dtId: "space-1", id: "space-1", name: "執務室" };
+export const DEVICE = { dtId: "dev-1", id: "dev-1", name: "AHU-1" };
+
+/** Stub the floor→space expansion (`GET /spaces?floorDtId=...`). */
+export async function mockSpaces(page: Page, spaces = [SPACE]): Promise<void> {
+  await page.route("**/spaces*", (route) => fulfillJson(route, spaces));
+}
+
+/** Stub the space→device expansion (`GET /devices?spaceDtId=...`). */
+export async function mockDevices(page: Page, devices = [DEVICE]): Promise<void> {
+  await page.route("**/devices*", (route) => fulfillJson(route, devices));
+}
+
+/** Stub the device→point expansion (`GET /points?deviceDtId=...`). */
+export async function mockPoints(
+  page: Page,
+  points: { dtId: string; id: string; name: string }[],
+): Promise<void> {
+  await page.route("**/points*", (route) => fulfillJson(route, points));
+}
+
+/**
+ * Stub `GET /telemetries/query?pointId=...&latest=true` per point. `latestByPoint` maps a pointId to
+ * the ISO timestamp of its most recent sample; a pointId absent from the map returns no data
+ * (→ classified "missing").
+ */
+export async function mockLatestTelemetry(
+  page: Page,
+  latestByPoint: Record<string, string>,
+): Promise<void> {
+  await page.route("**/telemetries/query*", (route) => {
+    const pointId = new URL(route.request().url()).searchParams.get("pointId") ?? "";
+    const datetime = latestByPoint[pointId];
+    const body = datetime ? [{ datetime, value: 1 }] : [];
+    return fulfillJson(route, body);
+  });
+}
