@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth/auth-context";
+import { POST_LOGIN_PATH } from "@/lib/auth/redirects";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -10,7 +11,7 @@ export default function SignInPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.push("/buildings");
+      router.push(POST_LOGIN_PATH);
     }
   }, [isAuthenticated, router]);
 

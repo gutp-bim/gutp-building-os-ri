@@ -12,6 +12,25 @@ describe("visibleNavItems", () => {
     expect(adminItems.map((i) => i.href)).toContain("/admin/users");
   });
 
+  it("exposes the shipped admin screens in the admin workspace (#192)", () => {
+    // /admin/gateways, /admin/oidc-clients and /admin/twin are implemented, tested screens that
+    // were previously only reachable by typing the URL. They must appear in the sidebar so the
+    // breadcrumb/workspace resolution and active-highlight work for them.
+    const hrefs = visibleNavItems("admin", []).map((i) => i.href);
+    expect(hrefs).toContain("/admin/gateways");
+    expect(hrefs).toContain("/admin/oidc-clients");
+    expect(hrefs).toContain("/admin/twin");
+  });
+
+  it("labels the new admin screens in Japanese (#192)", () => {
+    const byHref = new Map(
+      visibleNavItems("admin", []).map((i) => [i.href, i.label]),
+    );
+    expect(byHref.get("/admin/gateways")).toBe("ゲートウェイ");
+    expect(byHref.get("/admin/oidc-clients")).toBe("OIDC クライアント");
+    expect(byHref.get("/admin/twin")).toBe("Twin 管理");
+  });
+
   it("hides permission-gated items when the permission is missing", () => {
     const items: NavItem[] = [
       { label: "Open", href: "/open", workspace: "platform" },

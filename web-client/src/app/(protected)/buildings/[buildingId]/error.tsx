@@ -28,10 +28,16 @@ export default function Error({
           もう一度試す
         </button>
         <Link
-          href="/buildings"
+          href="/resources"
           className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
         >
-          建物一覧に戻る
+          リソース一覧に戻る
+        </Link>
+        <Link
+          href="/home"
+          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+        >
+          ホームに戻る
         </Link>
       </div>
     </div>

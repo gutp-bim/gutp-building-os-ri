@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { POST_LOGIN_PATH } from "@/lib/auth/redirects";
 
 /**
  * Post-login landing (#178). Every authenticated role lands on the operator home `/home` — the
@@ -9,5 +10,5 @@ import { redirect } from "next/navigation";
  * `parseAuthClaims(cookie).role`.
  */
 export default function Home() {
-  redirect("/home");
+  redirect(POST_LOGIN_PATH);
 }

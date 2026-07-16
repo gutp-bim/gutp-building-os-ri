@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { createOidcUserManager, OIDC_TOKEN_COOKIE } from "@/lib/auth/oidc-config";
+import { POST_LOGIN_PATH } from "@/lib/auth/redirects";
 
 // Module-level flag: survives StrictMode's simulated unmount/remount cycle.
 let _processing = false;
@@ -24,7 +25,7 @@ export default function OidcCallbackPage() {
           expires: expiresIn / (24 * 60 * 60),
           sameSite: "Lax",
         });
-        router.replace("/buildings");
+        router.replace(POST_LOGIN_PATH);
       })
       .catch((err) => {
         console.error("OIDC callback error:", err);
