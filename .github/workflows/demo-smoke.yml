@@ -1,0 +1,76 @@
+name: Demo Smoke (make demo)
+
+# `make demo` (#155) is the headline first-run experience — a regression there breaks the whole
+# onboarding story. This job brings up the full demo stack in CI and smoke-checks it end to end.
+#
+# Cadence is deliberately LOW (#180): the run is heavy (builds the API + web-client images and boots
+# the full compose stack) and can be environment-flaky, so it runs on manual dispatch plus a monthly
+# schedule rather than per-push. Bump the cron below if you want it more often. Scheduled failures
+# file an issue so a red run does not sit unnoticed (mirrors integration-tests.yml).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 1 * *'   # 1st of each month, 04:00 UTC (deliberately infrequent)
+
+concurrency:
+  group: demo-smoke-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  demo-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bring up the demo stack (make demo)
+        run: make demo
+
+      - name: Wait for the stack to be ready
+        run: make wait-oss-stack
+
+      - name: Smoke — API health
+        run: curl -fsS --retry 5 --retry-delay 3 http://localhost:5000/health
+
+      - name: Smoke — demo telemetry is flowing
+        run: |
+          # The feeder pushes SOS-PT-001..008 to GW-SOS-001; wait for at least one value to land.
+          for i in $(seq 1 20); do
+            body=$(curl -fsS "http://localhost:5000/telemetries/query?pointId=SOS-PT-001&latest=true" || echo "")
+            if echo "$body" | grep -q '"value"'; then
+              echo "telemetry flowing: $body"
+              exit 0
+            fi
+            echo "attempt $i: no telemetry yet; retrying in 6s…"
+            sleep 6
+          done
+          echo "::error::no telemetry for SOS-PT-001 after ~2min — the demo feeder may not be running"
+          exit 1
+
+      - name: Diagnose on failure (make doctor + logs)
+        if: failure()
+        run: |
+          make doctor || true
+          docker compose -f docker-compose.oss.yaml -f docker-compose.demo.yaml \
+            --profile demo --profile webclient logs --tail=200 || true
+
+      - name: Tear down
+        if: always()
+        run: make demo-down || true
+
+      - name: File an issue on scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Demo smoke (make demo) failed on scheduled run (${new Date().toISOString().slice(0, 10)})`,
+              body: `The monthly \`make demo\` smoke run failed: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['ci', 'bug'],
+            });

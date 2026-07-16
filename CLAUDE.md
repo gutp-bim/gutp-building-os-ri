@@ -367,11 +367,13 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 | IoT connectivity | MQTT (Mosquitto), Hono bridge, Azure IoT Hub (optional connector) |
 
 > **CI is manual-trigger only (credit conservation):** the test/validation workflows
-> (`oss-ci`, `integration-tests`, `golden-tests`, `helm-chart-install-test`, `parity-harness`) run on
-> `workflow_dispatch` only — they do **not** fire on push/PR. Run them from the Actions tab when
-> needed. **Local verification is the primary gate** (`dotnet test`, `yarn test`/`typecheck`/`lint`,
-> `yarn build`). The release/deploy chain (`harbor-push` → `argocd-image-update`, `generate-swagger`)
-> still runs on `main` merges.
+> (`oss-ci`, `integration-tests`, `golden-tests`, `helm-chart-install-test`, `parity-harness`,
+> `demo-smoke`) run on `workflow_dispatch` only — they do **not** fire on push/PR. Run them from the
+> Actions tab when needed. A few also carry a **low-frequency schedule** so unattended regressions are
+> caught: `integration-tests` weekly and `demo-smoke` (#180, full `make demo` bring-up + smoke)
+> monthly; scheduled failures file an issue. **Local verification is the primary gate** (`dotnet test`,
+> `yarn test`/`typecheck`/`lint`, `yarn build`). The release/deploy chain (`harbor-push` →
+> `argocd-image-update`, `generate-swagger`) still runs on `main` merges.
 
 ## Environment Variables
 
