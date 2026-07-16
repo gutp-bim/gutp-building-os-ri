@@ -1,10 +1,13 @@
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
+using BuildingOS.Shared.Domain.Grouping;
+using BuildingOS.Shared.Domain.Grouping.Entities;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace BuildingOS.ApiServer.Test;
@@ -149,6 +152,113 @@ public class TelemetryControllerTest
 
         Assert.Equal(20, authz.CallCount);
         Assert.Equal(1, authz.MaxConcurrency);
+    }
+
+    /// <summary>
+    /// Same guarantee as <see cref="BatchLatest_AuthorizesSequentially_ForNonAdmin"/>, but wired
+    /// through the <b>real</b> authorization composition — <see cref="DefaultAuthorizationService"/> →
+    /// <see cref="GroupMembershipResolver"/> → <see cref="IGroupRepository"/> — with only the DB
+    /// boundary faked. A group permission forces the resolver to hit the repository for every point;
+    /// the fake repository models the request-scoped EF <c>RelationalDbContext</c>'s contract by
+    /// throwing the moment two calls overlap (as EF Core's concurrency detector would). So this fails
+    /// if the endpoint ever fans the real authorization chain out over the shared context.
+    ///
+    /// The end-to-end variant over a real Postgres <c>RelationalDbContext</c> (Testcontainers) is
+    /// tracked as a follow-up (#202).
+    /// </summary>
+    [Fact]
+    public async Task BatchLatest_DrivesRealAuthorizationChainSequentially_ForNonAdmin()
+    {
+        var repo = new NonReentrantGroupRepository();
+        var resolver = new GroupMembershipResolver(repo);
+        var hierarchy = new Mock<IResourceHierarchyResolver>();
+        hierarchy.Setup(h => h.GetAncestorsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(Array.Empty<(string, string)>());
+        var authz = new DefaultAuthorizationService(
+            resolver, hierarchy.Object, new Mock<ILogger<DefaultAuthorizationService>>().Object);
+
+        var router = new Mock<ITelemetryQueryRouter>();
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(Array.Empty<ValidTelemetryData>());
+
+        // A group permission means every point's read check must resolve group membership via the repo.
+        var permission = PermissionHelper.BuildPermissionString("group", "hvac-team", "read");
+        var controller = new TelemetryController(
+            new Mock<IDigitalTwinDatabase>().Object, new Mock<ITelemetryDatabase>().Object, router.Object, authz)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = "u1", Role = "operator", Permissions = new[] { permission } } },
+                },
+            },
+        };
+
+        var ids = Enumerable.Range(0, 25).Select(i => $"p{i}").ToArray();
+        var result = await controller.QueryBatchLatest(new BatchLatestRequest(ids), CancellationToken.None);
+
+        // The group grants read on every point → all present, none dropped, and the shared-context
+        // non-reentrancy contract was never tripped.
+        Assert.Equal(25, Body(result).Length);
+        Assert.True(repo.CallCount >= ids.Length,
+            $"the real resolver should hit the repository at least once per point; got {repo.CallCount}");
+        Assert.Equal(1, repo.MaxConcurrency);
+    }
+
+    /// <summary>
+    /// An <see cref="IGroupRepository"/> that models the request-scoped EF <c>RelationalDbContext</c>'s
+    /// thread-safety contract: it throws if a second read overlaps a first (as EF Core's concurrency
+    /// detector does), and records peak concurrency. Only the two reverse-lookup reads the
+    /// authorization path uses are implemented; the CRUD surface is unused here.
+    /// </summary>
+    private sealed class NonReentrantGroupRepository : IGroupRepository
+    {
+        private int _active;
+        private readonly object _gate = new();
+        public int MaxConcurrency { get; private set; }
+        public int CallCount { get; private set; }
+
+        public async Task<IReadOnlyList<string>> GetGroupIdsForResourceAsync(
+            string resourceType, string resourceId, CancellationToken ct = default)
+        {
+            var active = Interlocked.Increment(ref _active);
+            lock (_gate)
+            {
+                CallCount++;
+                if (active > MaxConcurrency) MaxConcurrency = active;
+            }
+            try
+            {
+                if (active > 1)
+                {
+                    throw new InvalidOperationException(
+                        "A second operation was started on this context instance before a previous " +
+                        "operation completed. (simulated RelationalDbContext concurrency guard)");
+                }
+                await Task.Delay(15, ct).ConfigureAwait(false);
+                return new[] { "hvac-team" };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _active);
+            }
+        }
+
+        public Task<IReadOnlyList<string>> GetResourceIdsInGroupAsync(
+            string groupId, string resourceType, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+
+        // CRUD surface — unused by the authorization read path.
+        public Task<ResourceGroup?> GetByIdAsync(string id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ResourceGroup?> GetByIdWithItemsAsync(string id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ResourceGroup>> GetAllAsync(CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ResourceGroup> CreateAsync(ResourceGroup group, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task UpdateAsync(ResourceGroup group, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task DeleteAsync(string id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<GroupResourceItem> AddResourceItemAsync(string groupId, string resourceType, string resourceId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RemoveResourceItemAsync(string itemId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<GroupResourceItem>> GetResourceItemsAsync(string groupId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     /// <summary>An <see cref="IAuthorizationService"/> that records the peak number of overlapping
