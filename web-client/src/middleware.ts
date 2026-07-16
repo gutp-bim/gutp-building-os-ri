@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { parseAuthClaims } from "@/lib/auth/claims";
+import { POST_LOGIN_PATH } from "@/lib/auth/redirects";
 import {
   WORKSPACES,
   canAccessWorkspace,
@@ -24,7 +25,10 @@ export function middleware(request: NextRequest) {
   }
 
   if (isAuthenticated && isAuthPage) {
-    return NextResponse.redirect(new URL("/", request.url));
+    // Go straight to the post-login landing (#191/#200). Routing via `/` here worked but committed an
+    // extra `/` navigation before the root page bounced on to `/home`, so the two-hop the #191 change
+    // set out to remove survived on this path. POST_LOGIN_PATH is the single source of truth.
+    return NextResponse.redirect(new URL(POST_LOGIN_PATH, request.url));
   }
 
   // Workspace guard: keep users out of workspace sections their role can't enter. This is a UX
