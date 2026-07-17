@@ -1,9 +1,16 @@
-import { useState } from "react";
+"use client";
+
+import { useRef, useState } from "react";
+import { useDialogA11y } from "@/lib/a11y/use-dialog-a11y";
 import type { ChatMessage } from "@/lib/assistant/types";
 
 /**
  * Presentational chat panel (#151): message transcript + a single-line composer. Read-only Q&A — it
  * only sends/shows text. The parent owns the conversation state and the network call.
+ *
+ * This is a **non-modal** floating helper: it deliberately does not cover the app, so it must not
+ * trap focus or claim `aria-modal` (#198 review). `useDialogA11y({ modal: false })` still gives it
+ * initial focus, Esc-to-close, and focus restoration, but lets focus leave freely.
  */
 export function AssistantPanel({
   messages,
@@ -19,6 +26,8 @@ export function AssistantPanel({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(panelRef, { open: true, onClose, modal: false });
 
   const submit = () => {
     const text = draft.trim();
@@ -28,9 +37,18 @@ export function AssistantPanel({
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex h-[28rem] w-96 flex-col rounded-lg border border-gray-200 bg-white shadow-xl" data-testid="assistant-panel">
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-labelledby="assistant-panel-title"
+      tabIndex={-1}
+      className="fixed bottom-4 right-4 z-50 flex h-[28rem] w-96 flex-col rounded-lg border border-gray-200 bg-white shadow-xl"
+      data-testid="assistant-panel"
+    >
       <div className="flex items-center justify-between border-b p-3">
-        <h2 className="text-sm font-semibold">ヘルプアシスタント（実験的）</h2>
+        <h2 id="assistant-panel-title" className="text-sm font-semibold">
+          ヘルプアシスタント（実験的）
+        </h2>
         <button type="button" onClick={onClose} aria-label="閉じる" className="text-xl leading-none text-gray-500 hover:text-gray-700">
           ×
         </button>

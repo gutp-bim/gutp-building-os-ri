@@ -42,4 +42,18 @@ describe("HelpDrawer", () => {
     render(<HelpDrawer entry={null} terms={[]} open onClose={vi.fn()} />);
     expect(screen.getByTestId("help-missing")).toBeInTheDocument();
   });
+
+  it("exposes modal dialog semantics (#198)", () => {
+    render(<HelpDrawer entry={entry} terms={terms} open onClose={vi.fn()} />);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAccessibleName("稼働状態");
+  });
+
+  it("closes on Escape (#198)", () => {
+    const onClose = vi.fn();
+    render(<HelpDrawer entry={entry} terms={terms} open onClose={onClose} />);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
 });

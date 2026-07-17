@@ -29,6 +29,15 @@ describe("OnboardingTour", () => {
     expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument();
   });
 
+  it("exposes modal dialog semantics and closes on Escape (#198)", () => {
+    render(<OnboardingTour role="operator" />);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(isTourCompleted()).toBe(true);
+    expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument();
+  });
+
   it("advances through steps and finishes on 完了", () => {
     render(<OnboardingTour role="operator" />);
     // operator sees welcome → operator → finish (3 steps)
