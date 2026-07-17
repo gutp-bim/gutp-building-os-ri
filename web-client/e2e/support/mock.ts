@@ -51,18 +51,36 @@ export async function mockPoints(
 }
 
 /**
- * Stub `GET /telemetries/query?pointId=...&latest=true` per point. `latestByPoint` maps a pointId to
- * the ISO timestamp of its most recent sample; a pointId absent from the map returns no data
- * (→ classified "missing").
+ * Stub the freshness batch endpoint `POST /telemetries/query/batch-latest` (#182). `latestByPoint`
+ * maps a pointId to the ISO timestamp of its most recent sample; a pointId absent from the map is
+ * returned with `datetime: null` (→ classified "missing"). The handler echoes back exactly the ids
+ * the client posted, so it also exercises the client-side chunking of over-cap floors.
  */
 export async function mockLatestTelemetry(
   page: Page,
   latestByPoint: Record<string, string>,
 ): Promise<void> {
-  await page.route("**/telemetries/query*", (route) => {
-    const pointId = new URL(route.request().url()).searchParams.get("pointId") ?? "";
-    const datetime = latestByPoint[pointId];
-    const body = datetime ? [{ datetime, value: 1 }] : [];
-    return fulfillJson(route, body);
+  await page.route("**/telemetries/query/batch-latest", (route) => {
+    const { pointIds = [] } = (route.request().postDataJSON() ?? {}) as {
+      pointIds?: string[];
+    };
+    const rows = pointIds.map((pointId) => {
+      const datetime = latestByPoint[pointId] ?? null;
+      return { pointId, datetime, value: datetime ? 1 : null };
+    });
+    return fulfillJson(route, rows);
   });
+}
+
+/**
+ * Stub the freshness batch endpoint to fail, so specs can assert the operator home shows an error
+ * banner instead of silently classifying every point as 欠測 (missing) — #182 review point 1.
+ */
+export async function mockLatestTelemetryFailure(
+  page: Page,
+  status = 503,
+): Promise<void> {
+  await page.route("**/telemetries/query/batch-latest", (route) =>
+    fulfillJson(route, { error: "unavailable" }, status),
+  );
 }

@@ -105,4 +105,19 @@ describe("OperatorHome", () => {
     render(<OperatorHome loaders={loaders} isAdmin={false} fetchGateways={vi.fn()} />);
     expect(await screen.findByTestId("home-error")).toHaveTextContent("boom");
   });
+
+  it("surfaces a telemetry error instead of showing every point as missing (#182 review)", async () => {
+    // When the freshness batch fetch fails, the view must not silently classify all points as
+    // missing — it shows the error banner so the operator knows the data is unavailable, not absent.
+    const loaders = makeLoaders({
+      loadFreshness: vi
+        .fn()
+        .mockRejectedValue(new Error("最新値の一括取得に失敗しました (503)")),
+    });
+    render(<OperatorHome loaders={loaders} isAdmin={false} fetchGateways={vi.fn()} />);
+    expect(await screen.findByTestId("home-error")).toHaveTextContent(
+      "最新値の一括取得に失敗しました",
+    );
+    expect(screen.queryByTestId("home-attention-row")).not.toBeInTheDocument();
+  });
 });

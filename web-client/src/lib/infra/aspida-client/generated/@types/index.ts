@@ -32,6 +32,11 @@ export type AssistantHelpContext = {
   terms?: AssistantContextTerm[] | undefined;
 }
 
+/** Request body for `POST /telemetries/query/batch-latest` (#182). */
+export type BatchLatestRequest = {
+  pointIds?: string[] | undefined;
+}
+
 export type Building = {
   dtId: string;
   id: string;
@@ -209,6 +214,13 @@ export type GroupsControllerUpdateGroupRequest = {
   description?: string | null | undefined;
 }
 
+/** One point's latest sample; `Datetime`/`Value` are null when it has no data (#182). */
+export type LatestSample = {
+  pointId?: string | undefined;
+  datetime?: string | null | undefined;
+  value?: number | null | undefined;
+}
+
 export type MyResourcesResponse = {
   isAdmin?: boolean | undefined;
 
@@ -298,6 +310,19 @@ export type Point = {
   customTags?: {
     [key: string]: boolean;
   } | undefined;
+}
+
+/**
+ * 制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`
+ * （"success" / "failed" / "pending"）に正規化して返す。`Request` は送信時のコマンド JSON。
+ */
+export type PointControlAuditResponse = {
+  controlId?: string | undefined;
+  pointId?: string | null | undefined;
+  request?: string | undefined;
+  status?: string | undefined;
+  createdAt?: string | undefined;
+  completedAt?: string | null | undefined;
 }
 
 export type PointControllerControlAcceptedResponse = {
