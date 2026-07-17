@@ -119,8 +119,10 @@ export default function ResourcesPageComponent() {
   return (
     <div className="container mx-auto px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold">リソース</h1>
-      <div className="flex gap-4">
-        <aside className="w-1/3 min-w-[18rem] rounded-lg border border-gray-200 bg-white p-3">
+      {/* Stacked vertically on phones/tablets so the detail pane isn't crushed by the min-width
+          search+tree column; side-by-side two-pane from `md` up (#199 UX-10). */}
+      <div data-testid="resource-two-pane" className="flex flex-col gap-4 md:flex-row">
+        <aside className="w-full rounded-lg border border-gray-200 bg-white p-3 md:w-1/3 md:min-w-[18rem]">
           <ResourceSearchBox onPick={pickFromSearch} />
           <div className="mt-3 max-h-[70vh] overflow-auto border-t border-gray-100 pt-3">
             <ResourceTreeView
