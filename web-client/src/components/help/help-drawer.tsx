@@ -1,9 +1,14 @@
+"use client";
+
+import { useRef } from "react";
+import { useDialogA11y } from "@/lib/a11y/use-dialog-a11y";
 import type { GlossaryTerm, HelpEntry } from "@/lib/help/types";
 
 /**
  * Slide-over help drawer (#149). Pure/presentational: given a resolved {@link HelpEntry} and its
  * related glossary terms, renders the title, body paragraphs and term definitions. Open/close state
- * is owned by the parent.
+ * is owned by the parent. Dialog a11y (focus trap, Esc, focus restoration) via {@link useDialogA11y}
+ * (#198).
  */
 export function HelpDrawer({
   entry,
@@ -16,6 +21,9 @@ export function HelpDrawer({
   open: boolean;
   onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  useDialogA11y(panelRef, { open, onClose });
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex justify-end" data-testid="help-drawer">
@@ -25,7 +33,15 @@ export function HelpDrawer({
         className="flex-1 bg-black/30"
         onClick={onClose}
       />
-      <aside className="flex w-full max-w-md flex-col overflow-auto bg-white p-5 shadow-xl">
+      <aside
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={entry ? "help-drawer-title" : undefined}
+        aria-label={entry ? undefined : "ヘルプ"}
+        tabIndex={-1}
+        className="flex w-full max-w-md flex-col overflow-auto bg-white p-5 shadow-xl"
+      >
         {entry === null ? (
           <p className="text-sm text-gray-600" data-testid="help-missing">
             この画面のヘルプはまだありません。
@@ -33,7 +49,9 @@ export function HelpDrawer({
         ) : (
           <>
             <div className="mb-3 flex items-start justify-between gap-2">
-              <h2 className="text-lg font-bold">{entry.title}</h2>
+              <h2 id="help-drawer-title" className="text-lg font-bold">
+                {entry.title}
+              </h2>
               <button
                 type="button"
                 onClick={onClose}

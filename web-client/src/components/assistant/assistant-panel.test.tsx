@@ -35,4 +35,15 @@ describe("AssistantPanel", () => {
     render(<AssistantPanel messages={[]} error="無効です" onSend={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByTestId("assistant-error")).toHaveTextContent("無効です");
   });
+
+  it("is a non-modal labelled dialog that closes on Escape (#198 review)", () => {
+    const onClose = vi.fn();
+    render(<AssistantPanel messages={[]} onSend={vi.fn()} onClose={onClose} />);
+    const dialog = screen.getByRole("dialog");
+    // A floating helper must not claim to be modal (it doesn't cover the app / trap focus).
+    expect(dialog).not.toHaveAttribute("aria-modal");
+    expect(dialog).toHaveAccessibleName("ヘルプアシスタント（実験的）");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
 });
