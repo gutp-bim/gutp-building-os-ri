@@ -1,3 +1,4 @@
+import { InlineBanner } from "@/components/ui/inline-banner";
 import { Dialog } from "@headlessui/react";
 
 export function ColdDataDownloadModal({
@@ -9,6 +10,7 @@ export function ColdDataDownloadModal({
   onEndDateChange,
   onDownload,
   isLoading,
+  error,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -18,6 +20,7 @@ export function ColdDataDownloadModal({
   onEndDateChange: (date: string) => void;
   onDownload: () => void;
   isLoading: boolean;
+  error?: string | null;
 }) {
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
@@ -28,6 +31,11 @@ export function ColdDataDownloadModal({
             期間を選択してください
           </Dialog.Title>
           <div className="space-y-4">
+            {error && (
+              <InlineBanner tone="error" testId="cold-download-error">
+                {error}
+              </InlineBanner>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 開始日時

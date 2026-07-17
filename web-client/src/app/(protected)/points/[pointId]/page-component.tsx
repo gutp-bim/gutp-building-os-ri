@@ -1,5 +1,6 @@
 "use client";
 
+import { InlineBanner } from "@/components/ui/inline-banner";
 import {
   PointDetail,
   ValidTelemetryData,
@@ -32,6 +33,11 @@ export default function PointDetailPageComponent({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [coldLoading, setColdLoading] = useState(false);
+  // Telemetry read failures used to fall to console.error only; surface them inline (#196) so the
+  // operator can tell "unavailable" apart from "no data".
+  const [hotError, setHotError] = useState<string | null>(null);
+  const [warmError, setWarmError] = useState<string | null>(null);
+  const [coldError, setColdError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPointDetail = async () => {
@@ -52,10 +58,12 @@ export default function PointDetailPageComponent({
     if (!pointDetail?.point.id) return;
     try {
       setHotLoading(true);
+      setHotError(null);
       const latest = await latestTelemetry(pointDetail.point.id);
       setHotData(latest ? { value: latest.v, datetime: latest.t } : null);
     } catch (e) {
       console.error(e);
+      setHotError("最新値の取得に失敗しました。");
     } finally {
       setHotLoading(false);
     }
@@ -65,6 +73,7 @@ export default function PointDetailPageComponent({
     if (!pointDetail?.point.id) return;
     try {
       setWarmLoading(true);
+      setWarmError(null);
       const end = new Date();
       const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
       const series = await queryTelemetry({
@@ -75,6 +84,7 @@ export default function PointDetailPageComponent({
       setWarmData(series.points.map((p) => ({ datetime: p.t, value: p.v })));
     } catch (e) {
       console.error(e);
+      setWarmError("履歴データの取得に失敗しました。");
     } finally {
       setWarmLoading(false);
     }
@@ -84,6 +94,7 @@ export default function PointDetailPageComponent({
     if (!pointDetail?.point.id) return;
     try {
       setColdLoading(true);
+      setColdError(null);
       const series = await queryTelemetry({
         pointId: pointDetail.point.id,
         start: new Date(startDate),
@@ -109,6 +120,8 @@ export default function PointDetailPageComponent({
       setIsModalOpen(false);
     } catch (e) {
       console.error(e);
+      // Keep the modal open so the operator sees the failure and can retry.
+      setColdError("CSV のダウンロードに失敗しました。");
     } finally {
       setColdLoading(false);
     }
@@ -157,17 +170,34 @@ export default function PointDetailPageComponent({
           <PointInfo pointDetail={pointDetail} />
           <PointControlModal pointDetail={pointDetail} />
         </div>
-        <TelemetryHotData
-          hotData={hotData}
-          hotLoading={hotLoading}
-          onRefresh={fetchHotData}
-          onDownloadClick={() => setIsModalOpen(true)}
-          scale={pointDetail.point.scale ?? undefined}
-          unit={pointDetail.point.unit ?? undefined}
-          labels={pointDetail.point.labels ?? undefined}
-        />
+        <div className="flex flex-1 flex-col gap-2">
+          {hotError && (
+            <InlineBanner tone="error" testId="hot-error" onDismiss={() => setHotError(null)}>
+              {hotError}
+            </InlineBanner>
+          )}
+          <TelemetryHotData
+            hotData={hotData}
+            hotLoading={hotLoading}
+            onRefresh={fetchHotData}
+            onDownloadClick={() => {
+              setColdError(null);
+              setIsModalOpen(true);
+            }}
+            scale={pointDetail.point.scale ?? undefined}
+            unit={pointDetail.point.unit ?? undefined}
+            labels={pointDetail.point.labels ?? undefined}
+          />
+        </div>
       </div>
 
+      {warmError && (
+        <div className="mb-2">
+          <InlineBanner tone="error" testId="warm-error" onDismiss={() => setWarmError(null)}>
+            {warmError}
+          </InlineBanner>
+        </div>
+      )}
       <TelemetryWarmData
         warmData={warmData}
         warmLoading={warmLoading}
@@ -178,13 +208,17 @@ export default function PointDetailPageComponent({
 
       <ColdDataDownloadModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setColdError(null);
+          setIsModalOpen(false);
+        }}
         startDate={startDate}
         endDate={endDate}
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
         onDownload={handleDownloadCold}
         isLoading={coldLoading}
+        error={coldError}
       />
     </div>
   );
