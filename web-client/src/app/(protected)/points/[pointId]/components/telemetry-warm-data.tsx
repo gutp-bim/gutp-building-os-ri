@@ -1,4 +1,11 @@
 import { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
+import {
+  GRANULARITY_OPTIONS,
+  PERIOD_PRESETS,
+  spansMultipleDays,
+  type GranularityOption,
+  type PeriodPreset,
+} from "@/lib/telemetry/range";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import {
   CartesianGrid,
@@ -11,46 +18,60 @@ import {
   YAxis,
 } from "recharts";
 
-const formatTime = (datetime: string) => {
-  const date = new Date(datetime);
-  return `${date.getHours().toString().padStart(2, "0")}:${
-    date.getMinutes().toString().padStart(2, "0")
-  }`;
+// Brand series colour (Tailwind blue-500), replacing Recharts' default purple (#8884d8).
+const SERIES_COLOR = "#3b82f6";
+
+const formatAxis = (datetime: string, multiDay: boolean) => {
+  const d = new Date(datetime);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return multiDay
+    ? `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`
+    : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white p-2 border border-gray-200 shadow-sm">
-        <p className="text-sm text-gray-600">
-          {payload[0].payload.fullDatetime}
-        </p>
-        <p className="text-sm font-semibold">
-          {`値: ${payload[0].value?.toFixed(1)}`}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+function makeTooltip(unit?: string) {
+  return function CustomTooltip({ active, payload }: TooltipProps<number, string>) {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-2 border border-gray-200 shadow-sm">
+          <p className="text-sm text-gray-600">{payload[0].payload.fullDatetime}</p>
+          <p className="text-sm font-semibold">
+            {`値: ${payload[0].value?.toFixed(1)}${unit ? ` ${unit}` : ""}`}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+}
 
 export function TelemetryWarmData({
   warmData,
   warmLoading,
   onRefresh,
+  period,
+  granularity,
+  onPeriodChange,
+  onGranularityChange,
+  unit,
 }: {
   warmData: ValidTelemetryData[];
   warmLoading: boolean;
   onRefresh: () => void;
+  period: PeriodPreset;
+  granularity: GranularityOption;
+  onPeriodChange: (period: PeriodPreset) => void;
+  onGranularityChange: (granularity: GranularityOption) => void;
+  unit?: string;
 }) {
+  const multiDay = spansMultipleDays(period);
   const chartData = [...warmData]
     .sort(
       (a, b) =>
-        new Date(a.datetime || "").getTime() -
-        new Date(b.datetime || "").getTime(),
+        new Date(a.datetime || "").getTime() - new Date(b.datetime || "").getTime(),
     )
     .map((data) => ({
-      time: data.datetime ? formatTime(data.datetime) : "",
+      time: data.datetime ? formatAxis(data.datetime, multiDay) : "",
       value: data.value,
       fullDatetime: data.datetime
         ? new Date(data.datetime).toLocaleString("ja-JP")
@@ -59,17 +80,52 @@ export function TelemetryWarmData({
 
   return (
     <div className="bg-white p-4 rounded-lg shadow">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-gray-700">過去 24 時間</h3>
-        <button
-          onClick={onRefresh}
-          disabled={warmLoading}
-          className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-        >
-          <ArrowPathIcon
-            className={`h-5 w-5 ${warmLoading ? "animate-spin" : ""}`}
-          />
-        </button>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-medium text-gray-700">
+          テレメトリ履歴{unit ? `（単位: ${unit}）` : ""}
+        </h3>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1 text-xs text-gray-600">
+            期間
+            <select
+              data-testid="warm-period-select"
+              aria-label="期間"
+              value={period}
+              onChange={(e) => onPeriodChange(e.target.value as PeriodPreset)}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              {PERIOD_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1 text-xs text-gray-600">
+            粒度
+            <select
+              data-testid="warm-granularity-select"
+              aria-label="粒度"
+              value={granularity}
+              onChange={(e) => onGranularityChange(e.target.value as GranularityOption)}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              {GRANULARITY_OPTIONS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={onRefresh}
+            disabled={warmLoading}
+            aria-label="再読み込み"
+            className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            <ArrowPathIcon className={`h-5 w-5 ${warmLoading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
       <div className="h-[400px]">
         {chartData.length === 0 && !warmLoading ? (
@@ -80,19 +136,17 @@ export function TelemetryWarmData({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="time"
-                interval="preserveStartEnd"
-                minTickGap={50}
+              <XAxis dataKey="time" interval="preserveStartEnd" minTickGap={50} />
+              <YAxis
+                domain={["auto", "auto"]}
+                label={
+                  unit
+                    ? { value: unit, angle: -90, position: "insideLeft", style: { fontSize: 12 } }
+                    : undefined
+                }
               />
-              <YAxis domain={["auto", "auto"]} />
-              <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#8884d8"
-                dot={false}
-              />
+              <Tooltip content={makeTooltip(unit)} />
+              <Line type="monotone" dataKey="value" stroke={SERIES_COLOR} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         )}
