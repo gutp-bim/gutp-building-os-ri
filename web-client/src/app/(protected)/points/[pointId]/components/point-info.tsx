@@ -19,7 +19,20 @@ const BACNET_OBJECT_TYPE_MAP: Record<string, string> = {
 
 export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const controlType = getControlType(pointDetail.point);
+
+  // Clipboard copy used to be fire-and-forget with no feedback either way (#196). Confirm success
+  // and surface a failure (some browsers/permissions reject writeText).
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(pointDetail.point.rowDataString!);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2000);
+    } catch {
+      setCopyState("error");
+    }
+  };
 
   return (
     <div className="bg-white p-6 rounded-xl shadow w-full mx-auto">
@@ -136,16 +149,24 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
                   })()}
                 </pre>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      pointDetail.point.rowDataString!,
-                    );
-                  }}
+                  onClick={handleCopy}
                   className="absolute top-2 right-2 p-2 text-gray-600 hover:text-gray-900 bg-white rounded-md shadow-sm cursor-pointer"
                   title="クリップボードにコピー"
                 >
                   <ClipboardIcon className="h-5 w-5" />
                 </button>
+              </div>
+              <div className="mt-2 h-5 text-sm" aria-live="polite">
+                {copyState === "copied" && (
+                  <span className="text-green-700" data-testid="copy-success">
+                    コピーしました
+                  </span>
+                )}
+                {copyState === "error" && (
+                  <span className="text-red-700" data-testid="copy-error">
+                    コピーに失敗しました
+                  </span>
+                )}
               </div>
               <div className="mt-4 flex justify-end">
                 <button
