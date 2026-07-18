@@ -12,7 +12,7 @@ replicaCount: 1
 
 image:
   repository: harbor.eng2.buildingos.local/building-os/building-os-api-server
-  tag: 66d9c5c2
+  tag: b6761b0b
   pullPolicy: IfNotPresent
 
 service:
