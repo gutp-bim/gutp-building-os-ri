@@ -23,7 +23,13 @@
  * Both functions are pure and fully unit-testable.
  */
 
-/** Registry default for `telemetry.staleIntervalMultiplier` (N in `threshold = interval × N`). */
+/**
+ * Fixed stale-interval multiplier N (`threshold = interval × N`) for this slice (#183). It is a
+ * constant, not yet a runtime setting: making it admin-editable is deferred until an all-role
+ * telemetry-threshold read surface exists, so the setting is not exposed in `SettingsRegistry` (an
+ * editable-but-ignored value would be a false affordance). `resolveStaleThresholdSeconds` still
+ * accepts a `multiplier` param so that surface can supply it later without an API change.
+ */
 export const DEFAULT_STALE_INTERVAL_MULTIPLIER = 3;
 
 /**

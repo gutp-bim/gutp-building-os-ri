@@ -43,11 +43,11 @@ export function TelemetryHotData({
   }, [hotData, scale, splitLabels, unit]);
 
   // Freshness of the latest sample, evaluated against the current time on each render. The stale
-  // threshold is derived from this point's expected interval (`interval × N`, #183), falling back to
-  // the registry default (300s) when the twin has no expected interval. Wiring the live
-  // telemetry.staleThresholdSeconds / staleIntervalMultiplier overrides is a follow-up. (Not wrapped
-  // in useMemo: `new Date()` is impure, so memoizing it is neither safe nor worthwhile — the classify
-  // call is a single cheap comparison.)
+  // threshold is derived from this point's expected interval (`interval × N`, #183) with N a fixed
+  // default (3), falling back to the default 300s when the twin has no expected interval. Making N /
+  // the default threshold live per-role runtime settings is a follow-up (needs a non-admin read
+  // surface). (Not wrapped in useMemo: `new Date()` is impure, so memoizing it is neither safe nor
+  // worthwhile — the classify call is a single cheap comparison.)
   const thresholdSeconds = resolveStaleThresholdSeconds({
     expected: { point: expectedIntervalSeconds },
     systemDefaultThresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,

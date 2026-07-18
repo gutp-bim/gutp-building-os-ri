@@ -66,10 +66,11 @@ export const productionHomeLoaders: HomeLoaders = {
       points.map((p) => p.pointId),
       {
         now: new Date(),
-        // System-default fallback for points with no expected interval. Wiring the live
-        // `telemetry.staleThresholdSeconds` / `telemetry.staleIntervalMultiplier` overrides for all
-        // roles needs a non-admin-readable settings surface and stays a follow-up (#148/#176); the
-        // registry-default constants below match the backend defaults.
+        // System-default fallback for points with no expected interval. The multiplier is a fixed
+        // constant this slice (not an editable setting — that would be a false affordance until read
+        // at runtime, #183); wiring a live all-role telemetry-threshold surface (both the default
+        // threshold and the multiplier) stays a follow-up (#148/#176). The constants below match the
+        // backend defaults.
         thresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
         intervalMultiplier: DEFAULT_STALE_INTERVAL_MULTIPLIER,
         expectedIntervalSeconds: new Map(
