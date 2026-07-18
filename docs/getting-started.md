@@ -147,13 +147,35 @@ yarn install && yarn dev
 > `DotNet/global.json` は SDK `8.0.126` + `rollForward: latestPatch` を指定しています。
 > そのため `dotnet run` は 8.0.x SDK が必要で、10.x SDK のみでは起動できません。
 
-ローカル開発では API Server を `DISABLE_AUTH=true`（compose の API も同様）で動かせるため、
-Keycloak トークンなしで叩けます(本番は OIDC/JWT 必須)。**`DISABLE_AUTH` は API Server 自身の
-チェックのみに効き、Web Client(`http://localhost:3000`)は引き続き実際の Keycloak ログイン
-画面にリダイレクトします。** 既定の dev realm(`oss-stack/keycloak/realm.json`)には
-`admin`/`admin`(全操作可)と `testoperator`/`testpass`(読取 + 制御)の2アカウントが
-自動投入済みです — 詳細は [docs/keycloak-user-management.md](keycloak-user-management.md)。
+**認証は既定で Keycloak に統一されています（#161）。** 既定の OSS スタック
+(`docker compose -f docker-compose.oss.yaml up`)では **API Server も JWT 必須**で、Web Client と
+挙動が揃います(以前の「curl は認証不要なのに画面はログイン必須」という非対称は解消)。既定の dev
+realm(`oss-stack/keycloak/realm.json`)には `admin`/`admin`(全操作可)と
+`testoperator`/`testpass`(読取 + 制御)の2アカウントが自動投入済みです — 詳細は
+[docs/keycloak-user-management.md](keycloak-user-management.md)。
 **ラボ/CI 専用の既定資格情報です — 本番前に必ず変更してください。**
+
+**curl でトークンを取得する**（既定スタックで API を直叩きする場合）:
+
+```bash
+TOKEN=$(curl -s http://localhost:8080/realms/building-os/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=web-client \
+  -d username=admin -d password=admin | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:5000/telemetries/query?pointId=SOS-PT-001&latest=true'
+```
+
+**トークン無しで叩きたい場合**は、`DISABLE_AUTH` を開発者向けオプトインとして有効化します
+（**既定は無効**）:
+
+```bash
+DISABLE_AUTH=true docker compose -f docker-compose.oss.yaml up -d   # API を認証なしで起動
+```
+
+`make demo`(#155)はデモ体験を摩擦ゼロに保つため、この `DISABLE_AUTH=true` を
+デモオーバーレイ(`docker-compose.demo.yaml`)で自動的に設定します。Web Client も認証なしにする
+自動ログイン(折衷案の demo=A)は後続(#155/#161)で対応します。ローカルで実 Keycloak を挟まず
+API を叩く用途には `Tools/auth-proxy-server/` も利用できます。
 
 ---
 
@@ -263,6 +285,9 @@ docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
 ---
 
 ## 6. 読む・制御する
+
+> 既定スタックは認証必須です。下の curl には §5 で取得した `-H "Authorization: Bearer $TOKEN"` を
+> 付けてください（`make demo` / `DISABLE_AUTH=true` 起動時はトークン不要）。
 
 ```bash
 # 最新値（Hot KV、cold 時はレイク fallback）
