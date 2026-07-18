@@ -1,18 +1,28 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
 import type { GatewayAdminView } from "@/lib/admin/gateways";
 import type { HomeLoaders } from "@/lib/home/loaders";
-import type { PointFreshness } from "@/lib/telemetry/freshness";
 import type { ResourceRef } from "@/lib/resources/types";
+import type { PointFreshness } from "@/lib/telemetry/freshness";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { OperatorHome } from "./operator-home";
 
-const building: ResourceRef = { type: "building", dtId: "b1", id: "b1", name: "棟A" };
+const building: ResourceRef = {
+  type: "building",
+  dtId: "b1",
+  id: "b1",
+  name: "棟A",
+};
 const floor: ResourceRef = { type: "floor", dtId: "f1", id: "f1", name: "1F" };
 
 const namedPoints = [
   { pointId: "p1", name: "室温", deviceName: "AHU-1", spaceName: "会議室A" },
   { pointId: "p2", name: "湿度", deviceName: "AHU-1", spaceName: "会議室A" },
-  { pointId: "p3", name: "CO2", deviceName: "CO2-Sensor-01", spaceName: "会議室A" },
+  {
+    pointId: "p3",
+    name: "CO2",
+    deviceName: "CO2-Sensor-01",
+    spaceName: "会議室A",
+  },
 ];
 
 const freshness: PointFreshness[] = [
@@ -38,21 +48,40 @@ const gateway: GatewayAdminView = {
   pointCount: 8,
   revision: "sha256:abcdef1234567890",
   certTrustAnchor: "",
+  lastTelemetryAt: null,
 };
 
 describe("OperatorHome", () => {
   it("shows fresh/stale/missing counts once a floor auto-loads", async () => {
-    render(<OperatorHome loaders={makeLoaders()} isAdmin={false} fetchGateways={vi.fn()} />);
+    render(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
 
     await waitFor(() => {
-      expect(within(screen.getByTestId("summary-fresh")).getByText("1")).toBeInTheDocument();
-      expect(within(screen.getByTestId("summary-stale")).getByText("1")).toBeInTheDocument();
-      expect(within(screen.getByTestId("summary-missing")).getByText("1")).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("summary-fresh")).getByText("1"),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("summary-stale")).getByText("1"),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("summary-missing")).getByText("1"),
+      ).toBeInTheDocument();
     });
   });
 
   it("lists only attention points, missing first then stale", async () => {
-    render(<OperatorHome loaders={makeLoaders()} isAdmin={false} fetchGateways={vi.fn()} />);
+    render(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
 
     const rows = await screen.findAllByTestId("home-attention-row");
     expect(rows).toHaveLength(2);
@@ -62,7 +91,13 @@ describe("OperatorHome", () => {
   });
 
   it("links each attention row to the point detail and shows its space/device", async () => {
-    render(<OperatorHome loaders={makeLoaders()} isAdmin={false} fetchGateways={vi.fn()} />);
+    render(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
 
     const links = await screen.findAllByTestId("home-attention-link");
     // p3 (CO2) is missing → sorts first.
@@ -77,32 +112,62 @@ describe("OperatorHome", () => {
       loadFreshness: vi
         .fn()
         .mockResolvedValue(
-          namedPoints.map((p) => ({ pointId: p.pointId, status: "fresh", ageSeconds: 1 })),
+          namedPoints.map((p) => ({
+            pointId: p.pointId,
+            status: "fresh",
+            ageSeconds: 1,
+          })),
         ),
     });
-    render(<OperatorHome loaders={loaders} isAdmin={false} fetchGateways={vi.fn()} />);
-    expect(await screen.findByTestId("home-attention-empty")).toBeInTheDocument();
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByTestId("home-attention-empty"),
+    ).toBeInTheDocument();
   });
 
   it("hides the gateway panel for non-admins and shows it for admins", async () => {
     const fetchGateways = vi.fn().mockResolvedValue([gateway]);
 
     const { rerender } = render(
-      <OperatorHome loaders={makeLoaders()} isAdmin={false} fetchGateways={fetchGateways} />,
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={fetchGateways}
+      />,
     );
     await screen.findAllByTestId("home-attention-row");
     expect(screen.queryByTestId("home-gateway-panel")).not.toBeInTheDocument();
 
-    rerender(<OperatorHome loaders={makeLoaders()} isAdmin={true} fetchGateways={fetchGateways} />);
+    rerender(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={true}
+        fetchGateways={fetchGateways}
+      />,
+    );
     expect(await screen.findByTestId("home-gateway-panel")).toBeInTheDocument();
-    expect(await screen.findByTestId("home-gateway-row")).toHaveTextContent("GW-1");
+    expect(await screen.findByTestId("home-gateway-row")).toHaveTextContent(
+      "GW-1",
+    );
   });
 
   it("surfaces an error when the building load fails", async () => {
     const loaders = makeLoaders({
       loadBuildings: vi.fn().mockRejectedValue(new Error("boom")),
     });
-    render(<OperatorHome loaders={loaders} isAdmin={false} fetchGateways={vi.fn()} />);
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
     expect(await screen.findByTestId("home-error")).toHaveTextContent("boom");
   });
 
@@ -114,7 +179,13 @@ describe("OperatorHome", () => {
         .fn()
         .mockRejectedValue(new Error("最新値の一括取得に失敗しました (503)")),
     });
-    render(<OperatorHome loaders={loaders} isAdmin={false} fetchGateways={vi.fn()} />);
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
     expect(await screen.findByTestId("home-error")).toHaveTextContent(
       "最新値の一括取得に失敗しました",
     );

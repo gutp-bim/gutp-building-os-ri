@@ -9,6 +9,30 @@ export interface GatewayAdminView {
   pointCount: number;
   revision: string;
   certTrustAnchor: string;
+  /**
+   * Derived last-seen: the most recent telemetry timestamp (ISO) across the gateway's points, or null
+   * when none have reported (#181 Phase 2). This is NOT a live egress connection state — true
+   * connected/disconnected is a follow-up (option ②).
+   */
+  lastTelemetryAt: string | null;
+}
+
+/**
+ * Human label for the derived last-seen timestamp (#181 Phase 2). `null`/invalid → 「受信なし」;
+ * otherwise a coarse relative age (秒/分/時間/日前).
+ */
+export function lastSeenLabel(
+  iso: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!iso) return "受信なし";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "受信なし";
+  const diffSec = Math.max(0, Math.floor((now.getTime() - t) / 1000));
+  if (diffSec < 60) return `${diffSec}秒前`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}分前`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}時間前`;
+  return `${Math.floor(diffSec / 86400)}日前`;
 }
 
 export function bindingLabel(binding: string): string {
@@ -32,7 +56,9 @@ export function shortRevision(revision: string): string {
   return hex ? hex.slice(0, 12) : "—";
 }
 
-export async function fetchGateways(signal?: AbortSignal): Promise<GatewayAdminView[]> {
+export async function fetchGateways(
+  signal?: AbortSignal,
+): Promise<GatewayAdminView[]> {
   try {
     return (await apiClient().api.admin.gateways.$get({
       config: { signal },
@@ -47,7 +73,9 @@ export async function resyncGatewayPointList(id: string): Promise<string> {
   try {
     // Swagger documents the 202 without a body, so the generated method is typed void — the server
     // does return `{ revision }` (see GatewayAdminController); read it from the raw response.
-    const res = await apiClient().api.admin.gateways._id(encodeURIComponent(id)).resync_pointlist.post();
+    const res = await apiClient()
+      .api.admin.gateways._id(encodeURIComponent(id))
+      .resync_pointlist.post();
     return (res.body as unknown as { revision: string }).revision;
   } catch (e) {
     throw mutationError(e, "pointlist の再同期に失敗しました");

@@ -1,6 +1,6 @@
+import type { GatewayAdminView } from "@/lib/admin/gateways";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { GatewayAdminView } from "@/lib/admin/gateways";
 import { GatewayStatusPanel } from "./gateway-status-panel";
 
 const gateway: GatewayAdminView = {
@@ -10,11 +10,16 @@ const gateway: GatewayAdminView = {
   pointCount: 8,
   revision: "sha256:abcdef1234567890",
   certTrustAnchor: "",
+  lastTelemetryAt: null,
 };
 
 describe("GatewayStatusPanel", () => {
   it("renders each gateway with binding label, point count and short revision", async () => {
-    render(<GatewayStatusPanel fetchGateways={vi.fn().mockResolvedValue([gateway])} />);
+    render(
+      <GatewayStatusPanel
+        fetchGateways={vi.fn().mockResolvedValue([gateway])}
+      />,
+    );
     const row = await screen.findByTestId("home-gateway-row");
     expect(row).toHaveTextContent("GW-SOS-001");
     expect(row).toHaveTextContent("BACnet Sim");
@@ -23,19 +28,42 @@ describe("GatewayStatusPanel", () => {
   });
 
   it("labels itself as registration info, not connection state (#181)", async () => {
-    render(<GatewayStatusPanel fetchGateways={vi.fn().mockResolvedValue([gateway])} />);
+    render(
+      <GatewayStatusPanel
+        fetchGateways={vi.fn().mockResolvedValue([gateway])}
+      />,
+    );
     expect(await screen.findByText("登録済みゲートウェイ")).toBeInTheDocument();
-    expect(screen.getByTestId("home-gateway-panel-note")).toHaveTextContent("接続状態");
+    expect(screen.getByTestId("home-gateway-panel-note")).toHaveTextContent(
+      "接続状態",
+    );
+  });
+
+  it("shows a derived last-seen (受信なし when the gateway has not reported, #181)", async () => {
+    render(
+      <GatewayStatusPanel
+        fetchGateways={vi.fn().mockResolvedValue([gateway])}
+      />,
+    );
+    expect(
+      await screen.findByTestId("home-gateway-last-seen"),
+    ).toHaveTextContent("最終受信: 受信なし");
   });
 
   it("shows the empty state when no gateways are registered", async () => {
-    render(<GatewayStatusPanel fetchGateways={vi.fn().mockResolvedValue([])} />);
-    expect(await screen.findByText("ゲートウェイは登録されていません。")).toBeInTheDocument();
+    render(
+      <GatewayStatusPanel fetchGateways={vi.fn().mockResolvedValue([])} />,
+    );
+    expect(
+      await screen.findByText("ゲートウェイは登録されていません。"),
+    ).toBeInTheDocument();
   });
 
   it("shows an error message when the fetch fails", async () => {
     render(
-      <GatewayStatusPanel fetchGateways={vi.fn().mockRejectedValue(new Error("403 forbidden"))} />,
+      <GatewayStatusPanel
+        fetchGateways={vi.fn().mockRejectedValue(new Error("403 forbidden"))}
+      />,
     );
     expect(await screen.findByText("403 forbidden")).toBeInTheDocument();
   });
