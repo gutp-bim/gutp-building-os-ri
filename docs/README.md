@@ -57,6 +57,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 | Frontend deployment | Covered | [nextjs-k8s-rollout.md](nextjs-k8s-rollout.md) | K8s/Ingress/Keycloak rollout と rollback |
 | E2E performance / quality | Covered | [e2e-performance-quality-test-plan.md](e2e-performance-quality-test-plan.md), [e2e-performance-report-template.md](e2e-performance-report-template.md) | 入力、蓄積、API 取得、UI 表示までの性能・品質評価とレポート雛形 |
 | GitOps / registry operations | Covered | [argocd-gitops-guide.md](argocd-gitops-guide.md), [harbor-cutover.md](harbor-cutover.md) | Argo CD と Harbor runbook |
+| バックアップ / リストア | Covered | [oss-backup-restore-runbook.md](oss-backup-restore-runbook.md) | PostgreSQL / MinIO レイク / OxiGraph / Keycloak の取得・復元・整合性・定期化。実機ドライラン推奨 |
 | API reference | Generated | [schema/swagger.yaml](schema/swagger.yaml) | endpoint 変更時に API Server から再生成 |
 | Observability | Partial | [system-architecture.md](system-architecture.md), [oss-feature-comparison.md](oss-feature-comparison.md) | 構成要素は記載済み。alert/tracing runbook は今後拡張余地あり |
 
@@ -96,6 +97,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 ### Migration And Operations
 
 - [本番デプロイ構成](oss-production-deployment.md) — Kubernetes 配置図、コンポーネント責務、ネットワーク境界/ポート、mTLS、スケール/可用性
+- [バックアップ・リストア Runbook](oss-backup-restore-runbook.md) — PostgreSQL / MinIO Parquet レイク（`cold`）/ OxiGraph ツイン / Keycloak の取得・復元・整合性・定期化、本番等価手順
 - [ゲートウェイ セキュリティ運用](oss-gateway-security-ops.md) — 証明書発行/ローテーション/失効、`gateway_id`↔証明書束縛、信頼境界、enforce 段階導入
 - [SLA / 鮮度モデル](oss-sla-freshness.md) — Hot/Warm/Cold の層別鮮度、tail-merge の有無で変わる挙動、鮮度 KPI
 - [OSS 技術スタック分析](oss-tech-stack-analysis.md) — Azure マネージドサービスを OSS へ置換する技術選定と難易度評価
