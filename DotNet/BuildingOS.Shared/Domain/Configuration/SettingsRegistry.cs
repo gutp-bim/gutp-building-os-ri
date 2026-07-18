@@ -19,8 +19,14 @@ public static class SettingsRegistry
             Key: "telemetry.staleThresholdSeconds",
             Type: SettingType.Number,
             DefaultValue: "300",
-            Description: "テレメトリを「鮮度切れ」とみなすまでの秒数（閾値）",
+            Description: "テレメトリを「鮮度切れ」とみなすまでの秒数（期待周期が未設定のポイントの既定閾値, #183）",
             Category: "telemetry"),
+        // NOTE: the per-point expected-interval multiplier N (threshold = interval × N, #183) is a
+        // fixed default (3, DEFAULT_STALE_INTERVAL_MULTIPLIER on the frontend) in this slice — it is
+        // intentionally NOT exposed as an editable setting here. Editing it would be a false
+        // affordance until the freshness classifier reads it at runtime, which needs an all-role
+        // (non-admin) telemetry-threshold read surface (GET /api/system/settings is admin-only).
+        // Add it back alongside that surface so admin edits actually change stale classification.
     };
 
     /// <summary>Returns the definition for <paramref name="key"/>, or null when it is not allowlisted.</summary>

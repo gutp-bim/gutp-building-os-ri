@@ -103,6 +103,9 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
 
         Assert.NotEmpty(details);
         Assert.All(details, d => Assert.Equal("floor-1", d.Floor!.Name));
+        // #183: the seed writes sbco:interval "60" on points; the read path must now surface it as
+        // Point.Interval (previously always null because the mapper never projected sbco:interval).
+        Assert.Contains(details, d => d.Point.Interval == 60f);
     }
 
     // #181: gateway_id must belong to a single building; import-time validation must reject a duplicate.

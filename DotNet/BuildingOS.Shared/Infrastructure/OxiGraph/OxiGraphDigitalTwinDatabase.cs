@@ -189,12 +189,13 @@ SELECT ?devId ?devName ?devGw ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
     public async Task<BuildingOS.Shared.Point?> GetPoint(string pointId)
     {
         var sparql = $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?devIdBac ?objType ?instNo ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?devIdBac ?objType ?instNo ?ptInterval ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
   OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
   OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
+  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
   FILTER(?ptId = ""{EscapeStringLiteral(pointId)}"")
   BIND(?pt AS ?ptDt)
   OPTIONAL {{
@@ -263,7 +264,7 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
         // Equipment without sbco:floor or with a mismatched floor literal will not appear.
         // SAMPLE aggregates gatewayId across all points of a device for deterministic selection.
         var sparql = $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw)
 WHERE {{
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
@@ -287,8 +288,9 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
+  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
 }}
-GROUP BY ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo
+GROUP BY ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
          ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
 
         var rows = await _client.QueryAsync(sparql);
@@ -424,7 +426,7 @@ ORDER BY ?gw";
 
     private static string BuildPointSelect(string? deviceUri) => deviceUri is null
         ? $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
 WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
   BIND(?pt AS ?ptDt)
@@ -435,9 +437,10 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
+  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
 }}"
         : $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
 WHERE {{
   <{deviceUri}> <{Prop_HasPoint}> ?pt .
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
@@ -449,6 +452,7 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
+  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
 }}";
 
     private static BuildingOS.Shared.Point MapPoint(IReadOnlyDictionary<string, string> r) =>
@@ -464,6 +468,7 @@ WHERE {{
             DeviceIdBacnet = r.GetValueOrDefault("devIdBac"),
             ObjectTypeBacnet = r.GetValueOrDefault("objType"),
             InstanceNoBacnet = TryParseNullableInt(r.GetValueOrDefault("instNo")),
+            Interval = TryParseNullableFloat(r.GetValueOrDefault("ptInterval")),
         };
 
     private static Device MapDevice(IReadOnlyDictionary<string, string> r) =>
@@ -479,6 +484,14 @@ WHERE {{
 
     private static int? TryParseNullableInt(string? value)
         => int.TryParse(value, out var parsed) ? parsed : null;
+
+    // sbco:interval literals are culture-independent (e.g. "60"); parse with the invariant culture so
+    // a comma-decimal locale can't misread them.
+    private static float? TryParseNullableFloat(string? value)
+        => float.TryParse(value, System.Globalization.NumberStyles.Float,
+               System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
 
     // ── Metadata helpers ──────────────────────────────────────────────────────
 

@@ -34,6 +34,9 @@ internal static class OxiGraphOntology
     // sbco:floor is a string literal on EquipmentExt used to join equipment to Level by name
     internal const string Prop_Floor     = SbcoNs + "floor";
 
+    // Expected telemetry interval (seconds) on PointExt — drives per-point stale detection (#183).
+    internal const string Prop_Interval         = SbcoNs + "interval";
+
     // Native addressing + unit on PointExt (used by the gateway point-list export, #224).
     internal const string Prop_Unit             = SbcoNs + "unit";
     internal const string Prop_LocalId          = SbcoNs + "localId";

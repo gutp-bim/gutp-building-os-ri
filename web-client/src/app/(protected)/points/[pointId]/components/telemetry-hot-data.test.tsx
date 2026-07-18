@@ -3,7 +3,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TelemetryHotData } from "./telemetry-hot-data";
 
-function renderHot(hotData: ValidTelemetryData | null) {
+function renderHot(
+  hotData: ValidTelemetryData | null,
+  expectedIntervalSeconds?: number | null,
+) {
   return render(
     <TelemetryHotData
       hotData={hotData}
@@ -11,6 +14,7 @@ function renderHot(hotData: ValidTelemetryData | null) {
       onRefresh={vi.fn()}
       onDownloadClick={vi.fn()}
       unit="degC"
+      expectedIntervalSeconds={expectedIntervalSeconds}
     />,
   );
 }
@@ -34,5 +38,19 @@ describe("TelemetryHotData freshness badge (#158)", () => {
   it("shows no freshness badge when there is no hot data", () => {
     renderHot(null);
     expect(screen.queryByTestId(/^freshness-/)).not.toBeInTheDocument();
+  });
+
+  it("uses the point's expected interval to bucket freshness (#183)", () => {
+    // A fast point (expected 5s → threshold 15s) is stale at 60s old, even though the 300s default
+    // would still call it fresh.
+    renderHot({ datetime: iso(60), value: 21.5 }, 5);
+    expect(screen.getByTestId("freshness-stale")).toBeInTheDocument();
+  });
+
+  it("keeps a slow point fresh past the 300s default when its interval is long (#183)", () => {
+    // Expected daily (86400s → threshold 259200s): a 100000s-old sample is stale by the default but
+    // fresh once the point's own interval is honored.
+    renderHot({ datetime: iso(100_000), value: 21.5 }, 86_400);
+    expect(screen.getByTestId("freshness-fresh")).toBeInTheDocument();
   });
 });

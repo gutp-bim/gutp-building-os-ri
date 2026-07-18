@@ -26,6 +26,11 @@ export type PointResource = ResourceRef & {
   specification: string | null;
   /** The point's measurement kind (aspida `Point.type`), renamed to avoid clashing with `type`. */
   kind: string | null;
+  /**
+   * Expected telemetry interval in seconds (aspida `Point.interval`, sbco:interval). Drives per-point
+   * stale detection (#183); null when the twin has no expected interval for this point.
+   */
+  expectedIntervalSeconds: number | null;
 };
 
 /** One cross-resource search match. */

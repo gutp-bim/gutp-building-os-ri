@@ -19,6 +19,12 @@ export type FreshnessStatus = "fresh" | "stale" | "missing";
 export type PointLastSeen = {
   pointId: string;
   lastSeen: string | null;
+  /**
+   * Per-point stale threshold in seconds (#183). When set, it overrides the `thresholdSeconds`
+   * argument for this point — this is how an expected-interval-derived threshold is applied to each
+   * point individually. Omit to use the caller's shared default.
+   */
+  thresholdSeconds?: number;
 };
 
 export type PointFreshness = {
@@ -38,9 +44,12 @@ export type FreshnessSummary = {
 /**
  * Classify each point's freshness relative to `now`:
  * - `missing` — no sample, or an unparseable timestamp,
- * - `stale`   — the last sample is strictly older than `thresholdSeconds`,
+ * - `stale`   — the last sample is strictly older than the point's threshold,
  * - `fresh`   — otherwise (the threshold boundary itself, and future timestamps from clock skew,
  *               count as fresh).
+ *
+ * `thresholdSeconds` is the shared default; a point may override it with its own
+ * {@link PointLastSeen.thresholdSeconds} (the expected-interval-derived threshold, #183).
  *
  * Input order is preserved. The comparison uses milliseconds so the boundary is exact; the reported
  * `ageSeconds` is floored to whole seconds for display.
@@ -51,9 +60,8 @@ export function classifyPointFreshness(
   thresholdSeconds: number,
 ): PointFreshness[] {
   const nowMs = now.getTime();
-  const thresholdMs = thresholdSeconds * 1000;
 
-  return points.map(({ pointId, lastSeen }) => {
+  return points.map(({ pointId, lastSeen, thresholdSeconds: perPoint }) => {
     if (lastSeen === null) {
       return { pointId, status: "missing", ageSeconds: null };
     }
@@ -63,6 +71,7 @@ export function classifyPointFreshness(
       return { pointId, status: "missing", ageSeconds: null };
     }
 
+    const thresholdMs = (perPoint ?? thresholdSeconds) * 1000;
     const ageMs = nowMs - lastSeenMs;
     const status: FreshnessStatus = ageMs > thresholdMs ? "stale" : "fresh";
     // Future timestamps (ageMs < 0) floor toward 0 rather than showing a negative age.

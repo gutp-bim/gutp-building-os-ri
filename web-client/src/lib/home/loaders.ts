@@ -8,6 +8,7 @@ import {
 import type { ResourceRef } from "@/lib/resources/types";
 import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointFreshness } from "@/lib/telemetry/freshness";
 import { loadPointsFreshness } from "@/lib/telemetry/freshness-loader";
+import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "@/lib/telemetry/freshness-threshold";
 import type { NamedPoint } from "./aggregate";
 
 /**
@@ -21,8 +22,11 @@ export type HomeLoaders = {
   loadFloors: (buildingDtId: string) => Promise<ResourceRef[]>;
   /** All points under a floor (space → device → point traversal), as id+name pairs. */
   loadFloorPoints: (floorDtId: string) => Promise<NamedPoint[]>;
-  /** Per-point freshness for the given point ids (fans out latest-sample fetches). */
-  loadFreshness: (pointIds: string[]) => Promise<PointFreshness[]>;
+  /**
+   * Per-point freshness for the given points. Takes the {@link NamedPoint}s (not bare ids) so each
+   * point's expected interval drives its own stale threshold (#183).
+   */
+  loadFreshness: (points: NamedPoint[]) => Promise<PointFreshness[]>;
 };
 
 /**
@@ -48,6 +52,7 @@ export const productionHomeLoaders: HomeLoaders = {
               name: p.name,
               deviceName: d.name,
               spaceName: s.name,
+              expectedIntervalSeconds: p.expectedIntervalSeconds,
             }));
           }),
         );
@@ -56,9 +61,21 @@ export const productionHomeLoaders: HomeLoaders = {
     );
     return perSpace.flat();
   },
-  loadFreshness: (pointIds) =>
-    loadPointsFreshness(pointIds, {
-      now: new Date(),
-      thresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
-    }),
+  loadFreshness: (points) =>
+    loadPointsFreshness(
+      points.map((p) => p.pointId),
+      {
+        now: new Date(),
+        // System-default fallback for points with no expected interval. The multiplier is a fixed
+        // constant this slice (not an editable setting — that would be a false affordance until read
+        // at runtime, #183); wiring a live all-role telemetry-threshold surface (both the default
+        // threshold and the multiplier) stays a follow-up (#148/#176). The constants below match the
+        // backend defaults.
+        thresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
+        intervalMultiplier: DEFAULT_STALE_INTERVAL_MULTIPLIER,
+        expectedIntervalSeconds: new Map(
+          points.map((p) => [p.pointId, p.expectedIntervalSeconds]),
+        ),
+      },
+    ),
 };
