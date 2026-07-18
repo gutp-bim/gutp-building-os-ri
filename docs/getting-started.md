@@ -297,7 +297,7 @@ UI で確認する場合:
 | API が DB に繋がらない | `--no-deps` での個別 recreate はネットワークから外れることがある → `--force-recreate`（deps 込み）で再生成 |
 | gRPC ingest が `Unimplemented`/接続不可 | connector に `GRPC_INGRESS_PORT` 未設定（health のみ）。設定して recreate |
 | 制御が常に成功扱いで 503 にならない | OSS 既定は `ENABLE_SIM_CONTROL=true`（シミュレート制御）。実 egress は gateway binding を `bacnet-sim` にし GatewayBridge 経由 |
-| BOS 側が `AlreadyExists: gateway <gateway_id> already connected` を返す | 同じ `gateway_id` の egress セッションが残留。重複起動を停止し、`building-os.gateway-bridge` を再起動してから gateway を再接続 |
+| gateway 再接続後も制御が届かない | 同一 `gateway_id` の新規接続は既存接続を supersede（最新優先）するので通常は再接続だけで復旧。`building-os.gateway-bridge` の再起動は不要。ただし同じ `gateway_id` を複数プロセスで常駐させると supersede し合うので 1 プロセス 1 ID に保つ |
 | latest/range が空 | point が twin 未登録（404）／flush 前（既定 5 分、テストは `PARQUET_FLUSH_INTERVAL=1`） |
 | 各サービスの health | `GET /api/system/status`（API）、`/health/ready`（worker 8081）、MinIO console 9001、Grafana 3010（`--profile observability` 起動時のみ） |
 

@@ -16,6 +16,22 @@ the replica holding that gateway's stream.
 Failover: if a replica dies, its subscriptions vanish with it; BOWS reconnects (to any replica) and
 that replica re-subscribes. There is nothing to drain or migrate — the durable spine is NATS.
 
+## Multi-connection policy: supersede (last-writer-wins)
+
+A gateway may reconnect while its previous stream is still half-open (a dead TCP the server hasn't
+noticed yet). Rather than reject the new `Hello` with `AlreadyExists` — which would lock the gateway
+out until keepalive timed the old stream out or the pod restarted — the bridge **supersedes**: the new
+connection is always accepted and the previous connection for the same `gateway_id` on that replica is
+cancelled and torn down (`GatewayConnectionRegistry.Register` signals the old `GatewayConnection`'s
+`SupersededToken`). Exactly one active egress stream per gateway per replica is preserved, so control
+commands are never fanned out to a stale duplicate (no double-write on the control plane). The old
+stream logs `disconnected (egress) — superseded by a newer connection`. Registry teardown is
+epoch-guarded so the superseded stream's late cleanup cannot evict the newer connection.
+
+> Cross-replica, at most one replica holds a gateway at a time via NATS subject fan-in; supersede
+> resolves the **same-replica** reconnect race. Operators must still run one process per `gateway_id`
+> (two live processes sharing an id would supersede each other in a loop).
+
 ## Connection health
 
 | Concern | Where | Mechanism |

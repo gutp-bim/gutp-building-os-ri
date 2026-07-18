@@ -175,6 +175,47 @@ public class GatewayEgressReplicaRoutingTest
         await runB;
     }
 
+    [Fact]
+    public async Task Gateway_ReconnectingToSameReplica_SupersedesOldStream()
+    {
+        // #114 supersede: a gateway reconnects to the SAME replica before its previous stream has
+        // finished tearing down (half-open drop). The new Hello must be accepted, the old stream
+        // torn down, and commands must flow only over the new stream — the old AlreadyExists
+        // rejection would have locked the gateway out until the pod restarted.
+        var bus = new SharedEgressBus();
+        var registry = new GatewayConnectionRegistry();
+        var replica = new GatewayEgressService(bus, registry, NullLogger<GatewayEgressService>.Instance);
+
+        var reader1 = new FakeStreamReader<EgressUp>();
+        var writer1 = new FakeStreamWriter<EgressDown>();
+        reader1.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-1" } });
+        var run1 = replica.RunAsync(reader1, writer1, CancellationToken.None);
+        await bus.WaitForSubscription("gw-1");
+
+        // Reconnect on the same replica while stream 1 is still open.
+        var reader2 = new FakeStreamReader<EgressUp>();
+        var writer2 = new FakeStreamWriter<EgressDown>();
+        reader2.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-1" } });
+        var run2 = replica.RunAsync(reader2, writer2, CancellationToken.None);
+
+        // The old stream is superseded → RunAsync returns without the client completing it.
+        await run1;
+        Assert.True(registry.IsConnected("gw-1"));
+        Assert.Equal(1, registry.Count);
+
+        // Commands now flow only over the new stream.
+        await bus.WaitForSubscriber("gw-1");
+        var id = Guid.NewGuid();
+        await bus.Deliver("gw-1", Command(id));
+        var down = await writer2.ReadAsync();
+        Assert.Equal(id.ToString(), down.Command.ControlId);
+        Assert.False(writer1.TryReadImmediately(out _));
+
+        reader2.Complete();
+        await run2;
+        Assert.False(registry.IsConnected("gw-1"));
+    }
+
     /// <summary>
     /// Models the NATS per-gateway subject across replicas: at most one subscriber per gateway
     /// (the holding replica). Publishing a command fans in to that subscriber.
@@ -226,6 +267,17 @@ public class GatewayEgressReplicaRoutingTest
         }
 
         public bool HasSubscriber(string gatewayId) => _byGateway.ContainsKey(gatewayId);
+
+        /// <summary>Bounded poll until a (possibly re-subscribed) handler is present for the gateway.</summary>
+        public async Task WaitForSubscriber(string gatewayId)
+        {
+            for (var i = 0; i < 200; i++)
+            {
+                if (_byGateway.ContainsKey(gatewayId)) return;
+                await Task.Delay(5);
+            }
+            Assert.True(_byGateway.ContainsKey(gatewayId), $"no subscriber for {gatewayId}");
+        }
 
         public Task WaitForSubscription(string gatewayId) => Signal(gatewayId).Task;
 
