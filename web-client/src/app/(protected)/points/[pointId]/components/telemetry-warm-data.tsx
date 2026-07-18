@@ -129,7 +129,7 @@ export function TelemetryWarmData({
       </div>
       <div className="h-[400px]">
         {chartData.length === 0 && !warmLoading ? (
-          <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+          <div className="flex items-center justify-center h-full text-gray-600 text-sm">
             データがありません
           </div>
         ) : (

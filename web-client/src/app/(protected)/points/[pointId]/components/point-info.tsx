@@ -37,7 +37,7 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
   return (
     <div className="bg-white p-6 rounded-xl shadow w-full mx-auto">
       <h2 className="text-2xl font-bold mb-6">{pointDetail.point.name}</h2>
-      <div className="border-b border-gray-500 pb-4 mb-4">
+      <div className="border-b border-gray-200 pb-4 mb-4">
         <div className="grid grid-cols-2 gap-y-2 text-sm">
           <div className="font-semibold">ビル</div>
           <div>{pointDetail.device?.buildingName || "-"}</div>
@@ -45,13 +45,13 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
           <div>{pointDetail.floor?.name || "-"}</div>
         </div>
       </div>
-      <div className="border-b border-gray-500 pb-4 mb-4">
+      <div className="border-b border-gray-200 pb-4 mb-4">
         <div className="grid grid-cols-2 gap-y-2 text-sm">
           <div className="font-semibold">スペース</div>
           <div>{pointDetail.space?.name || "-"}</div>
         </div>
       </div>
-      <div className="border-b border-gray-500 pb-4 mb-4">
+      <div className="border-b border-gray-200 pb-4 mb-4">
         <div className="grid grid-cols-2 gap-y-2 text-sm">
           <div className="font-semibold">Point ID</div>
           <div>{pointDetail.point.id}</div>
@@ -118,7 +118,7 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
             元データを表示
           </button>
         ) : (
-          <span className="text-gray-400 text-sm">元データなし</span>
+          <span className="text-gray-500 text-sm">元データなし</span>
         )}
       </div>
 

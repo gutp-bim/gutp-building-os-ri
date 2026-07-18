@@ -72,9 +72,22 @@ describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
 
     render(<PointDetailPageComponent pointId="p1" />);
 
+    expect(await screen.findByTestId("point-detail")).toBeInTheDocument();
     expect(await screen.findByTestId("hot")).toBeInTheDocument();
     expect(screen.queryByTestId("hot-error")).not.toBeInTheDocument();
     expect(screen.queryByTestId("warm-error")).not.toBeInTheDocument();
+  });
+});
+
+describe("PointDetailPageComponent loading state (#195)", () => {
+  it("shows a text loading state (not a viewport-tall spinner) while the point loads", () => {
+    // Keep getPointDetail pending so the page stays in its loading branch.
+    (getPointDetail as Mock).mockReturnValue(new Promise(() => {}));
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    expect(screen.getByText("読み込み中…")).toBeInTheDocument();
+    expect(screen.queryByTestId("point-detail")).not.toBeInTheDocument();
   });
 });
 
