@@ -4,10 +4,12 @@ import { cn } from "@/lib/utils";
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md";
 
+// Semantic tokens (globals.css `@theme`); primary/danger map to the same blue-600/red-600 shades, so
+// this is a token wiring with no visual change (#194).
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700",
+  primary: "bg-primary text-white hover:bg-primary-hover",
   secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200",
-  danger: "bg-red-600 text-white hover:bg-red-700",
+  danger: "bg-danger text-white hover:bg-danger-hover",
   ghost: "text-gray-700 hover:bg-gray-100",
 };
 

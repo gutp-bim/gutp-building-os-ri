@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
 /*
+ * Semantic color tokens (#194, UX-5). Each `--color-*` here becomes a Tailwind utility
+ * (`bg-primary`, `text-danger`, `border-default`, …), so components reference intent, not a raw
+ * palette shade. Values intentionally mirror the shades already in use (blue-600 / red-600 /
+ * gray-200 …) — this slice introduces the token layer with NO visual change. It is also the seam a
+ * future dark theme (#163) flips: redefine these under a `.dark` selector instead of touching every
+ * component. Status tints for banners/badges (success/warn/error backgrounds) tokenize in a later
+ * slice alongside the InlineBanner/badge adoption.
+ */
+@theme {
+  --color-primary: #2563eb; /* blue-600 */
+  --color-primary-hover: #1d4ed8; /* blue-700 */
+  --color-danger: #dc2626; /* red-600 */
+  --color-danger-hover: #b91c1c; /* red-700 */
+  --color-success: #16a34a; /* green-600 */
+  --color-warn: #d97706; /* amber-600 */
+  --color-default-border: #e5e7eb; /* gray-200 — default divider/罫線 */
+}
+
+/*
  * The app is light-theme only for now (#118): components carry no `dark:`
  * variants, so the previous prefers-color-scheme block inverted only the body
  * and left gray text unreadable on a near-black background. `color-scheme:

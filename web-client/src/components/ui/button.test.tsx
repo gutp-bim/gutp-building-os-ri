@@ -7,7 +7,7 @@ describe("Button (#194)", () => {
     render(<Button>保存</Button>);
     const btn = screen.getByRole("button", { name: "保存" });
     expect(btn).toHaveAttribute("type", "button");
-    expect(btn).toHaveClass("bg-blue-600");
+    expect(btn).toHaveClass("bg-primary");
   });
 
   it("applies the requested variant + size and merges caller classes", () => {
@@ -17,7 +17,7 @@ describe("Button (#194)", () => {
       </Button>,
     );
     const btn = screen.getByRole("button", { name: "削除" });
-    expect(btn).toHaveClass("bg-red-600", "px-3", "py-1", "w-full");
+    expect(btn).toHaveClass("bg-danger", "px-3", "py-1", "w-full");
   });
 
   it("forwards native button props (onClick, disabled)", () => {
