@@ -119,8 +119,12 @@ export default function ResourcesPageComponent() {
   return (
     <div className="container mx-auto px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold">リソース</h1>
-      <div className="flex gap-4">
-        <aside className="w-1/3 min-w-[18rem] rounded-lg border border-gray-200 bg-white p-3">
+      {/* Stacked until `lg`, side-by-side two-pane from `lg` up (#199 UX-10). The split is NOT at
+          `md`: the shell sidebar also turns static at `md` (224px), so at 768px the content area is
+          only ~544px — a two-pane there crushes the detail pane to ~210px (#208 review). `lg` is the
+          first width where the sidebar-reduced content is wide enough for a readable detail pane. */}
+      <div data-testid="resource-two-pane" className="flex flex-col gap-4 lg:flex-row">
+        <aside className="w-full rounded-lg border border-gray-200 bg-white p-3 lg:w-1/3 lg:min-w-[18rem]">
           <ResourceSearchBox onPick={pickFromSearch} />
           <div className="mt-3 max-h-[70vh] overflow-auto border-t border-gray-100 pt-3">
             <ResourceTreeView
