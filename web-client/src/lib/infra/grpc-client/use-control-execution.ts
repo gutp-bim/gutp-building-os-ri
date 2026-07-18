@@ -13,6 +13,10 @@ export type ControlExecutionState =
   | { status: "executing"; controlId: string; elapsedSeconds: number }
   | { status: "success"; message?: string }
   | { status: "failed"; message?: string }
+  // 制御 POST が 403/503 で弾かれたときの説明つき失敗（#162）。ストリーム前に確定するため
+  // setDirectResult 経由でのみ設定される。
+  | { status: "permission_denied"; message?: string }
+  | { status: "gateway_offline"; message?: string }
   | { status: "timeout" }
   | { status: "cancelled" };
 
@@ -140,9 +144,12 @@ export function useControlExecution() {
     setState({ status: "idle" });
   }, []);
 
-  /** POST 失敗時にストリームなしで直接結果をセット */
+  /** POST 失敗時にストリームなしで直接結果をセット（汎用失敗 / 権限不足 / gateway offline） */
   const setDirectResult = useCallback(
-    (status: "failed", message: string) => {
+    (
+      status: "failed" | "permission_denied" | "gateway_offline",
+      message: string,
+    ) => {
       clearTimers();
       setState({ status, message });
     },
