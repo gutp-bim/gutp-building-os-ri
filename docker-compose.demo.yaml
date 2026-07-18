@@ -21,6 +21,11 @@
 services:
   building-os.api:
     environment:
+      # Demo stays frictionless: the API runs without auth so the one-command demo (and its
+      # smoke curls) works with no token. The DEFAULT stack (oss.yaml alone) is Keycloak-unified
+      # and requires a JWT (#161); this overlay opts the demo back out. A full demo auto-login for
+      # the Web Client is the #155/#161-折衷 follow-up.
+      DISABLE_AUTH: "true"
       # Demo: route GW-SOS-001 control to the in-process simulated handler so control
       # returns 200 without an external gateway. Overrides oss.yaml's bacnet-sim binding.
       GatewayConnectionTypes__Map__GW-SOS-001: "simulated"

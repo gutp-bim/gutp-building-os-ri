@@ -337,7 +337,20 @@ services:
       #   Logging__LogLevel__BuildingOs.ApiServer: Debug
       Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
       PORT: "8080"
-      DISABLE_AUTH: "true"
+      # Auth (#161): the default stack is Keycloak-unified — the API requires a JWT, matching the Web
+      # Client (no more "curl は認証不要なのに画面はログイン必須" 非対称). DISABLE_AUTH is now a
+      # developer opt-in, off by default; set DISABLE_AUTH=true in your env/.env to run the API without
+      # auth. getting-started shows how to obtain a token for curl.
+      DISABLE_AUTH: ${DISABLE_AUTH:-false}
+      # OIDC discovery/JWKS is fetched over the container network (internal DNS). Browser-issued tokens
+      # carry the public issuer (http://localhost:8080/...), so KEYCLOAK_VALID_ISSUER reconciles the
+      # internal-URL≠public-URL mismatch (validate `iss` against the public URL, fetch keys internally).
+      KEYCLOAK_AUTHORITY: ${KEYCLOAK_AUTHORITY:-http://building-os.keycloak:8080/realms/building-os}
+      KEYCLOAK_VALID_ISSUER: ${KEYCLOAK_VALID_ISSUER:-http://localhost:8080/realms/building-os}
+      # Audience: the web-client token gets `aud: api-server` via the realm's audience mapper
+      # (oss-stack/keycloak/realm.json), so the API validates against the api-server client.
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-api-server}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-building-os}
       NATS_URL: nats://building-os.nats:4222
       POSTGRES_CONNECTION_STRING: "Host=building-os.pgbouncer;Port=5432;Database=${POSTGRES_DB:-buildingos};Username=${POSTGRES_USER:-buildingos};Password=${POSTGRES_PASSWORD:-buildingos};No Reset On Close=true;Max Auto Prepare=0"
       POSTGRES_MIGRATION_CONNECTION_STRING: "Host=building-os.pgbouncer-session;Port=5432;Database=${POSTGRES_DB:-buildingos};Username=${POSTGRES_USER:-buildingos};Password=${POSTGRES_PASSWORD:-buildingos}"
