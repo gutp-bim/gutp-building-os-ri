@@ -1,10 +1,13 @@
+using System.Globalization;
 using System.Text.Json;
+using BuildingOS.Shared;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BuildingOs.ApiServer.Controllers;
@@ -24,6 +27,7 @@ public class GatewaysController : ControllerBase
     private readonly IGatewayConnectionRegistry _registry;
     private readonly IPointListUpdatePublisher _publisher;
     private readonly IAdminAuditRecorder _audit;
+    private readonly ITelemetryQueryRouter _telemetry;
     private readonly ILogger<GatewaysController> _logger;
 
     public GatewaysController(
@@ -31,14 +35,22 @@ public class GatewaysController : ControllerBase
         IGatewayConnectionRegistry registry,
         IPointListUpdatePublisher publisher,
         IAdminAuditRecorder audit,
+        ITelemetryQueryRouter telemetry,
         ILogger<GatewaysController> logger)
     {
         _twin = twin;
         _registry = registry;
         _publisher = publisher;
         _audit = audit;
+        _telemetry = telemetry;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Upper bound on how many of a gateway's points are sampled for the last-seen timestamp, to bound
+    /// the per-gateway fan-out on the (admin-only, low-frequency) list call. #181 Phase 2.
+    /// </summary>
+    private const int MaxLastSeenSamplePoints = 500;
 
     /// <summary>ゲートウェイ一覧（binding + マスク済み設定 + pointlist 件数/revision）。管理者のみ。</summary>
     [HttpGet]
@@ -52,7 +64,7 @@ public class GatewaysController : ControllerBase
         var views = new List<GatewayAdminView>(ids.Length);
         foreach (var id in ids)
         {
-            views.Add(await BuildViewAsync(id).ConfigureAwait(false));
+            views.Add(await BuildViewAsync(id, ct).ConfigureAwait(false));
         }
         return Ok(views);
     }
@@ -67,7 +79,7 @@ public class GatewaysController : ControllerBase
 
         var ids = await _twin.ListGatewayIds().ConfigureAwait(false);
         if (!ids.Contains(id, StringComparer.Ordinal)) return NotFound();
-        return Ok(await BuildViewAsync(id).ConfigureAwait(false));
+        return Ok(await BuildViewAsync(id, ct).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -107,7 +119,7 @@ public class GatewaysController : ControllerBase
 
     private bool IsAdmin() => HttpContext.GetAuthorizationContext().IsAdmin;
 
-    private async Task<GatewayAdminView> BuildViewAsync(string id)
+    private async Task<GatewayAdminView> BuildViewAsync(string id, CancellationToken ct)
     {
         var connection = _registry.Resolve(id);
         var entries = await _twin.ListGatewayPointList(id).ConfigureAwait(false);
@@ -123,7 +135,48 @@ public class GatewaysController : ControllerBase
             PointListEtag.Compute(entries),
             // Identity is bound to the mTLS client certificate (X-Gateway-Id) at the ingress, not a
             // Keycloak secret. Live cert expiry lives in cert-manager and is out of this surface.
-            CertTrustAnchor: "mTLS client certificate (X-Gateway-Id)");
+            CertTrustAnchor: "mTLS client certificate (X-Gateway-Id)",
+            LastTelemetryAt: await LastTelemetryAtAsync(entries, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// The most recent telemetry timestamp across a gateway's points — a **derived** last-seen signal
+    /// (#181 Phase 2, option ①), not a live egress connection state. It reuses the same latest-value
+    /// read path as <c>batch-latest</c> (Hot KV / Parquet lake, no EF context), so the per-point
+    /// fan-out stays concurrent. Returns the max sample <c>Datetime</c> as an ISO-8601 string, or
+    /// <c>null</c> when the gateway has no points or none have reported. The point set is capped at
+    /// <see cref="MaxLastSeenSamplePoints"/> to bound the fan-out.
+    /// True connected/disconnected requires cross-replica egress state (a NATS-KV heartbeat) and is a
+    /// follow-up (option ②).
+    /// </summary>
+    private async Task<string?> LastTelemetryAtAsync(GatewayPointEntry[] entries, CancellationToken ct)
+    {
+        var pointIds = entries
+            .Select(e => e.PointId)
+            .Where(pid => !string.IsNullOrEmpty(pid))
+            .Distinct(StringComparer.Ordinal)
+            .Take(MaxLastSeenSamplePoints)
+            .ToArray();
+        if (pointIds.Length == 0) return null;
+
+        var timestamps = await Task.WhenAll(pointIds.Select(async pointId =>
+        {
+            var result = await _telemetry
+                .QueryAsync(new TelemetryQueryRequest(pointId, null, null, TelemetryGranularity.Raw, true), ct)
+                .ConfigureAwait(false);
+            var datetime = result.LastOrDefault()?.Datetime;
+            return DateTimeOffset.TryParse(datetime, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind, out var dto)
+                ? dto
+                : (DateTimeOffset?)null;
+        })).ConfigureAwait(false);
+
+        DateTimeOffset? max = null;
+        foreach (var ts in timestamps)
+        {
+            if (ts is { } value && (max is null || value > max)) max = value;
+        }
+        return max?.ToString("o", CultureInfo.InvariantCulture);
     }
 
     private Task AuditAsync(
@@ -137,11 +190,17 @@ public class GatewaysController : ControllerBase
     }
 }
 
-/// <summary>Admin view of one gateway: binding + masked settings + pointlist sync status (#323).</summary>
+/// <summary>
+/// Admin view of one gateway: binding + masked settings + pointlist sync status (#323), plus a derived
+/// <see cref="LastTelemetryAt"/> last-seen signal (#181 Phase 2). <c>LastTelemetryAt</c> is the most
+/// recent telemetry timestamp across the gateway's points (ISO-8601), or <c>null</c> when none have
+/// reported — it is NOT a live egress connection state (see option ② follow-up).
+/// </summary>
 public sealed record GatewayAdminView(
     string GatewayId,
     string BindingType,
     IReadOnlyDictionary<string, string> Settings,
     int PointCount,
     string Revision,
-    string CertTrustAnchor);
+    string CertTrustAnchor,
+    string? LastTelemetryAt);

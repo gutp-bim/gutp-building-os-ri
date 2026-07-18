@@ -127,11 +127,14 @@ test("gateway panel is shown for admins", async ({ context, page }) => {
         pointCount: 8,
         revision: "sha256:abcdef1234567890",
         certTrustAnchor: "",
+        lastTelemetryAt: null,
       },
     ]),
   );
   await page.goto("/home");
 
   await expect(page.getByTestId("home-gateway-panel")).toBeVisible();
-  await expect(page.getByTestId("home-gateway-row")).toContainText("GW-SOS-001");
+  await expect(page.getByTestId("home-gateway-row")).toContainText(
+    "GW-SOS-001",
+  );
 });
