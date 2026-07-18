@@ -3,13 +3,15 @@
 import { FilterPopup } from "@/components/table/FilterPopup";
 import { Pagination } from "@/components/table/Pagination";
 import { TableHeader } from "@/components/table/TableHeader";
+import { InlineBanner } from "@/components/ui/inline-banner";
 import { useTable } from "@/contexts/TableContext";
 import { apiClient } from "@/lib/infra/aspida-client";
 import { Device, Point } from "@/lib/infra/aspida-client/generated/@types";
 import { toDisplayDeviceType } from "@/lib/utils/helper/device-helper";
 import { PointTableField, PointTableHeader } from "@/types/point-table";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function DeviceDetailPageComponent({
   deviceId,
@@ -46,36 +48,11 @@ export default function DeviceDetailPageComponent({
     fetchData();
   }, [deviceId]);
 
-  const handleClickPoint = useCallback(
-    (pointId: string) => {
-      router.push(`/points/${encodeURIComponent(pointId)}`);
-    },
-    [router],
-  );
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (error || !device) {
-    return (
-      <div className="p-4">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error ?? "デバイス情報が見つかりません。"}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={"container mx-auto px-4 py-8"}>
-      {/* 戻るボタン */}
+    <div className="container mx-auto px-4 py-8" data-testid="device-detail">
       <div className="mb-4">
         <button
+          type="button"
           onClick={() => router.back()}
           className="inline-flex items-center text-blue-600 hover:text-blue-800"
         >
@@ -83,33 +60,34 @@ export default function DeviceDetailPageComponent({
           戻る
         </button>
       </div>
-      {/* デバイス情報 */}
-      <div className="bg-white p-4 rounded-lg shadow grow-2">
-        <h2 className="text-xl font-bold mb-4">{device.name}</h2>
-        <div className="space-y-2">
-          <div>Owner : {device.owner}</div>
-          <div>Site : {device.site}</div>
-          <div>Supplier : {device.supplier}</div>
-          <div>Gateway ID : {device.gatewayId}</div>
-          <div>
-            Device Type : {toDisplayDeviceType(device.deviceType ?? "")}
-          </div>
-        </div>
-      </div>
 
-      {/* ポイント一覧 */}
-      <PointTableContent points={points} onClickPoint={handleClickPoint} />
+      {loading ? (
+        <p className="text-gray-600">読み込み中…</p>
+      ) : error || !device ? (
+        <InlineBanner tone="error">
+          {error ?? "デバイス情報が見つかりません。"}
+        </InlineBanner>
+      ) : (
+        <>
+          <div className="grow-2 rounded-lg bg-white p-4 shadow">
+            <h2 className="mb-4 text-xl font-bold">{device.name}</h2>
+            <div className="space-y-2 text-gray-700">
+              <div>Owner : {device.owner}</div>
+              <div>Site : {device.site}</div>
+              <div>Supplier : {device.supplier}</div>
+              <div>Gateway ID : {device.gatewayId}</div>
+              <div>Device Type : {toDisplayDeviceType(device.deviceType ?? "")}</div>
+            </div>
+          </div>
+
+          <PointTableContent points={points} />
+        </>
+      )}
     </div>
   );
 }
 
-function PointTableContent({
-  points,
-  onClickPoint,
-}: {
-  points: Point[];
-  onClickPoint: (pointId: string) => void;
-}) {
+function PointTableContent({ points }: { points: Point[] }) {
   const { state, dispatch } = useTable<PointTableField>();
   const filterButtonRefs = useRef<{
     [key in PointTableField]: HTMLButtonElement | null;
@@ -260,12 +238,17 @@ function PointTableContent({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {paginatedPoints.map((point) => (
-              <tr
-                key={point.id}
-                className="hover:bg-gray-50 cursor-pointer"
-                onClick={() => onClickPoint(point.id)}
-              >
-                <td className="px-6 py-4 whitespace-nowrap">{point.name}</td>
+              <tr key={point.id} data-testid="device-point-row" className="hover:bg-gray-50">
+                {/* Keyboard-accessible: the point name is a real link (Tab-focusable, Enter/⌘-click),
+                    replacing the old mouse-only `<tr onClick>` (#195). */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Link
+                    href={`/points/${encodeURIComponent(point.id)}`}
+                    className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {point.name}
+                  </Link>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {point.specification}
                 </td>
