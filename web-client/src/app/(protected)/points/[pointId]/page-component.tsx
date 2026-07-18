@@ -7,19 +7,24 @@ import {
 } from "@/lib/infra/aspida-client/generated/@types";
 import { getPointDetail } from "@/lib/resources/repository";
 import {
+  autoGranularityForSpan,
+  dateRangeError,
+  DEFAULT_GRANULARITY,
+  DEFAULT_PERIOD,
+  effectiveRange,
+  isValidDateRange,
+  rangeSpansMultipleDays,
+  resolveGranularity,
+  type GranularityOption,
+  type PeriodValue,
+} from "@/lib/telemetry/range";
+import {
   getTelemetryConfig,
   latestTelemetry,
   queryTelemetry,
   type TelemetryConfig,
 } from "@/lib/telemetry/repository";
-import {
-  DEFAULT_GRANULARITY,
-  DEFAULT_PERIOD,
-  effectiveRange,
-  resolveGranularity,
-  type GranularityOption,
-  type PeriodPreset,
-} from "@/lib/telemetry/range";
+import type { Granularity } from "@/lib/telemetry/types";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
@@ -51,9 +56,14 @@ export default function PointDetailPageComponent({
   const [hotError, setHotError] = useState<string | null>(null);
   const [warmError, setWarmError] = useState<string | null>(null);
   const [coldError, setColdError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<PeriodPreset>(DEFAULT_PERIOD);
-  const [granularity, setGranularity] = useState<GranularityOption>(DEFAULT_GRANULARITY);
-  const [telemetryConfig, setTelemetryConfig] = useState<TelemetryConfig | null>(null);
+  const [period, setPeriod] = useState<PeriodValue>(DEFAULT_PERIOD);
+  const [granularity, setGranularity] =
+    useState<GranularityOption>(DEFAULT_GRANULARITY);
+  // Custom-range inputs (#197), only consulted when period === "custom".
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [telemetryConfig, setTelemetryConfig] =
+    useState<TelemetryConfig | null>(null);
 
   // Effective stale thresholds (system default + admin override) for the freshness badge (#183). The
   // fetch is cached in the façade; failure falls back to the defaults inside getTelemetryConfig.
@@ -102,16 +112,34 @@ export default function PointDetailPageComponent({
 
   const fetchWarmData = async () => {
     if (!pointDetail?.point.id) return;
+    const now = new Date();
+    // Resolve the query window + granularity from the period (preset span, or a validated custom
+    // range). A custom range that is incomplete or invalid is skipped — the inline guard explains
+    // why — so we never fire a nonsensical start ≥ end / future query (#197).
+    let start: Date;
+    let end: Date;
+    let queryGranularity: Granularity;
+    if (period === "custom") {
+      if (!isValidDateRange(customStart, customEnd, now)) return;
+      start = new Date(customStart);
+      end = new Date(customEnd);
+      queryGranularity =
+        granularity === "auto"
+          ? autoGranularityForSpan(start, end)
+          : granularity;
+    } else {
+      ({ start, end } = effectiveRange(period, now));
+      queryGranularity = resolveGranularity(granularity, period);
+    }
     const requestId = ++warmRequestId.current;
     try {
       setWarmLoading(true);
       setWarmError(null);
-      const { start, end } = effectiveRange(period, new Date());
       const series = await queryTelemetry({
         pointId: pointDetail.point.id,
         start,
         end,
-        granularity: resolveGranularity(granularity, period),
+        granularity: queryGranularity,
       });
       // A newer period/granularity request has superseded this one — drop its (stale) result so it
       // can't overwrite the current chart or prematurely clear loading.
@@ -168,11 +196,11 @@ export default function PointDetailPageComponent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointDetail]);
 
-  // Refetch the history whenever the point, period, or granularity changes (#197).
+  // Refetch the history whenever the point, period, granularity, or custom range changes (#197).
   useEffect(() => {
     if (pointDetail) fetchWarmData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pointDetail, period, granularity]);
+  }, [pointDetail, period, granularity, customStart, customEnd]);
 
   if (loading) {
     return (
@@ -213,7 +241,11 @@ export default function PointDetailPageComponent({
         </div>
         <div className="flex flex-1 flex-col gap-2">
           {hotError && (
-            <InlineBanner tone="error" testId="hot-error" onDismiss={() => setHotError(null)}>
+            <InlineBanner
+              tone="error"
+              testId="hot-error"
+              onDismiss={() => setHotError(null)}
+            >
               {hotError}
             </InlineBanner>
           )}
@@ -237,7 +269,11 @@ export default function PointDetailPageComponent({
 
       {warmError && (
         <div className="mb-2">
-          <InlineBanner tone="error" testId="warm-error" onDismiss={() => setWarmError(null)}>
+          <InlineBanner
+            tone="error"
+            testId="warm-error"
+            onDismiss={() => setWarmError(null)}
+          >
             {warmError}
           </InlineBanner>
         </div>
@@ -251,6 +287,21 @@ export default function PointDetailPageComponent({
         onPeriodChange={setPeriod}
         onGranularityChange={setGranularity}
         unit={pointDetail.point.unit ?? undefined}
+        customStart={customStart}
+        customEnd={customEnd}
+        onCustomStartChange={setCustomStart}
+        onCustomEndChange={setCustomEnd}
+        rangeError={
+          period === "custom"
+            ? dateRangeError(customStart, customEnd, new Date())
+            : null
+        }
+        multiDay={
+          period === "custom" &&
+          isValidDateRange(customStart, customEnd, new Date())
+            ? rangeSpansMultipleDays(new Date(customStart), new Date(customEnd))
+            : undefined
+        }
       />
 
       <ControlAuditHistory pointId={pointDetail.point.id} />
