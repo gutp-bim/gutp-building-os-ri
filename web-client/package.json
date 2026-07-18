@@ -59,7 +59,7 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.0.3",
     "dotenv": "^17.4.2",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
@@ -69,7 +69,8 @@
     "prettier-plugin-organize-imports": "^4.3.0",
     "tailwindcss": "^4",
     "typescript": "^6",
-    "vitest": "^2.1.8"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   },
   "prettier": {
     "plugins": [
