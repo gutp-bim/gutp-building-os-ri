@@ -24,3 +24,11 @@ test("a single building auto-expands and loads its floors", async ({ page }) => 
   await expect(page.getByRole("button", { name: BUILDING.name }).first()).toBeVisible();
   await expect(page.getByText(FLOOR.name)).toBeVisible();
 });
+
+test("legacy my-resources links redirect to the consolidated resource explorer", async ({ page }) => {
+  await mockBuildings(page);
+  await page.goto("/my-resources");
+
+  await expect(page).toHaveURL(/\/resources$/);
+  await expect(page.getByRole("button", { name: BUILDING.name }).first()).toBeVisible();
+});
