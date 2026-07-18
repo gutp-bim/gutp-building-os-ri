@@ -1,4 +1,5 @@
 import { FreshnessBadge } from "@/components/telemetry/freshness-badge";
+import { Button } from "@/components/ui/button";
 import { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
 import {
   DEFAULT_STALE_THRESHOLD_SECONDS,
@@ -90,12 +91,7 @@ export function TelemetryHotData({
         </div>
       </div>
       <div className="mt-4 flex justify-end">
-        <button
-          onClick={onDownloadClick}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors"
-        >
-          ダウンロード
-        </button>
+        <Button onClick={onDownloadClick}>ダウンロード</Button>
       </div>
     </div>
   );

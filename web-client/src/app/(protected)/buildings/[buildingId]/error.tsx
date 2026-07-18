@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function Error({
   error,
@@ -21,12 +22,7 @@ export default function Error({
         申し訳ありません。予期せぬエラーが発生しました。
       </p>
       <div className="flex gap-4">
-        <button
-          onClick={reset}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-        >
-          もう一度試す
-        </button>
+        <Button onClick={reset}>もう一度試す</Button>
         <Link
           href="/resources"
           className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
