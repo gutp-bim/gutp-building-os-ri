@@ -12,6 +12,14 @@ describe("visibleNavItems", () => {
     expect(adminItems.map((i) => i.href)).toContain("/admin/users");
   });
 
+  it("keeps リソース but not the retired マイリソース in the operator sidebar (#195)", () => {
+    // /my-resources was consolidated into /resources (it now redirects there), so it must not show
+    // as a separate sidebar entry — the single resource explorer is the operator's authorized view.
+    const hrefs = visibleNavItems("operator", []).map((i) => i.href);
+    expect(hrefs).toContain("/resources");
+    expect(hrefs).not.toContain("/my-resources");
+  });
+
   it("exposes the shipped admin screens in the admin workspace (#192)", () => {
     // /admin/gateways, /admin/oidc-clients and /admin/twin are implemented, tested screens that
     // were previously only reachable by typing the URL. They must appear in the sidebar so the

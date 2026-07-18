@@ -25,7 +25,9 @@ export const NAV_ITEMS: NavItem[] = [
   // "ホーム" (#158): non-disruptive freshness/attention landing; does not change the login redirect.
   { label: "ホーム", href: "/home", workspace: "operator" },
   { label: "リソース", href: "/resources", workspace: "operator" },
-  { label: "マイリソース", href: "/my-resources", workspace: "operator" },
+  // "マイリソース" was consolidated into /resources (#195): the route now redirects there, so it is
+  // hidden from the sidebar but kept for workspace/breadcrumb resolution (like the other retired lists).
+  { label: "マイリソース", href: "/my-resources", workspace: "operator", hidden: true },
   // Hidden: deep-link detail routes keep their workspace/breadcrumb mapping without a sidebar entry.
   { label: "建物", href: "/buildings", workspace: "operator", hidden: true },
   { label: "フロア", href: "/floors", workspace: "operator", hidden: true },
