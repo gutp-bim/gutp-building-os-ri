@@ -25,10 +25,12 @@ vi.mock("@/components/resources/metadata-editor", () => ({
 import ResourcesPageComponent from "./page-component";
 
 describe("ResourcesPageComponent layout (#199)", () => {
-  it("stacks the two panes vertically on narrow viewports and side-by-side from md up", () => {
+  it("stacks the two panes until lg and goes side-by-side only from lg up", () => {
     render(<ResourcesPageComponent />);
     const pane = screen.getByTestId("resource-two-pane");
-    // Column by default (mobile), row from `md` — so the detail pane isn't crushed on a phone.
-    expect(pane).toHaveClass("flex", "flex-col", "md:flex-row");
+    // Row only from `lg`, NOT `md`: the shell sidebar also turns static at `md`, so a two-pane at
+    // 768px crushes the detail pane (#208 review). Guard against a regression back to md:flex-row.
+    expect(pane).toHaveClass("flex", "flex-col", "lg:flex-row");
+    expect(pane).not.toHaveClass("md:flex-row");
   });
 });
