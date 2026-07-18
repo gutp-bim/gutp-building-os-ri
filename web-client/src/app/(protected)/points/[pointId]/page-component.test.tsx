@@ -35,6 +35,9 @@ vi.mock("@/lib/resources/repository", () => ({ getPointDetail: vi.fn() }));
 vi.mock("@/lib/telemetry/repository", () => ({
   latestTelemetry: vi.fn(),
   queryTelemetry: vi.fn(),
+  getTelemetryConfig: vi
+    .fn()
+    .mockResolvedValue({ staleThresholdSeconds: 300, staleIntervalMultiplier: 3 }),
 }));
 
 import { getPointDetail } from "@/lib/resources/repository";

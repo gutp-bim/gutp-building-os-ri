@@ -6,9 +6,9 @@ import {
   listSpaces,
 } from "@/lib/resources/repository";
 import type { ResourceRef } from "@/lib/resources/types";
-import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointFreshness } from "@/lib/telemetry/freshness";
+import type { PointFreshness } from "@/lib/telemetry/freshness";
 import { loadPointsFreshness } from "@/lib/telemetry/freshness-loader";
-import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "@/lib/telemetry/freshness-threshold";
+import { getTelemetryConfig } from "@/lib/telemetry/repository";
 import type { NamedPoint } from "./aggregate";
 
 /**
@@ -61,21 +61,20 @@ export const productionHomeLoaders: HomeLoaders = {
     );
     return perSpace.flat();
   },
-  loadFreshness: (points) =>
-    loadPointsFreshness(
+  loadFreshness: async (points) => {
+    // Live thresholds (system default + admin override) from the all-role read surface (#183); the
+    // fetch is cached, so this per-floor call does not refetch. Falls back to the defaults on failure.
+    const cfg = await getTelemetryConfig();
+    return loadPointsFreshness(
       points.map((p) => p.pointId),
       {
         now: new Date(),
-        // System-default fallback for points with no expected interval. The multiplier is a fixed
-        // constant this slice (not an editable setting — that would be a false affordance until read
-        // at runtime, #183); wiring a live all-role telemetry-threshold surface (both the default
-        // threshold and the multiplier) stays a follow-up (#148/#176). The constants below match the
-        // backend defaults.
-        thresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
-        intervalMultiplier: DEFAULT_STALE_INTERVAL_MULTIPLIER,
+        thresholdSeconds: cfg.staleThresholdSeconds,
+        intervalMultiplier: cfg.staleIntervalMultiplier,
         expectedIntervalSeconds: new Map(
           points.map((p) => [p.pointId, p.expectedIntervalSeconds]),
         ),
       },
-    ),
+    );
+  },
 };

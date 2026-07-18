@@ -6,7 +6,12 @@ import {
   ValidTelemetryData,
 } from "@/lib/infra/aspida-client/generated/@types";
 import { getPointDetail } from "@/lib/resources/repository";
-import { latestTelemetry, queryTelemetry } from "@/lib/telemetry/repository";
+import {
+  getTelemetryConfig,
+  latestTelemetry,
+  queryTelemetry,
+  type TelemetryConfig,
+} from "@/lib/telemetry/repository";
 import {
   DEFAULT_GRANULARITY,
   DEFAULT_PERIOD,
@@ -48,6 +53,19 @@ export default function PointDetailPageComponent({
   const [coldError, setColdError] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodPreset>(DEFAULT_PERIOD);
   const [granularity, setGranularity] = useState<GranularityOption>(DEFAULT_GRANULARITY);
+  const [telemetryConfig, setTelemetryConfig] = useState<TelemetryConfig | null>(null);
+
+  // Effective stale thresholds (system default + admin override) for the freshness badge (#183). The
+  // fetch is cached in the façade; failure falls back to the defaults inside getTelemetryConfig.
+  useEffect(() => {
+    let active = true;
+    getTelemetryConfig().then((cfg) => {
+      if (active) setTelemetryConfig(cfg);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   // Monotonic id: a warm response for a superseded period/granularity must not overwrite the current
   // selection, and only the latest request may clear the loading/error state (#197 review).
   const warmRequestId = useRef(0);
@@ -211,6 +229,8 @@ export default function PointDetailPageComponent({
             unit={pointDetail.point.unit ?? undefined}
             labels={pointDetail.point.labels ?? undefined}
             expectedIntervalSeconds={pointDetail.point.interval ?? undefined}
+            staleThresholdSeconds={telemetryConfig?.staleThresholdSeconds}
+            staleIntervalMultiplier={telemetryConfig?.staleIntervalMultiplier}
           />
         </div>
       </div>

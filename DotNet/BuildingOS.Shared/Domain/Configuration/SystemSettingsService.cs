@@ -1,4 +1,13 @@
+using System.Globalization;
+
 namespace BuildingOS.Shared.Domain.Configuration;
+
+/// <summary>
+/// The effective telemetry stale-detection thresholds (#183), readable by all roles via
+/// <c>GET /api/telemetry/config</c>. Only these two numbers are exposed — no other settings — so a
+/// non-admin surface leaks nothing else.
+/// </summary>
+public sealed record TelemetryThresholds(double StaleThresholdSeconds, double StaleIntervalMultiplier);
 
 /// <summary>Outcome of an update: success (with the merged view), unknown key, or validation failure.</summary>
 public enum SettingUpdateStatus
@@ -23,6 +32,14 @@ public sealed record SettingUpdateResult(SettingUpdateStatus Status, SettingView
 public interface ISystemSettingsService
 {
     Task<IReadOnlyList<SettingView>> GetSettingsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// The effective telemetry stale-detection thresholds only (#183). Backs the all-role
+    /// <c>GET /api/telemetry/config</c> so freshness classification can read admin-set overrides
+    /// without exposing the full (admin-only) settings list.
+    /// </summary>
+    Task<TelemetryThresholds> GetTelemetryThresholdsAsync(CancellationToken ct = default);
+
     Task<SettingUpdateResult> UpdateSettingAsync(string key, string? value, string? updatedBy, CancellationToken ct = default);
 
     /// <summary>Resets a setting to its default. Returns false when the key is not allowlisted.</summary>
@@ -44,6 +61,24 @@ public sealed class SystemSettingsService : ISystemSettingsService
         var byKey = overrides.ToDictionary(o => o.Key, StringComparer.Ordinal);
         return SettingsLogic.BuildViews(SettingsRegistry.Definitions, byKey);
     }
+
+    public async Task<TelemetryThresholds> GetTelemetryThresholdsAsync(CancellationToken ct = default)
+    {
+        var views = await GetSettingsAsync(ct).ConfigureAwait(false);
+        var byKey = views.ToDictionary(v => v.Key, StringComparer.Ordinal);
+        return new TelemetryThresholds(
+            StaleThresholdSeconds: EffectiveNumber(byKey, SettingsRegistry.StaleThresholdSecondsKey, 300),
+            StaleIntervalMultiplier: EffectiveNumber(byKey, SettingsRegistry.StaleIntervalMultiplierKey, 3));
+    }
+
+    // The registry guarantees these keys exist and validates Number values on write, but parse
+    // defensively so a hand-edited DB row can never make freshness classification throw.
+    private static double EffectiveNumber(
+        IReadOnlyDictionary<string, SettingView> byKey, string key, double fallback) =>
+        byKey.TryGetValue(key, out var view)
+        && double.TryParse(view.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var n)
+            ? n
+            : fallback;
 
     public async Task<SettingUpdateResult> UpdateSettingAsync(
         string key, string? value, string? updatedBy, CancellationToken ct = default)
