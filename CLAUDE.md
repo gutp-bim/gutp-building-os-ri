@@ -268,8 +268,12 @@ backstop).
    `control_id` + `point_id` + `present_value` + `priority`; the gateway resolves `point_id` → BACnet
    object/instance from the shared point list (the BACnet identity fields were removed from the proto).
    Results return on `building-os.control.result.{controlId}` → existing `WaitForResult`. GatewayBridge
-   is a stateless/horizontally scalable egress control plane (per-gateway NATS routing). **Offline
-   detection (#186):** the per-gateway command is sent as a NATS *request* — the bridge replica acks
+   is a stateless/horizontally scalable egress control plane (per-gateway NATS routing). **Multi-connection
+   (supersede):** a gateway reconnecting on the same replica while its prior stream is still half-open is
+   accepted and the older stream is torn down (`GatewayConnectionRegistry.Register` cancels the previous
+   `GatewayConnection.SupersededToken`), so exactly one active egress stream per gateway is kept without the
+   old `AlreadyExists` reconnect lock-out — control commands are never fanned out to a stale duplicate.
+   **Offline detection (#186):** the per-gateway command is sent as a NATS *request* — the bridge replica acks
    after forwarding it down the stream, so an offline gateway (no subscriber) surfaces as NATS
    no-responders and `PointController.Control` returns **503** immediately (metric
    `control.requests{result=gateway_offline}`) instead of letting the client wait out the result

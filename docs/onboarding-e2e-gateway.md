@@ -1073,7 +1073,7 @@ go run ./cmd/gateway
 | `POST` アクションで `403 Forbidden` | トークンが `viewer`。`operator` で取得 |
 | gateway がコネクタを管理できない | コンテナに host Docker socket（`/var/run/docker.sock`）マウントが必要 |
 | `/telemetry` の `buffer_depth` が増え続ける | Building OS への上りが断。フレームが S&F バッファに滞留（Building OS 再起動時など想定内） |
-| BOS 側が `AlreadyExists: gateway <gateway_id> already connected` を返す | 同じ `gateway_id` の egress セッションが BOS 側に残留。重複起動を止め、BOS 側（`building-os.gateway-bridge`）を再起動してセッションを解放後、gateway を再起動して再接続 |
+| gateway 再接続後も制御コマンドが届かない | 同じ `gateway_id` の新規 egress 接続は既存接続を **supersede**（最新優先）するため、通常は再接続だけで復旧する（半開きの残留セッションは自動で切断）。もし複数の gateway プロセスが同じ `gateway_id` で常時起動していると互いを supersede し合って発振するので、`GATEWAY_ID` は 1 プロセスに 1 つに保つ |
 | Building OS と同一マシンで nexus-gateway が起動競合する | 固定ホストポートの衝突。`docker-compose.live-bos.yml` を併用し、それでも競合する場合は nexus-gateway の `docker-compose.yml` の該当ポート行を直接編集(`.env` での上書きには対応していません) |
 | nexus-gateway 起動時に JetStream の `insufficient storage` / `maximum bytes exceeded` で落ちる | **環境（NATS 側の JetStream ストレージ上限）の問題であり、コードのバグではありません。** → [下記の詳細](#nexus-gateway-の-jetstream-ストレージ不足エラー) |
 | `building-os.mosquitto` が `set: line 4: illegal option -` で再起動ループする（Windows） | `oss-stack/mosquitto/docker-entrypoint.sh` が CRLF 化されている可能性。`.gitattributes` で LF 固定し、既存 clone は `git add --renormalize .` 後に `docker compose -f docker-compose.oss.yaml --profile mqtt up -d --force-recreate building-os.mosquitto` で復旧 |
@@ -1081,13 +1081,18 @@ go run ./cmd/gateway
 | opcua-sim ビルドで `ffi.h: No such file` | `build-essential libffi-dev libssl-dev` を先に導入 |
 | BACnet で機器が見つからない | BACnet/IP は UDP ブロードキャスト。`network_mode: host`（統合 Compose では設定済み）が必要 |
 
-`AlreadyExists` の最短復旧手順:
+gateway 再接続の挙動（supersede / 最新優先）:
 
-1. 同じ `GATEWAY_ID` を使う gateway プロセスが複数いないことを確認（重複を停止）
-2. BOS 側の残留セッションを解放（`docker restart building-os.gateway-bridge`）
-3. gateway を再起動して再接続（Compose 運用なら `docker compose restart <gateway-service>`）
+同一 `gateway_id` の新しい egress 接続は、同じ GatewayBridge レプリカ上の古い接続を自動的に
+supersede します（古いストリームはキャンセルされて閉じ、新しいストリームに一本化）。半開き TCP で
+残留した旧セッションによる再接続ロックアウトは発生しません。復旧手順は「gateway を再起動して再接続」
+だけで、BOS 側（`building-os.gateway-bridge`）の再起動は不要です。
 
-再接続後は `Gateway <gateway_id> connected (egress)` ログが出ることを確認します。
+1. 同じ `GATEWAY_ID` を使う gateway プロセスが複数**常駐**していないことを確認（発振防止のため）
+2. gateway を再起動して再接続（Compose 運用なら `docker compose restart <gateway-service>`）
+
+再接続後は BOS 側に `Gateway <gateway_id> connected (egress)` ログが出ることを確認します。旧接続側には
+`Gateway <gateway_id> disconnected (egress) — superseded by a newer connection` が記録されます。
 
 ### nexus-gateway の JetStream ストレージ不足エラー
 
