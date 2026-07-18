@@ -19,7 +19,13 @@ public static class SettingsRegistry
             Key: "telemetry.staleThresholdSeconds",
             Type: SettingType.Number,
             DefaultValue: "300",
-            Description: "テレメトリを「鮮度切れ」とみなすまでの秒数（閾値）",
+            Description: "テレメトリを「鮮度切れ」とみなすまでの秒数（期待周期が未設定のポイントの既定閾値, #183）",
+            Category: "telemetry"),
+        new SettingDefinition(
+            Key: "telemetry.staleIntervalMultiplier",
+            Type: SettingType.Number,
+            DefaultValue: "3",
+            Description: "期待周期から鮮度切れ閾値を導く倍率 N（閾値 = 期待周期 × N, #183）",
             Category: "telemetry"),
     };
 

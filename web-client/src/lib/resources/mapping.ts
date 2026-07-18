@@ -28,6 +28,7 @@ export function toPointResource(p: Point): PointResource {
     labels: p.labels ?? null,
     specification: p.specification ?? null,
     kind: p.type ?? null,
+    expectedIntervalSeconds: p.interval ?? null,
   };
 }
 

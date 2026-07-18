@@ -72,6 +72,34 @@ describe("loadPointsFreshness", () => {
     expect(fetchLatestBatch).toHaveBeenCalledWith(["A", "B", "C"]);
   });
 
+  it("derives per-point thresholds from expected intervals × multiplier (#183)", async () => {
+    // FAST expects data every 5s (threshold 5×3=15s) → 120s old is stale.
+    // SLOW expects data every 1h (threshold 3600×3=10800s) → 120s old is still fresh.
+    // NOINT has no expected interval → the system default (300s) applies → 120s old is fresh.
+    const fetchLatestBatch = vi.fn().mockResolvedValue([
+      { pointId: "FAST", lastSeen: ago(120) },
+      { pointId: "SLOW", lastSeen: ago(120) },
+      { pointId: "NOINT", lastSeen: ago(120) },
+    ] satisfies PointLastSeen[]);
+
+    const results = await loadPointsFreshness(["FAST", "SLOW", "NOINT"], {
+      now: NOW,
+      thresholdSeconds: 300,
+      intervalMultiplier: 3,
+      expectedIntervalSeconds: new Map([
+        ["FAST", 5],
+        ["SLOW", 3600],
+      ]),
+      fetchLatestBatch,
+    });
+
+    expect(results.map((r) => [r.pointId, r.status])).toEqual([
+      ["FAST", "stale"],
+      ["SLOW", "fresh"],
+      ["NOINT", "fresh"],
+    ]);
+  });
+
   it("returns an empty array for no points without calling the fetcher", async () => {
     const fetchLatestBatch = vi.fn();
     expect(

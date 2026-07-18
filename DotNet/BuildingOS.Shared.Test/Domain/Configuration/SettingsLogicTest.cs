@@ -103,6 +103,8 @@ public class SettingsLogicTest
     {
         Assert.NotNull(SettingsRegistry.Find("ui.showExperimentalFeatures"));
         Assert.NotNull(SettingsRegistry.Find("telemetry.staleThresholdSeconds"));
+        Assert.NotNull(SettingsRegistry.Find("telemetry.staleIntervalMultiplier"));
+        Assert.Equal("3", SettingsRegistry.Find("telemetry.staleIntervalMultiplier")!.DefaultValue);
         Assert.Null(SettingsRegistry.Find("nope"));
     }
 }

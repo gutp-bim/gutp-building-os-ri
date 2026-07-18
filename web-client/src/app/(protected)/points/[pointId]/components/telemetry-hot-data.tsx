@@ -4,6 +4,7 @@ import {
   DEFAULT_STALE_THRESHOLD_SECONDS,
   classifyPointFreshness,
 } from "@/lib/telemetry/freshness";
+import { resolveStaleThresholdSeconds } from "@/lib/telemetry/freshness-threshold";
 import { unitLabelMap } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
@@ -16,6 +17,7 @@ export function TelemetryHotData({
   scale = 1,
   unit,
   labels,
+  expectedIntervalSeconds,
 }: {
   hotData: ValidTelemetryData | null;
   hotLoading: boolean;
@@ -24,6 +26,8 @@ export function TelemetryHotData({
   scale?: number;
   unit?: string;
   labels?: string;
+  /** Expected telemetry interval (seconds, sbco:interval) driving this point's stale threshold (#183). */
+  expectedIntervalSeconds?: number | null;
 }) {
   const splitLabels = labels ? labels.split(",") : null;
 
@@ -38,15 +42,21 @@ export function TelemetryHotData({
     return `${hotData.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
   }, [hotData, scale, splitLabels, unit]);
 
-  // Freshness of the latest sample, evaluated against the current time on each render. Uses the
-  // registry default threshold (300s); wiring the live telemetry.staleThresholdSeconds setting is a
-  // follow-up. (Not wrapped in useMemo: `new Date()` is impure, so memoizing it is neither safe nor
-  // worthwhile — the classify call is a single cheap comparison.)
+  // Freshness of the latest sample, evaluated against the current time on each render. The stale
+  // threshold is derived from this point's expected interval (`interval × N`, #183), falling back to
+  // the registry default (300s) when the twin has no expected interval. Wiring the live
+  // telemetry.staleThresholdSeconds / staleIntervalMultiplier overrides is a follow-up. (Not wrapped
+  // in useMemo: `new Date()` is impure, so memoizing it is neither safe nor worthwhile — the classify
+  // call is a single cheap comparison.)
+  const thresholdSeconds = resolveStaleThresholdSeconds({
+    expected: { point: expectedIntervalSeconds },
+    systemDefaultThresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
+  });
   const freshness = hotData?.datetime
     ? classifyPointFreshness(
         [{ pointId: "", lastSeen: hotData.datetime }],
         new Date(),
-        DEFAULT_STALE_THRESHOLD_SECONDS,
+        thresholdSeconds,
       )[0]
     : null;
 

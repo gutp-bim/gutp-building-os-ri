@@ -9,6 +9,8 @@ export type NamedPoint = {
   name: string;
   deviceName?: string;
   spaceName?: string;
+  /** Expected telemetry interval (seconds) for per-point stale detection (#183); undefined = unknown. */
+  expectedIntervalSeconds?: number | null;
 };
 
 /** A point needing operator attention: stale (old) or missing (never/unparseable). */

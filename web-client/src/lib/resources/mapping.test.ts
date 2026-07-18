@@ -32,6 +32,7 @@ describe("toPointResource", () => {
       labels: null,
       specification: null,
       kind: null,
+      expectedIntervalSeconds: null,
     });
   });
 
@@ -46,12 +47,14 @@ describe("toPointResource", () => {
       labels: "a,b",
       specification: "spec",
       type: "analog",
+      interval: 60,
     };
     const r = toPointResource(p);
     expect(r.writable).toBe(true);
     expect(r.unit).toBe("°C");
     expect(r.scale).toBe(0.1);
     expect(r.kind).toBe("analog");
+    expect(r.expectedIntervalSeconds).toBe(60);
   });
 });
 

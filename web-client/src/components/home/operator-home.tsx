@@ -1,7 +1,7 @@
 "use client";
 
 import { fetchGateways as defaultFetchGateways } from "@/lib/admin/gateways";
-import { buildAttentionList } from "@/lib/home/aggregate";
+import { buildAttentionList, type NamedPoint } from "@/lib/home/aggregate";
 import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
 import {
@@ -34,7 +34,7 @@ export function OperatorHome({
   const [floors, setFloors] = useState<ResourceRef[]>([]);
   const [floorDtId, setFloorDtId] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<PointFreshness[]>([]);
-  const [named, setNamed] = useState<{ pointId: string; name: string }[]>([]);
+  const [named, setNamed] = useState<NamedPoint[]>([]);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,7 +93,7 @@ export function OperatorHome({
       const points = await loaders.loadFloorPoints(floorDtId);
       if (!active) return;
       setNamed(points);
-      const fresh = await loaders.loadFreshness(points.map((p) => p.pointId));
+      const fresh = await loaders.loadFreshness(points);
       if (!active) return;
       setFreshness(fresh);
     })()

@@ -113,6 +113,32 @@ describe("classifyPointFreshness", () => {
   it("exposes the backend registry default (300s) as a shared constant", () => {
     expect(DEFAULT_STALE_THRESHOLD_SECONDS).toBe(300);
   });
+
+  it("uses a point's own thresholdSeconds over the default when provided (#183)", () => {
+    // A fast point (expected 5s → threshold 15s) is stale at 120s even though the 300s default
+    // would still call it fresh; a slow point (expected 1d) stays fresh at the same age.
+    const points: PointLastSeen[] = [
+      { pointId: "FAST", lastSeen: ago(120), thresholdSeconds: 15 },
+      { pointId: "SLOW", lastSeen: ago(120), thresholdSeconds: 86_400 },
+    ];
+    const results = classifyPointFreshness(points, NOW, 300);
+    expect(results.map((r) => [r.pointId, r.status])).toEqual([
+      ["FAST", "stale"],
+      ["SLOW", "fresh"],
+    ]);
+  });
+
+  it("falls back to the default threshold for points without their own thresholdSeconds", () => {
+    const points: PointLastSeen[] = [
+      { pointId: "OVERRIDE", lastSeen: ago(120), thresholdSeconds: 60 },
+      { pointId: "DEFAULT", lastSeen: ago(120) },
+    ];
+    const results = classifyPointFreshness(points, NOW, 300);
+    expect(results.map((r) => [r.pointId, r.status])).toEqual([
+      ["OVERRIDE", "stale"],
+      ["DEFAULT", "fresh"],
+    ]);
+  });
 });
 
 describe("summarizeFreshness", () => {
