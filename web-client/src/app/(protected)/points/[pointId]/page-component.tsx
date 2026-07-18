@@ -7,8 +7,16 @@ import {
 } from "@/lib/infra/aspida-client/generated/@types";
 import { getPointDetail } from "@/lib/resources/repository";
 import { latestTelemetry, queryTelemetry } from "@/lib/telemetry/repository";
+import {
+  DEFAULT_GRANULARITY,
+  DEFAULT_PERIOD,
+  effectiveRange,
+  resolveGranularity,
+  type GranularityOption,
+  type PeriodPreset,
+} from "@/lib/telemetry/range";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
 import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
@@ -38,6 +46,11 @@ export default function PointDetailPageComponent({
   const [hotError, setHotError] = useState<string | null>(null);
   const [warmError, setWarmError] = useState<string | null>(null);
   const [coldError, setColdError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<PeriodPreset>(DEFAULT_PERIOD);
+  const [granularity, setGranularity] = useState<GranularityOption>(DEFAULT_GRANULARITY);
+  // Monotonic id: a warm response for a superseded period/granularity must not overwrite the current
+  // selection, and only the latest request may clear the loading/error state (#197 review).
+  const warmRequestId = useRef(0);
 
   useEffect(() => {
     const fetchPointDetail = async () => {
@@ -71,22 +84,27 @@ export default function PointDetailPageComponent({
 
   const fetchWarmData = async () => {
     if (!pointDetail?.point.id) return;
+    const requestId = ++warmRequestId.current;
     try {
       setWarmLoading(true);
       setWarmError(null);
-      const end = new Date();
-      const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+      const { start, end } = effectiveRange(period, new Date());
       const series = await queryTelemetry({
         pointId: pointDetail.point.id,
         start,
         end,
+        granularity: resolveGranularity(granularity, period),
       });
+      // A newer period/granularity request has superseded this one — drop its (stale) result so it
+      // can't overwrite the current chart or prematurely clear loading.
+      if (requestId !== warmRequestId.current) return;
       setWarmData(series.points.map((p) => ({ datetime: p.t, value: p.v })));
     } catch (e) {
+      if (requestId !== warmRequestId.current) return;
       console.error(e);
       setWarmError("履歴データの取得に失敗しました。");
     } finally {
-      setWarmLoading(false);
+      if (requestId === warmRequestId.current) setWarmLoading(false);
     }
   };
 
@@ -128,11 +146,15 @@ export default function PointDetailPageComponent({
   };
 
   useEffect(() => {
-    if (pointDetail) {
-      fetchHotData();
-      fetchWarmData();
-    }
+    if (pointDetail) fetchHotData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointDetail]);
+
+  // Refetch the history whenever the point, period, or granularity changes (#197).
+  useEffect(() => {
+    if (pointDetail) fetchWarmData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pointDetail, period, granularity]);
 
   if (loading) {
     return (
@@ -202,6 +224,11 @@ export default function PointDetailPageComponent({
         warmData={warmData}
         warmLoading={warmLoading}
         onRefresh={fetchWarmData}
+        period={period}
+        granularity={granularity}
+        onPeriodChange={setPeriod}
+        onGranularityChange={setGranularity}
+        unit={pointDetail.point.unit ?? undefined}
       />
 
       <ControlAuditHistory pointId={pointDetail.point.id} />
