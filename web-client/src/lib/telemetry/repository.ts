@@ -1,7 +1,62 @@
+import { API_BASE_URL, authHeaders } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
-import type { PointLastSeen } from "./freshness";
+import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointLastSeen } from "./freshness";
+import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "./freshness-threshold";
 import { toGranularityParam, toSeries } from "./mapping";
 import type { TelemetryPoint, TelemetryQuery, TelemetrySeries } from "./types";
+
+/** Effective telemetry stale-detection thresholds (#183), served all-role by GET /api/telemetry/config. */
+export type TelemetryConfig = {
+  staleThresholdSeconds: number;
+  staleIntervalMultiplier: number;
+};
+
+const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
+  staleThresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
+  staleIntervalMultiplier: DEFAULT_STALE_INTERVAL_MULTIPLIER,
+};
+
+// Cached for the session: thresholds change rarely, and every freshness fan-out would otherwise
+// refetch. A single in-flight promise also dedupes concurrent callers.
+let telemetryConfigPromise: Promise<TelemetryConfig> | null = null;
+
+/**
+ * The effective stale-detection thresholds (system default + admin override) from the all-role
+ * `GET /api/telemetry/config` (#183). Falls back to the frontend defaults — which mirror the registry
+ * defaults — when the endpoint is unavailable, so freshness classification degrades gracefully rather
+ * than breaking.
+ *
+ * Bespoke fetch because this endpoint is not yet in the aspida schema (regenerating those types is a
+ * follow-up, same as the resource-metadata write path).
+ */
+export function getTelemetryConfig(token?: string): Promise<TelemetryConfig> {
+  if (!telemetryConfigPromise) {
+    telemetryConfigPromise = fetchTelemetryConfig(token).catch(() => DEFAULT_TELEMETRY_CONFIG);
+  }
+  return telemetryConfigPromise;
+}
+
+/** Test-only: clear the memoized config so each case starts fresh. */
+export function resetTelemetryConfigCache(): void {
+  telemetryConfigPromise = null;
+}
+
+async function fetchTelemetryConfig(token?: string): Promise<TelemetryConfig> {
+  const headers = token ? { Authorization: `Bearer ${token}` } : authHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/telemetry/config`, { headers });
+  if (!res.ok) throw new Error(`telemetry config (${res.status})`);
+  const body = (await res.json()) as Partial<TelemetryConfig>;
+  return {
+    staleThresholdSeconds:
+      typeof body.staleThresholdSeconds === "number"
+        ? body.staleThresholdSeconds
+        : DEFAULT_STALE_THRESHOLD_SECONDS,
+    staleIntervalMultiplier:
+      typeof body.staleIntervalMultiplier === "number"
+        ? body.staleIntervalMultiplier
+        : DEFAULT_STALE_INTERVAL_MULTIPLIER,
+  };
+}
 
 /**
  * Telemetry access façade. Everything routes through the generated Aspida client (`apiClient()`),

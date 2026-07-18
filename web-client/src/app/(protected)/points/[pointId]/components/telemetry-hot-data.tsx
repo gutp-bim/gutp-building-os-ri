@@ -18,6 +18,8 @@ export function TelemetryHotData({
   unit,
   labels,
   expectedIntervalSeconds,
+  staleThresholdSeconds = DEFAULT_STALE_THRESHOLD_SECONDS,
+  staleIntervalMultiplier,
 }: {
   hotData: ValidTelemetryData | null;
   hotLoading: boolean;
@@ -28,6 +30,9 @@ export function TelemetryHotData({
   labels?: string;
   /** Expected telemetry interval (seconds, sbco:interval) driving this point's stale threshold (#183). */
   expectedIntervalSeconds?: number | null;
+  /** Effective system-default stale threshold + multiplier (#183), from GET /api/telemetry/config. */
+  staleThresholdSeconds?: number;
+  staleIntervalMultiplier?: number;
 }) {
   const splitLabels = labels ? labels.split(",") : null;
 
@@ -50,7 +55,8 @@ export function TelemetryHotData({
   // worthwhile — the classify call is a single cheap comparison.)
   const thresholdSeconds = resolveStaleThresholdSeconds({
     expected: { point: expectedIntervalSeconds },
-    systemDefaultThresholdSeconds: DEFAULT_STALE_THRESHOLD_SECONDS,
+    multiplier: staleIntervalMultiplier,
+    systemDefaultThresholdSeconds: staleThresholdSeconds,
   });
   const freshness = hotData?.datetime
     ? classifyPointFreshness(

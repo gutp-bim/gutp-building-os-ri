@@ -21,13 +21,21 @@ public static class SettingsRegistry
             DefaultValue: "300",
             Description: "テレメトリを「鮮度切れ」とみなすまでの秒数（期待周期が未設定のポイントの既定閾値, #183）",
             Category: "telemetry"),
-        // NOTE: the per-point expected-interval multiplier N (threshold = interval × N, #183) is a
-        // fixed default (3, DEFAULT_STALE_INTERVAL_MULTIPLIER on the frontend) in this slice — it is
-        // intentionally NOT exposed as an editable setting here. Editing it would be a false
-        // affordance until the freshness classifier reads it at runtime, which needs an all-role
-        // (non-admin) telemetry-threshold read surface (GET /api/system/settings is admin-only).
-        // Add it back alongside that surface so admin edits actually change stale classification.
+        // The per-point expected-interval multiplier N (threshold = interval × N, #183). Now read at
+        // runtime by all roles via GET /api/telemetry/config (TelemetryConfigController), so editing it
+        // here actually changes stale classification on home + point detail (no longer a false
+        // affordance — the #210 review follow-up).
+        new SettingDefinition(
+            Key: "telemetry.staleIntervalMultiplier",
+            Type: SettingType.Number,
+            DefaultValue: "3",
+            Description: "期待周期から鮮度切れ閾値を導く倍率 N（閾値 = 期待周期 × N, #183）",
+            Category: "telemetry"),
     };
+
+    /// <summary>The telemetry stale-threshold setting keys, exposed all-role via /api/telemetry/config.</summary>
+    public const string StaleThresholdSecondsKey = "telemetry.staleThresholdSeconds";
+    public const string StaleIntervalMultiplierKey = "telemetry.staleIntervalMultiplier";
 
     /// <summary>Returns the definition for <paramref name="key"/>, or null when it is not allowlisted.</summary>
     public static SettingDefinition? Find(string key) =>

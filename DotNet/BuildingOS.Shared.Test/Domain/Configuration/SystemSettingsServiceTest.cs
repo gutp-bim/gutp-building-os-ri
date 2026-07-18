@@ -30,6 +30,38 @@ public class SystemSettingsServiceTest
     }
 
     [Fact]
+    public async Task GetTelemetryThresholds_NoOverrides_ReturnsRegistryDefaults()
+    {
+        var store = new Mock<ISystemConfigStore>();
+        store.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SettingOverride>());
+
+        var thresholds = await new SystemSettingsService(store.Object).GetTelemetryThresholdsAsync();
+
+        Assert.Equal(300, thresholds.StaleThresholdSeconds);
+        Assert.Equal(3, thresholds.StaleIntervalMultiplier);
+    }
+
+    [Fact]
+    public async Task GetTelemetryThresholds_AppliesAdminOverride_ToMultiplier()
+    {
+        var store = new Mock<ISystemConfigStore>();
+        store.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new SettingOverride(
+                    SettingsRegistry.StaleIntervalMultiplierKey, "5", SettingSource.Ui, DateTime.UtcNow, "admin"),
+            });
+
+        var thresholds = await new SystemSettingsService(store.Object).GetTelemetryThresholdsAsync();
+
+        // The admin override (5) is what the all-role read surface serves — so home/point-detail
+        // freshness actually reflects the setting (the #210 review follow-up).
+        Assert.Equal(5, thresholds.StaleIntervalMultiplier);
+        Assert.Equal(300, thresholds.StaleThresholdSeconds); // unchanged default
+    }
+
+    [Fact]
     public async Task UpdateSetting_UnknownKey_ReturnsUnknown_AndDoesNotPersist()
     {
         var store = new Mock<ISystemConfigStore>();

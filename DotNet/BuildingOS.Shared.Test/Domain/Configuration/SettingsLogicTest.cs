@@ -103,9 +103,9 @@ public class SettingsLogicTest
     {
         Assert.NotNull(SettingsRegistry.Find("ui.showExperimentalFeatures"));
         Assert.NotNull(SettingsRegistry.Find("telemetry.staleThresholdSeconds"));
-        // telemetry.staleIntervalMultiplier is intentionally NOT registered as an editable setting in
-        // this slice (fixed default 3) — it would be a false affordance until read at runtime (#183).
-        Assert.Null(SettingsRegistry.Find("telemetry.staleIntervalMultiplier"));
+        // Re-registered now that it is read at runtime via /api/telemetry/config (#183 follow-up).
+        Assert.NotNull(SettingsRegistry.Find("telemetry.staleIntervalMultiplier"));
+        Assert.Equal("3", SettingsRegistry.Find("telemetry.staleIntervalMultiplier")!.DefaultValue);
         Assert.Null(SettingsRegistry.Find("nope"));
     }
 }
