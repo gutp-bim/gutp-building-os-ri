@@ -4,6 +4,7 @@ import { useControlExecution } from "@/lib/infra/grpc-client/use-control-executi
 import { useCallback, useMemo, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
+import { controlPostErrorResult } from "./control-post-error";
 import { ControlStatusBar } from "./control-status-bar";
 import { getControlProtocol } from "./get-control-protocol";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
@@ -53,9 +54,14 @@ export function PointControlModal({
       setIsOpen(false);
       setIsLoading(false);
       startExecution(controlId);
-    } catch {
+    } catch (error) {
       setIsLoading(false);
-      setDirectResult("failed", "制御信号の送信に失敗しました。");
+      // 403（権限不足）/ 503（gateway offline, #186）を汎用失敗と区別して説明する（#162）。
+      const { status, message } = controlPostErrorResult(
+        error,
+        pointDetail.point.id,
+      );
+      setDirectResult(status, message);
     }
   };
 

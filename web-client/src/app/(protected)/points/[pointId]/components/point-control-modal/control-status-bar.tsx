@@ -13,6 +13,7 @@ export function ControlStatusBar({
 
   return (
     <div
+      data-testid={`control-status-${state.status}`}
       className={`flex items-start justify-between px-4 py-3 rounded-md border ${styleMap[state.status].container}`}
     >
       <div
@@ -37,6 +38,28 @@ export function ControlStatusBar({
             <CrossIcon />
             <div>
               <p>制御に失敗しました</p>
+              {state.message && (
+                <p className="text-xs mt-0.5 opacity-80">{state.message}</p>
+              )}
+            </div>
+          </>
+        )}
+        {state.status === "permission_denied" && (
+          <>
+            <LockIcon />
+            <div>
+              <p>権限が不足しています</p>
+              {state.message && (
+                <p className="text-xs mt-0.5 opacity-80">{state.message}</p>
+              )}
+            </div>
+          </>
+        )}
+        {state.status === "gateway_offline" && (
+          <>
+            <CrossIcon />
+            <div>
+              <p>ゲートウェイに接続できません</p>
               {state.message && (
                 <p className="text-xs mt-0.5 opacity-80">{state.message}</p>
               )}
@@ -101,6 +124,14 @@ const styleMap = {
     container: "bg-red-50 border-red-200",
     text: "text-red-800",
   },
+  permission_denied: {
+    container: "bg-amber-50 border-amber-200",
+    text: "text-amber-800",
+  },
+  gateway_offline: {
+    container: "bg-red-50 border-red-200",
+    text: "text-red-800",
+  },
   timeout: {
     container: "bg-amber-50 border-amber-200",
     text: "text-amber-800",
@@ -137,6 +168,14 @@ function CrossIcon() {
   return (
     <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
     </svg>
   );
 }
