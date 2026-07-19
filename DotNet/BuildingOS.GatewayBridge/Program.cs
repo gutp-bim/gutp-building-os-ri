@@ -1,8 +1,10 @@
 using BuildingOS.GatewayBridge.Infrastructure;
 using BuildingOS.GatewayBridge.Services;
+using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,12 +38,34 @@ builder.WebHost.ConfigureKestrel(options =>
 // ── NATS (core pub/sub for ephemeral egress) ─────────────────────────────────
 var natsUrl = builder.Configuration["NATS_URL"] ?? "nats://localhost:4222";
 builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsOpts { Url = natsUrl }));
+// JetStream context for the KV-backed connection heartbeat (#230); mirrors the ApiServer wiring.
+builder.Services.AddSingleton<INatsJSContext>(sp => new NatsJSContext(sp.GetRequiredService<INatsConnection>()));
 
 // ── Egress bridge (control plane) ────────────────────────────────────────────
 // Ingress (GatewayIngress / telemetry ingest) now lives in BuildingOS.ConnectorWorker alongside
 // the MQTT/AMQP ingress workers; this service is the pure egress control plane.
 builder.Services.AddSingleton<GatewayConnectionRegistry>();
 builder.Services.AddSingleton<IEgressCommandBus, NatsEgressCommandBus>();
+
+// ── Cross-replica connection heartbeat (#230 Phase 2②, ADR-0004) ─────────────
+// Each live egress stream refreshes a per-gateway KV entry on GATEWAY_HEARTBEAT_INTERVAL_SEC; the
+// bucket's TTL (GATEWAY_HEARTBEAT_TTL_SEC, default 3× the interval) expires it if a replica dies. The
+// ApiServer reads it to show true connected/disconnected. Best-effort — never affects command routing.
+var heartbeatInterval = PositiveSeconds(builder.Configuration["GATEWAY_HEARTBEAT_INTERVAL_SEC"], 10);
+var heartbeatTtl = PositiveSeconds(builder.Configuration["GATEWAY_HEARTBEAT_TTL_SEC"], NatsKvGatewayConnectionStore.DefaultTtlSeconds);
+if (heartbeatTtl <= heartbeatInterval)
+{
+    // TTL must exceed the beat, or a live gateway's entry expires between beats and flaps to
+    // disconnected. Warn loudly (config error) rather than silently mis-report the fleet.
+    Console.Error.WriteLine(
+        $"[WARN] GATEWAY_HEARTBEAT_TTL_SEC ({heartbeatTtl.TotalSeconds:0}s) <= GATEWAY_HEARTBEAT_INTERVAL_SEC " +
+        $"({heartbeatInterval.TotalSeconds:0}s); connected state may flap. Set TTL to >= 2-3x the interval.");
+}
+builder.Services.AddSingleton<IGatewayConnectionStatusStore>(sp => new NatsKvGatewayConnectionStore(
+    sp.GetRequiredService<INatsJSContext>(),
+    sp.GetRequiredService<ILogger<NatsKvGatewayConnectionStore>>(),
+    heartbeatTtl));
+builder.Services.AddSingleton(new GatewayHeartbeatOptions(heartbeatInterval, Environment.MachineName));
 
 builder.Services.AddGrpc();
 

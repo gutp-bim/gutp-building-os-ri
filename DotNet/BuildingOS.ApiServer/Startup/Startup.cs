@@ -74,6 +74,12 @@ namespace BuildingOs.ApiServer
                 return new NatsJSContext(conn);
             });
             services.AddSingleton<IHotTelemetryStore, NatsKvLatestStore>();
+            // Cross-replica gateway connection heartbeat read side (#230 Phase 2②, ADR-0004). Read-only
+            // here — GatewayBridge writes it. Default TTL must match the writer's (both default to
+            // NatsKvGatewayConnectionStore.DefaultTtlSeconds; override GATEWAY_HEARTBEAT_TTL_SEC in lockstep).
+            services.AddSingleton<IGatewayConnectionStatusStore>(sp => new NatsKvGatewayConnectionStore(
+                sp.GetRequiredService<INatsJSContext>(),
+                sp.GetRequiredService<ILogger<NatsKvGatewayConnectionStore>>()));
 
             // Warm-tier mode (#216): parquet (default) reads the unified Parquet lake for warm+cold+agg;
             // timescale opts back into the TimescaleDB warm/aggregate stores (+ the MinIO cold reader).

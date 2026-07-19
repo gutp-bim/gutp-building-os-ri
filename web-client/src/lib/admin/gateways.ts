@@ -11,10 +11,17 @@ export interface GatewayAdminView {
   certTrustAnchor: string;
   /**
    * Derived last-seen: the most recent telemetry timestamp (ISO) across the gateway's points, or null
-   * when none have reported (#181 Phase 2). This is NOT a live egress connection state — true
-   * connected/disconnected is a follow-up (option ②).
+   * when none have reported (#181 Phase 2). This is the **ingress** last-seen, distinct from
+   * {@link connected}.
    */
   lastTelemetryAt: string | null;
+  /**
+   * Live **egress** connection state (#230 Phase 2②, ADR-0004): true when a GatewayBridge replica is
+   * holding a live egress control stream for this gateway right now (cross-replica NATS-KV heartbeat),
+   * false when none is observed (TTL-expired/absent). Distinct from {@link lastTelemetryAt}: a gateway
+   * can be receiving telemetry (ingress) yet have no egress stream, or vice-versa.
+   */
+  connected: boolean;
 }
 
 /**
@@ -33,6 +40,11 @@ export function lastSeenLabel(
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}分前`;
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}時間前`;
   return `${Math.floor(diffSec / 86400)}日前`;
+}
+
+/** Human label for the live egress connection state (#230). true → 「接続中」, false → 「未接続」. */
+export function connectedLabel(connected: boolean): string {
+  return connected ? "接続中" : "未接続";
 }
 
 export function bindingLabel(binding: string): string {

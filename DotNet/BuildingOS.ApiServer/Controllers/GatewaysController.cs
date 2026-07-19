@@ -7,6 +7,7 @@ using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
+using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,6 +29,7 @@ public class GatewaysController : ControllerBase
     private readonly IPointListUpdatePublisher _publisher;
     private readonly IAdminAuditRecorder _audit;
     private readonly ITelemetryQueryRouter _telemetry;
+    private readonly IGatewayConnectionStatusStore _connectionStatus;
     private readonly ILogger<GatewaysController> _logger;
 
     public GatewaysController(
@@ -36,6 +38,7 @@ public class GatewaysController : ControllerBase
         IPointListUpdatePublisher publisher,
         IAdminAuditRecorder audit,
         ITelemetryQueryRouter telemetry,
+        IGatewayConnectionStatusStore connectionStatus,
         ILogger<GatewaysController> logger)
     {
         _twin = twin;
@@ -43,6 +46,7 @@ public class GatewaysController : ControllerBase
         _publisher = publisher;
         _audit = audit;
         _telemetry = telemetry;
+        _connectionStatus = connectionStatus;
         _logger = logger;
     }
 
@@ -127,6 +131,11 @@ public class GatewaysController : ControllerBase
             ? new Dictionary<string, string>()
             : GatewaySettingsMasker.Mask(connection.Settings);
 
+        // #230/ADR-0004: live egress connection state from the cross-replica heartbeat (KV, TTL-expired).
+        // Distinct from LastTelemetryAt (ingress last-seen): present here = a bridge replica is holding an
+        // egress stream for this gateway right now. Best-effort — a KV miss reads as not-connected.
+        var connected = await _connectionStatus.GetAsync(id, ct).ConfigureAwait(false) is not null;
+
         return new GatewayAdminView(
             id,
             connection?.BindingType ?? "(unconfigured)",
@@ -136,7 +145,8 @@ public class GatewaysController : ControllerBase
             // Identity is bound to the mTLS client certificate (X-Gateway-Id) at the ingress, not a
             // Keycloak secret. Live cert expiry lives in cert-manager and is out of this surface.
             CertTrustAnchor: "mTLS client certificate (X-Gateway-Id)",
-            LastTelemetryAt: await LastTelemetryAtAsync(entries, ct).ConfigureAwait(false));
+            LastTelemetryAt: await LastTelemetryAtAsync(entries, ct).ConfigureAwait(false),
+            Connected: connected);
     }
 
     /// <summary>
@@ -191,10 +201,13 @@ public class GatewaysController : ControllerBase
 }
 
 /// <summary>
-/// Admin view of one gateway: binding + masked settings + pointlist sync status (#323), plus a derived
-/// <see cref="LastTelemetryAt"/> last-seen signal (#181 Phase 2). <c>LastTelemetryAt</c> is the most
-/// recent telemetry timestamp across the gateway's points (ISO-8601), or <c>null</c> when none have
-/// reported — it is NOT a live egress connection state (see option ② follow-up).
+/// Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived
+/// <see cref="LastTelemetryAt"/> last-seen signal (#181 Phase 2), and the live egress
+/// <see cref="Connected"/> state (#230 Phase 2②). <c>LastTelemetryAt</c> is the most recent telemetry
+/// timestamp across the gateway's points (ISO-8601), or <c>null</c> when none have reported — it is the
+/// ingress last-seen, distinct from <c>Connected</c>. <c>Connected</c> is the cross-replica egress
+/// heartbeat (ADR-0004): <c>true</c> when a bridge replica is holding a live egress stream for this
+/// gateway right now, <c>false</c> when none is observed (TTL-expired/absent).
 /// </summary>
 public sealed record GatewayAdminView(
     string GatewayId,
@@ -203,4 +216,5 @@ public sealed record GatewayAdminView(
     int PointCount,
     string Revision,
     string CertTrustAnchor,
-    string? LastTelemetryAt);
+    string? LastTelemetryAt,
+    bool Connected);

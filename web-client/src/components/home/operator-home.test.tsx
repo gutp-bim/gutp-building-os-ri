@@ -50,6 +50,7 @@ const gateway: GatewayAdminView = {
   revision: "sha256:abcdef1234567890",
   certTrustAnchor: "",
   lastTelemetryAt: null,
+  connected: false,
 };
 
 describe("OperatorHome", () => {

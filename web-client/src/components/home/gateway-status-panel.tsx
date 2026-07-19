@@ -2,6 +2,7 @@
 
 import {
   bindingLabel,
+  connectedLabel,
   type GatewayAdminView,
   lastSeenLabel,
   shortRevision,
@@ -54,9 +55,9 @@ export function GatewayStatusPanel({
         data-testid="home-gateway-panel-note"
         className="mb-3 mt-0.5 text-xs text-gray-600"
       >
-        binding / ポイント数 / pointlist
-        リビジョンなどの登録情報です。最終受信は最新テレメトリ時刻からの
-        目安で、真の接続状態（connected / disconnected）ではありません。
+        binding / ポイント数 / pointlist リビジョンなどの登録情報です。接続状態は
+        egress 制御ストリームの生死（#230）、最終受信はテレメトリ（ingress）の最新
+        時刻で、両者は別軸です。
       </p>
       {error ? (
         <p className="text-sm text-red-700">{error}</p>
@@ -81,6 +82,16 @@ export function GatewayStatusPanel({
                 </span>
               </div>
               <div className="text-gray-600">
+                <span
+                  data-testid="home-gateway-connected"
+                  className={`mr-3 rounded px-1.5 py-0.5 text-xs font-medium ${
+                    g.connected
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {connectedLabel(g.connected)}
+                </span>
                 <span>{g.pointCount} ポイント</span>
                 <span
                   className="ml-3 text-xs text-gray-500"
