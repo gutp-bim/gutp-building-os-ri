@@ -5,20 +5,27 @@ import { buildAttentionList, type NamedPoint } from "@/lib/home/aggregate";
 import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
 import {
+  summarizeFreshness,
   type FreshnessSummary,
   type PointFreshness,
-  summarizeFreshness,
 } from "@/lib/telemetry/freshness";
 import { formatAge } from "@/lib/telemetry/freshness-format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GatewayStatusPanel, type GatewaysFetcher } from "./gateway-status-panel";
+import {
+  GatewayStatusPanel,
+  type GatewaysFetcher,
+} from "./gateway-status-panel";
+
+/** Sentinel floor value that aggregates every floor of the selected building (#158 Phase 2). */
+const ALL_FLOORS = "__all__";
 
 /**
  * Operator home (#158): a non-disruptive landing that answers "何が届いていないか" at a glance —
- * pick a building + floor, see fresh/stale/missing counts and the worst-first list of points that
- * need attention. Admins additionally see a light gateway overview. All data access is injected via
- * {@link HomeLoaders} so the view is unit-testable offline; the route wires the production loaders.
+ * pick a building + floor (or **すべてのフロア** for a building-wide alert view), see fresh/stale/missing
+ * counts and the worst-first list of points that need attention. Admins additionally see a light
+ * gateway overview. All data access is injected via {@link HomeLoaders} so the view is unit-testable
+ * offline; the route wires the production loaders.
  */
 export function OperatorHome({
   loaders,
@@ -70,15 +77,23 @@ export function OperatorHome({
         setFloors(fs);
         setFloorDtId(fs[0]?.dtId ?? null);
       })
-      .catch((e) => active && setError(errMsg(e, "フロアの取得に失敗しました")));
+      .catch(
+        (e) => active && setError(errMsg(e, "フロアの取得に失敗しました")),
+      );
     return () => {
       active = false;
     };
   }, [loaders, buildingDtId]);
 
-  // Load the floor's points + freshness when the floor changes.
+  // Load the selected floor's points + freshness — or every floor's when "すべてのフロア" is chosen.
   useEffect(() => {
-    if (!floorDtId) {
+    const floorIds =
+      floorDtId === ALL_FLOORS
+        ? floors.map((f) => f.dtId)
+        : floorDtId
+          ? [floorDtId]
+          : [];
+    if (floorIds.length === 0) {
       setNamed([]);
       setFreshness([]);
       return;
@@ -86,23 +101,28 @@ export function OperatorHome({
     let active = true;
     setLoadingFloor(true);
     setError(null);
-    // Reset the previous floor's data so the summary cards don't show its counts mid-switch.
+    // Reset the previous selection's data so the summary cards don't show its counts mid-switch.
     setNamed([]);
     setFreshness([]);
     (async () => {
-      const points = await loaders.loadFloorPoints(floorDtId);
+      const perFloor = await Promise.all(
+        floorIds.map((id) => loaders.loadFloorPoints(id)),
+      );
       if (!active) return;
+      const points = perFloor.flat();
       setNamed(points);
       const fresh = await loaders.loadFreshness(points);
       if (!active) return;
       setFreshness(fresh);
     })()
-      .catch((e) => active && setError(errMsg(e, "テレメトリの取得に失敗しました")))
+      .catch(
+        (e) => active && setError(errMsg(e, "テレメトリの取得に失敗しました")),
+      )
       .finally(() => active && setLoadingFloor(false));
     return () => {
       active = false;
     };
-  }, [loaders, floorDtId]);
+  }, [loaders, floorDtId, floors]);
 
   const summary: FreshnessSummary = summarizeFreshness(freshness);
   const attention = buildAttentionList(named, freshness);
@@ -112,7 +132,7 @@ export function OperatorHome({
       <header>
         <h1 className="text-xl font-semibold text-gray-800">ホーム</h1>
         <p className="mt-1 text-sm text-gray-600">
-          フロアを選ぶと、テレメトリの鮮度と対応が必要なポイントを確認できます。
+          フロア（または「すべてのフロア」で建物全体）を選ぶと、テレメトリの鮮度と対応が必要なポイントを確認できます。
         </p>
       </header>
 
@@ -143,6 +163,9 @@ export function OperatorHome({
             onChange={(e) => setFloorDtId(e.target.value || null)}
           >
             {floors.length === 0 && <option value="">（フロアなし）</option>}
+            {floors.length > 0 && (
+              <option value={ALL_FLOORS}>すべてのフロア（建物全体）</option>
+            )}
             {floors.map((f) => (
               <option key={f.dtId} value={f.dtId}>
                 {f.name}
@@ -159,21 +182,44 @@ export function OperatorHome({
       )}
 
       <section className="grid grid-cols-3 gap-4" data-testid="home-summary">
-        <SummaryCard label="最新" value={summary.fresh} testid="summary-fresh" tone="text-green-800" />
-        <SummaryCard label="鮮度切れ" value={summary.stale} testid="summary-stale" tone="text-amber-800" />
-        <SummaryCard label="欠測" value={summary.missing} testid="summary-missing" tone="text-gray-700" />
+        <SummaryCard
+          label="最新"
+          value={summary.fresh}
+          testid="summary-fresh"
+          tone="text-green-800"
+        />
+        <SummaryCard
+          label="鮮度切れ"
+          value={summary.stale}
+          testid="summary-stale"
+          tone="text-amber-800"
+        />
+        <SummaryCard
+          label="欠測"
+          value={summary.missing}
+          testid="summary-missing"
+          tone="text-gray-700"
+        />
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-gray-700">要対応ポイント</h2>
+        <h2 className="mb-2 text-sm font-semibold text-gray-700">
+          要対応ポイント
+        </h2>
         {loadingFloor ? (
           <p className="text-sm text-gray-600">読み込み中…</p>
         ) : attention.length === 0 ? (
-          <p data-testid="home-attention-empty" className="text-sm text-gray-600">
+          <p
+            data-testid="home-attention-empty"
+            className="text-sm text-gray-600"
+          >
             対応が必要なポイントはありません。
           </p>
         ) : (
-          <ul data-testid="home-attention-list" className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+          <ul
+            data-testid="home-attention-list"
+            className="divide-y divide-gray-100 rounded-lg border border-gray-200"
+          >
             {attention.map((item) => (
               <li key={item.pointId} data-testid="home-attention-row">
                 <Link
@@ -182,10 +228,14 @@ export function OperatorHome({
                   className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-gray-50"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-gray-800">{item.name}</span>
+                    <span className="block truncate font-medium text-gray-800">
+                      {item.name}
+                    </span>
                     {(item.spaceName || item.deviceName) && (
                       <span className="block truncate text-xs text-gray-600">
-                        {[item.spaceName, item.deviceName].filter(Boolean).join(" / ")}
+                        {[item.spaceName, item.deviceName]
+                          .filter(Boolean)
+                          .join(" / ")}
                       </span>
                     )}
                   </span>
@@ -221,7 +271,10 @@ function SummaryCard({
   tone: string;
 }) {
   return (
-    <div data-testid={testid} className="rounded-lg border border-gray-200 p-4 text-center">
+    <div
+      data-testid={testid}
+      className="rounded-lg border border-gray-200 p-4 text-center"
+    >
       <div className={`text-2xl font-bold ${tone}`}>{value}</div>
       <div className="mt-1 text-xs text-gray-600">{label}</div>
     </div>
