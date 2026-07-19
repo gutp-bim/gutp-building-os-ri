@@ -97,6 +97,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 
 ### Migration And Operations
 
+- [エディション区分（Demo / Developer / Production）](oss-editions.md) — 同一コードを設定で段階起動する運用モードの整理。認証・compose profile・監視・スケールの対応表
 - [本番デプロイ構成](oss-production-deployment.md) — Kubernetes 配置図、コンポーネント責務、ネットワーク境界/ポート、mTLS、スケール/可用性
 - [バックアップ・リストア Runbook](oss-backup-restore-runbook.md) — PostgreSQL / MinIO Parquet レイク（`cold`）/ OxiGraph ツイン / Keycloak の取得・復元・整合性・定期化、本番等価手順
 - [アップグレード Runbook](oss-upgrade-runbook.md) — バージョン跨ぎの EF Core / Parquet / proto 互換、expand-contract 無停止手順、ArgoCD 配信、ロールバック
