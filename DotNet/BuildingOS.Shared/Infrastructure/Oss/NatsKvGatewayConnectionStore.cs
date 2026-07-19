@@ -22,6 +22,9 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
 
     private const string BucketName = "gateway-connection";
     private static readonly Regex _invalidKey = new(@"[^a-zA-Z0-9_.\-]", RegexOptions.Compiled);
+    // Control chars (incl. CR/LF) stripped from a gateway_id before it reaches a log sink, so a crafted
+    // id can't forge log lines (CodeQL "log entries created from user input").
+    private static readonly Regex _controlChars = new(@"\p{C}", RegexOptions.Compiled);
 
     private readonly INatsJSContext _js;
     private readonly ILogger<NatsKvGatewayConnectionStore> _logger;
@@ -71,7 +74,7 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         catch (OperationCanceledException) { /* stream ending — expected */ }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Gateway connection heartbeat write failed for {GatewayId}", gatewayId);
+            _logger.LogWarning(ex, "Gateway connection heartbeat write failed for {GatewayId}", ForLog(gatewayId));
         }
     }
 
@@ -92,7 +95,7 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         catch (OperationCanceledException) { /* expected on shutdown */ }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Gateway connection teardown failed for {GatewayId}", gatewayId);
+            _logger.LogWarning(ex, "Gateway connection teardown failed for {GatewayId}", ForLog(gatewayId));
         }
     }
 
@@ -105,7 +108,7 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Gateway connection read failed for {GatewayId}", gatewayId);
+            _logger.LogWarning(ex, "Gateway connection read failed for {GatewayId}", ForLog(gatewayId));
             return null;
         }
     }
@@ -124,4 +127,7 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
     }
 
     internal static string SanitizeKey(string gatewayId) => _invalidKey.Replace(gatewayId, "_");
+
+    /// <summary>Neutralises control chars in a gateway_id so it is safe to write to a log sink.</summary>
+    internal static string ForLog(string gatewayId) => _controlChars.Replace(gatewayId, "_");
 }
