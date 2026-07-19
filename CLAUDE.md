@@ -454,6 +454,8 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 | `GRPC_PORT` | gRPC (HTTP/2 h2c) listen port; TLS/mTLS terminates at the ingress (Traefik/Envoy) | `8080` |
 | `GRPC_KEEPALIVE_PING_DELAY_SEC` | HTTP/2 keepalive ping delay; must be > 0, else default | `20` |
 | `GRPC_KEEPALIVE_PING_TIMEOUT_SEC` | HTTP/2 keepalive ping ack timeout before closing the connection; must be > 0, else default | `10` |
+| `GATEWAY_HEARTBEAT_INTERVAL_SEC` | #230/ADR-0004: how often a live egress stream refreshes its per-gateway connection heartbeat in the shared NATS KV bucket `gateway-connection` (the ApiServer reads it for true connected/disconnected). Must be > 0, else default. | `10` |
+| `GATEWAY_HEARTBEAT_TTL_SEC` | #230/ADR-0004: bucket-level `MaxAge` TTL for the heartbeat — a crashed replica's entry expires after this, flipping the gateway to disconnected. **Must match the ApiServer's reader** (both default to `NatsKvGatewayConnectionStore.DefaultTtlSeconds`; override in lockstep). Should be ≥ 2–3× the interval. | `30` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint (traces+metrics+logs). No-op when unset. | — |
 | `OTEL_SERVICE_NAME` | OTLP `service.name` | `building-os-gateway-bridge` |
 

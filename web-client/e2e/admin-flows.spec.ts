@@ -110,6 +110,7 @@ test.describe("Registered gateways", () => {
           revision: "sha256:abcdef1234567890",
           certTrustAnchor: "",
           lastTelemetryAt: new Date(Date.now() - 90_000).toISOString(),
+          connected: true, // live egress stream (#230)
         },
         {
           gatewayId: "GW-002",
@@ -119,6 +120,7 @@ test.describe("Registered gateways", () => {
           revision: "sha256:0011223344aabb",
           certTrustAnchor: "",
           lastTelemetryAt: null, // never reported → 受信なし
+          connected: false, // no live egress stream
         },
       ]),
     );
@@ -131,6 +133,11 @@ test.describe("Registered gateways", () => {
     await expect(page.getByTestId("gw-last-seen-GW-SOS-001")).toContainText(
       "分前",
     );
+    // Live egress connection state is distinct from last-seen (#230).
+    await expect(page.getByTestId("gw-connected-GW-SOS-001")).toHaveText(
+      "接続中",
+    );
+    await expect(page.getByTestId("gw-connected-GW-002")).toHaveText("未接続");
     // A gateway that has never reported shows 受信なし, not a fake timestamp (#181 Phase 2).
     await expect(page.getByTestId("gw-last-seen-GW-002")).toHaveText(
       "受信なし",

@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { bindingLabel, lastSeenLabel, shortRevision } from "./gateways";
+import {
+  bindingLabel,
+  connectedLabel,
+  lastSeenLabel,
+  shortRevision,
+} from "./gateways";
 
 describe("gateways display helpers", () => {
+  it("connectedLabel reflects the live egress connection state (#230)", () => {
+    expect(connectedLabel(true)).toBe("接続中");
+    expect(connectedLabel(false)).toBe("未接続");
+  });
+
   it("labels known bindings, passes through unknown", () => {
     expect(bindingLabel("hono")).toBe("Hono (AMQP)");
     expect(bindingLabel("kandt")).toBe("Kandt (IoT Hub)");

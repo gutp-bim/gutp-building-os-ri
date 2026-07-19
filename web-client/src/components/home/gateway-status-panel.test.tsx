@@ -11,6 +11,7 @@ const gateway: GatewayAdminView = {
   revision: "sha256:abcdef1234567890",
   certTrustAnchor: "",
   lastTelemetryAt: null,
+  connected: false,
 };
 
 describe("GatewayStatusPanel", () => {
@@ -37,6 +38,30 @@ describe("GatewayStatusPanel", () => {
     expect(screen.getByTestId("home-gateway-panel-note")).toHaveTextContent(
       "接続状態",
     );
+  });
+
+  it("shows the live egress connection state (#230)", async () => {
+    render(
+      <GatewayStatusPanel
+        fetchGateways={vi
+          .fn()
+          .mockResolvedValue([{ ...gateway, connected: true }])}
+      />,
+    );
+    expect(
+      await screen.findByTestId("home-gateway-connected"),
+    ).toHaveTextContent("接続中");
+  });
+
+  it("shows 未接続 when there is no live egress stream (#230)", async () => {
+    render(
+      <GatewayStatusPanel
+        fetchGateways={vi.fn().mockResolvedValue([gateway])}
+      />,
+    );
+    expect(
+      await screen.findByTestId("home-gateway-connected"),
+    ).toHaveTextContent("未接続");
   });
 
   it("shows a derived last-seen (受信なし when the gateway has not reported, #181)", async () => {

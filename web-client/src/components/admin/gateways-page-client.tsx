@@ -4,6 +4,7 @@ import { HelpButton } from "@/components/help/help-button";
 import { useToast } from "@/components/ui/toast";
 import {
   bindingLabel,
+  connectedLabel,
   fetchGateways,
   lastSeenLabel,
   resyncGatewayPointList,
@@ -74,9 +75,9 @@ export function GatewaysPageClient() {
         同期状態の観測。binding/設定は GitOps が正本のため
         読み取り専用です。アイデンティティは mTLS クライアント証明書（OIDC
         クライアントの secret とは別系統）。
-        <strong>最終受信</strong>
-        は当該ゲートウェイのポイント群の最新テレメトリ時刻から導出した目安で、
-        真の接続状態（connected / disconnected）ではありません。
+        <strong>接続</strong>は egress 制御ストリームの生死（#230、cross-replica
+        heartbeat）、<strong>最終受信</strong>
+        はテレメトリ（ingress）の最新時刻から導出した目安で、両者は別軸です。
       </p>
 
       {error && (
@@ -98,6 +99,7 @@ export function GatewaysPageClient() {
               <tr className="border-b border-gray-200 text-gray-700">
                 <th className="px-3 py-2 font-medium">gatewayId</th>
                 <th className="px-3 py-2 font-medium">binding</th>
+                <th className="px-3 py-2 font-medium">接続</th>
                 <th className="px-3 py-2 font-medium">point 数</th>
                 <th className="px-3 py-2 font-medium">最終受信</th>
                 <th className="px-3 py-2 font-medium">revision</th>
@@ -113,6 +115,20 @@ export function GatewaysPageClient() {
                 >
                   <td className="px-3 py-2 font-mono">{gw.gatewayId}</td>
                   <td className="px-3 py-2">{bindingLabel(gw.bindingType)}</td>
+                  <td
+                    className="px-3 py-2"
+                    data-testid={`gw-connected-${gw.gatewayId}`}
+                  >
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                        gw.connected
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {connectedLabel(gw.connected)}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-gray-600">{gw.pointCount}</td>
                   <td
                     className="px-3 py-2 text-gray-600"

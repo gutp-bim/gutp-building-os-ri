@@ -5,6 +5,7 @@ using BuildingOS.GatewayBridge.Infrastructure;
 using BuildingOS.GatewayBridge.Protos;
 using BuildingOS.GatewayBridge.Services;
 using BuildingOS.Shared.Domain;
+using BuildingOS.Shared.Infrastructure.Oss;
 using Grpc.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -120,6 +121,46 @@ public class GatewayEgressServiceTest
     }
 
     [Fact]
+    public async Task Connect_MarksConnected_OnOpen_AndDisconnected_OnClose()
+    {
+        // #230/ADR-0004: while the stream is up the replica refreshes a cross-replica heartbeat; on a
+        // graceful close it clears the entry (epoch-guarded by replicaId).
+        var bus = new FakeEgressCommandBus();
+        var status = new FakeConnectionStatusStore();
+        // Long interval so the periodic loop never fires during the test — only the initial mark counts.
+        var options = new GatewayHeartbeatOptions(TimeSpan.FromMinutes(5), "replica-1");
+        var service = new GatewayEgressService(bus, new GatewayConnectionRegistry(),
+            NullLogger<GatewayEgressService>.Instance, status, options);
+        var reader = new FakeStreamReader<EgressUp>();
+        var writer = new FakeStreamWriter<EgressDown>();
+
+        reader.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-1" } });
+        var run = service.RunAsync(reader, writer, CancellationToken.None);
+
+        await bus.WaitForSubscription("gw-1");
+        Assert.Equal(("gw-1", "replica-1"), Assert.Single(status.Connected));
+
+        reader.Complete();
+        await run;
+        Assert.Equal(("gw-1", "replica-1"), Assert.Single(status.Disconnected));
+    }
+
+    [Fact]
+    public async Task Connect_WithoutStatusStore_StillRoundTrips()
+    {
+        // The heartbeat is optional (null in the pre-#230 wiring / unit tests) — routing is unaffected.
+        var bus = new FakeEgressCommandBus();
+        var service = new GatewayEgressService(bus, new GatewayConnectionRegistry(),
+            NullLogger<GatewayEgressService>.Instance);
+        var reader = new FakeStreamReader<EgressUp>();
+        reader.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-1" } });
+        var run = service.RunAsync(reader, new FakeStreamWriter<EgressDown>(), CancellationToken.None);
+        await bus.WaitForSubscription("gw-1");
+        reader.Complete();
+        await run; // no throw
+    }
+
+    [Fact]
     public async Task Connect_UnregistersGateway_WhenSubscribeFails()
     {
         // A transient failure in SubscribeAsync must not leave the gateway registered (which would
@@ -137,6 +178,27 @@ public class GatewayEgressServiceTest
     }
 
     // ── Fakes ────────────────────────────────────────────────────────────────
+
+    private sealed class FakeConnectionStatusStore : IGatewayConnectionStatusStore
+    {
+        public ConcurrentBag<(string GatewayId, string ReplicaId)> Connected { get; } = new();
+        public ConcurrentBag<(string GatewayId, string ReplicaId)> Disconnected { get; } = new();
+
+        public Task MarkConnectedAsync(string gatewayId, string replicaId, CancellationToken ct = default)
+        {
+            Connected.Add((gatewayId, replicaId));
+            return Task.CompletedTask;
+        }
+
+        public Task MarkDisconnectedAsync(string gatewayId, string replicaId, CancellationToken ct = default)
+        {
+            Disconnected.Add((gatewayId, replicaId));
+            return Task.CompletedTask;
+        }
+
+        public Task<GatewayConnectionStatus?> GetAsync(string gatewayId, CancellationToken ct = default)
+            => Task.FromResult<GatewayConnectionStatus?>(null);
+    }
 
     private sealed class ThrowingSubscribeBus : IEgressCommandBus
     {
