@@ -138,6 +138,36 @@ test.describe("Registered gateways", () => {
     await expect(page.getByTestId("resync-GW-SOS-001")).toBeVisible();
   });
 
+  test("shows a success toast (not an inline notice) after a resync (#162)", async ({
+    page,
+  }) => {
+    await page.route("**/api/admin/gateways", (route) =>
+      fulfillJson(route, [
+        {
+          gatewayId: "GW-SOS-001",
+          bindingType: "bacnet-sim",
+          settings: {},
+          pointCount: 8,
+          revision: "sha256:abcdef1234567890",
+          certTrustAnchor: "",
+          lastTelemetryAt: new Date(Date.now() - 90_000).toISOString(),
+        },
+      ]),
+    );
+    await page.route("**/resync-pointlist", (route) =>
+      fulfillJson(route, { revision: "sha256:99aabbccddeeff00" }, 202),
+    );
+
+    await page.goto("/admin/gateways");
+    await page.getByTestId("resync-GW-SOS-001").click();
+
+    // Transient success is a toast (auto-dismissing), per the notification policy — not a persistent
+    // inline notice.
+    await expect(page.getByTestId("toast-success")).toContainText(
+      "再同期を通知しました",
+    );
+  });
+
   test("shows the empty state when no gateway is registered", async ({
     page,
   }) => {

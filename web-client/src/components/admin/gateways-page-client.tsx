@@ -1,6 +1,7 @@
 "use client";
 
 import { HelpButton } from "@/components/help/help-button";
+import { useToast } from "@/components/ui/toast";
 import {
   bindingLabel,
   fetchGateways,
@@ -19,7 +20,7 @@ export function GatewaysPageClient() {
   const [gateways, setGateways] = useState<GatewayAdminView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { showToast } = useToast();
   const mounted = useRef(true);
 
   const reload = (signal?: AbortSignal) =>
@@ -44,12 +45,13 @@ export function GatewaysPageClient() {
   const onResync = (gw: GatewayAdminView) => {
     setBusyId(gw.gatewayId);
     setError(null);
-    setNotice(null);
     resyncGatewayPointList(gw.gatewayId)
       .then((rev) => {
+        // 成功は一過性フィードバック → toast（#162）。失敗は説明が要るので下のインライン表示のまま。
         if (mounted.current)
-          setNotice(
+          showToast(
             `${gw.gatewayId} に再同期を通知しました（${shortRevision(rev)}）`,
+            { tone: "success" },
           );
         return reload();
       })
@@ -80,11 +82,6 @@ export function GatewaysPageClient() {
       {error && (
         <p className="mb-3 text-sm text-red-600" data-testid="gw-error">
           {error}
-        </p>
-      )}
-      {notice && (
-        <p className="mb-3 text-sm text-green-700" data-testid="gw-notice">
-          {notice}
         </p>
       )}
 

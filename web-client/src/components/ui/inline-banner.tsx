@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 export type BannerTone = "error" | "warn" | "success" | "info";
 
-const TONE_STYLES: Record<BannerTone, string> = {
+/** Shared tone→class map, reused by the toast primitive so banners and toasts stay visually aligned. */
+export const TONE_STYLES: Record<BannerTone, string> = {
   error: "bg-red-50 border-red-300 text-red-800",
   warn: "bg-amber-50 border-amber-300 text-amber-800",
   success: "bg-green-50 border-green-300 text-green-800",
