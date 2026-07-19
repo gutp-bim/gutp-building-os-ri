@@ -1,4 +1,5 @@
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
@@ -170,5 +171,55 @@ public class GatewaysControllerTest
         var ok = Assert.IsType<OkObjectResult>(await c.List(default));
         var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
         Assert.True(gw.Connected);
+    }
+
+    // ── PointlistSynced tri-state (#230 Phase 2b) ───────────────────────────────
+
+    private static readonly GatewayPointEntry[] TwoPoints =
+    [
+        new GatewayPointEntry { PointId = "p1" },
+        new GatewayPointEntry { PointId = "p2" },
+    ];
+
+    [Fact]
+    public async Task List_PointlistSynced_IsNull_WhenGatewayReportsNoAppliedRevision()
+    {
+        // Connected but no applied revision reported (old gateway / not yet reported) → unknown (null).
+        var (c, twin, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
+        twin.Setup(t => t.ListGatewayPointList("GW001")).ReturnsAsync(TwoPoints);
+        connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, AppliedRevision: null));
+
+        var ok = Assert.IsType<OkObjectResult>(await c.List(default));
+        var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
+        Assert.Null(gw.PointlistSynced);
+    }
+
+    [Fact]
+    public async Task List_PointlistSynced_IsTrue_WhenAppliedRevisionMatchesTwin()
+    {
+        var (c, twin, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
+        twin.Setup(t => t.ListGatewayPointList("GW001")).ReturnsAsync(TwoPoints);
+        var authoritative = PointListEtag.Compute(TwoPoints);
+        connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, authoritative));
+
+        var ok = Assert.IsType<OkObjectResult>(await c.List(default));
+        var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
+        Assert.Equal(authoritative, gw.Revision);
+        Assert.True(gw.PointlistSynced);
+    }
+
+    [Fact]
+    public async Task List_PointlistSynced_IsFalse_WhenAppliedRevisionDiffersFromTwin()
+    {
+        var (c, twin, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
+        twin.Setup(t => t.ListGatewayPointList("GW001")).ReturnsAsync(TwoPoints);
+        connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, "\"sha256:stale\""));
+
+        var ok = Assert.IsType<OkObjectResult>(await c.List(default));
+        var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
+        Assert.False(gw.PointlistSynced);
     }
 }

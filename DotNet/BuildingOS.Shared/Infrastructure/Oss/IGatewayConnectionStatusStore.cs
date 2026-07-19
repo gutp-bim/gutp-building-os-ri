@@ -13,8 +13,14 @@ namespace BuildingOS.Shared.Infrastructure.Oss;
 /// </summary>
 public interface IGatewayConnectionStatusStore
 {
-    /// <summary>Record/refresh this replica's heartbeat for the gateway (called on connect + on each tick).</summary>
-    Task MarkConnectedAsync(string gatewayId, string replicaId, CancellationToken ct = default);
+    /// <summary>
+    /// Record/refresh this replica's heartbeat for the gateway (called on connect + on each tick).
+    /// <paramref name="appliedRevision"/> is the point-list ETag the gateway last reported as applied
+    /// (#230 Phase 2b, ADR-0004 option A), or <c>null</c> when it has not reported one yet — the reader
+    /// compares it against the twin-authoritative ETag to derive pointlist sync state.
+    /// </summary>
+    Task MarkConnectedAsync(
+        string gatewayId, string replicaId, string? appliedRevision = null, CancellationToken ct = default);
 
     /// <summary>
     /// Clear the gateway's connection entry on graceful teardown — but only if <paramref name="replicaId"/>
@@ -27,5 +33,9 @@ public interface IGatewayConnectionStatusStore
     Task<GatewayConnectionStatus?> GetAsync(string gatewayId, CancellationToken ct = default);
 }
 
-/// <summary>One gateway's live egress connection entry: which replica holds it and when it last beat.</summary>
-public sealed record GatewayConnectionStatus(string ReplicaId, DateTimeOffset UpdatedAt);
+/// <summary>
+/// One gateway's live egress connection entry: which replica holds it, when it last beat, and the
+/// point-list ETag it last reported as applied (<c>null</c> until reported — #230 Phase 2b).
+/// </summary>
+public sealed record GatewayConnectionStatus(
+    string ReplicaId, DateTimeOffset UpdatedAt, string? AppliedRevision = null);

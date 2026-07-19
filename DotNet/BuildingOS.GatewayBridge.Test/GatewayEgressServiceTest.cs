@@ -138,11 +138,42 @@ public class GatewayEgressServiceTest
         var run = service.RunAsync(reader, writer, CancellationToken.None);
 
         await bus.WaitForSubscription("gw-1");
-        Assert.Equal(("gw-1", "replica-1"), Assert.Single(status.Connected));
+        // Initial mark carries no applied revision yet (the gateway reports it via EgressUp.Status, #230 Phase 2b).
+        Assert.Equal(("gw-1", "replica-1", (string?)null), Assert.Single(status.Connected));
 
         reader.Complete();
         await run;
         Assert.Equal(("gw-1", "replica-1"), Assert.Single(status.Disconnected));
+    }
+
+    [Fact]
+    public async Task Connect_Status_UpdatesAppliedRevision()
+    {
+        // #230 Phase 2b: a gateway status frame carries the applied point-list ETag; the bridge records
+        // it on the connection heartbeat so the admin read side can derive pointlist sync state.
+        var bus = new FakeEgressCommandBus();
+        var status = new FakeConnectionStatusStore();
+        var options = new GatewayHeartbeatOptions(TimeSpan.FromMinutes(5), "replica-1");
+        var service = new GatewayEgressService(bus, new GatewayConnectionRegistry(),
+            NullLogger<GatewayEgressService>.Instance, status, options);
+        var reader = new FakeStreamReader<EgressUp>();
+        var writer = new FakeStreamWriter<EgressDown>();
+
+        reader.Push(new EgressUp { Hello = new Hello { GatewayId = "gw-1" } });
+        var run = service.RunAsync(reader, writer, CancellationToken.None);
+        await bus.WaitForSubscription("gw-1");
+
+        reader.Push(new EgressUp { Status = new GatewayStatus { AppliedRevision = "\"sha256:abc\"" } });
+
+        // Spin until the status frame has been processed (the request loop is async).
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (status.LatestApplied("gw-1") is null && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.Equal("\"sha256:abc\"", status.LatestApplied("gw-1"));
+
+        reader.Complete();
+        await run;
     }
 
     [Fact]
@@ -181,12 +212,19 @@ public class GatewayEgressServiceTest
 
     private sealed class FakeConnectionStatusStore : IGatewayConnectionStatusStore
     {
-        public ConcurrentBag<(string GatewayId, string ReplicaId)> Connected { get; } = new();
+        public ConcurrentBag<(string GatewayId, string ReplicaId, string? AppliedRevision)> Connected { get; } = new();
         public ConcurrentBag<(string GatewayId, string ReplicaId)> Disconnected { get; } = new();
 
-        public Task MarkConnectedAsync(string gatewayId, string replicaId, CancellationToken ct = default)
+        /// <summary>The most recent applied revision written for a gateway (#230 Phase 2b), or null.</summary>
+        public string? LatestApplied(string gatewayId) => Connected
+            .Where(c => c.GatewayId == gatewayId)
+            .Select(c => c.AppliedRevision)
+            .LastOrDefault(r => r is not null);
+
+        public Task MarkConnectedAsync(
+            string gatewayId, string replicaId, string? appliedRevision = null, CancellationToken ct = default)
         {
-            Connected.Add((gatewayId, replicaId));
+            Connected.Add((gatewayId, replicaId, appliedRevision));
             return Task.CompletedTask;
         }
 

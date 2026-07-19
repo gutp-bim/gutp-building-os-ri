@@ -128,6 +128,8 @@ test("gateway panel is shown for admins", async ({ context, page }) => {
         revision: "sha256:abcdef1234567890",
         certTrustAnchor: "",
         lastTelemetryAt: null,
+        connected: false,
+        pointlistSynced: null,
       },
     ]),
   );

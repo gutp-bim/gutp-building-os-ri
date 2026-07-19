@@ -59,6 +59,10 @@ public sealed class GatewayEgressService(
         // #230/ADR-0004: refresh a cross-replica connection heartbeat while the stream is up. Best-effort
         // (the store swallows its own errors); folded into streamCt so it stops on disconnect/supersede.
         var replicaId = heartbeat?.ReplicaId ?? Environment.MachineName;
+        // #230 Phase 2b: the last applied point-list ETag the gateway reported via EgressUp.Status,
+        // shared between the request loop (writer) and the heartbeat loop (reader) so every heartbeat
+        // carries the current value. Null until the gateway reports one (→ sync state "unknown").
+        var revisionBox = new RevisionBox();
         Task? heartbeatLoop = null;
         try
         {
@@ -66,9 +70,9 @@ public sealed class GatewayEgressService(
 
             if (status is not null)
             {
-                await status.MarkConnectedAsync(gatewayId, replicaId, streamCt).ConfigureAwait(false);
+                await status.MarkConnectedAsync(gatewayId, replicaId, revisionBox.Value, streamCt).ConfigureAwait(false);
                 var interval = heartbeat?.Interval is { } iv && iv > TimeSpan.Zero ? iv : TimeSpan.FromSeconds(10);
-                heartbeatLoop = HeartbeatLoopAsync(status, gatewayId, replicaId, interval, streamCt);
+                heartbeatLoop = HeartbeatLoopAsync(status, gatewayId, replicaId, interval, revisionBox, streamCt);
             }
 
             // Two subscription loops (commands + point-list updates) write to responseStream, so
@@ -104,10 +108,28 @@ public sealed class GatewayEgressService(
             while (await requestStream.MoveNext(streamCt).ConfigureAwait(false))
             {
                 var up = requestStream.Current;
-                if (up.MCase != EgressUp.MOneofCase.Result) continue;
-                var result = up.Result;
-                await bus.PublishResultAsync(result.ControlId, ControlCommandMapper.ToResultJson(result), streamCt)
-                    .ConfigureAwait(false);
+                switch (up.MCase)
+                {
+                    case EgressUp.MOneofCase.Status:
+                        // #230 Phase 2b: cache the gateway's applied point-list ETag (heartbeat carries it
+                        // every tick) and refresh the entry now so the admin UI reflects sync state
+                        // promptly. Best-effort — the store swallows its own errors.
+                        var applied = up.Status.AppliedRevision ?? string.Empty;
+                        revisionBox.Value = applied;
+                        if (status is not null)
+                            await status.MarkConnectedAsync(gatewayId, replicaId, applied, streamCt).ConfigureAwait(false);
+                        break;
+
+                    case EgressUp.MOneofCase.Result:
+                        var result = up.Result;
+                        await bus.PublishResultAsync(result.ControlId, ControlCommandMapper.ToResultJson(result), streamCt)
+                            .ConfigureAwait(false);
+                        break;
+
+                    default:
+                        // Hello mid-stream or an unset/unknown oneof case — ignore.
+                        break;
+                }
             }
         }
         catch (OperationCanceledException) { /* client/stream cancelled or superseded — fall through to cleanup */ }
@@ -137,18 +159,34 @@ public sealed class GatewayEgressService(
         }
     }
 
-    /// <summary>Refreshes the connection heartbeat every <paramref name="interval"/> until the stream ends.</summary>
+    /// <summary>
+    /// Refreshes the connection heartbeat every <paramref name="interval"/> until the stream ends,
+    /// carrying the current applied point-list revision (#230 Phase 2b) so a heartbeat write never
+    /// clobbers the value reported by the request loop.
+    /// </summary>
     private static async Task HeartbeatLoopAsync(
-        IGatewayConnectionStatusStore status, string gatewayId, string replicaId, TimeSpan interval, CancellationToken ct)
+        IGatewayConnectionStatusStore status, string gatewayId, string replicaId, TimeSpan interval,
+        RevisionBox revision, CancellationToken ct)
     {
         try
         {
             while (!ct.IsCancellationRequested)
             {
                 await Task.Delay(interval, ct).ConfigureAwait(false);
-                await status.MarkConnectedAsync(gatewayId, replicaId, ct).ConfigureAwait(false);
+                await status.MarkConnectedAsync(gatewayId, replicaId, revision.Value, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { /* stream ended — expected */ }
+    }
+
+    /// <summary>
+    /// Thread-safe holder for the last applied point-list ETag the gateway reported via EgressUp.Status.
+    /// Written by the request loop, read by the heartbeat loop; a <c>volatile</c> reference is enough for
+    /// the single-writer/single-reader visibility this needs (#230 Phase 2b).
+    /// </summary>
+    private sealed class RevisionBox
+    {
+        private volatile string? _value;
+        public string? Value { get => _value; set => _value = value; }
     }
 }

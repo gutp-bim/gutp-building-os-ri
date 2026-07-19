@@ -5,6 +5,8 @@ import {
   connectedLabel,
   type GatewayAdminView,
   lastSeenLabel,
+  pointlistSyncedLabel,
+  pointlistSyncedTone,
   shortRevision,
 } from "@/lib/admin/gateways";
 import { useEffect, useState } from "react";
@@ -56,8 +58,9 @@ export function GatewayStatusPanel({
         className="mb-3 mt-0.5 text-xs text-gray-600"
       >
         binding / ポイント数 / pointlist リビジョンなどの登録情報です。接続状態は
-        egress 制御ストリームの生死（#230）、最終受信はテレメトリ（ingress）の最新
-        時刻で、両者は別軸です。
+        egress 制御ストリームの生死（#230）、pointlist 同期はゲートウェイ適用中 ETag と
+        twin の一致（#230 Phase 2b）、最終受信はテレメトリ（ingress）の最新時刻で、それぞれ
+        別軸です。
       </p>
       {error ? (
         <p className="text-sm text-red-700">{error}</p>
@@ -91,6 +94,18 @@ export function GatewayStatusPanel({
                   }`}
                 >
                   {connectedLabel(g.connected)}
+                </span>
+                <span
+                  data-testid="home-gateway-pointlist-synced"
+                  className={`mr-3 rounded px-1.5 py-0.5 text-xs font-medium ${
+                    pointlistSyncedTone(g.pointlistSynced) === "ok"
+                      ? "bg-green-100 text-green-800"
+                      : pointlistSyncedTone(g.pointlistSynced) === "warn"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {pointlistSyncedLabel(g.pointlistSynced)}
                 </span>
                 <span>{g.pointCount} ポイント</span>
                 <span

@@ -111,6 +111,7 @@ test.describe("Registered gateways", () => {
           certTrustAnchor: "",
           lastTelemetryAt: new Date(Date.now() - 90_000).toISOString(),
           connected: true, // live egress stream (#230)
+          pointlistSynced: true, // applied ETag matches twin (#230 Phase 2b)
         },
         {
           gatewayId: "GW-002",
@@ -121,6 +122,7 @@ test.describe("Registered gateways", () => {
           certTrustAnchor: "",
           lastTelemetryAt: null, // never reported → 受信なし
           connected: false, // no live egress stream
+          pointlistSynced: null, // not connected → sync state unknown (#230 Phase 2b)
         },
       ]),
     );
