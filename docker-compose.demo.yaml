@@ -37,6 +37,14 @@ services:
       # fills in quickly during the demo.
       PARQUET_FLUSH_INTERVAL: "1"
 
+  # Demo Web Client: auto-login without Keycloak so the one-command demo is zero-friction (#161).
+  # NEXT_PUBLIC_* は build 時にバンドルへ焼き込まれるため build arg で渡す（`make demo` は --build）。
+  # 認証をスキップしていることは画面上のバナーで明示される。
+  building-os.web:
+    build:
+      args:
+        NEXT_PUBLIC_DEMO_MODE: "true"
+
   # ── Demo telemetry feeder ─────────────────────────────────────────────────
   building-os.demo-feeder:
     build:

@@ -14,6 +14,7 @@ import { workspaceForPath } from "@/lib/nav/active";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Breadcrumb } from "./breadcrumb";
+import { DemoModeBanner } from "./demo-mode-banner";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 
@@ -45,6 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <div className="flex h-screen flex-col">
+        <DemoModeBanner />
         <Header
           workspaces={workspaces}
           currentWorkspace={currentWorkspace}
