@@ -3,6 +3,8 @@ import {
   bindingLabel,
   connectedLabel,
   lastSeenLabel,
+  pointlistSyncedLabel,
+  pointlistSyncedTone,
   shortRevision,
 } from "./gateways";
 
@@ -10,6 +12,15 @@ describe("gateways display helpers", () => {
   it("connectedLabel reflects the live egress connection state (#230)", () => {
     expect(connectedLabel(true)).toBe("接続中");
     expect(connectedLabel(false)).toBe("未接続");
+  });
+
+  it("pointlistSyncedLabel/Tone reflect the tri-state sync signal (#230 Phase 2b)", () => {
+    expect(pointlistSyncedLabel(true)).toBe("同期済み");
+    expect(pointlistSyncedLabel(false)).toBe("未同期");
+    expect(pointlistSyncedLabel(null)).toBe("同期状態不明");
+    expect(pointlistSyncedTone(true)).toBe("ok");
+    expect(pointlistSyncedTone(false)).toBe("warn");
+    expect(pointlistSyncedTone(null)).toBe("unknown");
   });
 
   it("labels known bindings, passes through unknown", () => {

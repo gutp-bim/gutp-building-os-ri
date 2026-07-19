@@ -7,6 +7,8 @@ import {
   connectedLabel,
   fetchGateways,
   lastSeenLabel,
+  pointlistSyncedLabel,
+  pointlistSyncedTone,
   resyncGatewayPointList,
   shortRevision,
   type GatewayAdminView,
@@ -76,8 +78,10 @@ export function GatewaysPageClient() {
         読み取り専用です。アイデンティティは mTLS クライアント証明書（OIDC
         クライアントの secret とは別系統）。
         <strong>接続</strong>は egress 制御ストリームの生死（#230、cross-replica
-        heartbeat）、<strong>最終受信</strong>
-        はテレメトリ（ingress）の最新時刻から導出した目安で、両者は別軸です。
+        heartbeat）、<strong>pointlist 同期</strong>はゲートウェイが適用中の ETag と
+        twin の一致（#230 Phase 2b、不明はゲートウェイ未報告）、
+        <strong>最終受信</strong>
+        はテレメトリ（ingress）の最新時刻から導出した目安で、それぞれ別軸です。
       </p>
 
       {error && (
@@ -100,6 +104,7 @@ export function GatewaysPageClient() {
                 <th className="px-3 py-2 font-medium">gatewayId</th>
                 <th className="px-3 py-2 font-medium">binding</th>
                 <th className="px-3 py-2 font-medium">接続</th>
+                <th className="px-3 py-2 font-medium">pointlist 同期</th>
                 <th className="px-3 py-2 font-medium">point 数</th>
                 <th className="px-3 py-2 font-medium">最終受信</th>
                 <th className="px-3 py-2 font-medium">revision</th>
@@ -127,6 +132,22 @@ export function GatewaysPageClient() {
                       }`}
                     >
                       {connectedLabel(gw.connected)}
+                    </span>
+                  </td>
+                  <td
+                    className="px-3 py-2"
+                    data-testid={`gw-pointlist-synced-${gw.gatewayId}`}
+                  >
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                        pointlistSyncedTone(gw.pointlistSynced) === "ok"
+                          ? "bg-green-100 text-green-800"
+                          : pointlistSyncedTone(gw.pointlistSynced) === "warn"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {pointlistSyncedLabel(gw.pointlistSynced)}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-600">{gw.pointCount}</td>

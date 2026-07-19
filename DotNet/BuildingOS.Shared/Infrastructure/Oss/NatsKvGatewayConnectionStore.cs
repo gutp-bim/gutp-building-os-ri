@@ -62,11 +62,12 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         return _kv!;
     }
 
-    public async Task MarkConnectedAsync(string gatewayId, string replicaId, CancellationToken ct = default)
+    public async Task MarkConnectedAsync(
+        string gatewayId, string replicaId, string? appliedRevision = null, CancellationToken ct = default)
     {
         try
         {
-            var status = new GatewayConnectionStatus(replicaId, DateTimeOffset.UtcNow);
+            var status = new GatewayConnectionStatus(replicaId, DateTimeOffset.UtcNow, appliedRevision);
             var json = JsonSerializer.SerializeToUtf8Bytes(status);
             var kv = await GetKvAsync(ct).ConfigureAwait(false);
             await kv.PutAsync(SanitizeKey(gatewayId), json, cancellationToken: ct).ConfigureAwait(false);

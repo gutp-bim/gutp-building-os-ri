@@ -51,6 +51,7 @@ const gateway: GatewayAdminView = {
   certTrustAnchor: "",
   lastTelemetryAt: null,
   connected: false,
+  pointlistSynced: null,
 };
 
 describe("OperatorHome", () => {

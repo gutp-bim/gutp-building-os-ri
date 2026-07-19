@@ -22,6 +22,13 @@ export interface GatewayAdminView {
    * can be receiving telemetry (ingress) yet have no egress stream, or vice-versa.
    */
   connected: boolean;
+  /**
+   * Pointlist sync state (#230 Phase 2b, ADR-0004 option A): compares the point-list ETag the gateway
+   * reports as applied (via the egress stream) against the twin-authoritative {@link revision}.
+   * `true` = in sync, `false` = drifted (a resync is warranted), `null` = unknown (the gateway has
+   * not reported one — e.g. not connected, or a build predating the report).
+   */
+  pointlistSynced: boolean | null;
 }
 
 /**
@@ -45,6 +52,23 @@ export function lastSeenLabel(
 /** Human label for the live egress connection state (#230). true → 「接続中」, false → 「未接続」. */
 export function connectedLabel(connected: boolean): string {
   return connected ? "接続中" : "未接続";
+}
+
+/** Tone for the pointlist sync badge (#230 Phase 2b): drives the badge colour without inline logic. */
+export type PointlistSyncTone = "ok" | "warn" | "unknown";
+
+/**
+ * Tri-state pointlist sync presentation (#230 Phase 2b). `true` → 同期済み (ok),
+ * `false` → 未同期 (warn — resync warranted), `null` → 不明 (unknown, e.g. not connected / not reported).
+ */
+export function pointlistSyncedLabel(synced: boolean | null): string {
+  if (synced === null) return "同期状態不明";
+  return synced ? "同期済み" : "未同期";
+}
+
+export function pointlistSyncedTone(synced: boolean | null): PointlistSyncTone {
+  if (synced === null) return "unknown";
+  return synced ? "ok" : "warn";
 }
 
 export function bindingLabel(binding: string): string {

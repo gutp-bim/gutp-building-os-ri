@@ -12,6 +12,7 @@ const gateway: GatewayAdminView = {
   certTrustAnchor: "",
   lastTelemetryAt: null,
   connected: false,
+  pointlistSynced: null,
 };
 
 describe("GatewayStatusPanel", () => {
@@ -62,6 +63,30 @@ describe("GatewayStatusPanel", () => {
     expect(
       await screen.findByTestId("home-gateway-connected"),
     ).toHaveTextContent("未接続");
+  });
+
+  it("shows the tri-state pointlist sync badge (#230 Phase 2b)", async () => {
+    const { rerender } = render(
+      <GatewayStatusPanel
+        fetchGateways={vi
+          .fn()
+          .mockResolvedValue([{ ...gateway, pointlistSynced: true }])}
+      />,
+    );
+    expect(
+      await screen.findByTestId("home-gateway-pointlist-synced"),
+    ).toHaveTextContent("同期済み");
+
+    rerender(
+      <GatewayStatusPanel
+        fetchGateways={vi
+          .fn()
+          .mockResolvedValue([{ ...gateway, pointlistSynced: false }])}
+      />,
+    );
+    expect(
+      await screen.findByTestId("home-gateway-pointlist-synced"),
+    ).toHaveTextContent("未同期");
   });
 
   it("shows a derived last-seen (受信なし when the gateway has not reported, #181)", async () => {

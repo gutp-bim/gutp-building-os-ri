@@ -131,22 +131,33 @@ public class GatewaysController : ControllerBase
             ? new Dictionary<string, string>()
             : GatewaySettingsMasker.Mask(connection.Settings);
 
+        var revision = PointListEtag.Compute(entries);
+
         // #230/ADR-0004: live egress connection state from the cross-replica heartbeat (KV, TTL-expired).
         // Distinct from LastTelemetryAt (ingress last-seen): present here = a bridge replica is holding an
         // egress stream for this gateway right now. Best-effort — a KV miss reads as not-connected.
-        var connected = await _connectionStatus.GetAsync(id, ct).ConfigureAwait(false) is not null;
+        var connectionStatus = await _connectionStatus.GetAsync(id, ct).ConfigureAwait(false);
+        var connected = connectionStatus is not null;
+
+        // #230 Phase 2b: pointlist sync state (tri-state). The gateway reports its applied ETag up the
+        // egress stream (EgressUp.Status → heartbeat KV); compare it to the twin-authoritative revision.
+        // null = not reported / not connected (unknown); true = applied == authoritative; false = drifted.
+        bool? pointlistSynced = connectionStatus?.AppliedRevision is { Length: > 0 } applied
+            ? string.Equals(applied, revision, StringComparison.Ordinal)
+            : null;
 
         return new GatewayAdminView(
             id,
             connection?.BindingType ?? "(unconfigured)",
             maskedSettings,
             entries.Length,
-            PointListEtag.Compute(entries),
+            revision,
             // Identity is bound to the mTLS client certificate (X-Gateway-Id) at the ingress, not a
             // Keycloak secret. Live cert expiry lives in cert-manager and is out of this surface.
             CertTrustAnchor: "mTLS client certificate (X-Gateway-Id)",
             LastTelemetryAt: await LastTelemetryAtAsync(entries, ct).ConfigureAwait(false),
-            Connected: connected);
+            Connected: connected,
+            PointlistSynced: pointlistSynced);
     }
 
     /// <summary>
@@ -202,12 +213,16 @@ public class GatewaysController : ControllerBase
 
 /// <summary>
 /// Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived
-/// <see cref="LastTelemetryAt"/> last-seen signal (#181 Phase 2), and the live egress
-/// <see cref="Connected"/> state (#230 Phase 2②). <c>LastTelemetryAt</c> is the most recent telemetry
-/// timestamp across the gateway's points (ISO-8601), or <c>null</c> when none have reported — it is the
-/// ingress last-seen, distinct from <c>Connected</c>. <c>Connected</c> is the cross-replica egress
-/// heartbeat (ADR-0004): <c>true</c> when a bridge replica is holding a live egress stream for this
-/// gateway right now, <c>false</c> when none is observed (TTL-expired/absent).
+/// <see cref="LastTelemetryAt"/> last-seen signal (#181 Phase 2), the live egress
+/// <see cref="Connected"/> state (#230 Phase 2②), and the pointlist <see cref="PointlistSynced"/> state
+/// (#230 Phase 2b). <c>LastTelemetryAt</c> is the most recent telemetry timestamp across the gateway's
+/// points (ISO-8601), or <c>null</c> when none have reported — it is the ingress last-seen, distinct
+/// from <c>Connected</c>. <c>Connected</c> is the cross-replica egress heartbeat (ADR-0004): <c>true</c>
+/// when a bridge replica is holding a live egress stream for this gateway right now, <c>false</c> when
+/// none is observed (TTL-expired/absent). <c>PointlistSynced</c> compares the ETag the gateway reports
+/// as applied against the twin-authoritative <see cref="Revision"/>: <c>true</c> = in sync, <c>false</c>
+/// = drifted (a resync is warranted), <c>null</c> = the gateway has not reported one (unknown — e.g. not
+/// connected, or a gateway build that predates the report).
 /// </summary>
 public sealed record GatewayAdminView(
     string GatewayId,
@@ -217,4 +232,5 @@ public sealed record GatewayAdminView(
     string Revision,
     string CertTrustAnchor,
     string? LastTelemetryAt,
-    bool Connected);
+    bool Connected,
+    bool? PointlistSynced);

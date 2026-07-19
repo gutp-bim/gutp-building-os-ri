@@ -19,7 +19,19 @@ message EgressUp {
   oneof m {
     Hello hello = 1;
     ControlResult result = 2;
+    GatewayStatus status = 3;
   }
+}
+
+// Gateway → bridge status report (#230 Phase 2b, ADR-0004 option A). Carries the point-list ETag the
+// gateway currently has applied (from GET /gateways/{id}/pointlist), so the bridge can surface pointlist
+// sync state (applied vs twin-authoritative ETag) over the same egress heartbeat path as connected/
+// disconnected. Sent after Hello and then periodically while the stream is up. Optional and additive —
+// a gateway that never sends it leaves the sync state "unknown" (an old bridge ignores the oneof case),
+// so connected detection is unaffected. Named GatewayStatus (not Status) to avoid clashing with
+// Grpc.Core.Status in the generated C# service code.
+message GatewayStatus {
+  string applied_revision = 1; // currently-applied point-list ETag ("sha256:…"), empty when none yet
 }
 
 message EgressDown {

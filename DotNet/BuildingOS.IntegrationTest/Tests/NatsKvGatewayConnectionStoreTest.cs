@@ -32,6 +32,22 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
 
         Assert.NotNull(status);
         Assert.Equal("replica-a", status!.ReplicaId);
+        Assert.Null(status.AppliedRevision); // none reported yet (#230 Phase 2b)
+    }
+
+    [Fact]
+    public async Task MarkConnected_WithAppliedRevision_RoundTrips()
+    {
+        // #230 Phase 2b: the gateway's applied point-list ETag is persisted on the heartbeat entry so
+        // the admin read side can derive pointlist sync state.
+        var store = await CreateStoreAsync();
+        var gatewayId = $"gw-{Guid.NewGuid():N}";
+
+        await store.MarkConnectedAsync(gatewayId, "replica-a", "\"sha256:abc\"");
+        var status = await store.GetAsync(gatewayId);
+
+        Assert.NotNull(status);
+        Assert.Equal("\"sha256:abc\"", status!.AppliedRevision);
     }
 
     [Fact]
