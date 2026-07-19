@@ -3,6 +3,7 @@ import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
 import type { PointFreshness } from "@/lib/telemetry/freshness";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { OperatorHome } from "./operator-home";
 
@@ -109,15 +110,13 @@ describe("OperatorHome", () => {
 
   it("shows the empty state when every point is fresh", async () => {
     const loaders = makeLoaders({
-      loadFreshness: vi
-        .fn()
-        .mockResolvedValue(
-          namedPoints.map((p) => ({
-            pointId: p.pointId,
-            status: "fresh",
-            ageSeconds: 1,
-          })),
-        ),
+      loadFreshness: vi.fn().mockResolvedValue(
+        namedPoints.map((p) => ({
+          pointId: p.pointId,
+          status: "fresh",
+          ageSeconds: 1,
+        })),
+      ),
     });
     render(
       <OperatorHome
@@ -129,6 +128,78 @@ describe("OperatorHome", () => {
     expect(
       await screen.findByTestId("home-attention-empty"),
     ).toBeInTheDocument();
+  });
+
+  it("aggregates every floor's attention points when すべてのフロア is selected (#158 Phase 2)", async () => {
+    const floor2: ResourceRef = {
+      type: "floor",
+      dtId: "f2",
+      id: "f2",
+      name: "2F",
+    };
+    // Each floor contributes one stale point; the building-wide view must show both.
+    const loadFloorPoints = vi
+      .fn()
+      .mockImplementation((floorDtId: string) =>
+        Promise.resolve(
+          floorDtId === "f1"
+            ? [
+                {
+                  pointId: "p1",
+                  name: "1F室温",
+                  deviceName: "AHU-1",
+                  spaceName: "会議室A",
+                },
+              ]
+            : [
+                {
+                  pointId: "p2",
+                  name: "2F室温",
+                  deviceName: "AHU-2",
+                  spaceName: "会議室B",
+                },
+              ],
+        ),
+      );
+    const loadFreshness = vi
+      .fn()
+      .mockImplementation((points: { pointId: string }[]) =>
+        Promise.resolve(
+          points.map((p) => ({
+            pointId: p.pointId,
+            status: "stale" as const,
+            ageSeconds: 900,
+          })),
+        ),
+      );
+    const loaders = makeLoaders({
+      loadFloors: vi.fn().mockResolvedValue([floor, floor2]),
+      loadFloorPoints,
+      loadFreshness,
+    });
+
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    // The first floor auto-loads (one row); switching to すべてのフロア aggregates both.
+    await screen.findAllByTestId("home-attention-row");
+    await userEvent.selectOptions(
+      screen.getByTestId("home-floor-select"),
+      "__all__",
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("home-attention-row")).toHaveLength(2);
+    });
+    expect(loadFloorPoints).toHaveBeenCalledWith("f1");
+    expect(loadFloorPoints).toHaveBeenCalledWith("f2");
+    expect(screen.getByText("1F室温")).toBeInTheDocument();
+    expect(screen.getByText("2F室温")).toBeInTheDocument();
   });
 
   it("hides the gateway panel for non-admins and shows it for admins", async () => {
