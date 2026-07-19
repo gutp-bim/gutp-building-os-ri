@@ -1,7 +1,8 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { AssistantChat } from "@/components/assistant/assistant-chat";
+import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
+import { ToastProvider } from "@/components/ui/toast";
 import { useOidcAuth } from "@/lib/auth/oidc-auth-provider";
 import {
   WORKSPACES,
@@ -10,8 +11,8 @@ import {
   workspacesForRole,
 } from "@/lib/auth/workspaces";
 import { workspaceForPath } from "@/lib/nav/active";
-import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
-import { AssistantChat } from "@/components/assistant/assistant-chat";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Breadcrumb } from "./breadcrumb";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
@@ -42,31 +43,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen flex-col">
-      <Header
-        workspaces={workspaces}
-        currentWorkspace={currentWorkspace}
-        onSelectWorkspace={onSelectWorkspace}
-        displayName={displayName}
-        onSignOut={signOut}
-        onToggleSidebar={() => setSidebarOpen((open) => !open)}
-        sidebarOpen={sidebarOpen}
-      />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar
-          workspace={currentWorkspace}
-          permissions={permissions}
-          pathname={pathname}
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
+    <ToastProvider>
+      <div className="flex h-screen flex-col">
+        <Header
+          workspaces={workspaces}
+          currentWorkspace={currentWorkspace}
+          onSelectWorkspace={onSelectWorkspace}
+          displayName={displayName}
+          onSignOut={signOut}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          sidebarOpen={sidebarOpen}
         />
-        <main className="min-w-0 flex-1 overflow-auto">
-          <Breadcrumb pathname={pathname} />
-          {children}
-        </main>
+        <div className="flex min-h-0 flex-1">
+          <Sidebar
+            workspace={currentWorkspace}
+            permissions={permissions}
+            pathname={pathname}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
+          <main className="min-w-0 flex-1 overflow-auto">
+            <Breadcrumb pathname={pathname} />
+            {children}
+          </main>
+        </div>
+        <OnboardingTour role={role} />
+        <AssistantChat />
       </div>
-      <OnboardingTour role={role} />
-      <AssistantChat />
-    </div>
+    </ToastProvider>
   );
 }
