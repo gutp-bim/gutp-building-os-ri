@@ -433,6 +433,8 @@ services:
         NEXT_PUBLIC_KEYCLOAK_AUTHORITY: ${NEXT_PUBLIC_KEYCLOAK_AUTHORITY:-http://localhost:8080/realms/building-os}
         NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: ${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID:-web-client}
         NEXT_PUBLIC_ASSISTANT_ENABLED: ${NEXT_PUBLIC_ASSISTANT_ENABLED:-false}
+        # Demo auto-login (#161): false in the default (Keycloak-unified) stack; the demo overlay sets true.
+        NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-false}
     container_name: building-os.web
     profiles: ["webclient"]
     environment:
