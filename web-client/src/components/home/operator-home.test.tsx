@@ -1,6 +1,7 @@
 import type { GatewayAdminView } from "@/lib/admin/gateways";
 import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
+import type { PointAlarm } from "@/lib/telemetry/alarm";
 import type { PointFreshness } from "@/lib/telemetry/freshness";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -38,6 +39,7 @@ function makeLoaders(overrides: Partial<HomeLoaders> = {}): HomeLoaders {
     loadFloors: vi.fn().mockResolvedValue([floor]),
     loadFloorPoints: vi.fn().mockResolvedValue(namedPoints),
     loadFreshness: vi.fn().mockResolvedValue(freshness),
+    loadAlarms: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -91,6 +93,30 @@ describe("OperatorHome", () => {
     expect(rows[0]).toHaveTextContent("CO2"); // missing sorts first
     expect(rows[0]).toHaveTextContent("欠測");
     expect(rows[1]).toHaveTextContent("湿度"); // stale
+  });
+
+  it("surfaces value alarms above freshness, with a count and value label (#158 Phase 2a)", async () => {
+    const alarms: PointAlarm[] = [
+      { pointId: "p1", status: "critical", value: 40, breach: "high" }, // p1 was fresh
+    ];
+    render(
+      <OperatorHome
+        loaders={makeLoaders({ loadAlarms: vi.fn().mockResolvedValue(alarms) })}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("summary-alarm")).getByText("1"),
+      ).toBeInTheDocument(),
+    );
+    const rows = await screen.findAllByTestId("home-attention-row");
+    // critical alarm sorts before missing/stale.
+    expect(rows[0]).toHaveTextContent("室温");
+    expect(rows[0]).toHaveTextContent("異常値（上限 40）");
+    expect(rows).toHaveLength(3); // p1 critical + p2 stale + p3 missing
   });
 
   it("links each attention row to the point detail and shows its space/device", async () => {

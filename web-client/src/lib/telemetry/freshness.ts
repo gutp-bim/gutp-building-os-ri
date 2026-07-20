@@ -19,6 +19,8 @@ export type FreshnessStatus = "fresh" | "stale" | "missing";
 export type PointLastSeen = {
   pointId: string;
   lastSeen: string | null;
+  /** The most recent numeric value (#158 Phase 2a alarm evaluation); null when none/non-numeric. */
+  value?: number | null;
   /**
    * Per-point stale threshold in seconds (#183). When set, it overrides the `thresholdSeconds`
    * argument for this point — this is how an expected-interval-derived threshold is applied to each

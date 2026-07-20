@@ -31,6 +31,15 @@ export type PointResource = ResourceRef & {
    * stale detection (#183); null when the twin has no expected interval for this point.
    */
   expectedIntervalSeconds: number | null;
+  /**
+   * Opt-in per-point alarm thresholds (#158 Phase 2a, `bos:alarmHigh`/`alarmLow`/`warnHigh`/`warnLow`);
+   * null when unset. `alarm*` = critical (outer) limits, `warn*` = inner limits. Drive
+   * {@link classifyPointAlarm}. Distinct from control-write bounds (ADR-0005).
+   */
+  alarmHigh: number | null;
+  alarmLow: number | null;
+  warnHigh: number | null;
+  warnLow: number | null;
 };
 
 /** One cross-resource search match. */

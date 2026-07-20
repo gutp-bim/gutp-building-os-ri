@@ -426,7 +426,7 @@ ORDER BY ?gw";
 
     private static string BuildPointSelect(string? deviceUri) => deviceUri is null
         ? $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow
 WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
   BIND(?pt AS ?ptDt)
@@ -438,9 +438,13 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
   OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
+  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
+  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
 }}"
         : $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow
 WHERE {{
   <{deviceUri}> <{Prop_HasPoint}> ?pt .
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
@@ -453,6 +457,10 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
   OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
+  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
+  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
 }}";
 
     private static BuildingOS.Shared.Point MapPoint(IReadOnlyDictionary<string, string> r) =>
@@ -469,6 +477,12 @@ WHERE {{
             ObjectTypeBacnet = r.GetValueOrDefault("objType"),
             InstanceNoBacnet = TryParseNullableInt(r.GetValueOrDefault("instNo")),
             Interval = TryParseNullableFloat(r.GetValueOrDefault("ptInterval")),
+            // #158 Phase 2a: opt-in alarm thresholds; absent for read paths that don't SELECT them
+            // (GetValueOrDefault → null), so only the device→points list carries them today.
+            AlarmHigh = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmHigh")),
+            AlarmLow = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmLow")),
+            WarnHigh = TryParseNullableFloat(r.GetValueOrDefault("ptWarnHigh")),
+            WarnLow = TryParseNullableFloat(r.GetValueOrDefault("ptWarnLow")),
         };
 
     private static Device MapDevice(IReadOnlyDictionary<string, string> r) =>

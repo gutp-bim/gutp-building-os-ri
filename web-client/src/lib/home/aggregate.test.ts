@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { PointAlarm } from "@/lib/telemetry/alarm";
 import type { PointFreshness } from "@/lib/telemetry/freshness";
-import { buildAttentionList } from "./aggregate";
+import { activeAlarms, buildAttentionList } from "./aggregate";
 
 const named = [
   { pointId: "p1", name: "室温" },
@@ -42,6 +43,43 @@ describe("buildAttentionList", () => {
       ageSeconds: 1,
     }));
     expect(buildAttentionList(named, allFresh)).toEqual([]);
+  });
+
+  it("merges value alarms and sorts critical → warn → missing → stale (#158 Phase 2a)", () => {
+    const alarms: PointAlarm[] = [
+      { pointId: "p1", status: "warn", value: 27, breach: "high" },
+      { pointId: "p2", status: "critical", value: 40, breach: "high" }, // p2 is also stale
+    ];
+    const items = buildAttentionList(named, freshness, alarms);
+    // p2 is both critical (alarm) and stale (freshness) → kept as the worse (critical).
+    expect(items.map((i) => i.pointId)).toEqual(["p2", "p1", "p3", "p4"]);
+    const p2 = items.find((i) => i.pointId === "p2");
+    expect(p2?.status).toBe("critical");
+    expect(p2?.value).toBe(40);
+    expect(p2?.breach).toBe("high");
+    // p1 was fresh, so it only surfaces because of its warn alarm.
+    expect(items.find((i) => i.pointId === "p1")?.status).toBe("warn");
+  });
+
+  it("activeAlarms drops alarms whose data is stale/missing (untrustworthy value)", () => {
+    const alarms: PointAlarm[] = [
+      { pointId: "p1", status: "critical", value: 40, breach: "high" }, // fresh → kept
+      { pointId: "p2", status: "critical", value: 40, breach: "high" }, // stale → dropped
+      { pointId: "p3", status: "warn", value: 27, breach: "high" }, // missing → dropped
+    ];
+    const kept = activeAlarms(alarms, freshness);
+    expect(kept.map((a) => a.pointId)).toEqual(["p1"]);
+  });
+
+  it("ignores ok/unknown alarms (only critical/warn surface)", () => {
+    const alarms: PointAlarm[] = [
+      { pointId: "p1", status: "ok", value: 20, breach: null },
+      { pointId: "p2", status: "unknown", value: null, breach: null },
+    ];
+    // p1 fresh + ok → not listed; p2 stale (freshness) still lists as stale.
+    const items = buildAttentionList(named, freshness, alarms);
+    expect(items.find((i) => i.pointId === "p1")).toBeUndefined();
+    expect(items.find((i) => i.pointId === "p2")?.status).toBe("stale");
   });
 
   it("carries the device and space names from the named points", () => {

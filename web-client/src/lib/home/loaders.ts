@@ -6,6 +6,8 @@ import {
   listSpaces,
 } from "@/lib/resources/repository";
 import type { ResourceRef } from "@/lib/resources/types";
+import type { PointAlarm } from "@/lib/telemetry/alarm";
+import { loadPointsAlarms } from "@/lib/telemetry/alarm-loader";
 import type { PointFreshness } from "@/lib/telemetry/freshness";
 import { loadPointsFreshness } from "@/lib/telemetry/freshness-loader";
 import { getTelemetryConfig } from "@/lib/telemetry/repository";
@@ -27,6 +29,11 @@ export type HomeLoaders = {
    * point's expected interval drives its own stale threshold (#183).
    */
   loadFreshness: (points: NamedPoint[]) => Promise<PointFreshness[]>;
+  /**
+   * Per-point value-threshold alarms (#158 Phase 2a). Takes the {@link NamedPoint}s so each point's
+   * opt-in thresholds are applied; points without thresholds come back `unknown` (not surfaced).
+   */
+  loadAlarms: (points: NamedPoint[]) => Promise<PointAlarm[]>;
 };
 
 /**
@@ -53,6 +60,12 @@ export const productionHomeLoaders: HomeLoaders = {
               deviceName: d.name,
               spaceName: s.name,
               expectedIntervalSeconds: p.expectedIntervalSeconds,
+              thresholds: {
+                alarmHigh: p.alarmHigh,
+                alarmLow: p.alarmLow,
+                warnHigh: p.warnHigh,
+                warnLow: p.warnLow,
+              },
             }));
           }),
         );
@@ -77,4 +90,12 @@ export const productionHomeLoaders: HomeLoaders = {
       },
     );
   },
+  // #158 Phase 2a: value-threshold alarms. A separate batch-latest read from loadFreshness (the
+  // operator screen is admin-only and low-frequency); consolidating the two reads into one is a
+  // possible follow-up.
+  loadAlarms: async (points) =>
+    loadPointsAlarms(
+      points.map((p) => p.pointId),
+      new Map(points.map((p) => [p.pointId, p.thresholds])),
+    ),
 };
