@@ -214,53 +214,53 @@
   dependencies:
     css-tree "^3.0.0"
 
-"@bufbuild/buf-darwin-arm64@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-darwin-arm64/-/buf-darwin-arm64-1.71.0.tgz#453523de04b79dfed9f7a9aa897985d553cd703b"
-  integrity sha512-qZ7xZQyen/jOKFPVs3dlN9pMA56PI4YEo3r4/9ixtiH9gyFgfowR31axsocUgXGThjiN8mvOA8WfpG2tvaSvsw==
+"@bufbuild/buf-darwin-arm64@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-darwin-arm64/-/buf-darwin-arm64-1.72.0.tgz#8544dca0be7139245f24b04ffc3ca44a761baa4e"
+  integrity sha512-rKHRvjwAThapxIoOn92vIoTjYSz5FmRemDRLU4BYT4T6QWMEC13PM3/pPnqVgsNKZ5aW7iYDm9ztnisEqSi5yA==
 
-"@bufbuild/buf-darwin-x64@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-darwin-x64/-/buf-darwin-x64-1.71.0.tgz#b2c67f3d05bdbc81086ffb504585bf6b0dcaf0a8"
-  integrity sha512-2w95pc3X+z06/J66i6uNzA8QPuVOpbPrwyb6tkK0AcJFNvKPVYr4BxVC2koyImrQ3rxY1n9q8qviWMjSvq9fOA==
+"@bufbuild/buf-darwin-x64@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-darwin-x64/-/buf-darwin-x64-1.72.0.tgz#6587b5bde12c9bc8a8a2a6e2a6b7dd564c474b81"
+  integrity sha512-4TQ1AGft8sGspNg9NMsEjsKKis7nGaVV8tZLnNa3cKUBmx22gwOnB6VRhgKWwjf+BDqr85lUEzQ6wHCboNUutg==
 
-"@bufbuild/buf-linux-aarch64@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-linux-aarch64/-/buf-linux-aarch64-1.71.0.tgz#2a6efbf7ec5412189b12d1aa14c7b9800129d06b"
-  integrity sha512-dwxErryMI3MRwtP/IgfdrqEjiAmVpttGhmO3xihiJIV2EAXt9J5yjzHhEDvnSgQ6nmNjEvO5QczcIaQjZEwF6A==
+"@bufbuild/buf-linux-aarch64@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-linux-aarch64/-/buf-linux-aarch64-1.72.0.tgz#29cdf49f70aaa06b5e42543ff06109db674d2ab5"
+  integrity sha512-cbIsUcgM5bHhbZWcDaAXqaYOAi8N0c0u+NiDydwVmZ04Et3s1EZ3TDqfQDRzwvoBPDP+lsO6YuTRXX6nI28x4w==
 
-"@bufbuild/buf-linux-armv7@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-linux-armv7/-/buf-linux-armv7-1.71.0.tgz#f6d6579a73980d4167af8055391f3a394380326c"
-  integrity sha512-pfc+Qexm5C59VeRUjVmEvxkCXT5QbMR1R/CUtcSlk+spOFVwna0bSpkqIsky3kkHfzxiNSOsz3iki9/pAVX+CA==
+"@bufbuild/buf-linux-armv7@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-linux-armv7/-/buf-linux-armv7-1.72.0.tgz#63d6a3a9c25b17eb5e912da4226f69e347141262"
+  integrity sha512-v/bXVsFL8YNm2HgosGb9r3+nAt4jQiUc3r3JipYuiVY3DAJZAjoEvcak6/BkxQMTEQz9Zb8gRRlule9IFkbc5g==
 
-"@bufbuild/buf-linux-x64@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-linux-x64/-/buf-linux-x64-1.71.0.tgz#b80eb878e442bd9c0bd307636876ab78eae298c7"
-  integrity sha512-Y7jLxr3wpMkpQSqZU/MrDmDSCkF4GxvhIL7wnNdSRpkhYAY6TPRHN+5nNgV7jp6mQ0zQSYh0MGxBeMgt/UVdmQ==
+"@bufbuild/buf-linux-x64@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-linux-x64/-/buf-linux-x64-1.72.0.tgz#a3c6df208f9d01e0b63540521dffaaafd2834d83"
+  integrity sha512-4xHGXEjqFxo1wX1zMGq4CzhYt5++nrj4C7k30j+YmGtvqCnipfdSe+V6kknBYRfYswVZEUwUbQOh6pnMTcGcrA==
 
-"@bufbuild/buf-win32-arm64@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-win32-arm64/-/buf-win32-arm64-1.71.0.tgz#debe860b99d9af1aa6b5aa3aae0e5fcaeaa1445b"
-  integrity sha512-UrxtD99zLE1qImtQC/W3a9cuj0/kB53B1bK38kmCMRFow939FhdZtqTRjbnZWauRi/pzAsjDyPCvnTa2XKT8Cg==
+"@bufbuild/buf-win32-arm64@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-win32-arm64/-/buf-win32-arm64-1.72.0.tgz#0a89f3838715cca09953923f751d8ffc4327a01a"
+  integrity sha512-WH7ClsoB9A0e/5fFhx0DLqLzillYPRdHBhlwzihgvjGci0bBdyJVHSQGf0B9uspCMU6sn6W/N1S9/2vvQBNMug==
 
-"@bufbuild/buf-win32-x64@1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf-win32-x64/-/buf-win32-x64-1.71.0.tgz#83786dc587db5c6e0493f34f2270b5eb8a43051e"
-  integrity sha512-+npiOimJ7ggeLul3KFwSlOjZnAZYwt3el64dJ3nJQMnui0avyvsRmU02o1bZI5yUnBvhcnTWdEbfRXUnkkVtgQ==
+"@bufbuild/buf-win32-x64@1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf-win32-x64/-/buf-win32-x64-1.72.0.tgz#6e4987229f63df754883b67a5136488bb90c31b4"
+  integrity sha512-X3eWqFzhDmu8CYQZz+Fu7i+PgH+yUl8UwJ5+x+bhZRYAIdcijikthodk60c5u/qq42m1Z2XAnAGyp/mTf7IffA==
 
-"@bufbuild/buf@^1.71.0":
-  version "1.71.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/buf/-/buf-1.71.0.tgz#7d6d102b0409a64c4f49016caf72271c999802bd"
-  integrity sha512-GDcjBCwLgHT/4nX4YSnYatZ7sDZDpHV6dxQvoT2/P6gKvV23O6hl8NryzLIRKmeau0FRXpQKHVy1dMfnBSpy+w==
+"@bufbuild/buf@^1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/buf/-/buf-1.72.0.tgz#81276d6df758a3273ca48e19c421acf2d4c7e707"
+  integrity sha512-BwBKTX/WXkhAhqWJGrEKnqU03/4tK1O0OozSlwUMBCOEo8pLL3xu3M24RT3+umExEeM0wjlANO6axqGWMqtt4Q==
   optionalDependencies:
-    "@bufbuild/buf-darwin-arm64" "1.71.0"
-    "@bufbuild/buf-darwin-x64" "1.71.0"
-    "@bufbuild/buf-linux-aarch64" "1.71.0"
-    "@bufbuild/buf-linux-armv7" "1.71.0"
-    "@bufbuild/buf-linux-x64" "1.71.0"
-    "@bufbuild/buf-win32-arm64" "1.71.0"
-    "@bufbuild/buf-win32-x64" "1.71.0"
+    "@bufbuild/buf-darwin-arm64" "1.72.0"
+    "@bufbuild/buf-darwin-x64" "1.72.0"
+    "@bufbuild/buf-linux-aarch64" "1.72.0"
+    "@bufbuild/buf-linux-armv7" "1.72.0"
+    "@bufbuild/buf-linux-x64" "1.72.0"
+    "@bufbuild/buf-win32-arm64" "1.72.0"
+    "@bufbuild/buf-win32-x64" "1.72.0"
 
 "@bufbuild/protobuf@2.12.1", "@bufbuild/protobuf@^2.12.1":
   version "2.12.1"
@@ -3701,10 +3701,10 @@ lru-cache@^5.1.1:
   dependencies:
     yallist "^3.0.2"
 
-lucide-react@^1.24.0:
-  version "1.24.0"
-  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.24.0.tgz#5f6da7f37d9107d192e54b7654a99b3468a212c6"
-  integrity sha512-YT6mBD8lGKkg4nM39enlm94/sfJIiW0YKUT60fBy4YK8tai31ylg1VhGNWxkpSKHo9UagfnZqwIff3HTDQwXeA==
+lucide-react@^1.25.0:
+  version "1.25.0"
+  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.25.0.tgz#c56fd69d3ac27c94714d8b9afda67e71db61e63c"
+  integrity sha512-/mdJTRbiwcLOQ1NZZK1amZF9rIZyvO18D6r9TngE6TG1NmqHgFuT4eE7Xrkm9UsXMbBJD1NlfwHVltCDWHrOTw==
 
 lz-string@^1.5.0:
   version "1.5.0"
@@ -4122,10 +4122,10 @@ react-dom@^19.2.7:
   dependencies:
     scheduler "^0.27.0"
 
-react-hook-form@^7.81.0:
-  version "7.81.0"
-  resolved "https://registry.yarnpkg.com/react-hook-form/-/react-hook-form-7.81.0.tgz#003f1b4fd13102ab1142aec220572401ad1edac4"
-  integrity sha512-ocbmr2p5KBMoAfj4WCUvped33lVi1Kd5DuDUvQDnB6VEAacOjPI/jMbtDdbhco4y9ct4xUuCmMY0b/C9L0QHjw==
+react-hook-form@^7.82.0:
+  version "7.82.0"
+  resolved "https://registry.yarnpkg.com/react-hook-form/-/react-hook-form-7.82.0.tgz#9e8d504fe99ddd5a26a1d858bb6a03de45abff3e"
+  integrity sha512-Zw/uFZ2dO+02GHlBn7JFGn8kZJ7LdM33B/0BXOovzFay+CMhf94JMw5BVu+F1tVkUKjNvBuaE3fz5BJhga10Tg==
 
 react-is@^16.13.1:
   version "16.13.1"
