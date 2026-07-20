@@ -27,7 +27,7 @@ public sealed class ElectricConnectorWorker(
                 Datetime: json.ConnTime,
                 Name: x.Name.GetString() ?? string.Empty,
                 DeviceId: x.DeviceId.GetString() ?? string.Empty,
-                Data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([
+                Data: new ValidMessage.ValidTelemetryEntity.DataEntity([
                     new JsonObjectProperty("deviceId", x.DeviceId)
                 ])))
             .ToList();

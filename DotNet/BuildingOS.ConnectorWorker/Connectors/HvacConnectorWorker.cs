@@ -30,7 +30,7 @@ public sealed class HvacConnectorWorker(
                     Datetime: json.ConnTime,
                     Name: x.UnitName.GetString() ?? string.Empty,
                     DeviceId: json.DeviceId.GetString() ?? string.Empty,
-                    Data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([
+                    Data: new ValidMessage.ValidTelemetryEntity.DataEntity([
                         new JsonObjectProperty("ipAddress", json.IpAddress)
                     ]));
             })

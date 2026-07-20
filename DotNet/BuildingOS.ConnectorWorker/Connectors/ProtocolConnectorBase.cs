@@ -12,7 +12,7 @@ namespace BuildingOS.ConnectorWorker.Connectors;
 ///   parse schema → extract readings → resolve PointId → build ValidTelemetryEntity.
 ///
 /// Subclasses implement ExtractReadingsAsync and return a list of ProtocolReading.
-/// This class handles PointId resolution and ValidMessageJson construction.
+/// This class handles PointId resolution and ValidMessage construction.
 ///
 /// Applies to: HvacConnectorWorker, ElectricConnectorWorker.
 /// Does NOT apply to: EnvironmentalConnectorWorker (multi-value), BacnetConnectorWorker
@@ -44,7 +44,7 @@ public abstract class ProtocolConnectorBase(
             if (!found) return (JsonAny?)null;
 
             var pointId = pointIds.First();
-            return ValidMessageJson.ValidTelemetryEntity.Create(
+            return ValidMessage.ValidTelemetryEntity.Create(
                 id: $"{pointId}.{DateTime.UtcNow.ToUnixTime()}",
                 pointId: pointId,
                 building: new JsonString(string.Empty),
@@ -59,6 +59,6 @@ public abstract class ProtocolConnectorBase(
         var telemetries = entities.Where(e => e.HasValue).Select(e => e!.Value).ToArray();
         if (telemetries.Length == 0) return null;
 
-        return ValidMessageJson.Create(new ValidMessageJson.ValidTelemetryEntityArray(telemetries)).ToString();
+        return ValidMessage.Create(new ValidMessage.ValidTelemetryEntityArray(telemetries)).ToString();
     }
 }

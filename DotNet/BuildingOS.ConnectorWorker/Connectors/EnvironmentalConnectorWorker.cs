@@ -47,13 +47,13 @@ public sealed class EnvironmentalConnectorWorker(
         var telemetries = batches.SelectMany(b => b).ToArray();
         if (telemetries.Length == 0) return null;
 
-        return ValidMessageJson.Create(new ValidMessageJson.ValidTelemetryEntityArray(telemetries)).ToString();
+        return ValidMessage.Create(new ValidMessage.ValidTelemetryEntityArray(telemetries)).ToString();
     }
 
     private static JsonAny CreateEntity(
         EnvironmentalDeviceMessageJson.EnvironmentalDeviceTelemetryEntity data,
         string pointId, JsonNumber value, JsonDateTime time) =>
-        ValidMessageJson.ValidTelemetryEntity.Create(
+        ValidMessage.ValidTelemetryEntity.Create(
             id: $"{pointId}.{DateTime.UtcNow.ToUnixTime()}",
             pointId: pointId,
             building: new JsonString(string.Empty),
@@ -61,7 +61,7 @@ public sealed class EnvironmentalConnectorWorker(
             value: value,
             name: data.Code.GetString() ?? string.Empty,
             deviceId: data.Code,
-            data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([
+            data: new ValidMessage.ValidTelemetryEntity.DataEntity([
                 new JsonObjectProperty("code", data.Code),
                 new JsonObjectProperty("type", data.Type)
             ]));

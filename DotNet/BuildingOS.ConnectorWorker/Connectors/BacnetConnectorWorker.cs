@@ -33,7 +33,7 @@ public sealed class BacnetConnectorWorker(
 
                 if (pointInfo == null) continue;
 
-                entities.Add(ValidMessageJson.ValidTelemetryEntity.Create(
+                entities.Add(ValidMessage.ValidTelemetryEntity.Create(
                     id: $"{pointInfo.PointId}.{DateTime.UtcNow.ToUnixTime()}",
                     pointId: pointInfo.PointId,
                     building: new JsonString(string.Empty),
@@ -41,14 +41,14 @@ public sealed class BacnetConnectorWorker(
                     value: valueString.Properties.PresentValue.AsNumber,
                     name: pointInfo.PointName,
                     deviceId: deviceId,
-                    data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([
+                    data: new ValidMessage.ValidTelemetryEntity.DataEntity([
                         new JsonObjectProperty("bacnetDeviceId", valueString.BAnetDevice)
                     ])));
             }
         }
 
         if (entities.Count == 0) return null;
-        return ValidMessageJson.Create(
-            new ValidMessageJson.ValidTelemetryEntityArray([.. entities])).ToString();
+        return ValidMessage.Create(
+            new ValidMessage.ValidTelemetryEntityArray([.. entities])).ToString();
     }
 }
