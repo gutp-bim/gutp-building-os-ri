@@ -1,9 +1,15 @@
 "use client";
 
 import { fetchGateways as defaultFetchGateways } from "@/lib/admin/gateways";
-import { buildAttentionList, type NamedPoint } from "@/lib/home/aggregate";
+import {
+  activeAlarms,
+  type AttentionItem,
+  buildAttentionList,
+  type NamedPoint,
+} from "@/lib/home/aggregate";
 import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
+import { type PointAlarm, summarizeAlarms } from "@/lib/telemetry/alarm";
 import {
   summarizeFreshness,
   type FreshnessSummary,
@@ -41,6 +47,7 @@ export function OperatorHome({
   const [floors, setFloors] = useState<ResourceRef[]>([]);
   const [floorDtId, setFloorDtId] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<PointFreshness[]>([]);
+  const [alarms, setAlarms] = useState<PointAlarm[]>([]);
   const [named, setNamed] = useState<NamedPoint[]>([]);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +103,7 @@ export function OperatorHome({
     if (floorIds.length === 0) {
       setNamed([]);
       setFreshness([]);
+      setAlarms([]);
       return;
     }
     let active = true;
@@ -104,6 +112,7 @@ export function OperatorHome({
     // Reset the previous selection's data so the summary cards don't show its counts mid-switch.
     setNamed([]);
     setFreshness([]);
+    setAlarms([]);
     (async () => {
       const perFloor = await Promise.all(
         floorIds.map((id) => loaders.loadFloorPoints(id)),
@@ -111,9 +120,14 @@ export function OperatorHome({
       if (!active) return;
       const points = perFloor.flat();
       setNamed(points);
-      const fresh = await loaders.loadFreshness(points);
+      // Freshness (arrival) and alarms (value) are independent axes — fetch both.
+      const [fresh, al] = await Promise.all([
+        loaders.loadFreshness(points),
+        loaders.loadAlarms(points),
+      ]);
       if (!active) return;
       setFreshness(fresh);
+      setAlarms(al);
     })()
       .catch(
         (e) => active && setError(errMsg(e, "テレメトリの取得に失敗しました")),
@@ -125,7 +139,11 @@ export function OperatorHome({
   }, [loaders, floorDtId, floors]);
 
   const summary: FreshnessSummary = summarizeFreshness(freshness);
-  const attention = buildAttentionList(named, freshness);
+  // Only alarm on points whose data is fresh — a breach from a stale/missing point is not a live value
+  // alarm, and surfaces as its freshness issue instead (#158 Phase 2a).
+  const alarms_ = activeAlarms(alarms, freshness);
+  const alarmSummary = summarizeAlarms(alarms_);
+  const attention = buildAttentionList(named, freshness, alarms_);
 
   return (
     <div data-testid="operator-home" className="space-y-6 p-6">
@@ -181,7 +199,16 @@ export function OperatorHome({
         </p>
       )}
 
-      <section className="grid grid-cols-3 gap-4" data-testid="home-summary">
+      <section
+        className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+        data-testid="home-summary"
+      >
+        <SummaryCard
+          label="異常"
+          value={alarmSummary.critical + alarmSummary.warn}
+          testid="summary-alarm"
+          tone="text-red-700"
+        />
         <SummaryCard
           label="最新"
           value={summary.fresh}
@@ -241,11 +268,9 @@ export function OperatorHome({
                   </span>
                   <span
                     data-testid={`attention-${item.status}`}
-                    className={`shrink-0 ${item.status === "missing" ? "text-gray-700" : "text-amber-800"}`}
+                    className={`shrink-0 ${ATTENTION_TONE[item.status]}`}
                   >
-                    {item.status === "missing"
-                      ? "欠測（データなし）"
-                      : `鮮度切れ（${item.ageSeconds !== null ? formatAge(item.ageSeconds) : "不明"}）`}
+                    {attentionLabel(item)}
                   </span>
                 </Link>
               </li>
@@ -257,6 +282,30 @@ export function OperatorHome({
       {isAdmin && <GatewayStatusPanel fetchGateways={fetchGateways} />}
     </div>
   );
+}
+
+const ATTENTION_TONE: Record<AttentionItem["status"], string> = {
+  critical: "text-red-700",
+  warn: "text-amber-800",
+  missing: "text-gray-700",
+  stale: "text-amber-800",
+};
+
+/** Right-hand status label for an attention row — value+bound for alarms, age/none for freshness. */
+function attentionLabel(item: AttentionItem): string {
+  switch (item.status) {
+    case "critical":
+    case "warn": {
+      const bound = item.breach === "low" ? "下限" : "上限";
+      const val = item.value ?? "—";
+      const kind = item.status === "critical" ? "異常値" : "注意値";
+      return `${kind}（${bound} ${val}）`;
+    }
+    case "missing":
+      return "欠測（データなし）";
+    case "stale":
+      return `鮮度切れ（${item.ageSeconds != null ? formatAge(item.ageSeconds) : "不明"}）`;
+  }
 }
 
 function SummaryCard({

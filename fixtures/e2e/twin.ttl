@@ -83,7 +83,11 @@ sbr:SOS-PT-001 a sbco:PointExt ;
   sbco:deviceIdBacnet "BAC-1" ;
   sbco:objectTypeBacnet "analogInput" ;
   sbco:instanceNoBacnet "1001" ;
-  bos:dataType "number" .
+  bos:dataType "number" ;
+  # Opt-in alarm thresholds (#158 Phase 2a): 正常運転レンジ。制御バウンド(bos:min/maxValue)とは別。
+  bos:alarmHigh "30" ;
+  bos:warnHigh "28" ;
+  bos:alarmLow "10" .
 
 # ── Point: SOS-PT-002 湿度 (read-only, analogInput 1002) ─────────────────────
 sbr:SOS-PT-002 a sbco:PointExt ;
@@ -115,7 +119,10 @@ sbr:SOS-PT-003 a sbco:PointExt ;
   sbco:deviceIdBacnet "BAC-1" ;
   sbco:objectTypeBacnet "analogInput" ;
   sbco:instanceNoBacnet "1003" ;
-  bos:dataType "number" .
+  bos:dataType "number" ;
+  # Opt-in alarm thresholds (#158 Phase 2a): CO2 は上限のみ（1500ppm 異常 / 1000ppm 注意）。
+  bos:alarmHigh "1500" ;
+  bos:warnHigh "1000" .
 
 # ── Point: SOS-PT-004 照明 ON/OFF (writable, binaryOutput 2001) ──────────────
 sbr:SOS-PT-004 a sbco:PointExt ;

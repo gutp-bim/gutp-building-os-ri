@@ -122,7 +122,11 @@ export async function latestTelemetryBatch(
 }
 
 async function fetchLatestBatchChunk(pointIds: string[]): Promise<PointLastSeen[]> {
-  let rows: { pointId?: string; datetime?: string | null }[];
+  let rows: {
+    pointId?: string;
+    datetime?: string | null;
+    value?: number | null;
+  }[];
   try {
     rows = await apiClient().telemetries.query.batch_latest.$post({
       body: { pointIds },
@@ -134,10 +138,13 @@ async function fetchLatestBatchChunk(pointIds: string[]): Promise<PointLastSeen[
     );
   }
   return rows
-    .filter((r): r is { pointId: string; datetime?: string | null } =>
-      typeof r.pointId === "string",
+    .filter(
+      (r): r is { pointId: string; datetime?: string | null; value?: number | null } =>
+        typeof r.pointId === "string",
     )
-    .map((r) => ({ pointId: r.pointId, lastSeen: r.datetime ?? null }));
+    // #158 Phase 2a: keep `value` (the API already returns it) so the alarm evaluator can compare it
+    // against thresholds; freshness only reads `lastSeen`.
+    .map((r) => ({ pointId: r.pointId, lastSeen: r.datetime ?? null, value: r.value ?? null }));
 }
 
 /** Best-effort HTTP status from an Aspida/axios rejection, for a friendlier error message. */

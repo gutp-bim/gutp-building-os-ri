@@ -16,7 +16,21 @@ export function toRef(type: ResourceType, e: DtEntity): ResourceRef {
   return { type, dtId: e.dtId, id: e.id, name: e.name };
 }
 
+/**
+ * The API `Point` (entity) now also returns the #158 Phase 2a alarm thresholds, but the aspida `Point`
+ * type won't declare them until `./sync-type.bash` is re-run against a live API server. Read them off a
+ * narrowly-widened view until then (the fields genuinely flow from the backend); the regen is a no-op
+ * that simply formalizes these into the generated type.
+ */
+type PointWithAlarms = Point & {
+  alarmHigh?: number | null;
+  alarmLow?: number | null;
+  warnHigh?: number | null;
+  warnLow?: number | null;
+};
+
 export function toPointResource(p: Point): PointResource {
+  const pa = p as PointWithAlarms;
   return {
     type: "point",
     dtId: p.dtId,
@@ -29,6 +43,10 @@ export function toPointResource(p: Point): PointResource {
     specification: p.specification ?? null,
     kind: p.type ?? null,
     expectedIntervalSeconds: p.interval ?? null,
+    alarmHigh: pa.alarmHigh ?? null,
+    alarmLow: pa.alarmLow ?? null,
+    warnHigh: pa.warnHigh ?? null,
+    warnLow: pa.warnLow ?? null,
   };
 }
 

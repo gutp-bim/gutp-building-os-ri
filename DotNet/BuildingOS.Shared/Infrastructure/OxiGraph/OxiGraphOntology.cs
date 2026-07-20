@@ -50,6 +50,14 @@ internal static class OxiGraphOntology
     internal const string Prop_MinValue   = BosNs + "minValue";  // number-control lower bound (#153)
     internal const string Prop_MaxValue   = BosNs + "maxValue";  // number-control upper bound (#153)
 
+    // Opt-in per-point alarm thresholds on PointExt (#158 Phase 2a, ADR-0005). Distinct from the control
+    // bounds above: these are the normal-operation value range, not the valid setpoint-write range.
+    // alarm* = critical (outer) limits; warn* = the earlier inner limits. All optional/independent.
+    internal const string Prop_AlarmHigh  = BosNs + "alarmHigh";
+    internal const string Prop_AlarmLow   = BosNs + "alarmLow";
+    internal const string Prop_WarnHigh   = BosNs + "warnHigh";
+    internal const string Prop_WarnLow    = BosNs + "warnLow";
+
     // SBCO map-entry types/properties (#332). customTags is map(string -> boolean), identifiers is
     // map(string -> string); each entry is a resource/blank node carrying key + value.
     internal const string Cls_KeyBoolMapEntry   = SbcoNs + "KeyBoolMapEntry";

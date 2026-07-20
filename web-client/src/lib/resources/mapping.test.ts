@@ -33,6 +33,10 @@ describe("toPointResource", () => {
       specification: null,
       kind: null,
       expectedIntervalSeconds: null,
+      alarmHigh: null,
+      alarmLow: null,
+      warnHigh: null,
+      warnLow: null,
     });
   });
 
@@ -55,6 +59,23 @@ describe("toPointResource", () => {
     expect(r.scale).toBe(0.1);
     expect(r.kind).toBe("analog");
     expect(r.expectedIntervalSeconds).toBe(60);
+  });
+
+  it("reads opt-in alarm thresholds off the point (#158 Phase 2a)", () => {
+    const p = {
+      dtId: "urn:pt1",
+      id: "PT001",
+      name: "Temp",
+      alarmHigh: 30,
+      alarmLow: 5,
+      warnHigh: 26,
+      warnLow: 8,
+    } as Point;
+    const r = toPointResource(p);
+    expect(r.alarmHigh).toBe(30);
+    expect(r.alarmLow).toBe(5);
+    expect(r.warnHigh).toBe(26);
+    expect(r.warnLow).toBe(8);
   });
 });
 

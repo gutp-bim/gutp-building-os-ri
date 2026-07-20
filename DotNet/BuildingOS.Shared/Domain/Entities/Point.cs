@@ -32,6 +32,14 @@ public class Point
     public string? InstallationArea { get; set; }
     public string? Unit { get; set; }
     public float? Interval { get; set; }
+
+    // Opt-in per-point alarm thresholds (#158 Phase 2a, ADR-0005). Distinct from Min/MaxPresValue
+    // (legacy BACnet raw bounds) and the ControlSchema control-write range: these are the
+    // normal-operation value range. alarm* = critical (outer) limits, warn* = inner limits; all optional.
+    public float? AlarmHigh { get; set; }
+    public float? AlarmLow { get; set; }
+    public float? WarnHigh { get; set; }
+    public float? WarnLow { get; set; }
     public int? InstanceNoBacnet { get; set; }
     public string? ObjectTypeBacnet { get; set; }
     public string? DeviceIdBacnet { get; set; }
