@@ -22,9 +22,13 @@ import {
   getTelemetryConfig,
   latestTelemetrySample,
   queryTelemetry,
+  queryTelemetryWithState,
   type TelemetryConfig,
 } from "@/lib/telemetry/repository";
-import type { Granularity } from "@/lib/telemetry/types";
+import type {
+  Granularity,
+  TelemetryStatePoint,
+} from "@/lib/telemetry/types";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
@@ -32,6 +36,7 @@ import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
 import { PointInfo } from "./components/point-info";
 import { TelemetryHotData } from "./components/telemetry-hot-data";
+import { TelemetryStateTimeline } from "./components/telemetry-state-timeline";
 import { TelemetryWarmData } from "./components/telemetry-warm-data";
 
 export default function PointDetailPageComponent({
@@ -45,6 +50,8 @@ export default function PointDetailPageComponent({
   const [error, setError] = useState<string | null>(null);
   const [hotData, setHotData] = useState<ValidTelemetryData | null>(null);
   const [warmData, setWarmData] = useState<ValidTelemetryData[]>([]);
+  // #152 Phase B: non-numeric (string/boolean) history for the state timeline.
+  const [stateData, setStateData] = useState<TelemetryStatePoint[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
   const [warmLoading, setWarmLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -136,7 +143,8 @@ export default function PointDetailPageComponent({
     try {
       setWarmLoading(true);
       setWarmError(null);
-      const series = await queryTelemetry({
+      // One fetch → numeric chart series + non-numeric state series (#152 Phase B).
+      const { series, state } = await queryTelemetryWithState({
         pointId: pointDetail.point.id,
         start,
         end,
@@ -146,6 +154,7 @@ export default function PointDetailPageComponent({
       // can't overwrite the current chart or prematurely clear loading.
       if (requestId !== warmRequestId.current) return;
       setWarmData(series.points.map((p) => ({ datetime: p.t, value: p.v })));
+      setStateData(state.points);
     } catch (e) {
       if (requestId !== warmRequestId.current) return;
       console.error(e);
@@ -304,6 +313,10 @@ export default function PointDetailPageComponent({
             : undefined
         }
       />
+
+      {stateData.length > 0 && (
+        <TelemetryStateTimeline points={stateData} loading={warmLoading} />
+      )}
 
       <ControlAuditHistory pointId={pointDetail.point.id} />
 

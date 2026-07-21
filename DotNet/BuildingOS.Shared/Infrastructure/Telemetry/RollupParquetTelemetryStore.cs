@@ -189,7 +189,7 @@ public sealed class RollupParquetTelemetryStore : IAggregatedTelemetryStore
     {
         // Each hourly row carries avg/min/max/count in Data JSON (from ToTelemetry). We weight by count
         // to compute a correct daily weighted average instead of a simple average of hourly averages.
-        var groups = new Dictionary<DateTime, (double WSum, double WCount, double LocalMin, double LocalMax, int Total, ValidTelemetryData First)>();
+        var groups = new Dictionary<DateTime, (double WSum, double WCount, double LocalMin, double LocalMax, int Total, ValidTelemetryData First, ValidTelemetryData Last, DateTime LastTs)>();
         var order = new List<DateTime>();
 
         foreach (var row in hourly)
@@ -198,7 +198,7 @@ public sealed class RollupParquetTelemetryStore : IAggregatedTelemetryStore
             var day = new DateTime(utc.Year, utc.Month, utc.Day, 0, 0, 0, DateTimeKind.Utc);
             if (!groups.TryGetValue(day, out var g))
             {
-                g = (0, 0, double.MaxValue, double.MinValue, 0, row);
+                g = (0, 0, double.MaxValue, double.MinValue, 0, row, row, DateTime.MinValue);
                 order.Add(day);
             }
             var hourCount = ExtractCount(row.Data);
@@ -216,14 +216,21 @@ public sealed class RollupParquetTelemetryStore : IAggregatedTelemetryStore
             var effectiveMax = hourMax ?? row.Value;
             if (effectiveMin.HasValue && effectiveMin.Value < g.LocalMin) g.LocalMin = effectiveMin.Value;
             if (effectiveMax.HasValue && effectiveMax.Value > g.LocalMax) g.LocalMax = effectiveMax.Value;
+            // #152 Phase B: last-in-day representative = the latest hour's last-in-bucket value.
+            if (utc >= g.LastTs)
+            {
+                g.Last = row;
+                g.LastTs = utc;
+            }
             groups[day] = g;
         }
 
         order.Sort();
         return order.Select(day =>
         {
-            var (wsum, wcount, localMin, localMax, total, first) = groups[day];
+            var (wsum, wcount, localMin, localMax, total, first, last, _) = groups[day];
             var avg = wcount > 0 ? wsum / wcount : (double?)null;
+            var (valueType, lastText, lastBool) = TelemetryValueKind.ResolveLastInBucket(last, wcount > 0);
             return new ValidTelemetryData
             {
                 Datetime = day.ToString("O"),
@@ -239,6 +246,9 @@ public sealed class RollupParquetTelemetryStore : IAggregatedTelemetryStore
                     max   = wcount > 0 ? localMax : (double?)null,
                     count = total,
                 }),
+                ValueType = valueType,
+                ValueText = lastText,
+                ValueBool = lastBool,
             };
         }).ToArray();
     }
@@ -281,6 +291,10 @@ public sealed class RollupParquetTelemetryStore : IAggregatedTelemetryStore
         Name     = r.Name,
         Value    = r.Avg,
         Data     = JsonSerializer.Serialize(new { avg = r.Avg, min = r.MinValue, max = r.MaxValue, count = r.Count }),
+        // #152 Phase B: surface the rollup's non-numeric last-in-bucket value (null → numeric).
+        ValueType = r.ValueType,
+        ValueText = r.ValueText,
+        ValueBool = r.ValueBool,
     };
 
     private static DateTime TruncateHour(DateTime dt)

@@ -6,7 +6,10 @@ import {
   classifyPointFreshness,
 } from "@/lib/telemetry/freshness";
 import { resolveStaleThresholdSeconds } from "@/lib/telemetry/freshness-threshold";
-import { resolveTelemetryValue } from "@/lib/telemetry/value";
+import {
+  formatTelemetryValue,
+  resolveTelemetryValue,
+} from "@/lib/telemetry/value";
 import { unitLabelMap } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
@@ -44,8 +47,8 @@ export function TelemetryHotData({
     // #152: a string/boolean latest reading is shown as text (charts stay numeric-only). Scale, unit
     // and the enum-label mapping apply only to the numeric path.
     const resolved = resolveTelemetryValue(hotData);
-    if (resolved.kind === "string") return resolved.value;
-    if (resolved.kind === "boolean") return resolved.value ? "ON" : "OFF";
+    if (resolved.kind === "string" || resolved.kind === "boolean")
+      return formatTelemetryValue(hotData) ?? "-";
     if (resolved.kind === "none") return "-";
 
     if (splitLabels && splitLabels.length > 0) {

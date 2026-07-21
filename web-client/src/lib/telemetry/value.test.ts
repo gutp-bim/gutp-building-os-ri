@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isNonNumericValue, resolveTelemetryValue } from "./value";
+import {
+  formatTelemetryValue,
+  isNonNumericValue,
+  resolveTelemetryValue,
+} from "./value";
 
 describe("resolveTelemetryValue", () => {
   it("resolves a numeric value with explicit valueType", () => {
@@ -54,5 +58,15 @@ describe("isNonNumericValue", () => {
     expect(isNonNumericValue({ valueType: "string", valueText: "a" })).toBe(true);
     expect(isNonNumericValue({ valueType: "boolean", valueBool: false })).toBe(true);
     expect(isNonNumericValue({})).toBe(false);
+  });
+});
+
+describe("formatTelemetryValue", () => {
+  it("formats each kind for display", () => {
+    expect(formatTelemetryValue({ value: 21.5, valueType: "number" })).toBe("21.5");
+    expect(formatTelemetryValue({ valueType: "string", valueText: "auto" })).toBe("auto");
+    expect(formatTelemetryValue({ valueType: "boolean", valueBool: true })).toBe("ON");
+    expect(formatTelemetryValue({ valueType: "boolean", valueBool: false })).toBe("OFF");
+    expect(formatTelemetryValue({})).toBeNull();
   });
 });

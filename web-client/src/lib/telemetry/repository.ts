@@ -3,8 +3,13 @@ import { apiClient } from "@/lib/infra/aspida-client";
 import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointLastSeen } from "./freshness";
 import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "./freshness-threshold";
 import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
-import { toGranularityParam, toSeries } from "./mapping";
-import type { TelemetryPoint, TelemetryQuery, TelemetrySeries } from "./types";
+import { toGranularityParam, toSeries, toStateSeries } from "./mapping";
+import type {
+  TelemetryPoint,
+  TelemetryQuery,
+  TelemetrySeries,
+  TelemetryStateSeries,
+} from "./types";
 
 /** Effective telemetry stale-detection thresholds (#183), served all-role by GET /api/telemetry/config. */
 export type TelemetryConfig = {
@@ -79,6 +84,32 @@ export async function queryTelemetry(
     },
   });
   return toSeries(q.pointId, res);
+}
+
+/**
+ * One history fetch that yields BOTH the numeric chart series and the non-numeric state series (#152
+ * Phase B). The raw rows are fetched once and mapped two ways — `toSeries` (numeric-only, for the
+ * chart) and `toStateSeries` (string/boolean, for the state timeline) — so a mixed or non-numeric
+ * point needs no second round-trip. A purely numeric point comes back with an empty `state`, and a
+ * purely non-numeric point with an empty `series`.
+ */
+export async function queryTelemetryWithState(
+  q: TelemetryQuery,
+  token?: string,
+): Promise<{ series: TelemetrySeries; state: TelemetryStateSeries }> {
+  const res = await apiClient(token).telemetries.query.$get({
+    query: {
+      pointId: q.pointId,
+      start: q.start?.toISOString(),
+      end: q.end?.toISOString(),
+      granularity: toGranularityParam(q.granularity),
+      latest: q.latest,
+    },
+  });
+  return {
+    series: toSeries(q.pointId, res),
+    state: toStateSeries(q.pointId, res),
+  };
 }
 
 /** Latest single sample for a point, or null when there is no data. */

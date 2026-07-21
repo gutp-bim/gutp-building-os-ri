@@ -14,6 +14,17 @@ export type TelemetrySeries = {
   points: TelemetryPoint[];
 };
 
+/**
+ * One non-numeric (string/boolean) reading for the state timeline (#152 Phase B): ISO-8601 timestamp +
+ * a display state string. Numeric readings never appear here — charts stay numeric-only.
+ */
+export type TelemetryStatePoint = { t: string; state: string };
+
+export type TelemetryStateSeries = {
+  pointId: string;
+  points: TelemetryStatePoint[];
+};
+
 export type TelemetryQuery = {
   pointId: string;
   start?: Date;
