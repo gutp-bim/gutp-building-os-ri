@@ -19,19 +19,19 @@ public sealed class BehaviorConnectorWorker(
         if (!json.IsValid()) return Task.FromResult<string?>(null);
 
         JsonAny[] telemetries = [
-            ValidMessageJson.ValidTelemetryEntity.Create(
+            ValidMessage.ValidTelemetryEntity.Create(
                 id: $"{json.PointId.GetString()}.{DateTime.UtcNow.ToUnixTime()}",
                 pointId: json.PointId,
                 building: json.Building,
                 datetime: json.Datetime,
                 value: json.Value,
                 deviceId: json.DeviceId,
-                data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([
+                data: new ValidMessage.ValidTelemetryEntity.DataEntity([
                     new JsonObjectProperty("sbos_space:Name", json.Data.SbosSpaceName)
                 ]))
         ];
 
-        var result = ValidMessageJson.Create(new ValidMessageJson.ValidTelemetryEntityArray(telemetries)).ToString();
+        var result = ValidMessage.Create(new ValidMessage.ValidTelemetryEntityArray(telemetries)).ToString();
         return Task.FromResult<string?>(result);
     }
 }

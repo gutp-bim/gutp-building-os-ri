@@ -17,7 +17,7 @@ namespace BuildingOS.ConnectorWorker.Connectors;
 ///     "payload": { ... }, "receivedAt": "...", "messageId": "..." }
 ///
 /// ProcessAsync behavior:
-///   1. If payload is already valid ValidMessageJson → passthrough directly to validated.telemetry
+///   1. If payload is already valid ValidMessage → passthrough directly to validated.telemetry
 ///   2. Otherwise → resolve pointId via IPointIdFactory and build validated telemetry
 /// </summary>
 public abstract class IoTIngressConnectorBase(
@@ -44,7 +44,7 @@ public abstract class IoTIngressConnectorBase(
         var payloadText = envelope.Payload.GetRawText();
 
         // Passthrough: device sent a pre-validated telemetry message directly
-        var parsed = ValidMessageJson.Parse(payloadText);
+        var parsed = ValidMessage.Parse(payloadText);
         if (parsed.IsValid())
         {
             logger.LogDebug("{Worker}: validated passthrough for {Tenant}/{DeviceId}", GetType().Name, tenant, envelope.DeviceId);
@@ -72,7 +72,7 @@ public abstract class IoTIngressConnectorBase(
         var pointId = pointIds.First();
         var epoch = DateTime.UtcNow.ToUnixTime();
 
-        var entity = ValidMessageJson.ValidTelemetryEntity.Create(
+        var entity = ValidMessage.ValidTelemetryEntity.Create(
             id: $"{pointId}.{epoch}",
             pointId: pointId,
             building: new JsonString(string.Empty),
@@ -80,13 +80,13 @@ public abstract class IoTIngressConnectorBase(
             value: (JsonNumber)numericValue,
             deviceId: envelope.DeviceId,
             name: envelope.DeviceId,
-            data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([
+            data: new ValidMessage.ValidTelemetryEntity.DataEntity([
                 new JsonObjectProperty("tenant", new JsonString(tenant)),
                 new JsonObjectProperty("protocol", new JsonString(protocolTag))
             ]));
 
-        return ValidMessageJson.Create(
-            new ValidMessageJson.ValidTelemetryEntityArray([entity.AsAny])).ToString();
+        return ValidMessage.Create(
+            new ValidMessage.ValidTelemetryEntityArray([entity.AsAny])).ToString();
     }
 
     private static string ExtractTimestamp(JsonElement payload, DateTimeOffset receivedAt)

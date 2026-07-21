@@ -158,7 +158,7 @@ public sealed class GatewayIngressService(
             dataProps.Add(new JsonObjectProperty(kv.Key, new JsonString(kv.Value)));
         }
 
-        var entity = ValidMessageJson.ValidTelemetryEntity.Create(
+        var entity = ValidMessage.ValidTelemetryEntity.Create(
             id: $"{meta.PointId}.{DateTime.UtcNow.ToUnixTime()}",
             pointId: meta.PointId,
             building: new JsonString(meta.Building),
@@ -166,10 +166,10 @@ public sealed class GatewayIngressService(
             value: (JsonNumber)frame.Value,
             deviceId: new JsonString(meta.DeviceId),
             name: new JsonString(meta.Name),
-            data: new ValidMessageJson.ValidTelemetryEntity.DataEntity([.. dataProps]));
+            data: new ValidMessage.ValidTelemetryEntity.DataEntity([.. dataProps]));
 
-        return ValidMessageJson.Create(
-            new ValidMessageJson.ValidTelemetryEntityArray([entity.AsAny])).ToString();
+        return ValidMessage.Create(
+            new ValidMessage.ValidTelemetryEntityArray([entity.AsAny])).ToString();
     }
 
     // A non-empty, parseable timestamp is normalized to round-trip ISO-8601; empty or unparseable

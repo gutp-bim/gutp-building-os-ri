@@ -16,12 +16,12 @@ public static class ValidatedTelemetryHotStore
     {
         try
         {
-            // Payload is ValidMessageJson: { "telemetries": [...] } with snake_case keys.
+            // Payload is ValidMessage: { "telemetries": [...] } with snake_case keys.
             // Iterate each entity and write the latest value per point_id to the KV store.
-            var msg = ValidMessageJson.Parse(message);
+            var msg = ValidMessage.Parse(message);
             foreach (var entity in msg.Telemetries.EnumerateArray())
             {
-                var te = entity.As<ValidMessageJson.ValidTelemetryEntity>();
+                var te = entity.As<ValidMessage.ValidTelemetryEntity>();
                 var pointId = te.PointId.GetString();
                 if (string.IsNullOrEmpty(pointId)) continue;
 

@@ -33,7 +33,7 @@ public class GatewayIngressServiceTest
         Assert.Equal(1L, accepted);
         var published = Assert.Single(bus.Published);
         Assert.Equal(Validated, published.Subject);
-        Assert.True(ValidMessageJson.Parse(published.Message).IsValid());
+        Assert.True(ValidMessage.Parse(published.Message).IsValid());
 
         using var doc = JsonDocument.Parse(published.Message);
         var entity = doc.RootElement.GetProperty("telemetries")[0];

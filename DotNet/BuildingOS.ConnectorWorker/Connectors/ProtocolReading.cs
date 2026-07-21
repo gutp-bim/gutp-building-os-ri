@@ -19,5 +19,5 @@ public readonly record struct ProtocolReading(
     /// <summary>Device identifier for the telemetry entity.</summary>
     string DeviceId,
     /// <summary>Protocol-specific metadata fields appended to the telemetry entity.</summary>
-    ValidMessageJson.ValidTelemetryEntity.DataEntity Data
+    ValidMessage.ValidTelemetryEntity.DataEntity Data
 );
