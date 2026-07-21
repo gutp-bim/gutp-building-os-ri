@@ -479,3 +479,19 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 - Node.js 20.19.5+ minimum (`web-client/.node-version` + `package.json` `engines`); 22.x recommended (CI runs 22.x)
 - Docker Desktop (for local development)
 - Buf CLI (for proto → TypeScript generation)
+
+## GitHub API usage policy
+
+- Repository source code must be inspected from the local checkout.
+- Prefer `git`, `git log`, `git diff`, `git show`, `rg`, and filesystem tools.
+- Do not use GitHub MCP or `gh api` to read files that exist locally.
+- Use GitHub APIs only for:
+  - pull request metadata and review comments
+  - issue state and comments
+  - CI/check-run status
+  - releases and remote-only metadata
+- Before making API calls, batch required fields into as few requests as possible.
+- Do not run GitHub API requests concurrently.
+- Do not repeatedly poll GitHub.
+- Reuse previously fetched API responses within the session.
+- When rate-limited, stop and inspect `gh api rate_limit`; do not retry in a loop.
