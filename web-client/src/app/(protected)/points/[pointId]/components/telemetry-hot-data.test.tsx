@@ -75,4 +75,34 @@ describe("TelemetryHotData non-numeric value display (#152)", () => {
     renderHot(withValue({ valueType: "boolean", valueBool: true }));
     expect(screen.getByText("ON")).toBeInTheDocument();
   });
+
+  it("prefers a first-class string over the deprecated labels workaround (#152 Phase C)", () => {
+    // A point that carries BOTH a first-class string value AND legacy `labels`: the string wins; the
+    // numeric-code→label index mapping is not consulted.
+    render(
+      <TelemetryHotData
+        hotData={withValue({ value: 2, valueType: "string", valueText: "運転" })}
+        hotLoading={false}
+        onRefresh={vi.fn()}
+        onDownloadClick={vi.fn()}
+        labels="停止,冷房,暖房"
+      />,
+    );
+    expect(screen.getByText("運転")).toBeInTheDocument();
+    expect(screen.queryByText("冷房")).not.toBeInTheDocument(); // labels[value-1] not used
+  });
+
+  it("still resolves a legacy numeric-code point via labels (back-compat)", () => {
+    // A legacy enum point (numeric code + `labels`, no discriminant) keeps working.
+    render(
+      <TelemetryHotData
+        hotData={{ datetime: iso(10), value: 2 }}
+        hotLoading={false}
+        onRefresh={vi.fn()}
+        onDownloadClick={vi.fn()}
+        labels="停止,冷房,暖房"
+      />,
+    );
+    expect(screen.getByText("冷房")).toBeInTheDocument(); // labels[2-1]
+  });
 });

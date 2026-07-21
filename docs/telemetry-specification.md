@@ -121,19 +121,40 @@ gRPC ingress（GatewayIngress → `NatsIngressTelemetryBus`）は **JetStream pu
 > は `control.result`（非 JetStream subject）にも使われるため一律切替はできず、全生産者の at-least-once 化は
 > 後続課題とする。
 
-## 値型の設計判断（#189）
+## 値型（#152 で一級化 / #189 は履歴）
 
-`TelemetryFrame.value` / `valid-message.json` の `value` は **数値単一型**で確定しています。
-状態系ポイント（運転モード・列挙・ON/OFF 等）は次の方針で扱います。
+`TelemetryFrame.value` / `valid-message.json` の `value` は **判別ユニオン `number | string | boolean`**
+です（#152・ADR-0006）。状態系ポイント（運転モード・列挙・ON/OFF・文字列ステータス）は**一級型として
+そのまま送れます**。
 
-- **boolean** → ゲートウェイ側で `0` / `1` に正規化。
-- **enum / 状態コード** → 安定した **数値コード**で送り、ラベルは ControlSchema / ポイントリストの
-  メタ（`EnumLabels` 等）で解決する。
-- **文字列状態の補助情報** → `attributes`（→ validated の `data`）に文字列で添える（型情報は落ちる前提）。
+- **number**（既定・主型）→ チャート／集計（avg/min/max）の対象。数値は全経路で完全後方互換。
+- **string**（状態ラベル・列挙ラベル）→ `TelemetryFrame` の `value_str`（proto oneof, field 6）。
+  検証済みメッセージでは `value` が JSON 文字列になり、永続化層は `value_type="string"` + `value_text`
+  で判別を運ぶ。集計は last-in-bucket（Phase B, D3）で「その区間の最新状態」を代表値にする（数値集計は null）。
+- **boolean**（ON/OFF）→ `TelemetryFrame` の `value_bool`（proto oneof, field 7）。永続化は
+  `value_type="boolean"` + `value_bool`。UI は最新値・状態タイムラインで ON/OFF 表示。
 
-理由: `valid-message.json` / TimescaleDB / KV hot store / proto まで数値前提で**パイプライン全体の整合**が
-取れており、現行要件（建物設備テレメトリ）は数値コード化で充足する。文字列/列挙の**一級対応**（proto の
-`oneof value`、storage schema、KV の波及）は影響範囲が大きいため、独立した設計フェーズに先送りする（#189）。
+判別子（`value_type`）が無い旧データ・旧行は **number とみなす**（後方互換の既定）。frontend の数値チャートは
+数値のみ、非数値は状態タイムライン（`TelemetryStateTimeline`）に表示される。
+
+### 旧回避策（#189）の deprecate
+
+#152 以前は数値単一型だったため、状態系は次の**回避策**で扱っていました。**#152 でこれらは不要になり、
+非推奨（deprecated）です** — 新規ポイントは上記の一級型で送ってください。
+
+- ~~**enum / 状態コード** → 安定した数値コードで送り、ラベルは表示側メタ（テレメトリ表示用の `labels`）で
+  index 解決する~~ → **非推奨**。enum は**ラベル文字列を `value_str` で直接送る**（`string` 一級型）。
+  frontend の数値+`labels` index 表示（`telemetry-hot-data` の `splitLabels`）は後方互換のため残置するが、
+  一級 string 値が来た場合はそちらを優先表示する（既に実装済み）。
+- ~~**boolean** → ゲートウェイ側で `0/1` に正規化~~ → **非推奨**。`value_bool` で真偽を直接送る
+  （`0/1` 正規化も後方互換で引き続き数値として通るが、状態の意味は落ちる）。
+- **文字列状態の補助情報** → `attributes`（→ validated の `data`）に添える路は**引き続き有効**（主値では
+  ない付随情報の置き場として）。主たる状態値は `value_str` を使うこと。
+
+> **注意（control 側は別物・非推奨ではない）**: `ControlSchema.EnumLabels`（JSON `{"1":"冷房",...}`）は
+> **書き込み可能な多状態出力（multi-state output）の制御**で許可コード集合とラベルを定義するもので、
+> テレメトリ表示の回避策とは別の一級機能です。`ControlValueValidator` / 制御モーダルで使われ続けます。
+> ここで deprecate するのは**テレメトリ読取側の数値コード表現**のみです。
 
 ## Documentation Coverage Notes
 

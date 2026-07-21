@@ -7,7 +7,10 @@
   日次再集計）+ frontend の状態タイムライン（`TelemetryStateTimeline`）を追加。**Timescale opt-in
   (`WARM_STORE=timescale`) の additive 列 + 集計は Docker 検証が要るため Phase B の follow-up として保留**
   （parquet 既定パスは完了）。Open Decisions: D1=string+boolean 一級化・enum 除外、D3=last-in-bucket、
-  D6=推奨どおり。Phase C（EnumLabels 回避策の deprecate）は未着手。）
+  D6=推奨どおり。**Phase C 実装済み** — `docs/telemetry-specification.md` #189 節を #152 一級化に更新し、
+  テレメトリ読取側の数値コード + `labels` index 回避策を deprecate（後方互換で残置、一級 string を優先）。
+  control 側 `ControlSchema.EnumLabels`（書込多状態出力）は別機能として非対象。残るは Timescale opt-in の
+  additive 列（Docker 検証要、Phase B follow-up）のみ。）
 - **関連**: #189（現行の数値単一型 + EnumLabels/`data` 回避策を明文化した設計判断）、#216/ADR-0002（Parquet lake
   warm store）、#224（point list / ControlSchema）、#158 Phase 2a（アラームは numeric 前提）
 
