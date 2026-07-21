@@ -25,7 +25,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", Building: "bldg-1", Name: "Room Temp", DeviceId: "DEV001", GatewayId: "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 23.5, Timestamp = "2025-01-15T12:00:00Z" });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 23.5, Timestamp = "2025-01-15T12:00:00Z" });
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -44,13 +44,78 @@ public class GatewayIngressServiceTest
     }
 
     [Fact]
+    public async Task StreamTelemetry_StringValue_PublishesStringTelemetry()
+    {
+        // #152: a string/status reading rides the oneof value_str and lands as a JSON string `value`.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "bldg-1", Name: "Fan Mode", DeviceId: "DEV001", GatewayId: "GW001"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueStr = "auto", Timestamp = "2025-01-15T12:00:00Z" });
+        reader.Complete();
+
+        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        Assert.Equal(1L, accepted);
+        var published = Assert.Single(bus.Published);
+        Assert.True(ValidMessage.Parse(published.Message).IsValid());
+        using var doc = JsonDocument.Parse(published.Message);
+        var value = doc.RootElement.GetProperty("telemetries")[0].GetProperty("value");
+        Assert.Equal(JsonValueKind.String, value.ValueKind);
+        Assert.Equal("auto", value.GetString());
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_BoolValue_PublishesBooleanTelemetry()
+    {
+        // #152: a boolean state reading rides the oneof value_bool and lands as a JSON boolean `value`.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "bldg-1", Name: "Fan Run", DeviceId: "DEV001", GatewayId: "GW001"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueBool = true, Timestamp = "2025-01-15T12:00:00Z" });
+        reader.Complete();
+
+        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        Assert.Equal(1L, accepted);
+        var published = Assert.Single(bus.Published);
+        Assert.True(ValidMessage.Parse(published.Message).IsValid());
+        using var doc = JsonDocument.Parse(published.Message);
+        var value = doc.RootElement.GetProperty("telemetries")[0].GetProperty("value");
+        Assert.Equal(JsonValueKind.True, value.ValueKind);
+        Assert.True(value.GetBoolean());
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_NoValueCase_DefaultsToNumericZero()
+    {
+        // Wire back-compat: a legacy numeric gateway that omitted its default-0.0 field-3 reading
+        // deserializes as ValueCase.None → the server treats it as numeric 0.0 (not a dropped frame).
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001" }); // no value case set
+        reader.Complete();
+
+        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        Assert.Equal(1L, accepted);
+        using var doc = JsonDocument.Parse(Assert.Single(bus.Published).Message);
+        var value = doc.RootElement.GetProperty("telemetries")[0].GetProperty("value");
+        Assert.Equal(JsonValueKind.Number, value.ValueKind);
+        Assert.Equal(0.0, value.GetDouble(), precision: 6);
+    }
+
+    [Fact]
     public async Task StreamTelemetry_Attributes_MergedIntoData()
     {
         var bus = new FakeIngressTelemetryBus();
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        var frame = new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 };
+        var frame = new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 };
         frame.Attributes.Add("rawValue", "151.2");
         reader.Push(frame);
         reader.Complete();
@@ -70,7 +135,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        var frame = new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 };
+        var frame = new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 };
         frame.Attributes.Add("gatewayId", "SPOOFED"); // reserved key must not override provenance
         reader.Push(frame);
         reader.Complete();
@@ -88,7 +153,7 @@ public class GatewayIngressServiceTest
         var bus = new FakeIngressTelemetryBus();
         var cache = new FakePointMetadataCache(); // empty
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT-NOPE", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT-NOPE", ValueNum = 1.0 });
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -104,7 +169,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", GatewayId: "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW-OTHER", PointId = "PT001", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW-OTHER", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -120,7 +185,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", GatewayId: ""));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW-ANY", PointId = "PT001", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW-ANY", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -136,8 +201,8 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "", PointId = "PT001", Value = 1.0 });       // no gateway
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "", Value = 1.0 });        // no point
+        reader.Push(new TelemetryFrame { GatewayId = "", PointId = "PT001", ValueNum = 1.0 });       // no gateway
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "", ValueNum = 1.0 });        // no point
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -153,8 +218,8 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT-NOPE", Value = 1.0 }); // unknown → skip
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 2.0 });   // ok → publish
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT-NOPE", ValueNum = 1.0 }); // unknown → skip
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 2.0 });   // ok → publish
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -172,8 +237,8 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 }); // publish throws
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 2.0 }); // succeeds
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 }); // publish throws
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 2.0 }); // succeeds
         reader.Complete();
 
         var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
@@ -212,8 +277,8 @@ public class GatewayIngressServiceTest
         var readerB = new FakeStreamReader<TelemetryFrame>();
         for (var i = 0; i < framesPerGateway; i++)
         {
-            readerA.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = i });
-            readerB.Push(new TelemetryFrame { GatewayId = "GW002", PointId = "PT002", Value = i });
+            readerA.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = i });
+            readerB.Push(new TelemetryFrame { GatewayId = "GW002", PointId = "PT002", ValueNum = i });
         }
         readerA.Complete();
         readerB.Complete();
@@ -258,11 +323,11 @@ public class GatewayIngressServiceTest
             new PointMetadata("PT002", "bldg-2", "Damper Pos", "DEV002", "GW002"));
 
         var legitReader = new FakeStreamReader<TelemetryFrame>();
-        legitReader.Push(new TelemetryFrame { GatewayId = "GW002", PointId = "PT002", Value = 1.0 });
+        legitReader.Push(new TelemetryFrame { GatewayId = "GW002", PointId = "PT002", ValueNum = 1.0 });
         legitReader.Complete();
 
         var spoofReader = new FakeStreamReader<TelemetryFrame>();
-        spoofReader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 }); // claims GW001
+        spoofReader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 }); // claims GW001
         spoofReader.Complete();
 
         var identity = new IngressIdentityOptions { Enforce = true };
@@ -298,7 +363,7 @@ public class GatewayIngressServiceTest
         for (var g = 0; g < gatewayIds.Length; g++)
         {
             for (var i = 0; i < framesPerGateway; i++)
-                readers[g].Push(new TelemetryFrame { GatewayId = gatewayIds[g], PointId = pointIds[g], Value = i });
+                readers[g].Push(new TelemetryFrame { GatewayId = gatewayIds[g], PointId = pointIds[g], ValueNum = i });
             readers[g].Complete();
         }
 
@@ -341,7 +406,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
 
         var svc = NewService(bus, cache, new IngressIdentityOptions { Enforce = true });
@@ -359,7 +424,7 @@ public class GatewayIngressServiceTest
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
         // Frame claims GW001 (which owns PT001) but the mTLS-verified identity is a different gateway.
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
 
         var svc = NewService(bus, cache, new IngressIdentityOptions { Enforce = true });
@@ -376,7 +441,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
 
         var svc = NewService(bus, cache, new IngressIdentityOptions { Enforce = true });
@@ -394,7 +459,7 @@ public class GatewayIngressServiceTest
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
         var reader = new FakeStreamReader<TelemetryFrame>();
-        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", Value = 1.0 });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
 
         var svc = NewService(bus, cache, new IngressIdentityOptions { Enforce = false });

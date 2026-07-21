@@ -33,7 +33,7 @@ vi.mock("./components/control-audit-history", () => ({ ControlAuditHistory: () =
 vi.mock("./components/cold-data-download-modal", () => ({ ColdDataDownloadModal: () => <div /> }));
 vi.mock("@/lib/resources/repository", () => ({ getPointDetail: vi.fn() }));
 vi.mock("@/lib/telemetry/repository", () => ({
-  latestTelemetry: vi.fn(),
+  latestTelemetrySample: vi.fn(),
   queryTelemetry: vi.fn(),
   getTelemetryConfig: vi
     .fn()
@@ -41,7 +41,7 @@ vi.mock("@/lib/telemetry/repository", () => ({
 }));
 
 import { getPointDetail } from "@/lib/resources/repository";
-import { latestTelemetry, queryTelemetry } from "@/lib/telemetry/repository";
+import { latestTelemetrySample, queryTelemetry } from "@/lib/telemetry/repository";
 import PointDetailPageComponent from "./page-component";
 
 const detail = {
@@ -58,7 +58,7 @@ afterEach(() => vi.clearAllMocks());
 describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
   it("shows inline banners when the hot and warm reads fail instead of failing silently", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
-    (latestTelemetry as Mock).mockRejectedValue(new Error("hot down"));
+    (latestTelemetrySample as Mock).mockRejectedValue(new Error("hot down"));
     (queryTelemetry as Mock).mockRejectedValue(new Error("warm down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -70,7 +70,7 @@ describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
 
   it("shows no error banners when the reads succeed", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
-    (latestTelemetry as Mock).mockResolvedValue({ t: "2026-07-17T00:00:00Z", v: 1 });
+    (latestTelemetrySample as Mock).mockResolvedValue({ datetime: "2026-07-17T00:00:00Z", value: 1 });
     (queryTelemetry as Mock).mockResolvedValue({ pointId: "p1", points: [] });
 
     render(<PointDetailPageComponent pointId="p1" />);
@@ -97,7 +97,7 @@ describe("PointDetailPageComponent loading state (#195)", () => {
 describe("PointDetailPageComponent out-of-order warm responses (#197 review)", () => {
   it("ignores a stale warm response so a slow superseded request can't overwrite the chart", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
-    (latestTelemetry as Mock).mockResolvedValue({ t: "2026-07-17T00:00:00Z", v: 1 });
+    (latestTelemetrySample as Mock).mockResolvedValue({ datetime: "2026-07-17T00:00:00Z", value: 1 });
 
     // Each queryTelemetry call captures its own resolver so we can settle them out of order.
     const resolvers: ((v: unknown) => void)[] = [];

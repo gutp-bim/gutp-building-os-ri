@@ -1,6 +1,8 @@
 # 非数値テレメトリ値型（string / boolean / enum）の一級対応
 
-- **Status**: Proposed（設計先行。#152。実装は maintainer が下記 Open Decisions を承認後、段階着手）
+- **Status**: Accepted（#152。**Phase A 実装済み** — 判別ユニオン型スパインを schema/proto/POCO/ingress/
+  Parquet/API/frontend に end-to-end で導入、numeric は全経路後方互換。Open Decisions は D1=string+boolean
+  一級化・enum 除外、D6=推奨どおり Phase A の粒度で確定。Phase B/C は未着手。）
 - **関連**: #189（現行の数値単一型 + EnumLabels/`data` 回避策を明文化した設計判断）、#216/ADR-0002（Parquet lake
   warm store）、#224（point list / ControlSchema）、#158 Phase 2a（アラームは numeric 前提）
 
