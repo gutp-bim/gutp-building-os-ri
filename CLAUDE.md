@@ -473,6 +473,20 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 > case-insensitive. The reserved `credentialsRef` (external secret-store resolution) is out of scope
 > for this slice.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `gutp-bim/gutp-building-os-ri`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the repository's canonical triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. Read the root domain documentation and relevant ADRs. See `docs/agents/domain.md`.
+
 ## Environment Requirements
 
 - .NET SDK 8.0+
