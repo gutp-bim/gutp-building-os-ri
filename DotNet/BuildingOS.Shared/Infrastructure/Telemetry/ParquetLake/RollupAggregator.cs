@@ -33,8 +33,9 @@ public static class RollupAggregator
                 g.Numeric++;
             }
             // #152 Phase B (D3=last-in-bucket): track the latest row by timestamp for the non-numeric
-            // representative value, order-independent.
-            if (TelemetryTimestamp.TryParseUtc(row.Datetime, out var ts) && ts >= g.LastTs)
+            // representative value; ties broken by Id so the pick is order-independent.
+            if (TelemetryTimestamp.TryParseUtc(row.Datetime, out var ts) &&
+                TelemetryValueKind.IsLaterInBucket(ts, row, g.LastTs, g.Last))
             {
                 g.Last = row;
                 g.LastTs = ts;

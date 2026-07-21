@@ -76,7 +76,10 @@ public static class TelemetryAggregator
             var lastTs = DateTime.MinValue;
             foreach (var row in list)
             {
-                if (TelemetryTimestamp.TryParseUtc(row.Datetime, out var ts) && ts >= lastTs)
+                // Latest by timestamp; ties broken deterministically by Id (ordinal) so the pick is
+                // order-independent even when two distinct readings share an identical timestamp.
+                if (TelemetryTimestamp.TryParseUtc(row.Datetime, out var ts) &&
+                    TelemetryValueKind.IsLaterInBucket(ts, row, lastTs, last))
                 {
                     lastTs = ts;
                     last = row;

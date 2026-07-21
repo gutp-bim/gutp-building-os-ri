@@ -62,4 +62,14 @@ public static class TelemetryValueKind
         Boolean => (Boolean, null, last.ValueBool),
         _ => (hasNumeric ? Number : null, null, null),
     };
+
+    /// <summary>
+    /// True when (<paramref name="ts"/>, <paramref name="row"/>) is a more representative last-in-bucket
+    /// candidate than the current best (<paramref name="bestTs"/>, <paramref name="best"/>): a strictly
+    /// later timestamp, or the same timestamp with a greater <c>Id</c> (ordinal). The Id tiebreaker makes
+    /// the pick order-independent even when two distinct readings share an identical timestamp (#152 D3).
+    /// </summary>
+    public static bool IsLaterInBucket(DateTime ts, ValidTelemetryData row, DateTime bestTs, ValidTelemetryData? best)
+        => ts > bestTs
+        || (ts == bestTs && string.CompareOrdinal(row.Id ?? string.Empty, best?.Id ?? string.Empty) > 0);
 }
