@@ -29,6 +29,7 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
     private readonly INatsJSContext _js;
     private readonly ILogger<NatsKvGatewayConnectionStore> _logger;
     private readonly TimeSpan _ttl;
+    private readonly string _bucketName;
     private INatsKVStore? _kv;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
@@ -36,10 +37,20 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         INatsJSContext js,
         ILogger<NatsKvGatewayConnectionStore> logger,
         TimeSpan? ttl = null)
+        : this(js, logger, ttl, BucketName)
+    {
+    }
+
+    internal NatsKvGatewayConnectionStore(
+        INatsJSContext js,
+        ILogger<NatsKvGatewayConnectionStore> logger,
+        TimeSpan? ttl,
+        string bucketName)
     {
         _js = js;
         _logger = logger;
         _ttl = ttl is { } t && t > TimeSpan.Zero ? t : TimeSpan.FromSeconds(DefaultTtlSeconds);
+        _bucketName = bucketName;
     }
 
     private async Task<INatsKVStore> GetKvAsync(CancellationToken ct)
@@ -53,7 +64,7 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
             // Create-or-update with the TTL; reader and writer both default to DefaultTtlSeconds so the
             // bucket config is consistent (override the TTL on both sides in lockstep — ADR-0004).
             _kv = await ctx.CreateStoreAsync(
-                new NatsKVConfig(BucketName) { History = 1, MaxAge = _ttl }, ct).ConfigureAwait(false);
+                new NatsKVConfig(_bucketName) { History = 1, MaxAge = _ttl }, ct).ConfigureAwait(false);
         }
         finally
         {

@@ -15,10 +15,15 @@ namespace BuildingOS.IntegrationTest.Tests;
 [Collection(Names.Nats)]
 public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : IntegrationTestBase
 {
-    private async Task<NatsKvGatewayConnectionStore> CreateStoreAsync(TimeSpan? ttl = null)
+    private async Task<NatsKvGatewayConnectionStore> CreateStoreAsync(
+        TimeSpan? ttl = null,
+        string? bucketName = null)
     {
         var (_, js) = await fixture.CreateJetStreamAsync();
-        return new NatsKvGatewayConnectionStore(js, NullLogger<NatsKvGatewayConnectionStore>.Instance, ttl);
+        return bucketName is null
+            ? new NatsKvGatewayConnectionStore(js, NullLogger<NatsKvGatewayConnectionStore>.Instance, ttl)
+            : new NatsKvGatewayConnectionStore(
+                js, NullLogger<NatsKvGatewayConnectionStore>.Instance, ttl, bucketName);
     }
 
     [Fact]
@@ -88,7 +93,9 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
     public async Task Entry_Expires_After_Ttl()
     {
         // The TTL backstop: a heartbeat a crashed replica never refreshed disappears on its own.
-        var store = await CreateStoreAsync(TimeSpan.FromSeconds(1));
+        // Use an isolated bucket because the other tests share the production bucket with its default
+        // TTL. Re-creating that bucket with a different MaxAge is rejected by JetStream.
+        var store = await CreateStoreAsync(TimeSpan.FromSeconds(1), $"gateway-ttl-{Guid.NewGuid():N}");
         var gatewayId = $"gw-{Guid.NewGuid():N}";
 
         await store.MarkConnectedAsync(gatewayId, "replica-a");
