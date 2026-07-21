@@ -30,12 +30,18 @@ service GatewayIngress {
 message TelemetryFrame {
   string gateway_id = 1; // routing/provenance; must own point_id in the twin
   string point_id = 2;   // shared-point-list identity; joins to the digital twin
-  // Single numeric type (#189, design note): booleans are normalized to 0/1 and state/enum points are
-  // sent as numeric codes by the gateway (the whole pipeline — valid-message.json / TimescaleDB / KV —
-  // is number-based). Non-numeric state can ride in `attributes` as a string. A first-class string/enum
-  // value (proto `oneof`) is deferred to a dedicated design phase; see docs/telemetry-specification.md.
-  double value = 3;      // telemetry reading (see #189 note above)
-  string timestamp = 4;  // RFC3339; empty → server stamps receive time
+
+  // Discriminated telemetry value (#152, ADR-0006). Numeric is the primary type (charts/aggregation);
+  // string and boolean are first-class state/status values. Field number 3 stays `double value_num`, so
+  // existing numeric gateways remain wire-compatible: a bare double on field 3 deserializes into
+  // value_num, and an omitted field-3 value (a legacy gateway's default-0.0 reading) is read back as
+  // numeric 0.0 by the server. String/boolean readings use new field numbers.
+  oneof value {
+    double value_num = 3;  // numeric reading (primary; field 3 preserved for wire compat)
+    string value_str = 6;  // string/status/enum-label reading
+    bool value_bool = 7;   // boolean state reading
+  }
+  string timestamp = 4;    // RFC3339; empty → server stamps receive time
 
   // Optional ancillary attributes, merged into the validated telemetry `data` object. Not required
   // each frame — only send what is not derivable from the shared point list.

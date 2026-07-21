@@ -30,17 +30,23 @@ public static class ValidTelemetryEnvelope
             foreach (var el in arr.EnumerateArray())
             {
                 if (el.ValueKind != JsonValueKind.Object) continue;
-                rows.Add(new ValidTelemetryData
+                var row = new ValidTelemetryData
                 {
                     PointId  = GetString(el, "point_id"),
                     Building = GetString(el, "building"),
                     DeviceId = GetString(el, "device_id"),
                     Name     = GetString(el, "name"),
                     Datetime = GetString(el, "datetime"),
-                    Value    = GetDouble(el, "value"),
                     Data     = GetRaw(el, "data"),
                     Id       = GetString(el, "id"),
-                });
+                };
+                // Discriminated value (#152): the wire `value` is polymorphic; number → Value,
+                // string → ValueText, boolean → ValueBool (non-representable kinds leave all unset).
+                if (el.TryGetProperty("value", out var valueEl))
+                {
+                    TelemetryValueKind.Apply(row, valueEl);
+                }
+                rows.Add(row);
             }
             return rows;
         }
@@ -52,11 +58,6 @@ public static class ValidTelemetryEnvelope
 
     private static string? GetString(JsonElement el, string name) =>
         el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-
-    private static double? GetDouble(JsonElement el, string name) =>
-        el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetDouble(out var d)
-            ? d
-            : null;
 
     private static string? GetRaw(JsonElement el, string name) =>
         el.TryGetProperty(name, out var v) &&

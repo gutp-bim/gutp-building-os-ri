@@ -269,7 +269,9 @@ public class TelemetryController(
                 .QueryAsync(new TelemetryQueryRequest(pointId, null, null, TelemetryGranularity.Raw, true), ct)
                 .ConfigureAwait(false);
             var latest = result.LastOrDefault();
-            return new LatestSample(pointId, latest?.Datetime, latest?.Value);
+            return new LatestSample(
+                pointId, latest?.Datetime, latest?.Value,
+                latest?.ValueType, latest?.ValueText, latest?.ValueBool);
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
@@ -289,5 +291,12 @@ public class TelemetryController(
 /// <summary>Request body for <c>POST /telemetries/query/batch-latest</c> (#182).</summary>
 public sealed record BatchLatestRequest(string[] PointIds);
 
-/// <summary>One point's latest sample; <c>Datetime</c>/<c>Value</c> are null when it has no data (#182).</summary>
-public sealed record LatestSample(string PointId, string? Datetime, double? Value);
+/// <summary>
+/// One point's latest sample; <c>Datetime</c>/<c>Value</c> are null when it has no data (#182).
+/// The discriminated value fields (#152) carry non-numeric latest readings: <c>ValueType</c> is
+/// <c>"number"</c>/<c>"string"</c>/<c>"boolean"</c> (null → numeric for legacy data), with the payload in
+/// <c>Value</c> (numeric), <c>ValueText</c> (string), or <c>ValueBool</c> (boolean).
+/// </summary>
+public sealed record LatestSample(
+    string PointId, string? Datetime, double? Value,
+    string? ValueType = null, string? ValueText = null, bool? ValueBool = null);

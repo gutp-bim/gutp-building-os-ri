@@ -228,6 +228,11 @@ internal sealed class ParquetLakeScan
                     Value    = columns.TryGetValue("value", out var vCol) ? vCol.GetValue(i) is double d ? d : null : null,
                     Data     = columns.TryGetValue("data", out var dataCol) ? dataCol.GetValue(i)?.ToString() : null,
                     Id       = columns.TryGetValue("id", out var idCol) ? idCol.GetValue(i)?.ToString() : null,
+                    // Discriminated value columns (#152) — absent in old part-*.parquet (→ null), so a
+                    // legacy row keeps only Value and reads back as numeric.
+                    ValueType = columns.TryGetValue("value_type", out var vtCol) ? vtCol.GetValue(i)?.ToString() : null,
+                    ValueText = columns.TryGetValue("value_text", out var vxCol) ? vxCol.GetValue(i)?.ToString() : null,
+                    ValueBool = columns.TryGetValue("value_bool", out var vbCol) && vbCol.GetValue(i) is bool vb ? vb : null,
                 });
             }
         }

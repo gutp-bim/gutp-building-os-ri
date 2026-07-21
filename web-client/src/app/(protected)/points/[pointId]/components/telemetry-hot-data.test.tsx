@@ -54,3 +54,25 @@ describe("TelemetryHotData freshness badge (#158)", () => {
     expect(screen.getByTestId("freshness-fresh")).toBeInTheDocument();
   });
 });
+
+describe("TelemetryHotData non-numeric value display (#152)", () => {
+  // The aspida ValidTelemetryData type does not yet carry the discriminated value fields (regen is a
+  // follow-up), so cast the literal — the runtime shape is what the API returns.
+  const withValue = (v: Record<string, unknown>) =>
+    ({ datetime: iso(10), ...v }) as unknown as ValidTelemetryData;
+
+  it("shows a numeric value with unit unchanged", () => {
+    renderHot({ datetime: iso(10), value: 21.5 });
+    expect(screen.getByText(/21\.5/)).toBeInTheDocument();
+  });
+
+  it("shows a string reading as text", () => {
+    renderHot(withValue({ valueType: "string", valueText: "auto" }));
+    expect(screen.getByText("auto")).toBeInTheDocument();
+  });
+
+  it("shows a boolean reading as ON/OFF", () => {
+    renderHot(withValue({ valueType: "boolean", valueBool: true }));
+    expect(screen.getByText("ON")).toBeInTheDocument();
+  });
+});

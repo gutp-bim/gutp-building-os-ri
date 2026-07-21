@@ -6,6 +6,7 @@ import {
   classifyPointFreshness,
 } from "@/lib/telemetry/freshness";
 import { resolveStaleThresholdSeconds } from "@/lib/telemetry/freshness-threshold";
+import { resolveTelemetryValue } from "@/lib/telemetry/value";
 import { unitLabelMap } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
@@ -38,14 +39,20 @@ export function TelemetryHotData({
   const splitLabels = labels ? labels.split(",") : null;
 
   const displayHotData = useMemo(() => {
-    if (!hotData || hotData.value === null || hotData.value === undefined)
-      return "-";
+    if (!hotData) return "-";
+
+    // #152: a string/boolean latest reading is shown as text (charts stay numeric-only). Scale, unit
+    // and the enum-label mapping apply only to the numeric path.
+    const resolved = resolveTelemetryValue(hotData);
+    if (resolved.kind === "string") return resolved.value;
+    if (resolved.kind === "boolean") return resolved.value ? "ON" : "OFF";
+    if (resolved.kind === "none") return "-";
 
     if (splitLabels && splitLabels.length > 0) {
-      return splitLabels[hotData.value - 1];
+      return splitLabels[resolved.value - 1];
     }
 
-    return `${hotData.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
+    return `${resolved.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
   }, [hotData, scale, splitLabels, unit]);
 
   // Freshness of the latest sample, evaluated against the current time on each render. The stale

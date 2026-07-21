@@ -23,8 +23,8 @@
           "description": "Unique identifier for the telemetry point"
         },
         "value": {
-          "type": "number",
-          "description": "Representative value of the telemetry data"
+          "type": ["number", "string", "boolean"],
+          "description": "Representative value of the telemetry data. Numeric is the primary type (charts/aggregation); string and boolean are first-class state/status values (#152). The discriminant is carried alongside as value_type in the persistence/API layers; numeric stays fully backward-compatible."
         },
         "data": {
           "type": "object",

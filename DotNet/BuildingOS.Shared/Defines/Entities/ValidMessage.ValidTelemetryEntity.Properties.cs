@@ -370,10 +370,10 @@ public readonly partial struct ValidMessage
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Representative value of the telemetry data
+        /// Representative value of the telemetry data. Numeric is the primary type (charts/aggregation); string and boolean are first-class state/status values (#152). The discriminant is carried alongside as value_type in the persistence/API layers; numeric stays fully backward-compatible.
         /// </para>
         /// </remarks>
-        public Corvus.Json.JsonNumber Value
+        public BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.ValueEntity Value
         {
             get
             {
@@ -386,7 +386,7 @@ public readonly partial struct ValidMessage
 
                     if (this.jsonElementBacking.TryGetProperty(JsonPropertyNames.ValueUtf8, out JsonElement result))
                     {
-                        return new Corvus.Json.JsonNumber(result);
+                        return new BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.ValueEntity(result);
                     }
                 }
 
@@ -394,7 +394,7 @@ public readonly partial struct ValidMessage
                 {
                     if (this.objectBacking.TryGetValue(JsonPropertyNames.Value, out JsonAny result))
                     {
-                        return result.As<Corvus.Json.JsonNumber>();
+                        return result.As<BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.ValueEntity>();
                     }
                 }
 
@@ -405,7 +405,7 @@ public readonly partial struct ValidMessage
         /// <summary>
         /// Creates an instance of a <see cref = "ValidTelemetryEntity"/>.
         /// </summary>
-        public static ValidTelemetryEntity Create(Corvus.Json.JsonString building, BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.DataEntity data, Corvus.Json.JsonDateTime datetime, Corvus.Json.JsonString deviceId, Corvus.Json.JsonString pointId, Corvus.Json.JsonNumber value, Corvus.Json.JsonString? id = null, Corvus.Json.JsonString? name = null)
+        public static ValidTelemetryEntity Create(Corvus.Json.JsonString building, BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.DataEntity data, Corvus.Json.JsonDateTime datetime, Corvus.Json.JsonString deviceId, Corvus.Json.JsonString pointId, BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.ValueEntity value, Corvus.Json.JsonString? id = null, Corvus.Json.JsonString? name = null)
         {
             var builder = ImmutableList.CreateBuilder<JsonObjectProperty>();
             builder.Add(JsonPropertyNames.Building, building.AsAny);
@@ -502,7 +502,7 @@ public readonly partial struct ValidMessage
         /// </summary>
         /// <param name = "value">The value to set.</param>
         /// <returns>The entity with the updated property.</returns>
-        public ValidTelemetryEntity WithValue(in Corvus.Json.JsonNumber value)
+        public ValidTelemetryEntity WithValue(in BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.ValueEntity value)
         {
             return this.SetProperty(JsonPropertyNames.Value, value);
         }
@@ -524,7 +524,7 @@ public readonly partial struct ValidMessage
 
         private static ValidationContext __CorvusValidateValue(in JsonObjectProperty property, in ValidationContext validationContext, ValidationLevel level)
         {
-            return property.ValueAs<Corvus.Json.JsonNumber>().Validate(validationContext, level);
+            return property.ValueAs<BuildingOS.Shared.Entities.ValidMessage.ValidTelemetryEntity.ValueEntity>().Validate(validationContext, level);
         }
 
         private static ValidationContext __CorvusValidateData(in JsonObjectProperty property, in ValidationContext validationContext, ValidationLevel level)

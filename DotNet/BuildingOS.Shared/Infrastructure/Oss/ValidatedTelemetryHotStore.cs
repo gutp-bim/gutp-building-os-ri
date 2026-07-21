@@ -32,9 +32,9 @@ public static class ValidatedTelemetryHotStore
                     DeviceId = te.DeviceId.GetString(),
                     Name     = te.Name.GetString(),
                     Datetime = te.Datetime.GetString(),
-                    Value    = te.Value.ValueKind == System.Text.Json.JsonValueKind.Number
-                                   ? (double?)((double)te.Value.AsNumber) : null,
                 };
+                // Discriminated value (#152): number → Value, string → ValueText, boolean → ValueBool.
+                TelemetryValueKind.Apply(data, te.Value.AsJsonElement);
                 await hot.PutAsync(pointId, data, cancellationToken);
             }
         }

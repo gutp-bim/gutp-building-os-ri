@@ -71,6 +71,38 @@ public class TelemetryControllerTest
     }
 
     [Fact]
+    public async Task BatchLatest_CarriesDiscriminatedValue_ForNonNumericPoints()
+    {
+        // #152: a string/boolean latest sample surfaces via ValueType + ValueText/ValueBool while the
+        // numeric Value stays null; a numeric point keeps Value with ValueType "number".
+        var (controller, router, _) = Build();
+        router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "pStr" && q.Latest), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "pStr", Datetime = "2026-07-15T00:00:00Z", ValueType = "string", ValueText = "auto" } });
+        router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "pBool" && q.Latest), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "pBool", Datetime = "2026-07-15T00:00:00Z", ValueType = "boolean", ValueBool = true } });
+        router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "pNum" && q.Latest), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "pNum", Datetime = "2026-07-15T00:00:00Z", ValueType = "number", Value = 21.5 } });
+
+        var result = await controller.QueryBatchLatest(new BatchLatestRequest(["pStr", "pBool", "pNum"]), CancellationToken.None);
+
+        var body = Body(result);
+        var str = Assert.Single(body, s => s.PointId == "pStr");
+        Assert.Equal("string", str.ValueType);
+        Assert.Equal("auto", str.ValueText);
+        Assert.Null(str.Value);
+
+        var boolean = Assert.Single(body, s => s.PointId == "pBool");
+        Assert.Equal("boolean", boolean.ValueType);
+        Assert.True(boolean.ValueBool);
+        Assert.Null(boolean.Value);
+
+        var num = Assert.Single(body, s => s.PointId == "pNum");
+        Assert.Equal("number", num.ValueType);
+        Assert.Equal(21.5, num.Value);
+        Assert.Null(num.ValueText);
+    }
+
+    [Fact]
     public async Task BatchLatest_DeduplicatesPointIds()
     {
         var (controller, router, _) = Build();

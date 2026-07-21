@@ -20,7 +20,7 @@ import {
 } from "@/lib/telemetry/range";
 import {
   getTelemetryConfig,
-  latestTelemetry,
+  latestTelemetrySample,
   queryTelemetry,
   type TelemetryConfig,
 } from "@/lib/telemetry/repository";
@@ -100,8 +100,9 @@ export default function PointDetailPageComponent({
     try {
       setHotLoading(true);
       setHotError(null);
-      const latest = await latestTelemetry(pointDetail.point.id);
-      setHotData(latest ? { value: latest.v, datetime: latest.t } : null);
+      // Raw latest sample (not the numeric-only series) so a string/boolean reading survives (#152).
+      const latest = await latestTelemetrySample(pointDetail.point.id);
+      setHotData(latest);
     } catch (e) {
       console.error(e);
       setHotError("最新値の取得に失敗しました。");

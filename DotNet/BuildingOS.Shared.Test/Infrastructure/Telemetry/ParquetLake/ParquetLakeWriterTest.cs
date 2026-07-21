@@ -68,6 +68,99 @@ public class ParquetLakeWriterTest
         Assert.Equal(12, time!.Value.ToUniversalTime().Hour); // time column = UTC 12 (agrees)
     }
 
+    [Fact]
+    public async Task Serializer_RoundTrips_DiscriminatedValueColumns()
+    {
+        // #152: numeric / string / boolean rows all round-trip through the additive value_type /
+        // value_text / value_bool columns; numeric keeps its double `value` column unchanged.
+        var rows = new[]
+        {
+            new ValidTelemetryData { PointId = "p1", Datetime = "2026-06-12T12:00:00Z", Value = 7.5, ValueType = "number" },
+            new ValidTelemetryData { PointId = "p2", Datetime = "2026-06-12T12:00:00Z", ValueText = "auto", ValueType = "string" },
+            new ValidTelemetryData { PointId = "p3", Datetime = "2026-06-12T12:00:00Z", ValueBool = true, ValueType = "boolean" },
+        };
+
+        using var ms = new MemoryStream();
+        await ParquetTelemetrySerializer.WriteAsync(rows, ms);
+        ms.Position = 0;
+        var read = await ReadBackFull(ms);
+
+        Assert.Equal(3, read.Count);
+        var num = read.Single(r => r.PointId == "p1");
+        Assert.Equal(7.5, num.Value);
+        Assert.Equal("number", num.ValueType);
+        Assert.Null(num.ValueText);
+        Assert.Null(num.ValueBool);
+
+        var str = read.Single(r => r.PointId == "p2");
+        Assert.Null(str.Value);
+        Assert.Equal("string", str.ValueType);
+        Assert.Equal("auto", str.ValueText);
+
+        var boolean = read.Single(r => r.PointId == "p3");
+        Assert.Null(boolean.Value);
+        Assert.Equal("boolean", boolean.ValueType);
+        Assert.True(boolean.ValueBool);
+    }
+
+    [Fact]
+    public async Task Reader_LegacyFileWithoutValueColumns_ReadsAsNumeric()
+    {
+        // Back-compat: an old part-*.parquet (no value_type/text/bool columns) must still read — the
+        // missing columns default to null, so a legacy row keeps only its numeric Value.
+        var legacySchema = new Parquet.Schema.ParquetSchema(
+            new Parquet.Schema.DataField<string>("point_id"),
+            new Parquet.Schema.DataField<double?>("value"),
+            new Parquet.Schema.DataField<DateTime?>("time"));
+        using var ms = new MemoryStream();
+        using (var w = await Parquet.ParquetWriter.CreateAsync(legacySchema, ms))
+        using (var rg = w.CreateRowGroup())
+        {
+            await rg.WriteColumnAsync(new Parquet.Data.DataColumn(
+                (Parquet.Schema.DataField)legacySchema[0], new[] { "p1" }));
+            await rg.WriteColumnAsync(new Parquet.Data.DataColumn(
+                (Parquet.Schema.DataField)legacySchema[1], new double?[] { 3.14 }));
+            await rg.WriteColumnAsync(new Parquet.Data.DataColumn(
+                (Parquet.Schema.DataField)legacySchema[2], new DateTime?[] { new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc) }));
+        }
+        ms.Position = 0;
+        var read = await ReadBackFull(ms);
+
+        var r = Assert.Single(read);
+        Assert.Equal(3.14, r.Value);
+        Assert.Null(r.ValueType);
+        Assert.Null(r.ValueText);
+        Assert.Null(r.ValueBool);
+    }
+
+    private static async Task<List<ValidTelemetryData>> ReadBackFull(Stream s)
+    {
+        var results = new List<ValidTelemetryData>();
+        using var reader = await Parquet.ParquetReader.CreateAsync(s);
+        for (var rg = 0; rg < reader.RowGroupCount; rg++)
+        {
+            using var rgReader = reader.OpenRowGroupReader(rg);
+            var cols = new Dictionary<string, Array>();
+            foreach (var f in reader.Schema.GetDataFields())
+            {
+                cols[f.Name] = (await rgReader.ReadColumnAsync(f)).Data;
+            }
+            int n = cols.Values.First().Length;
+            for (int i = 0; i < n; i++)
+            {
+                results.Add(new ValidTelemetryData
+                {
+                    PointId   = cols.TryGetValue("point_id", out var p) ? p.GetValue(i)?.ToString() : null,
+                    Value     = cols.TryGetValue("value", out var v) && v.GetValue(i) is double d ? d : null,
+                    ValueType = cols.TryGetValue("value_type", out var vt) ? vt.GetValue(i)?.ToString() : null,
+                    ValueText = cols.TryGetValue("value_text", out var vx) ? vx.GetValue(i)?.ToString() : null,
+                    ValueBool = cols.TryGetValue("value_bool", out var vb) && vb.GetValue(i) is bool b ? b : null,
+                });
+            }
+        }
+        return results;
+    }
+
     private static async Task<List<ValidTelemetryData>> ReadBack(Stream s)
     {
         var results = new List<ValidTelemetryData>();

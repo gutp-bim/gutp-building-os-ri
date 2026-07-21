@@ -2,6 +2,7 @@ import { API_BASE_URL, authHeaders } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
 import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointLastSeen } from "./freshness";
 import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "./freshness-threshold";
+import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
 import { toGranularityParam, toSeries } from "./mapping";
 import type { TelemetryPoint, TelemetryQuery, TelemetrySeries } from "./types";
 
@@ -87,6 +88,21 @@ export async function latestTelemetry(
 ): Promise<TelemetryPoint | null> {
   const series = await queryTelemetry({ pointId, latest: true }, token);
   return series.points.at(-1) ?? null;
+}
+
+/**
+ * Latest single raw sample for a point, preserving the discriminated value (#152) so a non-numeric
+ * (string/boolean) latest reading survives — unlike {@link latestTelemetry}, which funnels through the
+ * numeric-only series mapping and drops non-numeric rows. Returns null when there is no data.
+ */
+export async function latestTelemetrySample(
+  pointId: string,
+  token?: string,
+): Promise<ValidTelemetryData | null> {
+  const res = await apiClient(token).telemetries.query.$get({
+    query: { pointId, latest: true },
+  });
+  return res.at(-1) ?? null;
 }
 
 /**

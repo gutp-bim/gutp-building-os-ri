@@ -163,7 +163,7 @@ public sealed class GatewayIngressService(
             pointId: meta.PointId,
             building: new JsonString(meta.Building),
             datetime: new JsonString(timestamp).As<JsonDateTime>(),
-            value: (JsonNumber)frame.Value,
+            value: ToValueEntity(frame),
             deviceId: new JsonString(meta.DeviceId),
             name: new JsonString(meta.Name),
             data: new ValidMessage.ValidTelemetryEntity.DataEntity([.. dataProps]));
@@ -171,6 +171,22 @@ public sealed class GatewayIngressService(
         return ValidMessage.Create(
             new ValidMessage.ValidTelemetryEntityArray([entity.AsAny])).ToString();
     }
+
+    // Maps the frame's discriminated value (#152) to the validated-telemetry union value. A frame with
+    // no value case set — e.g. a legacy numeric gateway that omitted its default-0.0 field-3 reading —
+    // falls through to numeric value_num (0.0), preserving the pre-#152 numeric-only wire behavior.
+    private static ValidMessage.ValidTelemetryEntity.ValueEntity ToValueEntity(TelemetryFrame frame) =>
+        frame.ValueCase switch
+        {
+            TelemetryFrame.ValueOneofCase.ValueStr => frame.ValueStr,
+            // Build the boolean from a JSON-backed value. The generated union's dotnet-bool backing
+            // (ValueEntity(bool) / implicit-from-bool) is broken in the pinned Corvus.Json 2.0.20 — it
+            // sets numberBacking but not boolBacking, so serialization always emits `false`. A
+            // JSON-element-backed value round-trips correctly.
+            TelemetryFrame.ValueOneofCase.ValueBool =>
+                ValidMessage.ValidTelemetryEntity.ValueEntity.Parse(frame.ValueBool ? "true" : "false"),
+            _ => (JsonNumber)frame.ValueNum,
+        };
 
     // A non-empty, parseable timestamp is normalized to round-trip ISO-8601; empty or unparseable
     // falls back to receive time so a malformed gateway timestamp cannot fail downstream date parsing.
