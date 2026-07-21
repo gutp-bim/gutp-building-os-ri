@@ -11,7 +11,7 @@ public static class RollupAggregator
     /// <param name="hourUtc">The hour partition UTC timestamp to stamp on each rollup row. If null, derived from the rows' timestamps.</param>
     public static IReadOnlyList<RollupRow> Compute(IEnumerable<ValidTelemetryData> rows, DateTime? hourUtc = null)
     {
-        var groups = new Dictionary<string, (ValidTelemetryData First, double Sum, double LocalMin, double LocalMax, int Numeric, int Total)>(
+        var groups = new Dictionary<string, (ValidTelemetryData First, double Sum, double LocalMin, double LocalMax, int Numeric, int Total, ValidTelemetryData Last, DateTime LastTs)>(
             StringComparer.Ordinal);
         var order = new List<string>();
 
@@ -20,7 +20,7 @@ public static class RollupAggregator
             var pid = row.PointId ?? string.Empty;
             if (!groups.TryGetValue(pid, out var g))
             {
-                g = (row, 0, double.MaxValue, double.MinValue, 0, 0);
+                g = (row, 0, double.MaxValue, double.MinValue, 0, 0, row, DateTime.MinValue);
                 order.Add(pid);
             }
             g.Total++;
@@ -31,6 +31,13 @@ public static class RollupAggregator
                 if (v < g.LocalMin) g.LocalMin = v;
                 if (v > g.LocalMax) g.LocalMax = v;
                 g.Numeric++;
+            }
+            // #152 Phase B (D3=last-in-bucket): track the latest row by timestamp for the non-numeric
+            // representative value, order-independent.
+            if (TelemetryTimestamp.TryParseUtc(row.Datetime, out var ts) && ts >= g.LastTs)
+            {
+                g.Last = row;
+                g.LastTs = ts;
             }
             groups[pid] = g;
         }
@@ -46,8 +53,9 @@ public static class RollupAggregator
         var result = new List<RollupRow>(order.Count);
         foreach (var pid in order)
         {
-            var (first, sum, localMin, localMax, numeric, total) = groups[pid];
+            var (first, sum, localMin, localMax, numeric, total, last, _) = groups[pid];
             var h = DeriveHour(first);
+            var (valueType, lastText, lastBool) = TelemetryValueKind.ResolveLastInBucket(last, numeric > 0);
             result.Add(new RollupRow(
                 first.PointId,
                 first.Building,
@@ -57,7 +65,10 @@ public static class RollupAggregator
                 numeric > 0 ? localMin : null,
                 numeric > 0 ? localMax : null,
                 total,
-                h));
+                h,
+                valueType,
+                lastText,
+                lastBool));
         }
         return result;
     }

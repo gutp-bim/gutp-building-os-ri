@@ -8,7 +8,19 @@ public class TelemetryAggregatorTest
     private static ValidTelemetryData Row(string isoUtc, double? value) => new()
     {
         PointId = "p1", Building = "b1", DeviceId = "d1", Name = "temp",
-        Datetime = isoUtc, Value = value,
+        Datetime = isoUtc, Value = value, ValueType = value is null ? null : "number",
+    };
+
+    private static ValidTelemetryData StringRow(string isoUtc, string text) => new()
+    {
+        PointId = "p1", Building = "b1", DeviceId = "d1", Name = "mode",
+        Datetime = isoUtc, ValueType = "string", ValueText = text,
+    };
+
+    private static ValidTelemetryData BoolRow(string isoUtc, bool b) => new()
+    {
+        PointId = "p1", Building = "b1", DeviceId = "d1", Name = "run",
+        Datetime = isoUtc, ValueType = "boolean", ValueBool = b,
     };
 
     [Fact]
@@ -96,5 +108,54 @@ public class TelemetryAggregatorTest
     public void Aggregate_Empty_ReturnsEmpty()
     {
         Assert.Empty(TelemetryAggregator.Aggregate(Array.Empty<ValidTelemetryData>(), AggregationBucket.Hour));
+    }
+
+    [Fact]
+    public void Aggregate_NumericBucket_CarriesNumberValueType()
+    {
+        // #152 Phase B: numeric buckets keep avg/min/max and are tagged "number".
+        var bucket = Assert.Single(TelemetryAggregator.Aggregate(
+            new[] { Row("2026-06-12T12:05:00Z", 10) }, AggregationBucket.Hour));
+        Assert.Equal("number", bucket.ValueType);
+        Assert.Null(bucket.LastText);
+        Assert.Null(bucket.LastBool);
+        Assert.Equal(10, bucket.Avg);
+    }
+
+    [Fact]
+    public void Aggregate_StringBucket_LastInBucket_IsRepresentative()
+    {
+        // #152 Phase B, D3=last-in-bucket: the bucket's representative non-numeric value is the latest
+        // (by timestamp) in the bucket, regardless of input order. Numeric aggregates stay null.
+        var rows = new[]
+        {
+            StringRow("2026-06-12T12:55:00Z", "off"),   // latest — out of order
+            StringRow("2026-06-12T12:05:00Z", "auto"),
+        };
+        var bucket = Assert.Single(TelemetryAggregator.Aggregate(rows, AggregationBucket.Hour));
+
+        Assert.Equal("string", bucket.ValueType);
+        Assert.Equal("off", bucket.LastText);
+        Assert.Null(bucket.LastBool);
+        Assert.Null(bucket.Avg);
+        Assert.Null(bucket.Min);
+        Assert.Null(bucket.Max);
+        Assert.Equal(2, bucket.Count);
+    }
+
+    [Fact]
+    public void Aggregate_BooleanBucket_LastInBucket_IsRepresentative()
+    {
+        var rows = new[]
+        {
+            BoolRow("2026-06-12T12:05:00Z", false),
+            BoolRow("2026-06-12T12:50:00Z", true),  // latest
+        };
+        var bucket = Assert.Single(TelemetryAggregator.Aggregate(rows, AggregationBucket.Hour));
+
+        Assert.Equal("boolean", bucket.ValueType);
+        Assert.True(bucket.LastBool);
+        Assert.Null(bucket.LastText);
+        Assert.Null(bucket.Avg);
     }
 }

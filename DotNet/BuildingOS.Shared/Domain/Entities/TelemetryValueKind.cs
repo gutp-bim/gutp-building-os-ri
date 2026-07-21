@@ -48,4 +48,18 @@ public static class TelemetryValueKind
                 return false;
         }
     }
+
+    /// <summary>
+    /// Resolve an aggregated bucket's <b>last-in-bucket</b> discriminant (#152 Phase B, D3) from its
+    /// latest row and whether the bucket contained any numeric value. A non-numeric latest row yields
+    /// its string/boolean value; otherwise a bucket with numeric values is tagged <c>"number"</c> and
+    /// an empty/non-representable bucket stays untagged (null).
+    /// </summary>
+    public static (string? ValueType, string? LastText, bool? LastBool) ResolveLastInBucket(
+        ValidTelemetryData? last, bool hasNumeric) => last?.ValueType switch
+    {
+        String => (String, last.ValueText, (bool?)null),
+        Boolean => (Boolean, null, last.ValueBool),
+        _ => (hasNumeric ? Number : null, null, null),
+    };
 }

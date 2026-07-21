@@ -54,3 +54,23 @@ export function isNonNumericValue(v: DiscriminatedTelemetryValue): boolean {
   const r = resolveTelemetryValue(v);
   return r.kind === "string" || r.kind === "boolean";
 }
+
+/**
+ * Format a resolved value for display: numbers as-is, strings verbatim, booleans as ON/OFF. Returns
+ * null when there is no representable value. Numeric callers that need scale/unit/enum-label formatting
+ * should branch on {@link resolveTelemetryValue} instead — this is the plain state/text rendering
+ * shared by the latest view and the state timeline.
+ */
+export function formatTelemetryValue(v: DiscriminatedTelemetryValue): string | null {
+  const r = resolveTelemetryValue(v);
+  switch (r.kind) {
+    case "number":
+      return String(r.value);
+    case "string":
+      return r.value;
+    case "boolean":
+      return r.value ? "ON" : "OFF";
+    default:
+      return null;
+  }
+}

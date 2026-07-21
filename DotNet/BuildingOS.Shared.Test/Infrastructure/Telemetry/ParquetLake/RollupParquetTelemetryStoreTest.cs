@@ -55,6 +55,41 @@ public class RollupParquetTelemetryStoreTest
     }
 
     [Fact]
+    public async Task QueryHourly_NonNumericRollup_CarriesLastInBucket()
+    {
+        // #152 Phase B: a non-numeric rollup surfaces ValueType + ValueText (avg stays null).
+        var storage = new FakeStorage();
+        var rollup = new RollupRow("p1", "B", "D", "mode", null, null, null, 3, Hour1, "string", "auto", null);
+        await PutRollupAsync(storage, "B", Hour1, rollup);
+
+        var store = NewStore(storage, new EmptyRawStore());
+        var result = await store.QueryHourlyAsync("p1", Hour1, Hour1.AddHours(1));
+
+        Assert.Single(result);
+        Assert.Null(result[0].Value);
+        Assert.Equal("string", result[0].ValueType);
+        Assert.Equal("auto", result[0].ValueText);
+    }
+
+    [Fact]
+    public async Task QueryDaily_NonNumericRollups_LastInDayWins()
+    {
+        // #152 Phase B: daily re-aggregation of non-numeric hourly rollups keeps the latest hour's
+        // last-in-bucket value as the day's representative.
+        var storage = new FakeStorage();
+        await PutRollupAsync(storage, "B", Hour1, new RollupRow("p1", "B", "D", "mode", null, null, null, 2, Hour1, "string", "auto", null));
+        await PutRollupAsync(storage, "B", Hour2, new RollupRow("p1", "B", "D", "mode", null, null, null, 2, Hour2, "string", "off", null));
+
+        var store = NewStore(storage, new EmptyRawStore());
+        var result = await store.QueryDailyAsync("p1", Hour1, Hour2.AddHours(1));
+
+        var day = Assert.Single(result);
+        Assert.Equal("string", day.ValueType);
+        Assert.Equal("off", day.ValueText); // Hour2 is later than Hour1
+        Assert.Null(day.Value);
+    }
+
+    [Fact]
     public async Task QueryHourly_WhenRollupMissing_FallsBackToAggregateOnRead()
     {
         var storage = new FakeStorage();

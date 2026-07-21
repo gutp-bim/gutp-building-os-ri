@@ -2,7 +2,14 @@ import type {
   TelemetryGranularity,
   ValidTelemetryData,
 } from "@/lib/infra/aspida-client/generated/@types";
-import type { Granularity, TelemetryPoint, TelemetrySeries } from "./types";
+import type {
+  Granularity,
+  TelemetryPoint,
+  TelemetrySeries,
+  TelemetryStatePoint,
+  TelemetryStateSeries,
+} from "./types";
+import { formatTelemetryValue, isNonNumericValue } from "./value";
 
 // Backend enum ordinals (BuildingOS.Shared.Infrastructure.Telemetry.TelemetryGranularity):
 // Raw = 0, Hour = 1, Day = 2. OpenAPI/aspida types this as a bare number, so the friendly
@@ -35,6 +42,26 @@ export function toSeries(
         typeof d.datetime === "string" && typeof d.value === "number",
     )
     .map((d) => ({ t: d.datetime, v: d.value }))
+    .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
+
+  return { pointId, points };
+}
+
+/**
+ * Pure conversion of raw telemetry rows into a datetime-ascending NON-numeric state series (#152
+ * Phase B). Numeric rows are dropped (they belong on the chart via {@link toSeries}); each string/
+ * boolean row becomes a display `state` string (booleans → ON/OFF). Rows without a datetime are
+ * dropped.
+ */
+export function toStateSeries(
+  pointId: string,
+  data: ValidTelemetryData[],
+): TelemetryStateSeries {
+  const points: TelemetryStatePoint[] = data
+    .filter((d): d is ValidTelemetryData & { datetime: string } =>
+      typeof d.datetime === "string" && isNonNumericValue(d),
+    )
+    .map((d) => ({ t: d.datetime, state: formatTelemetryValue(d) ?? "" }))
     .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
 
   return { pointId, points };

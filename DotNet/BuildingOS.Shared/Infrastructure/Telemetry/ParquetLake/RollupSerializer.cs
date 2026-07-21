@@ -4,7 +4,12 @@ using Parquet.Schema;
 
 namespace BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 
-/// <summary>Parquet serialization for rollup objects (#222). 9-column schema: point_id/building/device_id/name/avg/min_value/max_value/count/hour_utc.</summary>
+/// <summary>
+/// Parquet serialization for rollup objects (#222). The discriminant columns
+/// (<c>value_type</c>/<c>value_text</c>/<c>value_bool</c>, #152 Phase B) hold the non-numeric
+/// last-in-bucket value and are <b>appended</b>, so old rollup objects (without them) read back as
+/// numeric — the reader tolerates their absence.
+/// </summary>
 public static class RollupSerializer
 {
     private static readonly DataField<string> PointId   = new("point_id");
@@ -16,8 +21,12 @@ public static class RollupSerializer
     private static readonly DataField<double?> MaxVal   = new("max_value");
     private static readonly DataField<int> Count        = new("count");
     private static readonly DataField<DateTime?> HourUtc = new("hour_utc");
+    private static readonly DataField<string> ValueType = new("value_type");
+    private static readonly DataField<string> ValueText = new("value_text");
+    private static readonly DataField<bool?> ValueBool  = new("value_bool");
 
-    public static readonly ParquetSchema Schema = new(PointId, Building, DeviceId, Name, Avg, MinVal, MaxVal, Count, HourUtc);
+    public static readonly ParquetSchema Schema =
+        new(PointId, Building, DeviceId, Name, Avg, MinVal, MaxVal, Count, HourUtc, ValueType, ValueText, ValueBool);
 
     public static async Task WriteAsync(
         IReadOnlyList<RollupRow> rows, Stream stream, CancellationToken cancellationToken = default)
@@ -36,6 +45,9 @@ public static class RollupSerializer
         await rg.WriteColumnAsync(new DataColumn(MaxVal, rows.Select(r => r.MaxValue).ToArray())).ConfigureAwait(false);
         await rg.WriteColumnAsync(new DataColumn(Count, rows.Select(r => r.Count).ToArray())).ConfigureAwait(false);
         await rg.WriteColumnAsync(new DataColumn(HourUtc, rows.Select(r => (DateTime?)r.HourUtc).ToArray())).ConfigureAwait(false);
+        await rg.WriteColumnAsync(new DataColumn(ValueType, rows.Select(r => r.ValueType).ToArray())).ConfigureAwait(false);
+        await rg.WriteColumnAsync(new DataColumn(ValueText, rows.Select(r => r.ValueText).ToArray())).ConfigureAwait(false);
+        await rg.WriteColumnAsync(new DataColumn(ValueBool, rows.Select(r => r.ValueBool).ToArray())).ConfigureAwait(false);
     }
 
     public static async Task<IReadOnlyList<RollupRow>> ReadAsync(
@@ -67,7 +79,11 @@ public static class RollupSerializer
                     cols.TryGetValue("min_value", out var mn) ? mn.GetValue(i) is double dm ? dm : null : null,
                     cols.TryGetValue("max_value", out var mx) ? mx.GetValue(i) is double dmax ? dmax : null : null,
                     cols.TryGetValue("count", out var cnt) ? cnt.GetValue(i) is int ic ? ic : 0 : 0,
-                    ParseHour(cols, i)));
+                    ParseHour(cols, i),
+                    // #152 Phase B — absent in old rollup objects (→ null → numeric).
+                    cols.TryGetValue("value_type", out var vt) ? vt.GetValue(i)?.ToString() : null,
+                    cols.TryGetValue("value_text", out var vx) ? vx.GetValue(i)?.ToString() : null,
+                    cols.TryGetValue("value_bool", out var vb) && vb.GetValue(i) is bool bv ? bv : null));
             }
         }
         return result;

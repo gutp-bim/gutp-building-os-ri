@@ -35,13 +35,17 @@ vi.mock("@/lib/resources/repository", () => ({ getPointDetail: vi.fn() }));
 vi.mock("@/lib/telemetry/repository", () => ({
   latestTelemetrySample: vi.fn(),
   queryTelemetry: vi.fn(),
+  queryTelemetryWithState: vi.fn(),
   getTelemetryConfig: vi
     .fn()
     .mockResolvedValue({ staleThresholdSeconds: 300, staleIntervalMultiplier: 3 }),
 }));
 
 import { getPointDetail } from "@/lib/resources/repository";
-import { latestTelemetrySample, queryTelemetry } from "@/lib/telemetry/repository";
+import {
+  latestTelemetrySample,
+  queryTelemetryWithState,
+} from "@/lib/telemetry/repository";
 import PointDetailPageComponent from "./page-component";
 
 const detail = {
@@ -51,7 +55,12 @@ const detail = {
   space: {},
 };
 
-const series = (v: number) => ({ pointId: "p1", points: [{ t: "2026-07-17T00:00:00Z", v }] });
+// The warm fetch (queryTelemetryWithState) yields both the numeric series and the non-numeric state
+// series; these tests exercise numeric points, so `state` stays empty.
+const withState = (v: number) => ({
+  series: { pointId: "p1", points: [{ t: "2026-07-17T00:00:00Z", v }] },
+  state: { pointId: "p1", points: [] as { t: string; state: string }[] },
+});
 
 afterEach(() => vi.clearAllMocks());
 
@@ -59,7 +68,7 @@ describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
   it("shows inline banners when the hot and warm reads fail instead of failing silently", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
     (latestTelemetrySample as Mock).mockRejectedValue(new Error("hot down"));
-    (queryTelemetry as Mock).mockRejectedValue(new Error("warm down"));
+    (queryTelemetryWithState as Mock).mockRejectedValue(new Error("warm down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<PointDetailPageComponent pointId="p1" />);
@@ -71,7 +80,7 @@ describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
   it("shows no error banners when the reads succeed", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
     (latestTelemetrySample as Mock).mockResolvedValue({ datetime: "2026-07-17T00:00:00Z", value: 1 });
-    (queryTelemetry as Mock).mockResolvedValue({ pointId: "p1", points: [] });
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
 
     render(<PointDetailPageComponent pointId="p1" />);
 
@@ -101,7 +110,7 @@ describe("PointDetailPageComponent out-of-order warm responses (#197 review)", (
 
     // Each queryTelemetry call captures its own resolver so we can settle them out of order.
     const resolvers: ((v: unknown) => void)[] = [];
-    (queryTelemetry as Mock).mockImplementation(
+    (queryTelemetryWithState as Mock).mockImplementation(
       () => new Promise((resolve) => resolvers.push(resolve)),
     );
 
@@ -110,7 +119,7 @@ describe("PointDetailPageComponent out-of-order warm responses (#197 review)", (
 
     // Initial warm request (default 24h); settle it so the chart starts populated.
     await waitFor(() => expect(resolvers).toHaveLength(1));
-    resolvers[0](series(24));
+    resolvers[0](withState(24));
     await screen.findByText("24");
 
     // Select 30d (request A, slow), then 1h (request B, the latest).
@@ -120,9 +129,9 @@ describe("PointDetailPageComponent out-of-order warm responses (#197 review)", (
     await waitFor(() => expect(resolvers).toHaveLength(3));
 
     // B (latest) resolves first with 1, then A (stale) resolves later with 30.
-    resolvers[2](series(1));
+    resolvers[2](withState(1));
     await screen.findByText("1");
-    resolvers[1](series(30));
+    resolvers[1](withState(30));
 
     // The stale A response must not overwrite B's chart.
     await waitFor(() => expect(screen.getByTestId("warm-values")).toHaveTextContent("1"));

@@ -44,5 +44,10 @@ public sealed class AggregatingParquetTelemetryStore : IAggregatedTelemetryStore
         Name     = b.Name,
         Value    = b.Avg, // matches the Timescale continuous-aggregate contract (value = avg)
         Data     = JsonSerializer.Serialize(new { avg = b.Avg, min = b.Min, max = b.Max, count = b.Count }),
+        // #152 Phase B: non-numeric buckets carry the last-in-bucket representative value; numeric
+        // buckets are tagged "number" and keep Value = avg.
+        ValueType = b.ValueType,
+        ValueText = b.LastText,
+        ValueBool = b.LastBool,
     };
 }
