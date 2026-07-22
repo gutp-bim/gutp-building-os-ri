@@ -19,6 +19,7 @@ public static partial class IServiceCollectionExtension
         services.AddSingleton<IGatewayIdentityResolver>(_ => new HeaderGatewayIdentityResolver());
         // Point-list snapshot store for ?since= diffs (#224/diff). IMemoryCache is registered in Startup.
         services.AddSingleton<IGatewayPointListSnapshotStore, MemoryGatewayPointListSnapshotStore>();
+        services.AddSingleton<IPointListRevisionCoordinator, NatsKvPointListRevisionCoordinator>();
         return services;
     }
 }

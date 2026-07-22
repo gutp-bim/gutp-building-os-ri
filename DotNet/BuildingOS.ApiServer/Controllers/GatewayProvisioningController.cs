@@ -24,7 +24,8 @@ namespace BuildingOs.ApiServer.Controllers;
 public class GatewayProvisioningController(
     IDigitalTwinDatabase digitalTwinDatabase,
     IGatewayIdentityResolver gatewayIdentity,
-    IGatewayPointListSnapshotStore snapshotStore) : ControllerBase
+    IGatewayPointListSnapshotStore snapshotStore,
+    IPointListRevisionCoordinator revisionCoordinator) : ControllerBase
 {
     /// <summary>
     /// 当該 gateway が所有する全 point（native addressing / unit / writable / control schema / device）を
@@ -56,6 +57,20 @@ public class GatewayProvisioningController(
         if (!isAdmin && !string.Equals(caller, gatewayId, StringComparison.Ordinal))
             return StatusCode(StatusCodes.Status403Forbidden);
 
+        var sharedGeneration = await revisionCoordinator.GetGenerationAsync(ct).ConfigureAwait(false);
+        var ifNoneMatch = Request.Headers.IfNoneMatch.ToString();
+        var conditionalEtag = !string.IsNullOrEmpty(since) ? since : ifNoneMatch;
+        if (!string.IsNullOrEmpty(conditionalEtag))
+        {
+            var currentEtag = await revisionCoordinator.GetCurrentEtagAsync(gatewayId, ct).ConfigureAwait(false);
+            if (string.Equals(currentEtag, conditionalEtag, StringComparison.Ordinal))
+            {
+                Response.Headers.ETag = currentEtag;
+                Response.Headers.CacheControl = "no-cache";
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+        }
+
         var entries = await digitalTwinDatabase.ListGatewayPointList(gatewayId).ConfigureAwait(false);
         var etag = PointListEtag.Compute(entries);
 
@@ -64,6 +79,10 @@ public class GatewayProvisioningController(
 
         // Retain the current snapshot so a later ?since={etag} can be diffed against it.
         snapshotStore.Save(gatewayId, etag, entries);
+        if (sharedGeneration is not null)
+            await revisionCoordinator
+                .SaveIfGenerationUnchangedAsync(gatewayId, etag, sharedGeneration, ct)
+                .ConfigureAwait(false);
 
         // ── Diff path (?since=) ────────────────────────────────────────────────
         if (!string.IsNullOrEmpty(since))
@@ -92,7 +111,6 @@ public class GatewayProvisioningController(
         }
 
         // ── Full path ──────────────────────────────────────────────────────────
-        var ifNoneMatch = Request.Headers.IfNoneMatch.ToString();
         if (!string.IsNullOrEmpty(ifNoneMatch) && ifNoneMatch == etag)
             return StatusCode(StatusCodes.Status304NotModified);
 

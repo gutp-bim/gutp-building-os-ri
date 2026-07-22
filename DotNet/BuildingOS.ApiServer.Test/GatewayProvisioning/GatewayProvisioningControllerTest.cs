@@ -28,6 +28,7 @@ public class GatewayProvisioningControllerTest
         AuthorizationContext? auth = null,
         string? ifNoneMatch = null,
         IGatewayPointListSnapshotStore? snapshots = null,
+        IPointListRevisionCoordinator? revisions = null,
         string gatewayId = "GW001",
         Mock<IDigitalTwinDatabase>? db = null)
     {
@@ -39,7 +40,8 @@ public class GatewayProvisioningControllerTest
         db ??= NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { [gatewayId] = entries });
 
         var controller = new GatewayProvisioningController(
-            db.Object, new HeaderGatewayIdentityResolver(), snapshots ?? NewSnapshots());
+            db.Object, new HeaderGatewayIdentityResolver(), snapshots ?? NewSnapshots(),
+            revisions ?? new MemoryPointListRevisionCoordinator());
 
         var ctx = new DefaultHttpContext();
         if (callerGatewayHeader is not null) ctx.Request.Headers["X-Gateway-Id"] = callerGatewayHeader;
@@ -114,6 +116,88 @@ public class GatewayProvisioningControllerTest
     }
 
     [Fact]
+    public async Task Returns304FromSharedRevision_WithoutRequeryingTwin()
+    {
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+        });
+        var snapshots = NewSnapshots();
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var (controller, context) = Build(
+            [], callerGatewayHeader: "GW001", snapshots: snapshots, revisions: revisions, db: db);
+
+        var first = Assert.IsType<OkObjectResult>(
+            await controller.GetPointList("GW001", null, default));
+        var current = Assert.IsType<GatewayPointListResponse>(first.Value);
+        context.Request.Headers.IfNoneMatch = current.Revision;
+
+        var result = await controller.GetPointList("GW001", null, default);
+
+        var notModified = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(StatusCodes.Status304NotModified, notModified.StatusCode);
+        db.Verify(twin => twin.ListGatewayPointList("GW001"), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReturnsUpdatedBody_WhenTwinChangeInvalidatesSharedRevision()
+    {
+        var snapshots = NewSnapshots();
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var v1Db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+        });
+        var (firstController, _) = Build(
+            [], callerGatewayHeader: "GW001", snapshots: snapshots, revisions: revisions, db: v1Db);
+        var first = Assert.IsType<GatewayPointListResponse>(
+            Assert.IsType<OkObjectResult>(
+                await firstController.GetPointList("GW001", null, default)).Value);
+
+        var updateToken = await revisions.BeginUpdateAsync();
+        await revisions.CompleteUpdateAsync(updateToken);
+        var v2Db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001"), Pt("PT002")],
+        });
+        var (secondController, _) = Build(
+            [], callerGatewayHeader: "GW001", ifNoneMatch: first.Revision,
+            snapshots: snapshots, revisions: revisions, db: v2Db);
+
+        var result = await secondController.GetPointList("GW001", null, default);
+
+        var updated = Assert.IsType<GatewayPointListResponse>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(["PT001", "PT002"], updated.Points.Select(point => point.PointId));
+        Assert.NotEqual(first.Revision, updated.Revision);
+    }
+
+    [Fact]
+    public async Task Returns304AcrossApiReplicas_WithoutRequeryingTwin()
+    {
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+        });
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var (replicaA, _) = Build(
+            [], callerGatewayHeader: "GW001", snapshots: NewSnapshots(), revisions: revisions, db: db);
+        var first = Assert.IsType<GatewayPointListResponse>(
+            Assert.IsType<OkObjectResult>(
+                await replicaA.GetPointList("GW001", null, default)).Value);
+
+        var (replicaB, _) = Build(
+            [], callerGatewayHeader: "GW001", ifNoneMatch: first.Revision,
+            snapshots: NewSnapshots(), revisions: revisions, db: db);
+
+        var result = await replicaB.GetPointList("GW001", null, default);
+
+        Assert.Equal(
+            StatusCodes.Status304NotModified,
+            Assert.IsType<StatusCodeResult>(result).StatusCode);
+        db.Verify(twin => twin.ListGatewayPointList("GW001"), Times.Once);
+    }
+
+    [Fact]
     public async Task Returns200WithEmptyPoints_WhenGatewayOwnsNothing()
     {
         var (c, _) = Build([], callerGatewayHeader: "GW001");
@@ -143,6 +227,30 @@ public class GatewayProvisioningControllerTest
         var result = await c.GetPointList("GW001", since: etag, default);
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status304NotModified, status.StatusCode);
+    }
+
+    [Fact]
+    public async Task Diff_Returns304FromSharedRevision_WithoutRequeryingTwin()
+    {
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]>
+        {
+            ["GW001"] = [Pt("PT001")],
+        });
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var (firstController, _) = Build(
+            [], callerGatewayHeader: "GW001", revisions: revisions, db: db);
+        var first = Assert.IsType<GatewayPointListResponse>(
+            Assert.IsType<OkObjectResult>(
+                await firstController.GetPointList("GW001", null, default)).Value);
+        var (secondController, _) = Build(
+            [], callerGatewayHeader: "GW001", revisions: revisions, db: db);
+
+        var result = await secondController.GetPointList("GW001", first.Revision, default);
+
+        Assert.Equal(
+            StatusCodes.Status304NotModified,
+            Assert.IsType<StatusCodeResult>(result).StatusCode);
+        db.Verify(twin => twin.ListGatewayPointList("GW001"), Times.Once);
     }
 
     [Fact]
