@@ -66,6 +66,20 @@ MQTT_HOST=building-os.mosquitto WARM_STORE=timescale \
 
 ## Running Tests
 
+### S17 — Multi-building 2k–50k Point sweep
+
+Deterministically distributes each scale across buildings and gateways, then measures Point List,
+gRPC ingress accepted/rejected counts, Parquet loss, and lake visibility time. The first failed stage
+is returned as a 1-based exit code. See the consolidated results in
+[`docs/performance-evaluation-report.md`](../../docs/performance-evaluation-report.md).
+
+```bash
+PARQUET_FLUSH_INTERVAL=1 docker compose -f docker-compose.oss.yaml up -d --build
+Tools/e2e-performance/.venv/bin/python \
+  Tools/e2e-performance/s17_multibuilding_scale_sweep.py \
+  --run-id "$(date -u +%Y%m%dT%H%M%SZ)-s17" --continue-on-failure
+```
+
 ### S1 — Smoke E2E (quick CI check)
 
 Verifies ConnectorWorker MQTT ingress, starts the optional Timescale consumer, runs

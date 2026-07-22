@@ -151,7 +151,8 @@ IoT Devices / Integration Gateway
 > 起動→API/Web→テレメトリ投入→読取/制御 までの一筆書きは
 > **[docs/getting-started.md](docs/getting-started.md)**、用語は **[docs/concepts.md](docs/concepts.md)**、
 > ゲートウェイ接続は **[docs/gateway-integration.md](docs/gateway-integration.md)**、評価結果は
-> **[docs/evaluation-summary.md](docs/evaluation-summary.md)** を参照してください。
+> **[docs/evaluation-summary.md](docs/evaluation-summary.md)** と
+> **[docs/performance-evaluation-report.md](docs/performance-evaluation-report.md)** を参照してください。
 
 ### 1. OSS スタックを起動
 
@@ -569,6 +570,7 @@ make test-oss-stack                         # スタック疎通テスト
 | ドキュメント | 内容 |
 |-------------|------|
 | [`docs/evaluation-summary.md`](docs/evaluation-summary.md) | 📊 E2E 評価結果とアーキテクチャ/性能の妥当性 |
+| [`docs/performance-evaluation-report.md`](docs/performance-evaluation-report.md) | 📈 E1〜E8・Point List・2k〜50k多棟スケールの総合性能レポート |
 | [`e2e/evaluation-report.md`](e2e/evaluation-report.md) | E2E 実測レポート（生値、E1–E8 gate） |
 | [`docs/system-architecture.md`](docs/system-architecture.md) | システム全体のアーキテクチャ詳細 |
 | [`docs/telemetry-specification.md`](docs/telemetry-specification.md) | テレメトリメッセージスキーマ仕様 |

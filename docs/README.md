@@ -17,6 +17,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 - 📡 **[クライアントアプリケーション開発ガイド](api-client-guide.md)** — REST API 認証・テレメトリ読み取り・制御・SDK 生成
 - 🔗 **[Gateway Integration（ゲートウェイ接続モデル）](gateway-integration.md)** — ingress/egress、`(gateway_id, point_id)` 契約、point list 同期、mTLS
 - 📊 **[Evaluation Summary（評価結果と妥当性）](evaluation-summary.md)** — E2E 実測でアーキテクチャ/性能の妥当性を解説
+- 📈 **[パフォーマンス総合評価](performance-evaluation-report.md)** — E1〜E8、Point List最適化、2k〜50k多棟スイープの統合結果
 - 🏛️ **[System Architecture（全体像）](system-architecture.md)** — 構成・データ/制御フロー・セキュリティ・デプロイ
 - 🚢 **[Production Deployment（本番デプロイ構成）](oss-production-deployment.md)** — Kubernetes 配置・ネットワーク境界・mTLS・スケール
 - ⏱️ **[SLA / 鮮度モデル](oss-sla-freshness.md)** — latest 即時 / range は flush 遅延 / tail-merge の効果
@@ -55,7 +56,7 @@ Building OS OSS の詳細ドキュメントです。README は起動と概要、
 | 認証・認可 | Covered | [keycloak-permission-mapping.md](keycloak-permission-mapping.md), [keycloak-admin-provisioning.md](keycloak-admin-provisioning.md) | realm/client/role mapping と admin provisioning |
 | IoT ingress / device migration | Covered | [oss-hono-design.md](oss-hono-design.md), [hono-device-test-plan.md](hono-device-test-plan.md), [edge-device-mqtt-cutover.md](edge-device-mqtt-cutover.md) | Hono/EMQX model と cutover plan |
 | Frontend deployment | Covered | [nextjs-k8s-rollout.md](nextjs-k8s-rollout.md) | K8s/Ingress/Keycloak rollout と rollback |
-| E2E performance / quality | Covered | [e2e-performance-quality-test-plan.md](e2e-performance-quality-test-plan.md), [e2e-performance-report-template.md](e2e-performance-report-template.md) | 入力、蓄積、API 取得、UI 表示までの性能・品質評価とレポート雛形 |
+| E2E performance / quality | Covered | [performance-evaluation-report.md](performance-evaluation-report.md), [e2e-performance-quality-test-plan.md](e2e-performance-quality-test-plan.md) | E1〜E8と最大50,000 Pointの実測、入力・蓄積・API取得の性能・品質評価 |
 | GitOps / registry operations | Covered | [argocd-gitops-guide.md](argocd-gitops-guide.md), [harbor-cutover.md](harbor-cutover.md) | Argo CD と Harbor runbook |
 | バックアップ / リストア | Covered | [oss-backup-restore-runbook.md](oss-backup-restore-runbook.md) | PostgreSQL / MinIO レイク / OxiGraph / Keycloak の取得・復元・整合性・定期化。実機ドライラン推奨 |
 | アップグレード / 障害対応 | Covered | [oss-upgrade-runbook.md](oss-upgrade-runbook.md), [oss-incident-runbook.md](oss-incident-runbook.md) | バージョン跨ぎ手順（EF/Parquet/proto 互換・expand-contract・ロールバック）と依存障害の一次対応。実機演習で所要時間を実測 |

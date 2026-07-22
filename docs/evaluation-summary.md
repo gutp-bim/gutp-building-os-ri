@@ -7,9 +7,10 @@ E1–E8 + KPI ゲート）と最新の実測 run は [`e2e/`](../e2e/) 配下が
 - 軸別手順: [`e2e/scenarios/`](../e2e/scenarios/)
 - **実測レポート（生値）**: [`e2e/evaluation-report.md`](../e2e/evaluation-report.md)
 
-> 計測環境は単一ホスト・single building・small スケール（短時間・低 VU）の**ローカル**です。絶対値は
-> 環境依存ですが、各設計判断の**妥当性の方向**を示すには十分です。論文用の確定値は専用ベンチ機・large
-> スケールでの再計測を推奨します。
+> E1–E8の基準runは単一ホスト・single building・smallスケールです。2026-07-22の#261で
+> 10 Building / 20 Gateway / 最大50,000 Pointまで拡張しました。絶対値は環境依存であり、論文用の確定値は
+> 専用ベンチ機・largeスケールでの再計測を推奨します。総合結果は
+> [performance-evaluation-report.md](performance-evaluation-report.md)を参照してください。
 
 ---
 
@@ -85,8 +86,8 @@ bash e2e/runner/run-all.sh        # → e2e/results/<run-id>/kpi-report.md, gate
 
 ## 4. 既知の限界
 
-- ローカルは **single building / small スケール**。多棟効果（point→building 枝刈り #273）や絶対スループットは
-  専用ベンチ機・large スケールでの再計測が必要。
+- E1–E8基準runはsingle building / smallスケールだが、#261で10 Building / 20 Gateway / 50,000 Pointまで
+  別途PASS。ただし50k Pointからの長時間継続送信・同時API read混在負荷は未評価。
 - E6 の offline_503 / success_rate / duplicate_write、E8 の graceful-degradation マトリクスは、切断 GW・接続 GW・
   個別サービス停止など**別前提**が要るため gate では SKIP（設計と unit test で担保）。
 - 集計コールド 30 日日次（参考 ~10s）は rollup 生成（compaction）の進行度に依存。

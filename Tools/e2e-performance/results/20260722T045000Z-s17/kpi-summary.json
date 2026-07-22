@@ -1,0 +1,80 @@
+{
+  "run_id": "20260722T045000Z-s17",
+  "generated_at": "2026-07-22T04:35:41.791476+00:00",
+  "thresholds": {
+    "point_list_ms": 5000,
+    "loss_rate": 0.01,
+    "flush_ms": 120000
+  },
+  "results": [
+    {
+      "scale": 2000,
+      "metrics": {
+        "point_count": 2000,
+        "point_list_ms": 35.451,
+        "accepted": 2000,
+        "rejected": 200,
+        "expected_accepted": 2000,
+        "expected_rejected": 200,
+        "lake_rows": 2000,
+        "loss": 0,
+        "loss_rate": 0.0,
+        "parquet_flush_ms": 60000.0
+      },
+      "passed": true,
+      "exceeded_thresholds": []
+    },
+    {
+      "scale": 5000,
+      "metrics": {
+        "point_count": 5000,
+        "point_list_ms": 92.255,
+        "accepted": 5000,
+        "rejected": 200,
+        "expected_accepted": 5000,
+        "expected_rejected": 200,
+        "lake_rows": 5000,
+        "loss": 0,
+        "loss_rate": 0.0,
+        "parquet_flush_ms": 60000.0
+      },
+      "passed": true,
+      "exceeded_thresholds": []
+    },
+    {
+      "scale": 10000,
+      "metrics": {
+        "point_count": 10000,
+        "point_list_ms": 170.52,
+        "accepted": 10000,
+        "rejected": 200,
+        "expected_accepted": 10000,
+        "expected_rejected": 200,
+        "lake_rows": 10000,
+        "loss": 0,
+        "loss_rate": 0.0,
+        "parquet_flush_ms": 60000.0
+      },
+      "passed": true,
+      "exceeded_thresholds": []
+    },
+    {
+      "scale": 50000,
+      "metrics": {
+        "point_count": 50000,
+        "point_list_ms": 2745.031,
+        "accepted": 50000,
+        "rejected": 200,
+        "expected_accepted": 50000,
+        "expected_rejected": 200,
+        "lake_rows": 50000,
+        "loss": 0,
+        "loss_rate": 0.0,
+        "parquet_flush_ms": 20000.0
+      },
+      "passed": true,
+      "exceeded_thresholds": []
+    }
+  ],
+  "largest_verified_scale": 50000
+}
