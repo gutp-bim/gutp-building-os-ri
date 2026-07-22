@@ -51,26 +51,25 @@ npx playwright install chromium
 For the API Server, set `TIMESCALE_CONNECTION_STRING` to the same DSN and `DISABLE_AUTH=true`
 to skip Keycloak during local E2E testing.
 
-## Pipeline bridge
+## Ingest pipeline
 
-`e2e_pipeline_bridge.py` replaces ConnectorWorker + TelemetryWriter for local testing.
-It bridges the full ingest path: **Mosquitto → NATS JetStream → TimescaleDB**.
+The smoke evaluation uses the production ingestion boundary:
+**Mosquitto → ConnectorWorker (`MqttIngressWorker` + `MqttConnectorWorker`) → NATS JetStream**.
+For the Timescale profile, `telemetry_consumer.py` persists the validated stream.
 
-`smoke.sh` starts and stops it automatically. To run manually:
+Start the stack with MQTT ingress and the Timescale path enabled before running `smoke.sh`:
 
 ```bash
-.venv/bin/python Tools/e2e-performance/e2e_pipeline_bridge.py &
-BRIDGE_PID=$!
-# ... run tests ...
-kill $BRIDGE_PID
+MQTT_HOST=building-os.mosquitto WARM_STORE=timescale \
+  docker compose -f docker-compose.oss.yaml --profile mqtt --profile timescale up -d
 ```
 
 ## Running Tests
 
 ### S1 — Smoke E2E (quick CI check)
 
-Runs the pipeline bridge, load generator (small/baseline/120s), waits for writes,
-then validates data quality. All steps are automated.
+Verifies ConnectorWorker MQTT ingress, starts the optional Timescale consumer, runs
+the load generator (small/baseline/120s), waits for writes, then validates data quality.
 
 ```bash
 # From repository root

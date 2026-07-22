@@ -18,10 +18,9 @@ storage:
     wal:
       path: /var/tempo/wal
 
-# NOTE: the `compactor` top-level key is rejected by tempo's strict config parser
-# on the current `:latest` image (v3.0.0-rc.1: "field compactor not found in
-# type app.Config"). Tempo applies a sane default block retention without it, so
-# it is left out for the local dev stack.
-# compactor:
-#   compaction:
-#     block_retention: 168h
+# Keep local traces for at most seven days. The compose stack pins Tempo 2.10,
+# whose compactor schema accepts this setting; do not pair this config with an
+# unpinned prerelease image that may change the schema.
+compactor:
+  compaction:
+    block_retention: 168h
