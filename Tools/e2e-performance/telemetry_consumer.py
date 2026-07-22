@@ -5,13 +5,12 @@ Subscribes to the NATS JetStream `building-os.validated.telemetry` subject,
 parses each message as ValidTelemetryData JSON, and inserts batches into
 the TimescaleDB `telemetry` table.
 
-This replaces the DB-write portion of e2e_pipeline_bridge.py.  The
-mqtt_nats_bridge + ConnectorWorker + this service together replace the
-monolithic bridge:
+This replaces the DB-write portion of the retired e2e_pipeline_bridge.py.
+ConnectorWorker owns MQTT ingress and normalization; this optional service
+persists the validated stream to TimescaleDB:
 
-    Mosquitto → mqtt_nats_bridge → NATS raw
-                                         → ConnectorWorker → NATS validated
-                                                                  → telemetry_consumer → TimescaleDB
+    Mosquitto → ConnectorWorker → NATS raw → NATS validated
+                                               → telemetry_consumer → TimescaleDB
 
 Run:
     python telemetry_consumer.py

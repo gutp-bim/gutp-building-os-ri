@@ -56,13 +56,22 @@ docker exec building-os.postgres psql -U buildingos -d buildingos \
   2>/dev/null || true
 echo "    TimescaleDB schema ready."
 
-# ── Step 4: Start MQTT→NATS bridge and NATS→TimescaleDB consumer ─────────────
-echo "==> Starting MQTT→NATS bridge (mqtt_nats_bridge.py)..."
+# ── Step 4: Verify ConnectorWorker MQTT ingress and start Timescale consumer ─
 mkdir -p "${SCRIPT_DIR}/results/${TEST_RUN_ID}"
-"${PYTHON}" "${SCRIPT_DIR}/mqtt_nats_bridge.py" \
-  > "${SCRIPT_DIR}/results/${TEST_RUN_ID}/bridge.log" 2>&1 &
-BRIDGE_PID=$!
-echo "    MQTT bridge PID: ${BRIDGE_PID}"
+
+MQTT_INGRESS_HOST=$(docker inspect building-os.connector-worker \
+  --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+  | sed -n 's/^MQTT_HOST=//p')
+if [[ -z "${MQTT_INGRESS_HOST}" ]]; then
+  echo "ERROR: ConnectorWorker MQTT ingress is disabled." >&2
+  echo "       Start the stack with the mqtt profile and MQTT_HOST=building-os.mosquitto." >&2
+  exit 1
+fi
+if [[ "$(docker inspect building-os.mosquitto --format '{{.State.Running}}' 2>/dev/null || true)" != "true" ]]; then
+  echo "ERROR: Mosquitto is not running; enable the docker compose mqtt profile." >&2
+  exit 1
+fi
+echo "    ConnectorWorker MQTT ingress is enabled for ${MQTT_INGRESS_HOST}."
 
 echo "==> Starting NATS→TimescaleDB consumer (telemetry_consumer.py)..."
 "${PYTHON}" "${SCRIPT_DIR}/telemetry_consumer.py" \
@@ -70,28 +79,21 @@ echo "==> Starting NATS→TimescaleDB consumer (telemetry_consumer.py)..."
 CONSUMER_PID=$!
 echo "    Telemetry consumer PID: ${CONSUMER_PID}"
 
-# Give bridge and consumer time to connect and create NATS streams
+# Give the consumer time to connect and create its NATS consumer
 sleep 5
 
-# Ensure bridge and consumer started successfully
-if ! kill -0 "${BRIDGE_PID}" 2>/dev/null; then
-  echo "ERROR: MQTT bridge failed to start. Check log:" >&2
-  cat "${SCRIPT_DIR}/results/${TEST_RUN_ID}/bridge.log" >&2
-  exit 1
-fi
+# Ensure the consumer started successfully
 if ! kill -0 "${CONSUMER_PID}" 2>/dev/null; then
   echo "ERROR: Telemetry consumer failed to start. Check log:" >&2
   cat "${SCRIPT_DIR}/results/${TEST_RUN_ID}/consumer.log" >&2
   exit 1
 fi
 
-echo "    MQTT bridge and connector-worker consumer are ready."
+echo "    ConnectorWorker MQTT ingress and telemetry consumer are ready."
 
-# Cleanup both processes on exit
+# Cleanup the process started by this script on exit
 trap '
-  kill "${BRIDGE_PID}" 2>/dev/null || true
   kill "${CONSUMER_PID}" 2>/dev/null || true
-  wait "${BRIDGE_PID}" 2>/dev/null || true
   wait "${CONSUMER_PID}" 2>/dev/null || true
 ' EXIT
 
@@ -107,21 +109,17 @@ echo "==> Running load generator (scale=small, profile=baseline, duration=120s).
 echo "==> Waiting 15s for TimescaleDB writes to settle..."
 sleep 15
 
-# ── Step 7: Stop bridge and consumer ─────────────────────────────────────────
-echo "==> Stopping MQTT bridge and telemetry consumer..."
-kill -TERM "${BRIDGE_PID}" 2>/dev/null || true
+# ── Step 7: Stop consumer ────────────────────────────────────────────────────
+echo "==> Stopping telemetry consumer..."
 kill -TERM "${CONSUMER_PID}" 2>/dev/null || true
 # Wait up to 8s for graceful shutdown, then force-kill
 for _i in 1 2 3 4 5 6 7 8; do
   _alive=0
-  kill -0 "${BRIDGE_PID}" 2>/dev/null && _alive=1
   kill -0 "${CONSUMER_PID}" 2>/dev/null && _alive=1
   [[ "${_alive}" -eq 0 ]] && break
   sleep 1
 done
-kill -KILL "${BRIDGE_PID}" 2>/dev/null || true
 kill -KILL "${CONSUMER_PID}" 2>/dev/null || true
-wait "${BRIDGE_PID}" 2>/dev/null || true
 wait "${CONSUMER_PID}" 2>/dev/null || true
 trap - EXIT
 

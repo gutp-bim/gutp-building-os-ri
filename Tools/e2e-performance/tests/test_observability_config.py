@@ -121,14 +121,24 @@ def load_tempo_config():
     return yaml.safe_load((OSS_STACK / "tempo" / "tempo-config.yaml").read_text())
 
 
-def test_tempo_retention_7d():
-    """Tempo must store traces for ≤7 days."""
-    cfg = load_tempo_config()
+def assert_tempo_retention_at_most_7d(cfg):
     compactor = cfg.get("compactor", {})
     block_retention = compactor.get("compaction", {}).get("block_retention", "")
     assert block_retention, "tempo-config.yaml: compactor.compaction.block_retention must be set"
     days = _parse_days(block_retention)
     assert days <= 7, f"Tempo retention must be ≤7d, got {block_retention}"
+
+
+def test_tempo_retention_7d():
+    """Tempo must store traces for ≤7 days."""
+    assert_tempo_retention_at_most_7d(load_tempo_config())
+
+
+def test_tempo_retention_rejects_more_than_7d():
+    """The guard must fail if an operator accidentally raises retention above seven days."""
+    invalid = {"compactor": {"compaction": {"block_retention": "192h"}}}
+    with pytest.raises(AssertionError, match="≤7d"):
+        assert_tempo_retention_at_most_7d(invalid)
 
 
 def test_tempo_sampling_env_var_supported():

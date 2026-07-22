@@ -2,11 +2,11 @@
 Pipeline integration tests (TDD RED → GREEN).
 
 Verifies that:
-1. mqtt_nats_bridge.py exists and is importable (not just e2e_pipeline_bridge.py)
+1. the retired Python MQTT bridge is absent
 2. telemetry_consumer.py exists
 3. docker-compose.oss.yaml includes ConnectorWorker service
 4. smoke.sh no longer hard-depends on e2e_pipeline_bridge.py for the pipeline
-5. docker-compose.oss.yaml has the new bridge/consumer services
+5. docker-compose.oss.yaml configures the in-process MQTT ingress and consumer
 
 Run:
     cd Tools/e2e-performance && python -m pytest tests/test_pipeline_integration.py -v
@@ -27,11 +27,9 @@ def load_compose():
 
 # ── New pipeline scripts ─────────────────────────────────────────────────
 
-def test_mqtt_nats_bridge_script_exists():
-    """mqtt_nats_bridge.py must exist as a standalone module."""
-    assert (E2E_DIR / "mqtt_nats_bridge.py").exists(), (
-        "mqtt_nats_bridge.py must exist: standalone MQTT→NATS forwarder"
-    )
+def test_retired_mqtt_nats_bridge_script_is_absent():
+    """MQTT ingress belongs to ConnectorWorker, so the retired sidecar must stay absent."""
+    assert not (E2E_DIR / "mqtt_nats_bridge.py").exists()
 
 
 def test_telemetry_consumer_script_exists():
@@ -61,12 +59,30 @@ def test_connector_worker_depends_on_nats():
     )
 
 
-def test_mqtt_nats_bridge_in_docker_compose():
-    """building-os.mqtt-nats-bridge service must be in docker-compose.oss.yaml."""
-    services = load_compose()["services"]
-    assert "building-os.mqtt-nats-bridge" in services, (
-        "docker-compose.oss.yaml must include building-os.mqtt-nats-bridge"
+def assert_mqtt_ingress_owned_by_connector_worker(services):
+    """Reject the retired sidecar and require the ConnectorWorker MQTT boundary."""
+    assert "building-os.mqtt-nats-bridge" not in services, (
+        "the retired standalone MQTT→NATS bridge must not be restored"
     )
+    connector = services.get("building-os.connector-worker", {})
+    environment = connector.get("environment", {})
+    assert "MQTT_HOST" in environment, "ConnectorWorker must accept MQTT_HOST"
+    assert environment.get("MQTT_TOPIC_FILTER") == "telemetry/#", (
+        "ConnectorWorker must subscribe to the canonical telemetry topic filter"
+    )
+
+
+def test_mqtt_ingress_is_owned_by_connector_worker():
+    """MQTT ingress runs inside ConnectorWorker, not in a retired Python sidecar."""
+    services = load_compose()["services"]
+    assert_mqtt_ingress_owned_by_connector_worker(services)
+
+
+def test_mqtt_ingress_contract_rejects_retired_bridge():
+    """The config guard must fail if the retired bridge is added again."""
+    services = load_compose()["services"] | {"building-os.mqtt-nats-bridge": {}}
+    with pytest.raises(AssertionError, match="must not be restored"):
+        assert_mqtt_ingress_owned_by_connector_worker(services)
 
 
 def test_telemetry_consumer_in_docker_compose():
@@ -79,17 +95,11 @@ def test_telemetry_consumer_in_docker_compose():
 
 # ── smoke.sh ─────────────────────────────────────────────────────────────
 
-def test_smoke_sh_no_bridge_py_as_pipeline():
-    """smoke.sh must not start e2e_pipeline_bridge.py as the main pipeline."""
+def test_smoke_sh_no_python_bridge_as_pipeline():
+    """smoke.sh must use ConnectorWorker rather than either retired Python bridge."""
     smoke_text = SMOKE_SH.read_text()
-    # It's OK to have the file referenced in comments, but it must not be exec'd
-    # as a background process for the main data pipeline.
-    lines = [l.strip() for l in smoke_text.splitlines()
-             if "e2e_pipeline_bridge" in l and not l.strip().startswith("#")]
-    assert not lines, (
-        "smoke.sh must not execute e2e_pipeline_bridge.py as pipeline. "
-        f"Found non-comment references: {lines}"
-    )
+    assert "e2e_pipeline_bridge.py" not in smoke_text
+    assert "mqtt_nats_bridge.py" not in smoke_text
 
 
 def test_smoke_sh_waits_for_connector_worker():
