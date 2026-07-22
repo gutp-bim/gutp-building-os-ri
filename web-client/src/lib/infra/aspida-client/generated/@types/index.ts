@@ -128,7 +128,19 @@ export type Floor = {
   } | undefined;
 }
 
-/** Admin view of one gateway: binding + masked settings + pointlist sync status (#323). */
+/**
+ * Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived
+ * BuildingOs.ApiServer.Controllers.GatewayAdminView.LastTelemetryAt last-seen signal (#181 Phase 2), the live egress
+ * BuildingOs.ApiServer.Controllers.GatewayAdminView.Connected state (#230 Phase 2②), and the pointlist BuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced state
+ * (#230 Phase 2b). `LastTelemetryAt` is the most recent telemetry timestamp across the gateway's
+ * points (ISO-8601), or `null` when none have reported — it is the ingress last-seen, distinct
+ * from `Connected`. `Connected` is the cross-replica egress heartbeat (ADR-0004): `true`
+ * when a bridge replica is holding a live egress stream for this gateway right now, `false` when
+ * none is observed (TTL-expired/absent). `PointlistSynced` compares the ETag the gateway reports
+ * as applied against the twin-authoritative BuildingOs.ApiServer.Controllers.GatewayAdminView.Revision: `true` = in sync, `false`
+ * = drifted (a resync is warranted), `null` = the gateway has not reported one (unknown — e.g. not
+ * connected, or a gateway build that predates the report).
+ */
 export type GatewayAdminView = {
   gatewayId?: string | undefined;
   bindingType?: string | undefined;
@@ -140,6 +152,9 @@ export type GatewayAdminView = {
   pointCount?: number | undefined;
   revision?: string | undefined;
   certTrustAnchor?: string | undefined;
+  lastTelemetryAt?: string | null | undefined;
+  connected?: boolean | undefined;
+  pointlistSynced?: boolean | null | undefined;
 }
 
 export type GatewayCollision = {
@@ -214,11 +229,19 @@ export type GroupsControllerUpdateGroupRequest = {
   description?: string | null | undefined;
 }
 
-/** One point's latest sample; `Datetime`/`Value` are null when it has no data (#182). */
+/**
+ * One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).
+ * The discriminated value fields (#152) carry non-numeric latest readings: `ValueType` is
+ * `"number"`/`"string"`/`"boolean"` (null → numeric for legacy data), with the payload in
+ * `Value` (numeric), `ValueText` (string), or `ValueBool` (boolean).
+ */
 export type LatestSample = {
   pointId?: string | undefined;
   datetime?: string | null | undefined;
   value?: number | null | undefined;
+  valueType?: string | null | undefined;
+  valueText?: string | null | undefined;
+  valueBool?: boolean | null | undefined;
 }
 
 export type MyResourcesResponse = {
@@ -298,6 +321,10 @@ export type Point = {
   installationArea?: string | null | undefined;
   unit?: string | null | undefined;
   interval?: number | null | undefined;
+  alarmHigh?: number | null | undefined;
+  alarmLow?: number | null | undefined;
+  warnHigh?: number | null | undefined;
+  warnLow?: number | null | undefined;
   instanceNoBacnet?: number | null | undefined;
   objectTypeBacnet?: string | null | undefined;
   deviceIdBacnet?: string | null | undefined;
@@ -447,6 +474,11 @@ export type SystemStatus = {
 
 export type TelemetryGranularity = 0 | 1 | 2
 
+export type TelemetryThresholds = {
+  staleThresholdSeconds?: number | undefined;
+  staleIntervalMultiplier?: number | undefined;
+}
+
 export type TwinAdminControllerSparqlQueryRequest = {
   query?: string | undefined;
   maxRows?: number | null | undefined;
@@ -506,4 +538,7 @@ export type ValidTelemetryData = {
   name?: string | null | undefined;
   pointId?: string | null | undefined;
   value?: number | null | undefined;
+  valueType?: string | null | undefined;
+  valueText?: string | null | undefined;
+  valueBool?: boolean | null | undefined;
 }
