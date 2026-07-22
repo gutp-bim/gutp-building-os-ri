@@ -2577,6 +2577,36 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/telemetry/config:
+    get:
+      tags:
+        - TelemetryConfig
+      summary: 鮮度切れ判定の実効閾値（既定値 + 管理者 override）を返す。認証済みなら全ロール可。
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TelemetryThresholds'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryThresholds'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryThresholds'
+        '401':
+          description: Unauthorized
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/admin/twin/query:
     post:
       tags:
@@ -3347,8 +3377,16 @@ components:
           type: string
         certTrustAnchor:
           type: string
+        lastTelemetryAt:
+          type: string
+          nullable: true
+        connected:
+          type: boolean
+        pointlistSynced:
+          type: boolean
+          nullable: true
       additionalProperties: false
-      description: 'Admin view of one gateway: binding + masked settings + pointlist sync status (#323).'
+      description: "Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived\nBuildingOs.ApiServer.Controllers.GatewayAdminView.LastTelemetryAt last-seen signal (#181 Phase 2), the live egress\nBuildingOs.ApiServer.Controllers.GatewayAdminView.Connected state (#230 Phase 2②), and the pointlist BuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced state\n(#230 Phase 2b). `LastTelemetryAt` is the most recent telemetry timestamp across the gateway's\npoints (ISO-8601), or `null` when none have reported — it is the ingress last-seen, distinct\nfrom `Connected`. `Connected` is the cross-replica egress heartbeat (ADR-0004): `true`\nwhen a bridge replica is holding a live egress stream for this gateway right now, `false` when\nnone is observed (TTL-expired/absent). `PointlistSynced` compares the ETag the gateway reports\nas applied against the twin-authoritative BuildingOs.ApiServer.Controllers.GatewayAdminView.Revision: `true` = in sync, `false`\n= drifted (a resync is warranted), `null` = the gateway has not reported one (unknown — e.g. not\nconnected, or a gateway build that predates the report)."
     GatewayCollision:
       type: object
       properties:
@@ -3507,8 +3545,17 @@ components:
           type: number
           format: double
           nullable: true
+        valueType:
+          type: string
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        valueBool:
+          type: boolean
+          nullable: true
       additionalProperties: false
-      description: One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).
+      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\nThe discriminated value fields (#152) carry non-numeric latest readings: `ValueType` is\n`\"number\"`/`\"string\"`/`\"boolean\"` (null → numeric for legacy data), with the payload in\n`Value` (numeric), `ValueText` (string), or `ValueBool` (boolean)."
     MyResourcesResponse:
       type: object
       properties:
@@ -3677,6 +3724,22 @@ components:
           type: string
           nullable: true
         interval:
+          type: number
+          format: float
+          nullable: true
+        alarmHigh:
+          type: number
+          format: float
+          nullable: true
+        alarmLow:
+          type: number
+          format: float
+          nullable: true
+        warnHigh:
+          type: number
+          format: float
+          nullable: true
+        warnLow:
           type: number
           format: float
           nullable: true
@@ -3974,6 +4037,16 @@ components:
         - 2
       type: integer
       format: int32
+    TelemetryThresholds:
+      type: object
+      properties:
+        staleThresholdSeconds:
+          type: number
+          format: double
+        staleIntervalMultiplier:
+          type: number
+          format: double
+      additionalProperties: false
     TwinAdminControllerSparqlQueryRequest:
       type: object
       properties:
@@ -4098,6 +4171,15 @@ components:
           type: number
           format: double
           nullable: true
+        valueType:
+          type: string
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        valueBool:
+          type: boolean
+          nullable: true
       additionalProperties: false
 tags:
   - name: AdminAudit
@@ -4121,5 +4203,6 @@ tags:
   - name: System
   - name: SystemConfig
   - name: Telemetry
+  - name: TelemetryConfig
   - name: TwinAdmin
   - name: Users

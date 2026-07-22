@@ -291,10 +291,10 @@ backstop).
 | Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) |
 | Zodios client (`src/lib/infra/zod-api-client/`) | REST with runtime Zod validation |
 | gRPC client via `useControlExecution()` (`src/lib/infra/grpc-client/`) | device control streaming (point_control) |
-| bespoke authenticated fetch (`src/lib/admin/`) | admin endpoints (`/api/Users`, `/api/Groups`, `/api/Permissions`) not yet in the Aspida schema |
+| bespoke authenticated fetch (`src/lib/admin/http.ts`) | the few endpoints still outside the Aspida schema — resource-metadata writes and telemetry/control-audit reads that need custom response handling |
 | resource/telemetry façade (`src/lib/resources/`, `src/lib/telemetry/`) | resource hierarchy + telemetry reads — **UI calls these, not aspida directly** |
 
-The `(admin)` workspace uses the bespoke fetch helpers in `src/lib/admin/http.ts` (Keycloak bearer token from the `oidc.access_token` cookie). Adding the admin endpoints to Swagger and generating their Aspida types is a follow-up.
+The admin API (`/api/Users`, `/api/Groups`, `/api/Permissions`) is now in Swagger and the `(admin)` workspace modules (`src/lib/admin/fetch-{users,groups,permissions,hierarchy}.ts`) call the generated Aspida client via `apiClient().api.Users…` (#38 / #143, B-8). The bespoke `src/lib/admin/http.ts` helpers (Keycloak bearer token from the `oidc.access_token` cookie) now only back the resource/telemetry/control-audit repositories.
 
 Aspida client is auto-generated from Swagger. After API changes, run `./sync-type.bash` to update frontend types.
 
