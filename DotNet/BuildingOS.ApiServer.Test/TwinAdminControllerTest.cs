@@ -1,4 +1,5 @@
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.TwinAdmin;
@@ -15,11 +16,15 @@ public class TwinAdminControllerTest
         new() { UserId = "actor", Role = role, Permissions = [] };
 
     private static (TwinAdminController c, Mock<ITwinAdminService> svc, Mock<IAdminAuditRecorder> audit)
-        Build(AuthorizationContext auth)
+        Build(AuthorizationContext auth, IPointListRevisionCoordinator? revisions = null)
     {
         var svc = new Mock<ITwinAdminService>();
         var audit = new Mock<IAdminAuditRecorder>();
-        var controller = new TwinAdminController(svc.Object, audit.Object, NullLogger<TwinAdminController>.Instance)
+        var controller = new TwinAdminController(
+            svc.Object,
+            audit.Object,
+            revisions ?? new MemoryPointListRevisionCoordinator(),
+            NullLogger<TwinAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -112,5 +117,23 @@ public class TwinAdminControllerTest
         await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
 
         svc.Verify(s => s.ApplyImportAsync("ttl", TwinImportMode.Append, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApplyImport_DoesNotMutate_WhenRevisionInvalidationFails()
+    {
+        var revisions = new Mock<IPointListRevisionCoordinator>();
+        revisions.Setup(store => store.BeginUpdateAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("revision store unavailable"));
+        var (controller, twin, _) = Build(Auth("admin"), revisions.Object);
+        twin.Setup(service => service.PreviewImportAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(1, 1, []));
+
+        var result = await controller.ApplyImport(
+            new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        twin.Verify(service => service.ApplyImportAsync(
+            It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -25,6 +25,8 @@
     "gatewayPoints": 1000,
     "oxiGraphQueryMilliseconds": 91.4226,
     "apiResponseMilliseconds": 259.8261,
+    "notModifiedMilliseconds": 0.3929,
+    "notModifiedOxiGraphQueries": 0,
     "responseBytes": 214070,
     "passedBudget": true
   },

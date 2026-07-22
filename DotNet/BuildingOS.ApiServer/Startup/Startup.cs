@@ -19,6 +19,7 @@ using BuildingOS.Shared.Domain.Configuration;
 using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.UserManagement;
 using BuildingOs.ApiServer.Middlewares;
+using BuildingOs.ApiServer.GatewayProvisioning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
@@ -351,6 +352,9 @@ namespace BuildingOs.ApiServer
                 .AddCorsForAll(Configuration)
                 .AddAuth()
                 .AddControllers();
+            // Registered after OxiGraphSeedHostedService so a startup seed/replace always invalidates
+            // revisions persisted by an older process before this replica begins serving traffic.
+            services.AddHostedService<PointListRevisionStartupInvalidator>();
 
             // === Auth ===
             if (!_envModule.DisableAuth)

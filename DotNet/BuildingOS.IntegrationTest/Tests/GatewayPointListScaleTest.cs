@@ -43,7 +43,8 @@ public class GatewayPointListScaleTest(
         var controller = new GatewayProvisioningController(
             database,
             new HeaderGatewayIdentityResolver(),
-            new MemoryGatewayPointListSnapshotStore(snapshotCache));
+            new MemoryGatewayPointListSnapshotStore(snapshotCache),
+            new MemoryPointListRevisionCoordinator());
         var context = new DefaultHttpContext();
         context.Request.Headers["X-Gateway-Id"] = "GW-SCALE-00";
         controller.ControllerContext = new ControllerContext { HttpContext = context };
@@ -55,6 +56,12 @@ public class GatewayPointListScaleTest(
         var serialized = JsonSerializer.SerializeToUtf8Bytes(body);
 
         stopwatch.Stop();
+        var queryCountAfterFullResponse = timingHandler.RequestCount;
+        context.Request.Headers.IfNoneMatch = body.Revision;
+        var notModifiedStopwatch = Stopwatch.StartNew();
+        var notModifiedResult = await controller.GetPointList(
+            "GW-SCALE-00", since: null, CancellationToken.None);
+        notModifiedStopwatch.Stop();
         output.WriteLine(JsonSerializer.Serialize(new
         {
             buildings = BuildingCount,
@@ -62,11 +69,20 @@ public class GatewayPointListScaleTest(
             gatewayPoints = body.Points.Length,
             oxiGraphQueryMilliseconds = timingHandler.TotalElapsed.TotalMilliseconds,
             apiResponseMilliseconds = stopwatch.Elapsed.TotalMilliseconds,
+            notModifiedMilliseconds = notModifiedStopwatch.Elapsed.TotalMilliseconds,
+            notModifiedOxiGraphQueries = timingHandler.RequestCount - queryCountAfterFullResponse,
             responseBytes = serialized.Length,
             budgetMilliseconds = 5_000,
         }));
         Assert.Equal(PointsPerBuilding, body.Points.Length);
         Assert.All(body.Points, entry => Assert.StartsWith("SCALE-B00-", entry.PointId));
+        Assert.Equal(
+            StatusCodes.Status304NotModified,
+            Assert.IsType<StatusCodeResult>(notModifiedResult).StatusCode);
+        Assert.Equal(queryCountAfterFullResponse, timingHandler.RequestCount);
+        Assert.True(
+            notModifiedStopwatch.Elapsed < TimeSpan.FromMilliseconds(500),
+            $"304 response took {notModifiedStopwatch.Elapsed.TotalMilliseconds:F1}ms; budget is 500ms");
         Assert.True(
             stopwatch.Elapsed < TimeSpan.FromSeconds(5),
             $"Point List took {stopwatch.Elapsed.TotalSeconds:F3}s; budget is 5s");
@@ -76,6 +92,7 @@ public class GatewayPointListScaleTest(
     {
         private readonly object _sync = new();
         private TimeSpan _totalElapsed;
+        private int _requestCount;
 
         public QueryTimingHandler() : base(new HttpClientHandler()) { }
 
@@ -84,9 +101,12 @@ public class GatewayPointListScaleTest(
             get { lock (_sync) return _totalElapsed; }
         }
 
+        public int RequestCount => Volatile.Read(ref _requestCount);
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var stopwatch = Stopwatch.StartNew();
+            Interlocked.Increment(ref _requestCount);
             try
             {
                 return await base.SendAsync(request, ct);

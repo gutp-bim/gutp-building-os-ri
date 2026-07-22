@@ -56,8 +56,22 @@ native addressing / unit / writable / control schema / device を含む（無い
 - `Cache-Control: no-cache`（常に ETag で再検証）。
 - gateway は `If-None-Match: "sha256:..."` を付けて安価にポーリングし、**一致なら 304**、変化時のみ
   全体取得する。
-- twin は seed で全置換（`OxiGraphSeedHostedService.ReplaceDefaultGraphAsync`）される運用のため、
-  per-entity の revision 列を持たずに内容ハッシュで変更検知できる。
+- 通常の200応答で計算したETagは NATS KV `pointlist-revision` にGateway単位で保存する。次の条件付き取得は
+  共有ETagだけを読み、合致すればOxiGraph全Point検索とレスポンス再構築を行わず304を返す。
+
+#### キャッシュ失効と複数APIインスタンスの整合性
+
+- リビジョンはper-replicaメモリではなくNATS KVに保存するため、どのApiServer replicaが200を生成しても
+  他replicaが同じETagを304判定に利用できる。
+- Twin Adminのappend/replaceは、OxiGraph変更前に共有世代を`updating`へ変更し、変更完了後に新しい
+  `stable`世代へ切り替える。各GatewayのETagは生成時の世代を持ち、現行`stable`世代と一致するものだけを
+  信頼する。変更中、NATS障害時、世代不一致時はキャッシュを使わずOxiGraphから200応答を再構築する。
+- 世代変更はNATS KV revisionのCASと更新トークンで排他制御し、複数APIからの同時importは拒否する。
+- 変更前の世代更新に失敗した場合、Twin Admin import自体を中止する。変更後の世代確定に失敗した場合は
+  `updating`のままなので304を返さず、安全側へフォールバックする。
+- 起動時はseed処理の後に共有世代を更新するため、以前のプロセスが保存したETagは再利用しない。
+- サポートされる更新経路はTwin Admin importと起動時seedである。OxiGraphを外部から直接更新した場合は
+  整合性契約の対象外なので、全ApiServerを再起動して共有世代を失効させる。
 
 ## 認証（マシン認証・本番品質の肝）
 

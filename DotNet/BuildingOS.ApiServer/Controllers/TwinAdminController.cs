@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
+using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.TwinAdmin;
 using Microsoft.AspNetCore.Mvc;
@@ -24,13 +25,18 @@ public class TwinAdminController : ControllerBase
 
     private readonly ITwinAdminService _twin;
     private readonly IAdminAuditRecorder _audit;
+    private readonly IPointListRevisionCoordinator _pointListRevisions;
     private readonly ILogger<TwinAdminController> _logger;
 
     public TwinAdminController(
-        ITwinAdminService twin, IAdminAuditRecorder audit, ILogger<TwinAdminController> logger)
+        ITwinAdminService twin,
+        IAdminAuditRecorder audit,
+        IPointListRevisionCoordinator pointListRevisions,
+        ILogger<TwinAdminController> logger)
     {
         _twin = twin;
         _audit = audit;
+        _pointListRevisions = pointListRevisions;
         _logger = logger;
     }
 
@@ -126,7 +132,20 @@ public class TwinAdminController : ControllerBase
                 return Conflict(new { error = "gateway_id 一意性違反のため適用できません", preview });
             }
 
-            await _twin.ApplyImportAsync(request.Turtle, mode, ct).ConfigureAwait(false);
+            // Invalidate the shared generation before mutating OxiGraph. If NATS KV is unavailable,
+            // abort the import: keeping the old generation while changing the Twin could let another
+            // API replica return an incorrect 304 from its previously published revision.
+            var updateToken = await _pointListRevisions.BeginUpdateAsync(ct).ConfigureAwait(false);
+            try
+            {
+                await _twin.ApplyImportAsync(request.Turtle, mode, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                // A failed completion leaves the registry in "updating" state. Reads then fail
+                // closed to a Twin query rather than trusting any pre-import ETag.
+                await _pointListRevisions.CompleteUpdateAsync(updateToken, CancellationToken.None).ConfigureAwait(false);
+            }
             await AuditAsync(auth, "import-apply", null, AdminAuditResult.Success,
                 Meta(request.Turtle, mode.ToString(), preview), ct).ConfigureAwait(false);
             return Ok(preview);

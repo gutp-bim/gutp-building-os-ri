@@ -9,6 +9,7 @@ expected 1,000 point IDs are returned.
 |---|---:|---:|---:|
 | OxiGraph query time | 26,632.6013 ms | 91.4226 ms | — |
 | API response construction + JSON serialization | not measured | 259.8261 ms | 5,000 ms |
+| ETag-matched 304 | not measured | 0.3929 ms / 0 OxiGraph queries | 500 ms |
 | Returned points | — | 1,000 | 1,000 |
 
 The legacy OxiGraph query alone exceeded the API budget, so a separate legacy API time would not add
