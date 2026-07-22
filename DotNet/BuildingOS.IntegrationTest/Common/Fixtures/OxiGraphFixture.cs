@@ -17,13 +17,14 @@ public class OxiGraphFixture : IAsyncLifetime
         .Build();
 
     public OxiGraphClient Client { get; private set; } = null!;
+    public string BaseUrl { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
         var http = new HttpClient();
-        var url = $"http://{_container.Hostname}:{_container.GetMappedPublicPort(OxiGraphPort)}";
-        Client = new OxiGraphClient(http, url);
+        BaseUrl = $"http://{_container.Hostname}:{_container.GetMappedPublicPort(OxiGraphPort)}";
+        Client = new OxiGraphClient(http, BaseUrl);
     }
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();

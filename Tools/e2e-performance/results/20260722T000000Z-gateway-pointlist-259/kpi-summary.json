@@ -1,0 +1,33 @@
+{
+  "issue": 259,
+  "measuredAt": "2026-07-22",
+  "scenario": {
+    "buildings": 10,
+    "totalPoints": 10000,
+    "targetGateway": "GW-SCALE-00",
+    "expectedGatewayPoints": 1000,
+    "budgetMilliseconds": 5000
+  },
+  "environment": {
+    "runtime": ".NET 8.0.29",
+    "store": "OxiGraph Testcontainer",
+    "image": "ghcr.io/oxigraph/oxigraph@sha256:e68b3625743db4a4b18129a907ae36766f89bb6deeb8ab50d35685dbabe00b0e"
+  },
+  "before": {
+    "queryShape": "single query with optional attribute and equipment joins",
+    "oxiGraphQueryMilliseconds": 26632.6013,
+    "apiResponseMilliseconds": null,
+    "passedBudget": false,
+    "note": "The database query alone exceeded the API budget, so the legacy API path was not measured separately."
+  },
+  "after": {
+    "queryShape": "gateway point lookup followed by VALUES-constrained attribute and equipment queries",
+    "gatewayPoints": 1000,
+    "oxiGraphQueryMilliseconds": 91.4226,
+    "apiResponseMilliseconds": 259.8261,
+    "responseBytes": 214070,
+    "passedBudget": true
+  },
+  "querySpeedup": 291.32,
+  "test": "BuildingOS.IntegrationTest.Tests.GatewayPointListScaleTest.PointList_ReturnsOneGatewayFromTenThousandPointTwin_WithinFiveSeconds"
+}
