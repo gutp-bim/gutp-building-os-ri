@@ -1,6 +1,10 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  # 30s is ample for this reference / observability-profile stack — the built-in KPI endpoint
+  # (GET /api/system/status) and the Grafana dashboards do not need sub-30s resolution, and a longer
+  # interval roughly halves the Prometheus TSDB write/disk cost (A-9). Tighten to 15s only if you
+  # need high-resolution graphs; loosen to 60s to shrink storage further.
+  scrape_interval: 30s
+  evaluation_interval: 30s
 
 scrape_configs:
   - job_name: otel-collector
