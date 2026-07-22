@@ -31,13 +31,13 @@ tiering, and gateway point-list sync — on top of the initial `0.0.0` ingest→
   low-frequency `make demo` smoke workflow (#180 / #188).
 - **Admin/platform reachability**: gateway / OIDC-client / twin admin screens added to the sidebar
   nav (#192); global `not-found` / `error` / `global-error` recovery pages (#190).
-- **Onboarding docs**: `docs/concepts.md` glossary (#160) and a persona-oriented README with a
+- **Onboarding docs**: `docs/guides/concepts.md` glossary (#160) and a persona-oriented README with a
   demo-first quick start (#156; product screenshots still pending).
 - **Testing**: Playwright browser E2E with an E9 "operator usability" axis and axe a11y checks
   (#159), plus a full-stack demo E2E.
 - CI: CodeQL, Dependabot, a lightweight external-PR gate (`pr-check.yml`), coverage reporting,
   weekly scheduled integration/golden test runs, and a Swagger/Aspida drift check.
-- `docs/cost-quality-backlog.md`: cost-optimization and quality-improvement backlog (A-1..A-9,
+- `docs/project/cost-quality-backlog.md`: cost-optimization and quality-improvement backlog (A-1..A-9,
   B-1..B-10), largely implemented incrementally after the initial readiness review.
 - `CODE_OF_CONDUCT.md`, `CODEOWNERS`, `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`.
 
@@ -45,7 +45,7 @@ tiering, and gateway point-list sync — on top of the initial `0.0.0` ingest→
 
 - **Warm tier now defaults to the Parquet lake on MinIO; TimescaleDB is opt-in**
   (`WARM_STORE=timescale`), and the default DB image is `postgres:16` (#216 / #234). Breaking for
-  deployments that relied on the TimescaleDB warm store — see `docs/oss-warm-parquet-lake.md`.
+  deployments that relied on the TimescaleDB warm store — see `docs/architecture/oss-warm-parquet-lake.md`.
 - **Gateway point-list sync** (#224): the digital twin is the source of truth and gateways follow
   `GET /gateways/{id}/pointlist` with a content-hash ETag (`If-None-Match` → 304, `?since=` diff, push).
 - Gateway telemetry ingress (`GatewayIngress`) and control egress (`GatewayEgress`) split into
@@ -60,7 +60,7 @@ tiering, and gateway point-list sync — on top of the initial `0.0.0` ingest→
 - Removed the unauthenticated `grpc-test` dev page and its middleware bypass, and the dead
   `WorkspacePlaceholder` component (#193).
 - Hardcoded Swagger Basic Auth password, CORS wide-open by default, broken `harbor-push` build
-  context, and other pre-publication findings (see `docs/oss-readiness-review.md`).
+  context, and other pre-publication findings (see `docs/project/oss-readiness-review.md`).
 - Swagger/Aspida type generation was silently broken by a schemaId collision between two
   same-named nested DTOs; fixed, and a CI drift check now guards against regressions.
 - Device control modal (`point-control-modal.tsx`) was sending a request body shape the API no

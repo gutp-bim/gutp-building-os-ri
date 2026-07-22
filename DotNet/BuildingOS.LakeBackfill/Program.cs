@@ -8,7 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 // ── BuildingOS lake backfill CLI (#218) ───────────────────────────────────────
 // Migrates existing TimescaleDB `telemetry` rows into the Parquet lake (MinIO), one deterministic
 // part-backfill object per building-hour (idempotent re-run). New OSS deployments never need this —
-// they start in parquet mode. See docs/oss-lake-backfill-runbook.md.
+// they start in parquet mode. See docs/operations/oss-lake-backfill-runbook.md.
 //
 // Usage:
 //   dotnet run --project DotNet/BuildingOS.LakeBackfill -- \

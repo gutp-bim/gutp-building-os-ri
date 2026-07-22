@@ -7,7 +7,7 @@
   日次再集計）+ frontend の状態タイムライン（`TelemetryStateTimeline`）を追加。**Timescale opt-in
   (`WARM_STORE=timescale`) の additive 列 + 集計は Docker 検証が要るため Phase B の follow-up として保留**
   （parquet 既定パスは完了）。Open Decisions: D1=string+boolean 一級化・enum 除外、D3=last-in-bucket、
-  D6=推奨どおり。**Phase C 実装済み** — `docs/telemetry-specification.md` #189 節を #152 一級化に更新し、
+  D6=推奨どおり。**Phase C 実装済み** — `docs/architecture/telemetry-specification.md` #189 節を #152 一級化に更新し、
   テレメトリ読取側の数値コード + `labels` index 回避策を deprecate（後方互換で残置、一級 string を優先）。
   control 側 `ControlSchema.EnumLabels`（書込多状態出力）は別機能として非対象。残るは Timescale opt-in の
   additive 列（Docker 検証要、Phase B follow-up）のみ。）
@@ -19,7 +19,7 @@
 正規化済みテレメトリの `value` は **数値単一型**に固定されており、状態系ポイント（運転モード・列挙・ON/OFF・
 文字列ステータス）を一級で表現できない。#189 でこれは意図的な設計判断として確定し、回避策
 （boolean→0/1、enum→数値コード + `EnumLabels`、文字列→`data`/`attributes` 側路に型情報を落として添える）が
-`docs/telemetry-specification.md` L124-136 に明文化されている。本 ADR は #152（この回避策を一級型に置き換える）
+`docs/architecture/telemetry-specification.md` L124-136 に明文化されている。本 ADR は #152（この回避策を一級型に置き換える）
 の**設計と段階計画**を確定する。
 
 ### 現状の型チェーン（file:line、これを変える）
@@ -110,7 +110,7 @@
   状態タイムライン（last-in-bucket / distinct）クエリ、Timescale opt-in の additive 列 + 集計、frontend の状態/テキスト
   タイムライン表示。
 - **Phase C — 数値コード + EnumLabels 回避策の一級化（任意）**
-  enum を一級 string/enum として送る運用へ移行、`docs/telemetry-specification.md` #189 節を更新、回避策を deprecate。
+  enum を一級 string/enum として送る運用へ移行、`docs/architecture/telemetry-specification.md` #189 節を更新、回避策を deprecate。
 
 ## Consequences
 
@@ -132,7 +132,7 @@
 
 ## 参照
 
-- `docs/telemetry-specification.md`（#189 の設計判断、置換対象）。ADR-0002（Parquet lake）、ADR-0005（段階導入の先例）。
+- `docs/architecture/telemetry-specification.md`（#189 の設計判断、置換対象）。ADR-0002（Parquet lake）、ADR-0005（段階導入の先例）。
 - コード（pivot と各層）: `ValidTelemetryData.cs`、`valid-message.json`、`ParquetTelemetrySerializer.cs` /
   `ParquetLakeScan.cs`、`proto/gateway_ingress.proto`、`GatewayIngressService.cs`、`TelemetryController.cs`、
   `NpgsqlWarmTelemetryStore.cs`、`web-client/src/lib/telemetry/{types,mapping}.ts`。

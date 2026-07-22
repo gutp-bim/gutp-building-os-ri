@@ -52,16 +52,16 @@ ARGOCD_DIR="$REPO_ROOT/argocd"
 
 # ── Rollback documentation ────────────────────────────────────────────────────
 
-@test "argocd: docs/argocd-gitops-guide.md exists" {
-  [ -f "$REPO_ROOT/docs/argocd-gitops-guide.md" ]
+@test "argocd: docs/operations/argocd-gitops-guide.md exists" {
+  [ -f "$REPO_ROOT/docs/operations/argocd-gitops-guide.md" ]
 }
 
 @test "argocd: guide documents rollback procedure via git revert" {
-  grep -qi "git revert\|rollback" "$REPO_ROOT/docs/argocd-gitops-guide.md"
+  grep -qi "git revert\|rollback" "$REPO_ROOT/docs/operations/argocd-gitops-guide.md"
 }
 
 @test "argocd: guide documents multi-env expansion path (ApplicationSet)" {
-  grep -qi "ApplicationSet\|multi.env\|multi-env" "$REPO_ROOT/docs/argocd-gitops-guide.md"
+  grep -qi "ApplicationSet\|multi.env\|multi-env" "$REPO_ROOT/docs/operations/argocd-gitops-guide.md"
 }
 
 # ── GitHub Actions integration ────────────────────────────────────────────────

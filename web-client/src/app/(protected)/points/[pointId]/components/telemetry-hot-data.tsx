@@ -54,7 +54,7 @@ export function TelemetryHotData({
     // DEPRECATED (#152 Phase C): the numeric-code → label index mapping is the pre-#152 enum
     // workaround. A first-class string value (handled above) now takes precedence; this path stays
     // only for legacy points that still send a numeric code + `labels`. New enum/state points should
-    // send the label as a first-class string (value_str) — see docs/telemetry-specification.md.
+    // send the label as a first-class string (value_str) — see docs/architecture/telemetry-specification.md.
     if (splitLabels && splitLabels.length > 0) {
       return splitLabels[resolved.value - 1];
     }

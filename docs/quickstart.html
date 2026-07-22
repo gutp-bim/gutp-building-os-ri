@@ -43,7 +43,7 @@
   </section>
 
   <!--
-    コマンドの正本は docs/getting-started.md。
+    コマンドの正本は docs/guides/getting-started.md。
     getting-started.md を更新したら、このページの手順・コマンドも必ず突き合わせて更新すること。
     ここには 5 ステップのハッピーパスだけを載せ、詳細は blob リンクへ寄せる。
   -->
@@ -134,7 +134,7 @@ docker compose -f docker-compose.oss.yaml up -d</code></pre>
       <p class="fineprint">
         ※ ゲートウェイからの本来の取り込み経路は gRPC(GatewayIngress)です。gRPC 経由・持続負荷・
         Parquet レイクへの反映確認などの詳細手順は
-        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/getting-started.md" rel="noopener">getting-started.md</a>
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/guides/getting-started.md" rel="noopener">getting-started.md</a>
         を参照してください。
       </p>
     </div>
@@ -170,9 +170,9 @@ curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;start=2026
     <div class="container">
       <h2>さらに詳しく</h2>
       <ul class="link-list">
-        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/getting-started.md" rel="noopener">getting-started.md</a> <span class="note">— オンボーディング完全版(ツイン登録・トラブルシュート含む)</span></li>
-        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/gateway-integration.md" rel="noopener">gateway-integration.md</a> <span class="note">— ゲートウェイ接続モデル(ingress / egress・ポイントリスト同期・mTLS)</span></li>
-        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/onboarding-e2e-gateway.md" rel="noopener">onboarding-e2e-gateway.md</a> <span class="note">— nexus-gateway + シミュレータを横断する E2E ハンズオン</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/guides/getting-started.md" rel="noopener">getting-started.md</a> <span class="note">— オンボーディング完全版(ツイン登録・トラブルシュート含む)</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/guides/gateway-integration.md" rel="noopener">gateway-integration.md</a> <span class="note">— ゲートウェイ接続モデル(ingress / egress・ポイントリスト同期・mTLS)</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/guides/onboarding-e2e-gateway.md" rel="noopener">onboarding-e2e-gateway.md</a> <span class="note">— nexus-gateway + シミュレータを横断する E2E ハンズオン</span></li>
         <li><a href="https://github.com/gutp-bim/gutp-building-os-ri#readme" rel="noopener">README</a> <span class="note">— 環境変数リファレンス・Kubernetes デプロイ</span></li>
       </ul>
     </div>

@@ -16,7 +16,7 @@
 #     返る（`bacnet-sim` のままだと GatewayBridge 経由 egress となり実 gateway 不在で 503 gateway_offline）。
 #     この上書きはオーバーレイを重ねた「デモ時だけ」効き、既定スタック（oss.yaml）の binding は非破壊。
 #
-# 実ゲートウェイ（nexus-gateway / bacnet-sim）を繋いだ実経路デモは別軸（#81 / docs/onboarding-e2e-gateway.md）。
+# 実ゲートウェイ（nexus-gateway / bacnet-sim）を繋いだ実経路デモは別軸（#81 / docs/guides/onboarding-e2e-gateway.md）。
 
 services:
   building-os.api:

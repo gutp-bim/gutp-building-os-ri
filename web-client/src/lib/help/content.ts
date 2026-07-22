@@ -112,7 +112,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   {
     term: "SBCO",
     definition:
-      "BuildingOS が採用するビル設備のオントロジー（語彙）。建物・フロア・空間・機器・ポイントを sbco:Building / sbco:Level / sbco:Room / sbco:EquipmentExt / sbco:PointExt として定義します。Brick / REC / IFC / DTDL 標準との対応は docs/standard-mapping.md にあります。",
+      "BuildingOS が採用するビル設備のオントロジー（語彙）。建物・フロア・空間・機器・ポイントを sbco:Building / sbco:Level / sbco:Room / sbco:EquipmentExt / sbco:PointExt として定義します。Brick / REC / IFC / DTDL 標準との対応は docs/architecture/standard-mapping.md にあります。",
     category: "architecture",
   },
   {
@@ -165,7 +165,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     body: [
       "binding / 接続設定と pointlist 同期状態の観測画面です。binding や twin 上のポイント登録は GitOps / デジタルツインが正本のため、この画面自体に作成・登録操作はありません。",
       "ここに表示されるのは登録情報（binding / ポイント数 / pointlist リビジョン）です。ゲートウェイの接続状態（connected / last seen / 最終テレメトリ受信時刻）は表示しません。",
-      "新しいゲートウェイをオンボードする手順(twin へのポイント登録・制御 binding・ingress/egress ポート・pointlist 同期)は docs/gateway-onboarding-checklist.md に集約されています。",
+      "新しいゲートウェイをオンボードする手順(twin へのポイント登録・制御 binding・ingress/egress ポート・pointlist 同期)は docs/guides/gateway-onboarding-checklist.md に集約されています。",
     ],
     relatedTerms: [],
   },

@@ -238,7 +238,7 @@ def test_timescale_duplicate() -> dict:
         "notes": (
             "ON CONFLICT DO NOTHING requires a unique index. "
             f"Without one, both rows are inserted (row_count={row_count}). "
-            "Deduplication in ConnectorWorker uses NATS Msg-Id header (see docs/oss-nats-design.md)."
+            "Deduplication in ConnectorWorker uses NATS Msg-Id header (see docs/architecture/oss-nats-design.md)."
         ),
     }
 

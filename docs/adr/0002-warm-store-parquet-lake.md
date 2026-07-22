@@ -4,7 +4,7 @@
 （MinIO/Object Storage、Cold と単一レイクに統合）とし、env `WARM_STORE` の**既定を `parquet`**
 にする。TimescaleDB 構成は `WARM_STORE=timescale` の opt-in として完全互換で残す。
 最新値は引き続き NATS KV（Hot）が担い、範囲クエリの末尾はフラッシュ間隔（5–15 分）の遅延を
-許容する（Epic #211 / PRD `docs/oss-warm-parquet-lake.md`）。
+許容する（Epic #211 / PRD `docs/architecture/oss-warm-parquet-lake.md`）。
 
 ランニングコスト最小化が動機: DB インスタンスの常時稼働費（コンピュート + SSD）を排し、
 Object Storage の従量課金のみでテレメトリ履歴を保持する。

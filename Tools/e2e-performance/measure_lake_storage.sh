@@ -5,7 +5,7 @@
 #   - total lake bytes and object count in the `cold` bucket
 #   - object count per building-hour partition (compaction KPI: should be ≤ 2, typically 1)
 #   - bytes-per-row (combined with the source row count) for the ≥80% reduction vs. TimescaleDB
-#     uncompressed comparison — see docs/oss-warm-parquet-kpi.md for how to pair this with row counts.
+#     uncompressed comparison — see docs/operations/oss-warm-parquet-kpi.md for how to pair this with row counts.
 #
 # Uses the MinIO client (`mc`) inside the MinIO container so no host tooling is needed.
 #   MINIO_CONTAINER (default building-os.minio), BUCKET (default cold),

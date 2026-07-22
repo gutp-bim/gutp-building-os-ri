@@ -6,7 +6,7 @@ namespace BuildingOS.Shared.Infrastructure.Messaging;
 /// Every worker that shares a stream must resolve the same stream name and the
 /// same full subject set, so that whichever worker starts first creates the
 /// stream with all of its subjects (not just its own). This keeps the runtime
-/// aligned with docs/oss-nats-design.md and removes the previous
+/// aligned with docs/architecture/oss-nats-design.md and removes the previous
 /// startup-order-dependent data-loss behaviour.
 /// </summary>
 public static class NatsStreamTopology

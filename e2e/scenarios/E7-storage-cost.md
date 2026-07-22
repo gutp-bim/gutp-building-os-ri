@@ -25,5 +25,5 @@ parquet bytes/row ≤ TimescaleDB 非圧縮の 20%（≥80% 削減）/ compactio
 月額コストは DB 構成対比で併記（report）。
 
 ## 既存資産・ギャップ
-- 既存: `measure_lake_storage.sh`, `measure_compression.sh`, `docs/oss-warm-parquet-kpi.md`。
+- 既存: `measure_lake_storage.sh`, `measure_compression.sh`, `docs/operations/oss-warm-parquet-kpi.md`。
 - **ギャップ**: TimescaleDB 対照容量の自動取得、月額コスト推定スクリプト。

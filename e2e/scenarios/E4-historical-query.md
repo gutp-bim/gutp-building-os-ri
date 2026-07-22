@@ -22,7 +22,7 @@
 warm 24h p95 < 2s / cold 7d p95 < 5s / 集計 cold < 3s・cache hit < 100ms / multi-point sublinear。
 
 ## 既存資産・ギャップ
-- 既存: `k6/s9_warm_kpi.js`, `docs/oss-warm-parquet-kpi.md`。
+- 既存: `k6/s9_warm_kpi.js`, `docs/operations/oss-warm-parquet-kpi.md`。
 - **ギャップ**: 30d レンジ、warm/cold 境界マージ遅延、scanned files/bytes の体系的収集。
 
 ## 実施メモ（2026-06-15, parquet 既定・ローカル）

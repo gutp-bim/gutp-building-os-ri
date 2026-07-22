@@ -40,8 +40,8 @@ make demo
 これ 1 つで OSS スタック + Web Client + テレメトリ生成器が起動し、サンプルツイン（`GW-SOS-001` /
 `SOS-PT-001..008`、#124 で自動シード）に**動いている値**が流れます。`/resources` → ポイント詳細で
 最新値と履歴を見て、書込可ポイント（照明/設定温度/ファン）で**制御まで**実行できます（#155）。停止は
-`make demo-down`。詳細は **[docs/getting-started.md](docs/getting-started.md)**、用語は
-**[docs/concepts.md](docs/concepts.md)** を参照してください。
+`make demo-down`。詳細は **[docs/guides/getting-started.md](docs/guides/getting-started.md)**、用語は
+**[docs/guides/concepts.md](docs/guides/concepts.md)** を参照してください。
 
 ## ✨ 主要機能
 
@@ -57,12 +57,12 @@ make demo
 
 | やりたいこと | 参照 |
 |---|---|
-| **A.** まず動くデモ画面を見たい | [docs/getting-started.md](docs/getting-started.md)（＋ [基本概念](docs/concepts.md)） |
-| **B.** センサーデータを MQTT で送りたい | [docs/oss-hono-design.md](docs/oss-hono-design.md)（下の [MQTT 取り込み手順](#31-mqtt-を外部ブローカー例-localhost11883から取り込む)も参照） |
-| **C.** Building OS 対応ゲートウェイを開発したい | [docs/gateway-integration.md](docs/gateway-integration.md) ＋ [オンボーディングチェックリスト](docs/gateway-onboarding-checklist.md) |
-| **D.** 独自のビルモデル（ツイン）を登録したい | [docs/resource-management.md](docs/resource-management.md)（`/admin/twin`） |
-| **E.** 本番環境へ展開したい | [docs/oss-production-deployment.md](docs/oss-production-deployment.md) |
-| **F.** API でアプリを作りたい | [docs/api-client-guide.md](docs/api-client-guide.md) |
+| **A.** まず動くデモ画面を見たい | [docs/guides/getting-started.md](docs/guides/getting-started.md)（＋ [基本概念](docs/guides/concepts.md)） |
+| **B.** センサーデータを MQTT で送りたい | [docs/architecture/oss-hono-design.md](docs/architecture/oss-hono-design.md)（下の [MQTT 取り込み手順](#31-mqtt-を外部ブローカー例-localhost11883から取り込む)も参照） |
+| **C.** Building OS 対応ゲートウェイを開発したい | [docs/guides/gateway-integration.md](docs/guides/gateway-integration.md) ＋ [オンボーディングチェックリスト](docs/guides/gateway-onboarding-checklist.md) |
+| **D.** 独自のビルモデル（ツイン）を登録したい | [docs/guides/resource-management.md](docs/guides/resource-management.md)（`/admin/twin`） |
+| **E.** 本番環境へ展開したい | [docs/operations/oss-production-deployment.md](docs/operations/oss-production-deployment.md) |
+| **F.** API でアプリを作りたい | [docs/guides/api-client-guide.md](docs/guides/api-client-guide.md) |
 
 > 以下はアーキテクチャ詳細・環境変数・デプロイ構成など**踏み込んだ内容**です。初見の方は上の「目的別の入口」から
 > 必要な doc へ進むのがおすすめです。
@@ -101,16 +101,16 @@ IoT Devices / Integration Gateway
 
 > **⚠️ Breaking change（#216 / #234）:** 既定の Warm 層が `parquet`（MinIO 上の統合 Parquet レイク）になり、
 > **TimescaleDB は選択式（opt-in、`WARM_STORE=timescale`）** になりました。既定 DB イメージは `postgres:16`。
-> 背景・移行手順は [docs/oss-warm-parquet-lake.md](docs/oss-warm-parquet-lake.md) /
-> [docs/oss-tier-architecture.md](docs/oss-tier-architecture.md)。
+> 背景・移行手順は [docs/architecture/oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md) /
+> [docs/architecture/oss-tier-architecture.md](docs/architecture/oss-tier-architecture.md)。
 
 > **ゲートウェイ Point List 同期（#224）**：twin を正本に、`GET /gateways/{id}/pointlist` でゲートウェイが
 > native addressing 付き Point List を取得（ETag / `If-None-Match`→304 / `?since=` 差分・push 通知・mTLS 信頼ヘッダ）。
-> 詳細は [docs/oss-gateway-pointlist-sync.md](docs/oss-gateway-pointlist-sync.md)。
+> 詳細は [docs/architecture/oss-gateway-pointlist-sync.md](docs/architecture/oss-gateway-pointlist-sync.md)。
 
 > **Azure IoT Hub 互換（任意）:** 既存 BACnet エッジ向けに IoT Hub ダイレクトメソッド経由の制御ハンドラ
 > （`KandtDeviceControlHandler`）を同梱しますが、後方互換ブリッジであり新規デプロイには不要です。
-> 詳細は [docs/system-architecture.md](docs/system-architecture.md)。
+> 詳細は [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md)。
 
 ---
 
@@ -149,10 +149,10 @@ IoT Devices / Integration Gateway
 
 > 上の「見た目と最初の1コマンド」が最短ルートです。ここではプロファイル別の詳細手順を示します。
 > 起動→API/Web→テレメトリ投入→読取/制御 までの一筆書きは
-> **[docs/getting-started.md](docs/getting-started.md)**、用語は **[docs/concepts.md](docs/concepts.md)**、
-> ゲートウェイ接続は **[docs/gateway-integration.md](docs/gateway-integration.md)**、評価結果は
-> **[docs/evaluation-summary.md](docs/evaluation-summary.md)** と
-> **[docs/performance-evaluation-report.md](docs/performance-evaluation-report.md)** を参照してください。
+> **[docs/guides/getting-started.md](docs/guides/getting-started.md)**、用語は **[docs/guides/concepts.md](docs/guides/concepts.md)**、
+> ゲートウェイ接続は **[docs/guides/gateway-integration.md](docs/guides/gateway-integration.md)**、評価結果は
+> **[docs/reference/evaluation-summary.md](docs/reference/evaluation-summary.md)** と
+> **[docs/reference/performance-evaluation-report.md](docs/reference/performance-evaluation-report.md)** を参照してください。
 
 ### 1. OSS スタックを起動
 
@@ -200,7 +200,7 @@ yarn dev
 `http://localhost:3000` は Keycloak ログイン画面にリダイレクトされます。既定の dev realm
 (`oss-stack/keycloak/realm.json`)には `admin`/`admin`（全操作可）と
 `testoperator`/`testpass`（読取 + 制御)の2アカウントが自動投入済みです。詳細・追加ユーザー作成は
-[docs/keycloak-user-management.md](docs/keycloak-user-management.md)。**ラボ/CI 専用の既定資格情報
+[docs/guides/keycloak-user-management.md](docs/guides/keycloak-user-management.md)。**ラボ/CI 専用の既定資格情報
 です — 本番前に必ず変更してください。**
 
 ### 3.1 MQTT を外部ブローカー（例: localhost:11883）から取り込む
@@ -256,7 +256,7 @@ dotnet run
 
 > ホスト直接起動時、`WithLocal` プロファイルは `DISABLE_AUTH=true`（Keycloak なし）です。認証を有効にするには
 > `--launch-profile WithLocalAuth` を使います。ユーザー・権限管理は `/admin`、リソース閲覧は `/resources`。
-> ホスト起動の全手順は [docs/getting-started.md](docs/getting-started.md) を参照してください。
+> ホスト起動の全手順は [docs/guides/getting-started.md](docs/guides/getting-started.md) を参照してください。
 
 ---
 
@@ -359,7 +359,7 @@ k6 run -e BASE_URL=http://localhost:5000 -e DURATION=3m k6/s5_api_read.js
 ```
 
 詳細は [`Tools/e2e-performance/README.md`](Tools/e2e-performance/README.md) と  
-[`docs/e2e-performance-quality-test-plan.md`](docs/e2e-performance-quality-test-plan.md) を参照してください。
+[`docs/project/e2e-performance-quality-test-plan.md`](docs/project/e2e-performance-quality-test-plan.md) を参照してください。
 
 **実施済みテストの結果:** [`Tools/e2e-performance/PERFORMANCE_SUMMARY.md`](Tools/e2e-performance/PERFORMANCE_SUMMARY.md)
 
@@ -505,8 +505,8 @@ ConnectorWorker は `building-os.raw.*` subject を購読し、正規化した `
 4. `BuildingOS.ConnectorWorker/Program.cs` に `AddHostedService` 登録を追加
 5. `BuildingOS.Shared.Test/` にユニットテストを追加
 
-メッセージスキーマの詳細は [`docs/telemetry-specification.md`](docs/telemetry-specification.md)、  
-NATS subject / stream 設計は [`docs/oss-nats-design.md`](docs/oss-nats-design.md) を参照してください。
+メッセージスキーマの詳細は [`docs/architecture/telemetry-specification.md`](docs/architecture/telemetry-specification.md)、
+NATS subject / stream 設計は [`docs/architecture/oss-nats-design.md`](docs/architecture/oss-nats-design.md) を参照してください。
 
 ---
 
@@ -546,8 +546,8 @@ make test-oss-stack                         # スタック疎通テスト
 | `kubernetes/keda/` | KEDA による NATS 滞留ベースのオートスケール |
 | `argocd/{apps,values,install,tests}/` | Argo CD GitOps マニフェスト（環境別 Application / values / 構造テスト） |
 
-- GitOps 運用は [`docs/argocd-gitops-guide.md`](docs/argocd-gitops-guide.md)、フロントのローリングデプロイは [`docs/nextjs-k8s-rollout.md`](docs/nextjs-k8s-rollout.md) を参照。
-- GatewayBridge の north-south gRPC ingress（Traefik）・cert-manager mTLS は [`docs/oss-gateway-bridge-infra.md`](docs/oss-gateway-bridge-infra.md) を参照。
+- GitOps 運用は [`docs/operations/argocd-gitops-guide.md`](docs/operations/argocd-gitops-guide.md)、フロントのローリングデプロイは [`docs/operations/nextjs-k8s-rollout.md`](docs/operations/nextjs-k8s-rollout.md) を参照。
+- GatewayBridge の north-south gRPC ingress（Traefik）・cert-manager mTLS は [`docs/operations/oss-gateway-bridge-infra.md`](docs/operations/oss-gateway-bridge-infra.md) を参照。
 - 各コンポーネントは既定で安全側（GatewayBridge 等は `enabled: false`）。必要なものを opt-in で有効化します。
 
 > ⚠️ ここに記載の設定値・マニフェストは参考用です。本番環境での適用・運用は利用者の責任で行ってください（[免責事項](#免責事項-disclaimer)）。
@@ -558,36 +558,36 @@ make test-oss-stack                         # スタック疎通テスト
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [`docs/concepts.md`](docs/concepts.md) | 📖 基本概念（1ページ入門）— Point / Resource / ID の使い分け / Hot・Warm・Cold / ツイン・ポイントリスト |
-| [`docs/getting-started.md`](docs/getting-started.md) | 🚀 オンボーディング（起動→API/Web→投入→読取/制御） |
-| [`docs/keycloak-user-management.md`](docs/keycloak-user-management.md) | 🔑 Keycloak ユーザー管理・ロール付与・トークン取得 |
-| [`docs/connector-development-guide.md`](docs/connector-development-guide.md) | 🔧 コネクタ・ワーカー拡張（新プロトコル対応の step-by-step） |
-| [`docs/api-client-guide.md`](docs/api-client-guide.md) | 📡 クライアントアプリ開発（REST API・認証・テレメトリ・制御） |
-| [`docs/gateway-integration.md`](docs/gateway-integration.md) | 🔌 ゲートウェイ接続モデル（ingress/egress・point list 同期・mTLS） |
+| [`docs/guides/concepts.md`](docs/guides/concepts.md) | 📖 基本概念（1ページ入門）— Point / Resource / ID の使い分け / Hot・Warm・Cold / ツイン・ポイントリスト |
+| [`docs/guides/getting-started.md`](docs/guides/getting-started.md) | 🚀 オンボーディング（起動→API/Web→投入→読取/制御） |
+| [`docs/guides/keycloak-user-management.md`](docs/guides/keycloak-user-management.md) | 🔑 Keycloak ユーザー管理・ロール付与・トークン取得 |
+| [`docs/guides/connector-development-guide.md`](docs/guides/connector-development-guide.md) | 🔧 コネクタ・ワーカー拡張（新プロトコル対応の step-by-step） |
+| [`docs/guides/api-client-guide.md`](docs/guides/api-client-guide.md) | 📡 クライアントアプリ開発（REST API・認証・テレメトリ・制御） |
+| [`docs/guides/gateway-integration.md`](docs/guides/gateway-integration.md) | 🔌 ゲートウェイ接続モデル（ingress/egress・point list 同期・mTLS） |
 
 **アーキテクチャ・設計・運用:**
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [`docs/evaluation-summary.md`](docs/evaluation-summary.md) | 📊 E2E 評価結果とアーキテクチャ/性能の妥当性 |
-| [`docs/performance-evaluation-report.md`](docs/performance-evaluation-report.md) | 📈 E1〜E8・Point List・2k〜50k多棟スケールの総合性能レポート |
+| [`docs/reference/evaluation-summary.md`](docs/reference/evaluation-summary.md) | 📊 E2E 評価結果とアーキテクチャ/性能の妥当性 |
+| [`docs/reference/performance-evaluation-report.md`](docs/reference/performance-evaluation-report.md) | 📈 E1〜E8・Point List・2k〜50k多棟スケールの総合性能レポート |
 | [`e2e/evaluation-report.md`](e2e/evaluation-report.md) | E2E 実測レポート（生値、E1–E8 gate） |
-| [`docs/system-architecture.md`](docs/system-architecture.md) | システム全体のアーキテクチャ詳細 |
-| [`docs/telemetry-specification.md`](docs/telemetry-specification.md) | テレメトリメッセージスキーマ仕様 |
-| [`docs/oss-nats-design.md`](docs/oss-nats-design.md) | NATS JetStream subject / stream 設計 |
-| [`docs/oss-warm-parquet-lake.md`](docs/oss-warm-parquet-lake.md) | Warm/Cold Parquet レイク設計（既定テレメトリストア） |
-| [`docs/oss-tier-architecture.md`](docs/oss-tier-architecture.md) | Hot / Warm / Cold 階層アーキテクチャ |
-| [`docs/oss-gateway-pointlist-sync.md`](docs/oss-gateway-pointlist-sync.md) | ゲートウェイ Point List 同期 API（ETag/差分/push・mTLS） |
-| [`docs/oss-sparql-mapping.md`](docs/oss-sparql-mapping.md) | OxiGraph / SPARQL デジタルツインマッピング |
-| [`docs/standard-mapping.md`](docs/standard-mapping.md) | SBCO / `bos:` 語彙 ↔ Brick / REC / IFC / DTDL 対応表 |
-| [`docs/keycloak-permission-mapping.md`](docs/keycloak-permission-mapping.md) | Keycloak 権限モデル（トークンクレーム詳細） |
-| [`docs/oss-hono-design.md`](docs/oss-hono-design.md) | デバイス接続設計（MQTT + AMQP Northbound） |
-| [`docs/nextjs-k8s-rollout.md`](docs/nextjs-k8s-rollout.md) | Next.js Kubernetes ローリングデプロイ |
-| [`docs/argocd-gitops-guide.md`](docs/argocd-gitops-guide.md) | Argo CD GitOps 運用ガイド |
-| [`docs/e2e-performance-quality-test-plan.md`](docs/e2e-performance-quality-test-plan.md) | E2E パフォーマンス・品質テスト計画 |
+| [`docs/architecture/system-architecture.md`](docs/architecture/system-architecture.md) | システム全体のアーキテクチャ詳細 |
+| [`docs/architecture/telemetry-specification.md`](docs/architecture/telemetry-specification.md) | テレメトリメッセージスキーマ仕様 |
+| [`docs/architecture/oss-nats-design.md`](docs/architecture/oss-nats-design.md) | NATS JetStream subject / stream 設計 |
+| [`docs/architecture/oss-warm-parquet-lake.md`](docs/architecture/oss-warm-parquet-lake.md) | Warm/Cold Parquet レイク設計（既定テレメトリストア） |
+| [`docs/architecture/oss-tier-architecture.md`](docs/architecture/oss-tier-architecture.md) | Hot / Warm / Cold 階層アーキテクチャ |
+| [`docs/architecture/oss-gateway-pointlist-sync.md`](docs/architecture/oss-gateway-pointlist-sync.md) | ゲートウェイ Point List 同期 API（ETag/差分/push・mTLS） |
+| [`docs/architecture/oss-sparql-mapping.md`](docs/architecture/oss-sparql-mapping.md) | OxiGraph / SPARQL デジタルツインマッピング |
+| [`docs/architecture/standard-mapping.md`](docs/architecture/standard-mapping.md) | SBCO / `bos:` 語彙 ↔ Brick / REC / IFC / DTDL 対応表 |
+| [`docs/operations/keycloak-permission-mapping.md`](docs/operations/keycloak-permission-mapping.md) | Keycloak 権限モデル（トークンクレーム詳細） |
+| [`docs/architecture/oss-hono-design.md`](docs/architecture/oss-hono-design.md) | デバイス接続設計（MQTT + AMQP Northbound） |
+| [`docs/operations/nextjs-k8s-rollout.md`](docs/operations/nextjs-k8s-rollout.md) | Next.js Kubernetes ローリングデプロイ |
+| [`docs/operations/argocd-gitops-guide.md`](docs/operations/argocd-gitops-guide.md) | Argo CD GitOps 運用ガイド |
+| [`docs/project/e2e-performance-quality-test-plan.md`](docs/project/e2e-performance-quality-test-plan.md) | E2E パフォーマンス・品質テスト計画 |
 | [`e2e/plan.md`](e2e/plan.md) | 参照アーキテクチャ E2E 定量評価計画（E1–E8 / KPI 閾値） |
 | [`Tools/e2e-performance/PERFORMANCE_SUMMARY.md`](Tools/e2e-performance/PERFORMANCE_SUMMARY.md) | パフォーマンス・品質テスト 実施結果サマリー |
-| [`docs/oss-tech-stack-analysis.md`](docs/oss-tech-stack-analysis.md) | 技術選定の背景と Azure 置換分析 |
+| [`docs/reference/oss-tech-stack-analysis.md`](docs/reference/oss-tech-stack-analysis.md) | 技術選定の背景と Azure 置換分析 |
 
 ---
 
@@ -635,12 +635,12 @@ a REST + gRPC API and a Next.js dashboard.
 
 | I want to… | See |
 |---|---|
-| **A.** see a working demo screen | [docs/getting-started.md](docs/getting-started.md) (+ [concepts](docs/concepts.md)) |
-| **B.** send sensor data over MQTT | [docs/oss-hono-design.md](docs/oss-hono-design.md) |
-| **C.** develop a Building-OS gateway | [docs/gateway-integration.md](docs/gateway-integration.md) + [onboarding checklist](docs/gateway-onboarding-checklist.md) |
-| **D.** register my own building model | [docs/resource-management.md](docs/resource-management.md) |
-| **E.** deploy to production | [docs/oss-production-deployment.md](docs/oss-production-deployment.md) |
-| **F.** build an app on the API | [docs/api-client-guide.md](docs/api-client-guide.md) |
+| **A.** see a working demo screen | [docs/guides/getting-started.md](docs/guides/getting-started.md) (+ [concepts](docs/guides/concepts.md)) |
+| **B.** send sensor data over MQTT | [docs/architecture/oss-hono-design.md](docs/architecture/oss-hono-design.md) |
+| **C.** develop a Building-OS gateway | [docs/guides/gateway-integration.md](docs/guides/gateway-integration.md) + [onboarding checklist](docs/guides/gateway-onboarding-checklist.md) |
+| **D.** register my own building model | [docs/guides/resource-management.md](docs/guides/resource-management.md) |
+| **E.** deploy to production | [docs/operations/oss-production-deployment.md](docs/operations/oss-production-deployment.md) |
+| **F.** build an app on the API | [docs/guides/api-client-guide.md](docs/guides/api-client-guide.md) |
 
 ### Architecture
 
@@ -675,7 +675,7 @@ Control: API → NATS control.request[.gw.{id}] → NatsPointControlWorker / Gat
 - **Observability:** OpenTelemetry → Prometheus + Grafana + Loki + Tempo.
 
 > **Breaking change (#216 / #234):** the default Warm tier is now `parquet`; TimescaleDB is opt-in
-> (`WARM_STORE=timescale`). See [docs/oss-warm-parquet-lake.md](docs/oss-warm-parquet-lake.md).
+> (`WARM_STORE=timescale`). See [docs/architecture/oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md).
 
 ### Quick start
 
@@ -697,8 +697,8 @@ yarn dev
 ```
 
 For a full walkthrough (ingest → read → control), see
-[docs/getting-started.md](docs/getting-started.md) (Japanese; a maintainer can translate specific
-sections on request). Gateway integration: [docs/gateway-integration.md](docs/gateway-integration.md).
+[docs/guides/getting-started.md](docs/guides/getting-started.md) (Japanese; a maintainer can translate specific
+sections on request). Gateway integration: [docs/guides/gateway-integration.md](docs/guides/gateway-integration.md).
 
 ### Tech stack
 

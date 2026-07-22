@@ -38,7 +38,7 @@ public class NatsMessageSubscription : IMessageSubscription, IAsyncDisposable
 
         // Resolve the canonical stream + full subject set for this subject so
         // the stream is created with every subject it must capture, regardless
-        // of which worker starts first. See docs/oss-nats-design.md.
+        // of which worker starts first. See docs/architecture/oss-nats-design.md.
         var (streamName, streamSubjects) = NatsStreamTopology.ResolveOrThrow(_subject);
 
         // Retried: right after NATS/JetStream comes up, these calls can transiently time out

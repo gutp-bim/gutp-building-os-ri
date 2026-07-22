@@ -30,4 +30,4 @@ dotnet run --project BuildingOS.DuckDbSpike -- \
 
 _No runs yet. Run the spike with a real MinIO instance and document results here._
 
-See `docs/oss-duckdb-spike.md` for the full evaluation methodology and adoption criteria.
+See `docs/reference/oss-duckdb-spike.md` for the full evaluation methodology and adoption criteria.

@@ -55,7 +55,7 @@ gRPC 経路を第一とし、MQTT 経路は対照として併記する。
 
 ## 3. KPI 閾値（pass/fail ゲート）
 
-機械可読版は [`kpi-thresholds.yaml`](kpi-thresholds.yaml)。既存 `docs/oss-warm-parquet-kpi.md` の数値と整合。
+機械可読版は [`kpi-thresholds.yaml`](kpi-thresholds.yaml)。既存 `docs/operations/oss-warm-parquet-kpi.md` の数値と整合。
 
 | 軸 | 指標 | ゲート |
 |----|------|--------|

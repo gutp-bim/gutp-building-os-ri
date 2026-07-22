@@ -1,6 +1,6 @@
 # Building OS E2E 評価 KPI ゲート（機械可読）。
 # runner/ が結果 JSON をこの閾値と突き合わせて pass/fail を判定する。
-# 数値は docs/oss-warm-parquet-kpi.md と plan.md の表に整合。
+# 数値は docs/operations/oss-warm-parquet-kpi.md と plan.md の表に整合。
 # 比較演算子: lte (<=), lt (<), gte (>=), gt (>), eq (==)。
 version: 1
 

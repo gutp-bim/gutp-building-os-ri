@@ -173,7 +173,7 @@ cat > "${REPORT_FILE}" <<EOF
   manual verification via the gRPC client or the web-client UI.
 - Run ConnectorWorker with \`ENABLE_SIM_CONTROL=true\` and \`SIM_CONTROL_DELAY_MS=100\`
   for realistic latency simulation.
-- See \`docs/oss-control-safety.md\` for safety boundary documentation.
+- See \`docs/architecture/oss-control-safety.md\` for safety boundary documentation.
 
 ## k6 Summary
 

@@ -6,7 +6,7 @@ import type { ResourceType } from "./types";
  * (DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphOntology.cs):
  *   building → sbco:Building, floor → sbco:Level, space → sbco:Room,
  *   device → sbco:EquipmentExt, point → sbco:PointExt.
- * See docs/standard-mapping.md for the SBCO ↔ Brick/REC/IFC/DTDL mapping.
+ * See docs/architecture/standard-mapping.md for the SBCO ↔ Brick/REC/IFC/DTDL mapping.
  */
 const SBCO_CLASS: Record<ResourceType, string> = {
   building: "sbco:Building",

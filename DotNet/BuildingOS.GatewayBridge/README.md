@@ -3,7 +3,7 @@
 gRPC ⇄ NATS **egress** bridge for the external (building-edge) BOWS connector: a stateless device-control
 plane hosting the `GatewayEgress` service. Telemetry **ingress** (`GatewayIngress`) is hosted by
 BuildingOS.ConnectorWorker alongside the MQTT/AMQP ingress workers (gated on `GRPC_INGRESS_PORT`) — see
-`docs/gateway-bridge-ingress-egress-split.md`. Background: `docs/oss-egress-gateway-bridge-plan.md` §3.
+`docs/architecture/gateway-bridge-ingress-egress-split.md`. Background: `docs/project/oss-egress-gateway-bridge-plan.md` §3.
 
 ## Scaling & replica routing (stateless)
 

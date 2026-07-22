@@ -17,7 +17,7 @@ namespace BuildingOS.IntegrationTest.Tests;
 /// real NATS server. Proves that a control command published to the per-gateway subject reaches a
 /// bridge replica's egress subscription, and that a result published back lands on the result subject
 /// consumed by WaitForResult. The external bbc-sim/BOWS leg (gRPC → BACnet WriteProperty) is covered
-/// by the runbook in docs/oss-bbc-sim-e2e-runbook.md and tracked by takashikasuya/bacnet-sim-gateway#67.
+/// by the runbook in docs/operations/oss-bbc-sim-e2e-runbook.md and tracked by takashikasuya/bacnet-sim-gateway#67.
 /// </summary>
 [Collection(Names.Nats)]
 public class GatewayBridgeEgressNatsTest(NatsFixture fixture) : IntegrationTestBase
