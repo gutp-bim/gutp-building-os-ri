@@ -102,7 +102,7 @@ public class ParquetLakeTelemetryStoreTest
         var thisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0, DateTimeKind.Utc);
         var prevHour = thisHour.AddHours(-1);
         await PutAsync(s, LakePartitionKey.For("b1", prevHour, 1, 2), Row("old", "p1", prevHour.AddMinutes(10), 5));
-        await PutAsync(s, LakePartitionKey.For("b1", thisHour, 3, 4), Row("new", "p1", thisHour.AddMinutes(1), 8));
+        await PutAsync(s, LakePartitionKey.For("b1", thisHour, 3, 4), Row("new", "p1", thisHour, 8));
 
         var latest = await NewStore(s).QueryLatestAsync("p1");
 
