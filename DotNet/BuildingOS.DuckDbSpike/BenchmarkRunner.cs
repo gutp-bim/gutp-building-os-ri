@@ -55,7 +55,7 @@ public static class BenchmarkRunner
         Console.WriteLine("--- Summary ---");
         PrintSummary("DuckDB", duckDbTimes, duckDbCounts);
         Console.WriteLine();
-        Console.WriteLine("Record results in results/ and update docs/oss-duckdb-spike.md.");
+        Console.WriteLine("Record results in results/ and update docs/reference/oss-duckdb-spike.md.");
     }
 
     private static void PrintSummary(string label, List<long> times, List<int> counts)

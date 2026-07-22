@@ -19,7 +19,7 @@ import { TONE_STYLES, type BannerTone } from "./inline-banner";
  * - **InlineBanner**（`./inline-banner`, #196）: 消えると困る**説明** — 取得失敗・権限不足・
  *   バリデーション・gateway offline など。in-flow で永続表示（手動 dismiss）。
  *
- * ポリシー詳細は `docs/oss-frontend-notification-policy.md`。依存ライブラリなし（InlineBanner と同方針）で、
+ * ポリシー詳細は `docs/architecture/oss-frontend-notification-policy.md`。依存ライブラリなし（InlineBanner と同方針）で、
  * `AppShell` に一度だけマウントする。
  */
 export type Toast = {

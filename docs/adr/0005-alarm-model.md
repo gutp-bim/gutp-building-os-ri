@@ -106,7 +106,7 @@
 
 ## 参照
 
-- ADR-0004（#230, 軽量スライス先行 → 後続の段階設計の先例）、`docs/oss-sla-freshness.md`(#183 鮮度閾値)。
+- ADR-0004（#230, 軽量スライス先行 → 後続の段階設計の先例）、`docs/operations/oss-sla-freshness.md`(#183 鮮度閾値)。
 - コード: `SettingsRegistry.cs` / `SettingDefinition.cs`（スカラー限定の根拠）、`freshness.ts` / `aggregate.ts`
   （派生判定 + 要対応リストの先例）、`TelemetryController.cs`（batch-latest 現在値読み）、
   `ControlSchema.cs` / `OxiGraphOntology.cs`（既存 per-point バウンドと twin プロパティ）。

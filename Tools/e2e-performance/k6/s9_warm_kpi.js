@@ -2,7 +2,7 @@
  * S9 Warm Parquet Lake KPI (#219)
  *
  * Exercises the read paths whose KPIs differ between WARM_STORE=timescale and WARM_STORE=parquet, so
- * the SAME load can be run against each mode and compared (PRD docs/oss-warm-parquet-lake.md §7):
+ * the SAME load can be run against each mode and compared (PRD docs/architecture/oss-warm-parquet-lake.md §7):
  *   - latest (hot KV — must not regress between modes)
  *   - warm 24h / 1 point range
  *   - cold 7d / 1 point range

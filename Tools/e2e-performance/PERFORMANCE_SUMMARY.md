@@ -3,16 +3,16 @@
 OSS スタックに対して実施した E2E パフォーマンス・品質テストの累積結果。
 
 > **最新の総合評価（2026-07-22）**: E1〜E8、#259/#260 Point List最適化、10 Building / 20 Gateway /
-> 2k〜50k Pointスイープは [`docs/performance-evaluation-report.md`](../../docs/performance-evaluation-report.md)
+> 2k〜50k Pointスイープは [`docs/reference/performance-evaluation-report.md`](../../docs/reference/performance-evaluation-report.md)
 > を正本とする。この文書の後半は過去runの時系列記録として保持する。
 
 > **注意（アーキ移行）**: 下表の合格結果（2026-05）は**旧 TimescaleDB warm パス**に対するもの。OSS は
 > その後 **Parquet レイク既定（#216）+ tail-merge（#220）** に移行済み。現行の既定アーキを測る手順は
-> [`docs/oss-warm-parquet-perf-runbook.md`](../../docs/oss-warm-parquet-perf-runbook.md)（`quality_checker.py
+> [`docs/operations/oss-warm-parquet-perf-runbook.md`](../../docs/operations/oss-warm-parquet-perf-runbook.md)（`quality_checker.py
 > --mode parquet` = DuckDB で MinIO レイク検証、bridge `PARQUET_MODE`、`s2_baseline.sh MODE=parquet`）。
 > Parquet経路は2026-06以降に再計測済み。直下の「Parquet経路 実測」と最新総合評価を参照。
 
-テスト計画の詳細は [`docs/e2e-performance-quality-test-plan.md`](../../docs/e2e-performance-quality-test-plan.md) を参照。
+テスト計画の詳細は [`docs/project/e2e-performance-quality-test-plan.md`](../../docs/project/e2e-performance-quality-test-plan.md) を参照。
 
 ## Parquet 経路 実測（2026-06-15、現行既定アーキ）
 
@@ -30,7 +30,7 @@ postgres/connector ビルド不能を発見・修正済み（PR #264）。
 
 > QUICK 短縮（small scale、各 60–120s、`PARQUET_FLUSH_INTERVAL=1`）。各ランは `BUILDING_ID=run_id` で
 > 専用 lake パーティションに隔離。S7（resilience）の parquet 追従は follow-up。手順は
-> [`docs/oss-warm-parquet-perf-runbook.md`](../../docs/oss-warm-parquet-perf-runbook.md)。
+> [`docs/operations/oss-warm-parquet-perf-runbook.md`](../../docs/operations/oss-warm-parquet-perf-runbook.md)。
 
 ### S5 API リードパス（Parquet 読取レイテンシ — latest + range）
 

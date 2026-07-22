@@ -71,7 +71,7 @@ MQTT_HOST=building-os.mosquitto WARM_STORE=timescale \
 Deterministically distributes each scale across buildings and gateways, then measures Point List,
 gRPC ingress accepted/rejected counts, Parquet loss, and lake visibility time. The first failed stage
 is returned as a 1-based exit code. See the consolidated results in
-[`docs/performance-evaluation-report.md`](../../docs/performance-evaluation-report.md).
+[`docs/reference/performance-evaluation-report.md`](../../docs/reference/performance-evaluation-report.md).
 
 ```bash
 PARQUET_FLUSH_INTERVAL=1 docker compose -f docker-compose.oss.yaml up -d --build
@@ -165,7 +165,7 @@ CONTROL_POINT_ID=your-point-id \
 ### S9 — Warm Parquet Lake KPI (k6, #219)
 
 Compares the warm/cold/aggregate/multi-point read p95 between `WARM_STORE=timescale` and `parquet`.
-Run once per mode (same load) and diff; see [docs/oss-warm-parquet-kpi.md](../../docs/oss-warm-parquet-kpi.md).
+Run once per mode (same load) and diff; see [docs/operations/oss-warm-parquet-kpi.md](../../docs/operations/oss-warm-parquet-kpi.md).
 
 ```bash
 BASE_URL=http://localhost:5000 MODE=parquet VUS=10 DURATION=10m \

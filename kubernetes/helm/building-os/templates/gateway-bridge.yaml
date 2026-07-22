@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/component: gateway-bridge
 spec:
   # Stateless: scale horizontally. Per-gateway routing is by NATS subject, so any replica
-  # may hold any gateway's stream (see docs/oss-egress-gateway-bridge-plan.md §3-3).
+  # may hold any gateway's stream (see docs/project/oss-egress-gateway-bridge-plan.md §3-3).
   replicas: {{ .Values.gatewayBridge.replicas }}
   selector:
     matchLabels:

@@ -394,7 +394,7 @@ services:
       GatewayConnectionTypes__Map__GW-SOS-001: "bacnet-sim"
       # Dev サンプルツイン(#124)。空文字を渡せば起動時シードを無効化できる。起動のたびに
       # デフォルトグラフを全置換するため、/admin/twin 経由の手動編集は再起動で失われる —
-      # dev quickstart として意図的な挙動(docs/getting-started.md に明記)。
+      # dev quickstart として意図的な挙動(docs/guides/getting-started.md に明記)。
       OXIGRAPH_SEED_TTL_PATH: ${OXIGRAPH_SEED_TTL_PATH:-/fixtures/e2e/twin.ttl}
     ports:
       - "5000:8080"

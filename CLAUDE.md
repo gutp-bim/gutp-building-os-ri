@@ -106,7 +106,7 @@ WARM_STORE=timescale docker compose -f docker-compose.oss.yaml --profile timesca
 > default stack and kept as a selectable opt-in** (default DB image is `postgres:16`). Telemetry and
 > `point_control_audit` use the unified Parquet lake (MinIO) and shared PostgreSQL respectively by
 > default. Select the legacy warm store with `WARM_STORE=timescale` (bring your own TimescaleDB + set
-> `TIMESCALE_CONNECTION_STRING`). See `docs/oss-warm-parquet-lake.md` and `docs/oss-tier-architecture.md`.
+> `TIMESCALE_CONNECTION_STRING`). See `docs/architecture/oss-warm-parquet-lake.md` and `docs/architecture/oss-tier-architecture.md`.
 
 ### Code Generation — from `Tools/` directory
 ```bash
@@ -237,7 +237,7 @@ order-independent) with `If-None-Match`→`304` so gateways poll cheaply and ref
 **machine auth, not user RBAC**: the mTLS-terminating ingress injects the verified gateway id as a trusted
 header (`IGatewayIdentityResolver`, default `X-Gateway-Id`); the endpoint requires it to match the path
 (admin JWT bypasses for ops). The route has no `[AuthorizeFilter]`. Trust boundary + Traefik
-`passTLSClientCert` wiring: `docs/oss-gateway-pointlist-sync.md`. Incremental diff is `?since={etag}`
+`passTLSClientCert` wiring: `docs/architecture/oss-gateway-pointlist-sync.md`. Incremental diff is `?since={etag}`
 (snapshot-cached, falls back to full). Push: the twin seed signals each gateway via
 `building-os.pointlist.updated.gw.{id}` (`IPointListUpdatePublisher`) → GatewayBridge forwards
 `EgressDown{PointListUpdate}` down the egress stream (`gateway_egress.proto` `EgressDown` is now a
@@ -246,7 +246,7 @@ backstop).
 
 > **Onboarding a new gateway (#127):** the steps above (twin seed, control binding, ingress/egress
 > ports, point-list polling) are consolidated into one checklist:
-> `docs/gateway-onboarding-checklist.md`.
+> `docs/guides/gateway-onboarding-checklist.md`.
 
 ### Device Control Flow
 
@@ -281,7 +281,7 @@ backstop).
    remains the backstop. Telemetry
    **ingress** (`GatewayIngress`, client-stream) is hosted by ConnectorWorker, not GatewayBridge (gated
    on `GRPC_INGRESS_PORT`). See
-   `docs/oss-egress-gateway-bridge-plan.md`, `docs/gateway-bridge-ingress-egress-split.md` and
+   `docs/project/oss-egress-gateway-bridge-plan.md`, `docs/architecture/gateway-bridge-ingress-egress-split.md` and
    `DotNet/BuildingOS.GatewayBridge/README.md`.
 
 ### Frontend API Integration (web-client)
@@ -348,7 +348,7 @@ The `AuthorizationContext` (populated from the Keycloak JWT) carries `IsAdmin`, 
 
 Authorization checks: controllers call `HttpContext.GetAuthorizationContext()` then either check `IsAdmin` directly or delegate to `IAuthorizationService.CanAccessAsync()`.
 
-The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) correspond to SBCO ontology classes (`sbco:Building`, `sbco:Level`, `sbco:Room`, `sbco:EquipmentExt`, `sbco:PointExt`); `bos:` is retained only for the `ControlSchema` extension. See `docs/standard-mapping.md` for the mapping between SBCO / `bos:` vocabulary and Brick / REC / IFC / DTDL standards.
+The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) correspond to SBCO ontology classes (`sbco:Building`, `sbco:Level`, `sbco:Room`, `sbco:EquipmentExt`, `sbco:PointExt`); `bos:` is retained only for the `ControlSchema` extension. See `docs/architecture/standard-mapping.md` for the mapping between SBCO / `bos:` vocabulary and Brick / REC / IFC / DTDL standards.
 
 ## Technology Stack
 

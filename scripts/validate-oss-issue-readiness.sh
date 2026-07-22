@@ -57,32 +57,32 @@ python3 - <<'PY'
 from pathlib import Path
 
 required = {
-    "docs/keycloak-permission-mapping.md": [
+    "docs/operations/keycloak-permission-mapping.md": [
         "Azure AD to Keycloak Permission Mapping",
         "Service Accounts",
         "HITL Sign-Off",
     ],
-    "docs/keycloak-admin-provisioning.md": [
+    "docs/operations/keycloak-admin-provisioning.md": [
         "Keycloak Admin Provisioning",
         "Realm Import",
         "Role Synchronization",
     ],
-    "docs/nextjs-k8s-rollout.md": [
+    "docs/operations/nextjs-k8s-rollout.md": [
         "Next.js Kubernetes Rollout",
         "Rollback",
         "SWA Parity",
     ],
-    "docs/oss-nats-design.md": [
+    "docs/architecture/oss-nats-design.md": [
         "NATS JetStream Design",
         "Subject Contract",
         "HITL Sign-Off",
     ],
-    "docs/oss-hono-design.md": [
+    "docs/architecture/oss-hono-design.md": [
         "OSS Device Connectivity Design",
         "Provisioning",
         "HITL Sign-Off",
     ],
-    "docs/hono-device-test-plan.md": [
+    "docs/project/hono-device-test-plan.md": [
         "Hono Device Test Plan",
         "Development Edge Device",
         "Rollback",

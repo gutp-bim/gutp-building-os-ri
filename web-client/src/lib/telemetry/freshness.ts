@@ -4,7 +4,7 @@
  *
  * The threshold is the backend-editable `telemetry.staleThresholdSeconds` setting (SettingsRegistry,
  * default 300s = 5 min, aligned with the default Parquet flush interval — see
- * `docs/oss-sla-freshness.md`). Callers fetch it via `lib/system-settings/fetch-settings.ts`, falling
+ * `docs/operations/oss-sla-freshness.md`). Callers fetch it via `lib/system-settings/fetch-settings.ts`, falling
  * back to {@link DEFAULT_STALE_THRESHOLD_SECONDS}. All I/O (listing points, fetching each point's
  * latest sample) stays in the caller/repository layer; this module is pure and takes an injected
  * `now`, so it is fully deterministic and unit-testable.

@@ -82,7 +82,7 @@ curl 'http://localhost:5000/telemetries/query?pointId=SOS-PT-001&latest=true'  #
 ## nexus-gateway 側の使い方
 
 gateway をこの point_id 集合で起動し、Building OS に上り/下りを通します（詳細は
-[../../docs/onboarding-e2e-gateway.md](../../docs/onboarding-e2e-gateway.md) の Step D）。
+[../../docs/guides/onboarding-e2e-gateway.md](../../docs/guides/onboarding-e2e-gateway.md) の Step D）。
 
 ```bash
 cd ../nexus-gateway

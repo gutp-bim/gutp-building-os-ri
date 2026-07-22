@@ -7,7 +7,7 @@ namespace BuildingOs.ApiServer.GatewayProvisioning;
 /// Resolves the calling gateway's id (#224). The mTLS-terminating ingress (Traefik
 /// <c>passTLSClientCert</c>) maps the verified client certificate to a single trusted header; this
 /// resolver reads that header. The route MUST only be reachable via that ingress, and the header MUST
-/// be stripped on every untrusted path (see docs/oss-gateway-pointlist-sync.md トラスト境界).
+/// be stripped on every untrusted path (see docs/architecture/oss-gateway-pointlist-sync.md トラスト境界).
 /// </summary>
 public interface IGatewayIdentityResolver
 {

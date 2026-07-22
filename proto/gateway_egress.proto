@@ -10,7 +10,7 @@ package gatewaybridge;
 
 // Egress: one bidirectional stream per gateway. The external BOWS connector opens the
 // stream with a Hello{gateway_id}, the server pushes ControlCommand frames down, and the
-// gateway returns ControlResult frames up. See docs/oss-egress-gateway-bridge-plan.md §3.
+// gateway returns ControlResult frames up. See docs/project/oss-egress-gateway-bridge-plan.md §3.
 service GatewayEgress {
   rpc Connect (stream EgressUp) returns (stream EgressDown);
 }
