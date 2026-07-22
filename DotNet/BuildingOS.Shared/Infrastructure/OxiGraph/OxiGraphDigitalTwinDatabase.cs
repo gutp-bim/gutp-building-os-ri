@@ -336,49 +336,99 @@ GROUP BY ?devDt ?devId ?devName ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?
 
     public async Task<GatewayPointEntry[]> ListGatewayPointList(string gatewayId)
     {
-        // All points the gateway owns (sbco:gatewayId), with native addressing, unit, writability,
-        // control schema (bos:*) and owning device — all OPTIONAL so a bare point still returns.
-        var sparql = $@"{Prefixes}
-SELECT ?ptId ?ptName ?localId ?devIdBac ?objType ?instNo ?unit ?writable ?dataType ?minV ?maxV ?enumLabels ?devDt ?devId ?devName
+        // Resolve the gateway-owned point set before expanding optional attributes. A single query
+        // with all OPTIONAL joins lets OxiGraph consider every Point/Equipment pair in a large Twin;
+        // constraining detail queries with VALUES keeps work proportional to this gateway's points.
+        var pointRows = await _client.QueryAsync($@"{Prefixes}
+SELECT ?pt ?ptId
 WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_GatewayId}> ""{EscapeStringLiteral(gatewayId)}"" .
-  OPTIONAL {{ ?pt <{Prop_Name}> ?ptName . }}
-  OPTIONAL {{ ?pt <{Prop_LocalId}> ?localId . }}
-  OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
-  OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
-  OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
-  OPTIONAL {{ ?pt <{Prop_Unit}> ?unit . }}
-  OPTIONAL {{ ?pt <{Prop_Writable}> ?writable . }}
-  OPTIONAL {{ ?pt <{Prop_DataType}> ?dataType . }}
-  OPTIONAL {{ ?pt <{Prop_MinValue}> ?minV . }}
-  OPTIONAL {{ ?pt <{Prop_MaxValue}> ?maxV . }}
-  OPTIONAL {{ ?pt <{Prop_EnumLabels}> ?enumLabels . }}
-  OPTIONAL {{ ?dev a <{Cls_Equipment}> ; <{Prop_HasPoint}> ?pt ; <{Prop_Id}> ?devId . BIND(?dev AS ?devDt) OPTIONAL {{ ?dev <{Prop_Name}> ?devName . }} }}
 }}
-ORDER BY ?ptId";
+ORDER BY ?ptId").ConfigureAwait(false);
+        if (pointRows.Count == 0) return [];
 
-        var rows = await _client.QueryAsync(sparql);
-        return rows.Select(r => new GatewayPointEntry
+        pointRows = pointRows.DistinctBy(row => row["pt"]).ToArray();
+        var pointUris = pointRows.Select(row => row["pt"]).ToArray();
+        var attributeTask = QueryGatewayPointAttributes(pointUris);
+        var deviceTask = QueryGatewayPointDevices(pointUris);
+        await Task.WhenAll(attributeTask, deviceTask).ConfigureAwait(false);
+
+        var attributesByPoint = attributeTask.Result
+            .Where(row => row.ContainsKey("pt") && row.ContainsKey("prop"))
+            .GroupBy(row => row["pt"], StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .GroupBy(row => row["prop"], StringComparer.Ordinal)
+                    .ToDictionary(values => values.Key, values => values.First().GetValueOrDefault("value"), StringComparer.Ordinal),
+                StringComparer.Ordinal);
+        var devicesByPoint = deviceTask.Result
+            .Where(row => row.ContainsKey("pt"))
+            .GroupBy(row => row["pt"], StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        return pointRows.Select(point =>
         {
-            PointId = r.GetValueOrDefault("ptId", ""),
-            LocalId = r.GetValueOrDefault("localId"),
-            BacnetDeviceId = r.GetValueOrDefault("devIdBac"),
-            BacnetObjectType = r.GetValueOrDefault("objType"),
-            BacnetInstanceNo = r.GetValueOrDefault("instNo"),
-            Unit = r.GetValueOrDefault("unit"),
-            Writable = r.TryGetValue("writable", out var w) ? w == "true" : null,
-            DataType = r.GetValueOrDefault("dataType"),
-            MinValue = r.GetValueOrDefault("minV"),
-            MaxValue = r.GetValueOrDefault("maxV"),
-            EnumLabels = r.GetValueOrDefault("enumLabels"),
-            DeviceDtId = r.GetValueOrDefault("devDt"),
-            DeviceId = r.GetValueOrDefault("devId"),
-            DeviceName = r.GetValueOrDefault("devName"),
-        })
-        // Guard against duplicate rows if a point is (incorrectly) linked to multiple devices via the
-        // OPTIONAL hasPoint join — one entry per point (deterministic: ORDER BY ?ptId above).
-        .DistinctBy(e => e.PointId)
-        .ToArray();
+            attributesByPoint.TryGetValue(point["pt"], out var attributes);
+            attributes ??= EmptyAttributes;
+            devicesByPoint.TryGetValue(point["pt"], out var device);
+            device ??= EmptyBinding;
+            return new GatewayPointEntry
+            {
+                PointId = point.GetValueOrDefault("ptId", ""),
+                LocalId = attributes.GetValueOrDefault(Prop_LocalId),
+                BacnetDeviceId = attributes.GetValueOrDefault(Prop_DeviceIdBacnet),
+                BacnetObjectType = attributes.GetValueOrDefault(Prop_ObjectTypeBacnet),
+                BacnetInstanceNo = attributes.GetValueOrDefault(Prop_InstanceNoBacnet),
+                Unit = attributes.GetValueOrDefault(Prop_Unit),
+                Writable = attributes.TryGetValue(Prop_Writable, out var writable) ? writable == "true" : null,
+                DataType = attributes.GetValueOrDefault(Prop_DataType),
+                MinValue = attributes.GetValueOrDefault(Prop_MinValue),
+                MaxValue = attributes.GetValueOrDefault(Prop_MaxValue),
+                EnumLabels = attributes.GetValueOrDefault(Prop_EnumLabels),
+                DeviceDtId = device.GetValueOrDefault("devDt"),
+                DeviceId = device.GetValueOrDefault("devId"),
+                DeviceName = device.GetValueOrDefault("devName"),
+            };
+        }).ToArray();
+    }
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyBinding =
+        new Dictionary<string, string>();
+    private static readonly Dictionary<string, string?> EmptyAttributes = new();
+
+    private async Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> QueryGatewayPointAttributes(
+        IReadOnlyList<string> pointUris)
+    {
+        var values = string.Join(" ", pointUris.Select(uri => $"<{uri}>"));
+        var sparql = $@"{Prefixes}
+SELECT ?pt ?prop ?value
+WHERE {{
+  VALUES ?pt {{ {values} }}
+  VALUES ?prop {{
+    <{Prop_LocalId}> <{Prop_DeviceIdBacnet}> <{Prop_ObjectTypeBacnet}>
+    <{Prop_InstanceNoBacnet}> <{Prop_Unit}> <{Prop_Writable}> <{Prop_DataType}>
+    <{Prop_MinValue}> <{Prop_MaxValue}> <{Prop_EnumLabels}>
+  }}
+  ?pt ?prop ?value .
+}}";
+        return await _client.QueryAsync(sparql).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> QueryGatewayPointDevices(
+        IReadOnlyList<string> pointUris)
+    {
+        var values = string.Join(" ", pointUris.Select(uri => $"<{uri}>"));
+        var sparql = $@"{Prefixes}
+SELECT ?pt ?devDt ?devId ?devName
+WHERE {{
+  VALUES ?pt {{ {values} }}
+  ?dev a <{Cls_Equipment}> ; <{Prop_HasPoint}> ?pt ; <{Prop_Id}> ?devId .
+  BIND(?dev AS ?devDt)
+  OPTIONAL {{ ?dev <{Prop_Name}> ?devName . }}
+}}
+ORDER BY ?pt ?devDt";
+        return await _client.QueryAsync(sparql).ConfigureAwait(false);
     }
 
     public async Task<string[]> ListGatewayIds()

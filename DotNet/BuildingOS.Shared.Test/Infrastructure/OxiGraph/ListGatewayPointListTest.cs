@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.OxiGraph;
@@ -17,11 +18,89 @@ public class ListGatewayPointListTest
 {
     private static OxiGraphDigitalTwinDatabase BuildDb(string responseJson)
     {
-        var handler = new FakeHttpHandler(responseJson);
+        var handler = new PointListFakeHandler(responseJson);
         var http = new HttpClient(handler);
         var client = new OxiGraphClient(http, "http://oxigraph:7878");
         var cache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
         return new OxiGraphDigitalTwinDatabase(client, cache);
+    }
+
+    /// <summary>
+    /// Projects the former single-query fixture rows into the three result shapes used by the
+    /// optimized point-list implementation. This keeps the mapping examples compact while also
+    /// exercising the point, attribute, and device query boundaries independently.
+    /// </summary>
+    private sealed class PointListFakeHandler(string sourceJson) : HttpMessageHandler
+    {
+        private static readonly IReadOnlyDictionary<string, string> AttributeUris =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["localId"] = "https://www.sbco.or.jp/ont/localId",
+                ["devIdBac"] = "https://www.sbco.or.jp/ont/deviceIdBacnet",
+                ["objType"] = "https://www.sbco.or.jp/ont/objectTypeBacnet",
+                ["instNo"] = "https://www.sbco.or.jp/ont/instanceNoBacnet",
+                ["unit"] = "https://www.sbco.or.jp/ont/unit",
+                ["writable"] = "https://www.sbco.or.jp/ont/writable",
+                ["dataType"] = "http://buildingos.gutp.jp/ontology#dataType",
+                ["minV"] = "http://buildingos.gutp.jp/ontology#minValue",
+                ["maxV"] = "http://buildingos.gutp.jp/ontology#maxValue",
+                ["enumLabels"] = "http://buildingos.gutp.jp/ontology#enumLabels",
+            };
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var encodedBody = request.Content is not null ? await request.Content.ReadAsStringAsync(ct) : string.Empty;
+            var sparql = WebUtility.UrlDecode(encodedBody);
+            var sourceBindings = JsonNode.Parse(sourceJson)!["results"]!["bindings"]!.AsArray();
+            var projected = new JsonArray();
+
+            foreach (var node in sourceBindings)
+            {
+                var row = node!.AsObject();
+                if (sparql.Contains("SELECT ?pt ?prop ?value", StringComparison.Ordinal))
+                {
+                    foreach (var (alias, uri) in AttributeUris)
+                    {
+                        if (row[alias] is null) continue;
+                        projected.Add(new JsonObject
+                        {
+                            ["pt"] = row["pt"]!.DeepClone(),
+                            ["prop"] = new JsonObject { ["type"] = "uri", ["value"] = uri },
+                            ["value"] = row[alias]!.DeepClone(),
+                        });
+                    }
+                }
+                else if (sparql.Contains("SELECT ?pt ?devDt ?devId ?devName", StringComparison.Ordinal))
+                {
+                    if (row["devDt"] is null || row["devId"] is null) continue;
+                    var device = new JsonObject
+                    {
+                        ["pt"] = row["pt"]!.DeepClone(),
+                        ["devDt"] = row["devDt"]!.DeepClone(),
+                        ["devId"] = row["devId"]!.DeepClone(),
+                    };
+                    if (row["devName"] is not null) device["devName"] = row["devName"]!.DeepClone();
+                    projected.Add(device);
+                }
+                else
+                {
+                    projected.Add(new JsonObject
+                    {
+                        ["pt"] = row["pt"]!.DeepClone(),
+                        ["ptId"] = row["ptId"]!.DeepClone(),
+                    });
+                }
+            }
+
+            var response = new JsonObject
+            {
+                ["results"] = new JsonObject { ["bindings"] = projected },
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(response.ToJsonString(), Encoding.UTF8, "application/sparql-results+json"),
+            };
+        }
     }
 
     [Fact]
@@ -29,7 +108,8 @@ public class ListGatewayPointListTest
     {
         var db = BuildDb(@"{
   ""results"": { ""bindings"": [
-    { ""ptId"": {""type"":""literal"",""value"":""PT001""},
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:PT001""},
+      ""ptId"": {""type"":""literal"",""value"":""PT001""},
       ""ptName"": {""type"":""literal"",""value"":""Room Temp""},
       ""localId"": {""type"":""literal"",""value"":""LOCAL001""},
       ""devIdBac"": {""type"":""literal"",""value"":""BAC001""},
@@ -70,7 +150,8 @@ public class ListGatewayPointListTest
         // A point with no localId/BACnet/control-schema must still appear (just with nulls).
         var db = BuildDb(@"{
   ""results"": { ""bindings"": [
-    { ""ptId"": {""type"":""literal"",""value"":""PT002""},
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:PT002""},
+      ""ptId"": {""type"":""literal"",""value"":""PT002""},
       ""ptName"": {""type"":""literal"",""value"":""CO2""} }
   ]}}");
 
@@ -96,7 +177,8 @@ public class ListGatewayPointListTest
     {
         var db = BuildDb(@"{
   ""results"": { ""bindings"": [
-    { ""ptId"": {""type"":""literal"",""value"":""PT003""},
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:PT003""},
+      ""ptId"": {""type"":""literal"",""value"":""PT003""},
       ""writable"": {""type"":""literal"",""value"":""false""} }
   ]}}");
 
@@ -173,7 +255,7 @@ public class ListGatewayPointListTest
                 : Array.Empty<(string, string, string)>();
 
             var bindings = string.Join(",", matched.Select(p =>
-                $@"{{ ""ptId"": {{""type"":""literal"",""value"":""{p.Item2}""}}, ""ptName"": {{""type"":""literal"",""value"":""{p.Item3}""}} }}"));
+                $@"{{ ""pt"": {{""type"":""uri"",""value"":""urn:point:{p.Item2}""}}, ""ptId"": {{""type"":""literal"",""value"":""{p.Item2}""}}, ""ptName"": {{""type"":""literal"",""value"":""{p.Item3}""}} }}"));
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
