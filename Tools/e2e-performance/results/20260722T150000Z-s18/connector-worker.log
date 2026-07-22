@@ -1,0 +1,216 @@
+info: BuildingOS.Shared.Module.PointMetadataCache[0]
+      Refreshing point metadata cache (maxAge=00:00:30)
+info: System.Net.Http.HttpClient.oxigraph.LogicalHandler[100]
+      Start processing HTTP request POST http://building-os.oxigraph:7878/query
+info: System.Net.Http.HttpClient.oxigraph.ClientHandler[100]
+      Sending HTTP request POST http://building-os.oxigraph:7878/query
+info: System.Net.Http.HttpClient.oxigraph.ClientHandler[101]
+      Received HTTP response headers after 4.7389ms - 200
+info: System.Net.Http.HttpClient.oxigraph.LogicalHandler[101]
+      End processing HTTP request after 5.0889ms - 200
+info: BuildingOS.Shared.Module.PointMetadataCache[0]
+      Point metadata cache refreshed: 108 entries
+info: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress stream completed: 100 telemetry frames enqueued
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-000', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-001', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-002', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-003', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-004', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-005', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-006', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-007', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-008', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-009', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-010', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-011', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-012', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-013', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-014', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-015', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-016', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-017', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-018', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-019', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-020', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-021', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-022', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-023', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-024', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-025', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-026', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-027', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-028', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-029', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-030', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-031', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-032', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-033', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-034', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-035', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-036', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-037', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-038', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-039', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-040', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-041', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-042', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-043', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-044', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-045', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-046', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-047', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-048', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-049', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-050', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-051', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-052', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-053', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-054', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-055', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-056', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-057', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-058', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-059', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-060', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-061', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-062', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-063', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-064', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-065', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-066', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-067', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-068', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-069', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-070', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-071', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-072', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-073', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-074', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-075', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-076', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-077', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-078', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-079', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-080', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-081', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-082', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-083', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-084', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-085', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-086', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-087', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-088', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-089', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-090', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-091', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-092', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-093', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-094', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-095', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-096', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-097', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-098', skipping frame
+warn: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress: unknown point_id 'unknown-s18-099', skipping frame
+info: BuildingOS.ConnectorWorker.Connectors.GatewayIngressService[0]
+      Ingress stream completed: 0 telemetry frames enqueued
