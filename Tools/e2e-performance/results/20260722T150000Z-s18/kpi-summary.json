@@ -1,0 +1,53 @@
+{
+  "run_id": "20260722T150000Z-s18",
+  "conditions": {
+    "output": "Tools/e2e-performance/results",
+    "run_id": "20260722T150000Z-s18",
+    "gateways": 100,
+    "concentration_ms": 500,
+    "egress": "building-os.gateway-bridge:5052",
+    "nats": "nats://building-os.nats:4222",
+    "compose_file": "docker-compose.oss.yaml",
+    "base_url": "http://building-os.api:8080",
+    "ingress": "building-os.connector-worker:5051",
+    "connector_health": "http://building-os.connector-worker:8081/health/ready",
+    "oxigraph": "http://building-os.oxigraph:7878",
+    "minio_endpoint": "building-os.minio:9000",
+    "minio_key": "buildingos",
+    "minio_secret": "buildingos123",
+    "bucket": "cold",
+    "flush_timeout": 30.0,
+    "no_refresh": true,
+    "skip_service_logs": false,
+    "max_convergence_ms": 10000
+  },
+  "thresholds": {
+    "convergence_ms": 10000,
+    "loss_rate": 0,
+    "duplicates": 0,
+    "control_success_rate": 1,
+    "service_errors": 0
+  },
+  "metrics": {
+    "gateway_count": 100,
+    "reconnected": 100,
+    "convergence_ms": 2693.181,
+    "ingress_accepted": 100,
+    "ingress_rejected": 100,
+    "ingress_expected": 100,
+    "lake_rows": 100,
+    "loss": 0,
+    "loss_rate": 0.0,
+    "duplicate_rows": 0,
+    "controls_accepted": 100,
+    "controls_succeeded": 100,
+    "control_success_rate": 1.0,
+    "service_errors": {
+      "gateway-bridge": 0,
+      "connector-worker": 0,
+      "api-server": 0
+    }
+  },
+  "passed": true,
+  "exceeded_thresholds": []
+}
