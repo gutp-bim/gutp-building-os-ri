@@ -12,6 +12,79 @@ publishes images for (`v*.*.*`).
 
 _No unreleased changes yet._
 
+## [1.0.0-rc.2] - 2026-07-23
+
+Second release candidate. Consolidates the work merged after the rc.1 preparation commit — a
+first-class non-numeric telemetry contract, operator alarms, true gateway connection/pointlist-sync
+state, large-scale performance evaluation (up to 50,000 points / 20 gateways and a 100-gateway
+reconnect load run), and a documentation reorganization. rc.1 was never tagged; this supersedes it as
+the release-candidate baseline.
+
+### Added
+
+- **Non-numeric telemetry values** (`number` / `string` / `boolean`) end-to-end (#152, ADR-0006):
+  gRPC keeps field 3 as the numeric value and adds new field numbers for string/boolean (wire-compatible
+  with existing numeric gateways); Parquet gains nullable `value_type` / `value_text` / `value_bool`
+  columns (old files still readable); API, Hot KV and UI carry the discriminated value. Non-numeric
+  history uses last-in-bucket aggregation plus a state timeline (Phase A/B/C: #254 / #255 / #256).
+- **Operator value-threshold alarms** on the home + a building-wide alert view (#158 Phase 2 / 2a,
+  ADR-0005: #240 / #233).
+- **True gateway connected/disconnected state** and **pointlist-sync state** via a shared NATS KV
+  heartbeat (#230 Phase 1 / 2b, ADR-0004: #236 / #237); derived last-seen on the gateway view
+  (#181 Phase 2: #222).
+- **Per-point expected-interval stale detection** with an all-role telemetry-threshold read surface
+  (#183: #215 and follow-ups).
+- **Demo auth**: demo-only auto-login with a visible skipped-auth banner (#161: #234); the default OSS
+  stack unified on Keycloak (#161 案B: #226).
+- **Unified notification policy** (transient toast + explanatory inline) and permission-denied /
+  gateway-offline control-failure explanations (#162: #232 / #227).
+- **Point history chart**: period + granularity selectors, custom date range with start<end / future
+  guards (#197: #220).
+- **Responsive shell**: off-canvas sidebar drawer on mobile and two-pane stacking on narrow viewports
+  (#199: #218-area / #158603a); dialog focus trap + Esc + focus restoration (#198: #204).
+- **Operations docs**: Demo / Developer / Production edition definitions (#231), a backup/restore
+  runbook for the three stores (#228), and upgrade + incident runbooks (#229) — all #163 slices.
+- **Performance evaluation**: automated multi-building sweep to 50,000 points / 20 gateways (#270), a
+  100-gateway reconnect load run (#271), a 10k-point gateway point-list optimization (#268), and
+  ETag/revision-based avoidance of Twin re-queries for unchanged point lists (#269).
+- **Gateway-bridge multi-connection**: supersede a gateway's prior egress stream on reconnect (#211).
+
+### Changed
+
+- **Documentation reorganized by purpose** — `guides/` `architecture/` `operations/` `reference/`
+  `project/` `adr/` (#272).
+- **Gateway point-list query strategy** optimized for 10k-point twins, backed by shared NATS KV
+  point-list revisions (ETag `If-None-Match` → `304` without re-querying OxiGraph) (#268 / #269).
+- **Telemetry enum representation**: the numeric-code enum workaround is deprecated in favour of the
+  first-class non-numeric value (#152 Phase C: #256).
+- **UI foundation**: shared Button/Dialog primitives, tokenized color/state values, and 37 unused UI
+  dependencies pruned (#194); legacy detail pages migrated to the new conventions and `/my-resources`
+  consolidated into `/resources` (#195).
+- **README** now shows real UI screenshots (operator home / resource explorer / point detail),
+  regenerable via Playwright (#156 / #224) — supersedes rc.1's "screenshots still pending".
+- **Toolchain**: vite 5→8 / vitest 2→4 (#154: #223); observability compose Prometheus scrape aligned
+  to 30s (A-9: #274); generated Swagger + Aspida client resynced with the current controllers and the
+  admin API moved onto the generated client (B-8: #275).
+
+### Fixed
+
+- batch-latest PostgreSQL authorization coverage, verified with Testcontainers (#265).
+- integration test dependency + NATS KV isolation (#258).
+- performance harness aligned with the current ingress path (#267).
+- freshness: stop exposing the unwired stale multiplier as an editable setting (#210 review).
+
+### Known limitations
+
+- **Warm store**: the Parquet lake is the supported default. **TimescaleDB is opt-in and experimental
+  — numeric telemetry only**; the non-numeric `value_type` / `value_text` / `value_bool` fields land in
+  the Parquet path, not the TimescaleDB opt-in path.
+- **Scale**: validated to 50,000 points / 20 gateways and a 100-gateway concentrated reconnect on a
+  **single host**. This is not a Kubernetes / multi-API-replica performance guarantee.
+- **Sustained load**: long-duration continuous ingest at 50k (hours of writes + compaction + retention)
+  is not yet evaluated (tracked separately).
+- **Contract compatibility**: proto/REST/NATS compatibility is enforced by review, not yet by an
+  automated `buf breaking` gate.
+
 ## [1.0.0-rc.1] - 2026-07-17
 
 First release candidate for **v1.0.0**. Consolidates the v1.0.0 readiness work tracked in #184

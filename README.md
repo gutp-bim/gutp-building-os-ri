@@ -103,6 +103,9 @@ IoT Devices / Integration Gateway
 > **TimescaleDB は選択式（opt-in、`WARM_STORE=timescale`）** になりました。既定 DB イメージは `postgres:16`。
 > 背景・移行手順は [docs/architecture/oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md) /
 > [docs/architecture/oss-tier-architecture.md](docs/architecture/oss-tier-architecture.md)。
+> **v1.0.0-rc.2 時点では、TimescaleDB opt-in 経路は experimental（数値テレメトリのみ）です。** 非数値値
+> （`value_type` / `value_text` / `value_bool`、#152）は Parquet 経路のみが対応します。正式サポートの
+> Warm Store は Parquet です。
 
 > **ゲートウェイ Point List 同期（#224）**：twin を正本に、`GET /gateways/{id}/pointlist` でゲートウェイが
 > native addressing 付き Point List を取得（ETag / `If-None-Match`→304 / `?since=` 差分・push 通知・mTLS 信頼ヘッダ）。
@@ -676,6 +679,9 @@ Control: API → NATS control.request[.gw.{id}] → NatsPointControlWorker / Gat
 
 > **Breaking change (#216 / #234):** the default Warm tier is now `parquet`; TimescaleDB is opt-in
 > (`WARM_STORE=timescale`). See [docs/architecture/oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md).
+> **As of v1.0.0-rc.2 the TimescaleDB opt-in path is experimental (numeric telemetry only):** the
+> non-numeric values (`value_type` / `value_text` / `value_bool`, #152) are supported on the Parquet
+> path only. Parquet is the supported default warm store.
 
 ### Quick start
 
