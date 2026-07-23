@@ -22,11 +22,24 @@ const floor: ResourceRef = {
   id: "F1",
   name: "1F",
 };
+// A distinct child for 別館 (building2) so a "did 別館's child load?" assertion is unambiguous even
+// when 本館 (building1) has auto-expanded and rendered its own "1F" — both buildings sharing a floor
+// name made `findByText("1F")` match two nodes and flake under CI timing.
+const floor2: ResourceRef = {
+  type: "floor",
+  dtId: "urn:f2",
+  id: "F2",
+  name: "2F",
+};
 
 function makeLoaders(): ResourceTreeLoaders {
   return {
     loadRoots: vi.fn().mockResolvedValue([building, building2]),
-    loadChildren: vi.fn().mockResolvedValue([floor]),
+    loadChildren: vi
+      .fn()
+      .mockImplementation((ref: ResourceRef) =>
+        Promise.resolve(ref.dtId === building2.dtId ? [floor2] : [floor]),
+      ),
   };
 }
 
@@ -49,7 +62,9 @@ describe("ResourceTreeView", () => {
     await screen.findByText("別館");
     // 本館 (index 0) auto-expands by default (#135); 別館 (index 1) still needs a manual click.
     fireEvent.click(screen.getByRole("button", { name: "別館 を展開" }));
-    expect(await screen.findByText("1F")).toBeInTheDocument();
+    // Assert on 別館's own child (2F) — 本館's auto-expanded "1F" is also in the tree, so querying
+    // "1F" here would be ambiguous and race 本館's async child load.
+    expect(await screen.findByText("2F")).toBeInTheDocument();
     expect(loaders.loadChildren).toHaveBeenCalledWith(building2);
   });
 
