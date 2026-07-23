@@ -2,5 +2,5 @@ apiVersion: v2
 name: connector-worker
 description: Building OS Connector Worker (replaces Azure Functions)
 type: application
-version: 0.1.0
-appVersion: "1.0.0"
+version: 1.0.0-rc.2
+appVersion: "1.0.0-rc.2"
