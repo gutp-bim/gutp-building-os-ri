@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-*[English summary below](#english-summary) — architecture, quick start, tech stack, license.*
+*[English summary below](#english-summary) — tl;dr + links to the full English site.*
 
 スマートビルディング管理のためのオープンソース IoT プラットフォーム。  
 gRPC / MQTT / NATS 経由でビル設備（HVAC・電力・環境センサー等）のデータを収集し、  
@@ -12,6 +12,23 @@ MinIO 上の Parquet レイク（+ 最新値は NATS KV）にストア、REST + 
 > **利用にかかわる一切について、開発者・関係者・派生元は一切の責任を負いません（無保証）。** 詳細は [免責事項](#免責事項-disclaimer) を参照してください。
 
 > 🔒 セキュリティ上の問題を発見した場合は [SECURITY.md](./SECURITY.md) に従って非公開で報告してください。
+
+---
+
+## 🌐 サイト・ドキュメント早見表
+
+このリポジトリのドキュメントは2箇所に分かれています。**ブラウザで概要を読みたい** → 公開サイト
+（GitHub Pages）。**リポジトリで実際に動かす・拡張する** → この README と `docs/` 配下のガイド。
+
+| 読みたいもの | 参照先 |
+|---|---|
+| プロダクト概要・主要機能（スクリーンショット付き） | [product.html](https://gutp-bim.github.io/gutp-building-os-ri/product.html) |
+| アーキテクチャ全体図・データ/制御フロー・技術スタック | [architecture.html](https://gutp-bim.github.io/gutp-building-os-ri/architecture.html) |
+| ゲートウェイ／エコシステム（nexus-gateway 等） | [ecosystem.html](https://gutp-bim.github.io/gutp-building-os-ri/ecosystem.html) |
+| ブラウザで読むクイックスタート | [quickstart.html](https://gutp-bim.github.io/gutp-building-os-ri/quickstart.html) |
+| English summary | [index-en.html](https://gutp-bim.github.io/gutp-building-os-ri/index-en.html)（[README内の要約](#english-summary)も参照） |
+| 実際に手を動かす手順・環境変数・デプロイ設定 | この README（下記） |
+| ガイド・アーキテクチャ設計書・運用 Runbook 一覧 | [docs/README.md](docs/README.md) |
 
 ---
 
@@ -69,70 +86,25 @@ make demo
 
 ---
 
-## アーキテクチャ
+## アーキテクチャ（概要）
 
-```
-IoT Devices / Integration Gateway
-   ├─ gRPC GatewayIngress（正本：(gateway_id, point_id) 契約）┐
-   ├─ MQTT(Mosquitto) → building-os.raw.mqtt ───────────────┤→ ConnectorWorker
-   └─ Hono(AMQP)      → building-os.raw.hono ────────────────┘  （twin メタ付与・正規化）
-                                                                │
-                              NATS JetStream（コアバス）
-                              building-os.validated.telemetry
-                                       ├─► NATS KV telemetry-latest    ← Hot：最新1点/point
-                                       └─► ParquetLakeWriterWorker ─► MinIO Parquet レイク（Warm/Cold 既定）
-                                                                │
-                                    API Server（ASP.NET Core REST + gRPC）
-                                    ・/telemetries/query（Hot/Warm/Cold 自動選択）
-                                    ・/resources/search（横断検索）
-                                    ・/gateways/{id}/pointlist（ゲートウェイ Point List 同期）
-                                                                │
-                                            Web Client（Next.js）
-                                  /resources ツリーエクスプローラ + /admin 管理ワークスペース
+IoT デバイス／ゲートウェイ（gRPC・MQTT・AMQP）→ ConnectorWorker（検証・twin メタ付与）→ NATS
+JetStream → NATS KV（Hot=最新値）/ MinIO Parquet レイク（Warm・Cold=履歴）→ API Server（REST +
+gRPC）→ Web Client（Next.js）。制御は逆方向に API → NATS → GatewayBridge/NatsPointControlWorker →
+現場設備、というのが全体の流れです。デジタルツイン（OxiGraph / SBCO）がビル階層と point list の正本、
+認証は Keycloak（OIDC / JWT）、可観測性は OpenTelemetry → Prometheus/Grafana/Loki/Tempo（任意）です。
 
-制御: API → NATS control.request[.gw.{id}] → NatsPointControlWorker / GatewayBridge(GatewayEgress) → 現場
-```
+**全体図・データ/制御フロー・Hot/Warm/Cold 階層・標準オントロジー対応・技術スタックの詳細** は
+[architecture.html](https://gutp-bim.github.io/gutp-building-os-ri/architecture.html) と
+[docs/architecture/system-architecture.md](docs/architecture/system-architecture.md) を参照してください。
 
-**デジタルツイン:** OxiGraph（SPARQL / SBCO）がビル→フロア→スペース→機器→ポイントの階層を管理（point list の正本）。  
-**リレーショナル DB:** PostgreSQL 16（ユーザー・グループ・権限 + `point_control_audit`、EF Core）。  
-**テレメトリ:** Hot=NATS KV（最新値）/ Warm・Cold=MinIO 上の統合 Parquet レイク（S3 互換）。  
-**認証:** Keycloak（OIDC / JWT）。ゲートウェイ provisioning は mTLS マシン認証。  
-**可観測性:** OpenTelemetry → Prometheus + Grafana + Loki + Tempo。
-
-> **⚠️ Breaking change（#216 / #234）:** 既定の Warm 層が `parquet`（MinIO 上の統合 Parquet レイク）になり、
-> **TimescaleDB は選択式（opt-in、`WARM_STORE=timescale`）** になりました。既定 DB イメージは `postgres:16`。
-> 背景・移行手順は [docs/architecture/oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md) /
-> [docs/architecture/oss-tier-architecture.md](docs/architecture/oss-tier-architecture.md)。
-> **v1.0.0-rc.2 時点では、TimescaleDB opt-in 経路は experimental（数値テレメトリのみ）です。** 非数値値
-> （`value_type` / `value_text` / `value_bool`、#152）は Parquet 経路のみが対応します。正式サポートの
-> Warm Store は Parquet です。
-
-> **ゲートウェイ Point List 同期（#224）**：twin を正本に、`GET /gateways/{id}/pointlist` でゲートウェイが
-> native addressing 付き Point List を取得（ETag / `If-None-Match`→304 / `?since=` 差分・push 通知・mTLS 信頼ヘッダ）。
-> 詳細は [docs/architecture/oss-gateway-pointlist-sync.md](docs/architecture/oss-gateway-pointlist-sync.md)。
-
-> **Azure IoT Hub 互換（任意）:** 既存 BACnet エッジ向けに IoT Hub ダイレクトメソッド経由の制御ハンドラ
-> （`KandtDeviceControlHandler`）を同梱しますが、後方互換ブリッジであり新規デプロイには不要です。
-> 詳細は [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md)。
-
----
-
-## 技術スタック
-
-| レイヤー | 技術 |
-|----------|------|
-| Backend / API | .NET 8, ASP.NET Core, REST, gRPC-web |
-| Worker | .NET `BackgroundService`, NATS JetStream durable consumers |
-| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
-| 認証 | Keycloak, OIDC, JWT bearer |
-| メッセージバス | NATS JetStream |
-| テレメトリ | Hot=NATS KV（最新値）/ Warm・Cold=MinIO Parquet レイク（既定。TimescaleDB は opt-in）|
-| リレーショナル DB | PostgreSQL 16（ユーザー・グループ・権限 + point_control_audit、EF Core）|
-| デジタルツイン | OxiGraph, RDF, SPARQL |
-| Blob / コールドデータ | MinIO, S3-compatible, Parquet |
-| IoT 接続 | MQTT, Mosquitto, Eclipse Hono（オプション）|
-| 可観測性 | OpenTelemetry, Prometheus, Grafana, Loki, Tempo |
-| IaC / デリバリー | Docker Compose, Helm, Argo CD, OpenTofu |
+> **⚠️ 主な破壊的変更:** 既定の Warm 層は `parquet`（MinIO 上の統合 Parquet レイク）、TimescaleDB は
+> `WARM_STORE=timescale` の opt-in です（#216/#234、詳細は
+> [oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md)）。ゲートウェイ Point List
+> 同期は `GET /gateways/{id}/pointlist`（ETag・push 通知、#224、詳細は
+> [oss-gateway-pointlist-sync.md](docs/architecture/oss-gateway-pointlist-sync.md)）。Azure IoT Hub
+> 経由の制御（`KandtDeviceControlHandler`）は既存 BACnet エッジ向けの後方互換ブリッジで、新規デプロイ
+> には不要です。
 
 ---
 
@@ -616,117 +588,26 @@ Apache License 2.0. 上記「免責事項」もあわせて適用されます。
 
 ## English Summary
 
-*This is a condensed summary for international readers — not a full translation. For complete
-details, see the Japanese sections above (architecture notes, environment variables, connector
-guide, etc.) or ask a maintainer to expand a specific section.*
+*A full, actively-maintained English overview (architecture, quick start, tech stack, ecosystem)
+now lives on the project site:* **[index-en.html](https://gutp-bim.github.io/gutp-building-os-ri/index-en.html)**.
 
-### What is Building OS
+**tl;dr:** Building OS is an open-source IoT platform for smart building management. It collects
+telemetry from building equipment (HVAC, power meters, environmental sensors) over gRPC / MQTT /
+NATS, stores it in a Parquet lake on MinIO (latest value cached in NATS KV), and serves it via a
+REST + gRPC API and a Next.js dashboard, with point-level control and a full audit trail.
 
-Building OS is an open-source IoT platform for smart building management. It collects telemetry
-from building equipment (HVAC, power meters, environmental sensors) over gRPC / MQTT / NATS,
-stores it in a Parquet lake on MinIO (with the latest value cached in NATS KV), and serves it via
-a REST + gRPC API and a Next.js dashboard.
+```bash
+docker compose -f docker-compose.oss.yaml up -d
+docker compose -f docker-compose.oss.yaml --profile webclient up -d
+# Web: http://localhost:3000   API: http://localhost:5000/swagger
+```
 
-> ℹ️ This product is a derivative of research output from the **UTokyo Green ICT Project**. It is
+> ℹ️ This product is a derivative of research output from the **UTokyo Green ICT Project**,
 > provided **AS IS, with no warranty** — see [Disclaimer](#免責事項-disclaimer) above. Report
 > security issues privately per [SECURITY.md](./SECURITY.md).
 
-> 📸 Screenshots pending — the core screens are `/resources` (equipment tree) → `/points/{id}`
-> (latest value + history chart) → the control dialog. Run `make local-up-oss` and open them locally.
-
-### Where to start (by goal)
-
-| I want to… | See |
-|---|---|
-| **A.** see a working demo screen | [docs/guides/getting-started.md](docs/guides/getting-started.md) (+ [concepts](docs/guides/concepts.md)) |
-| **B.** send sensor data over MQTT | [docs/architecture/oss-hono-design.md](docs/architecture/oss-hono-design.md) |
-| **C.** develop a Building-OS gateway | [docs/guides/gateway-integration.md](docs/guides/gateway-integration.md) + [onboarding checklist](docs/guides/gateway-onboarding-checklist.md) |
-| **D.** register my own building model | [docs/guides/resource-management.md](docs/guides/resource-management.md) |
-| **E.** deploy to production | [docs/operations/oss-production-deployment.md](docs/operations/oss-production-deployment.md) |
-| **F.** build an app on the API | [docs/guides/api-client-guide.md](docs/guides/api-client-guide.md) |
-
-### Architecture
-
-```
-IoT Devices / Integration Gateway
-   ├─ gRPC GatewayIngress (canonical: (gateway_id, point_id) contract)   ┐
-   ├─ MQTT (Mosquitto) → building-os.raw.mqtt ───────────────────────────┤→ ConnectorWorker
-   └─ Hono (AMQP)      → building-os.raw.hono ────────────────────────────┘ (twin-metadata enrichment, normalization)
-                                                                │
-                              NATS JetStream (core message bus)
-                              building-os.validated.telemetry
-                                       ├─► NATS KV telemetry-latest    ← Hot: latest 1 sample/point
-                                       └─► ParquetLakeWriterWorker ─► MinIO Parquet lake (Warm/Cold, default)
-                                                                │
-                                    API Server (ASP.NET Core REST + gRPC)
-                                    · /telemetries/query (auto Hot/Warm/Cold tier selection)
-                                    · /resources/search (cross-resource search)
-                                    · /gateways/{id}/pointlist (gateway point-list sync)
-                                                                │
-                                            Web Client (Next.js)
-                                  /resources tree explorer + /admin workspace
-
-Control: API → NATS control.request[.gw.{id}] → NatsPointControlWorker / GatewayBridge (GatewayEgress) → field device
-```
-
-- **Digital twin:** OxiGraph (SPARQL / SBCO) manages the building → floor → space → device → point
-  hierarchy (the canonical point list).
-- **Relational DB:** PostgreSQL 16 (users/groups/permissions + `point_control_audit`, EF Core).
-- **Telemetry:** Hot = NATS KV (latest value) / Warm & Cold = unified Parquet lake on MinIO
-  (S3-compatible).
-- **Auth:** Keycloak (OIDC / JWT). Gateway provisioning uses mTLS machine auth.
-- **Observability:** OpenTelemetry → Prometheus + Grafana + Loki + Tempo.
-
-> **Breaking change (#216 / #234):** the default Warm tier is now `parquet`; TimescaleDB is opt-in
-> (`WARM_STORE=timescale`). See [docs/architecture/oss-warm-parquet-lake.md](docs/architecture/oss-warm-parquet-lake.md).
-> **As of v1.0.0-rc.2 the TimescaleDB opt-in path is experimental (numeric telemetry only):** the
-> non-numeric values (`value_type` / `value_text` / `value_bool`, #152) are supported on the Parquet
-> path only. Parquet is the supported default warm store.
-
-### Quick start
-
-```bash
-# 1. Start the OSS stack (NATS, PostgreSQL, OxiGraph, MinIO, Keycloak, ConnectorWorker, GatewayBridge)
-make local-up-oss
-# or: docker compose -f docker-compose.oss.yaml up -d
-
-# 2. Start the API Server (DISABLE_AUTH=true — no Keycloak needed for local dev)
-cd DotNet/BuildingOS.ApiServer
-dotnet run --launch-profile WithLocal
-# → http://localhost:5000  (Swagger UI at /swagger)
-
-# 3. Start the Web Client
-cd web-client
-yarn install
-yarn dev
-# → http://localhost:3000  (admin workspace at /admin, resource explorer at /resources)
-```
-
-For a full walkthrough (ingest → read → control), see
-[docs/guides/getting-started.md](docs/guides/getting-started.md) (Japanese; a maintainer can translate specific
-sections on request). Gateway integration: [docs/guides/gateway-integration.md](docs/guides/gateway-integration.md).
-
-### Tech stack
-
-| Layer | Technology |
-|-------|------------|
-| Backend / API | .NET 8, ASP.NET Core, REST, gRPC-web |
-| Worker | .NET `BackgroundService`, NATS JetStream durable consumers |
-| Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
-| Auth | Keycloak, OIDC, JWT bearer |
-| Message bus | NATS JetStream |
-| Telemetry | Hot = NATS KV (latest) / Warm & Cold = MinIO Parquet lake (default; TimescaleDB opt-in) |
-| Relational DB | PostgreSQL 16 (users/groups/permissions + point_control_audit, EF Core) |
-| Digital twin | OxiGraph, RDF, SPARQL |
-| Blob / cold storage | MinIO, S3-compatible, Parquet |
-| IoT connectivity | MQTT, Mosquitto, Eclipse Hono (optional) |
-| Observability | OpenTelemetry, Prometheus, Grafana, Loki, Tempo |
-| IaC / delivery | Docker Compose, Helm, Argo CD, OpenTofu |
-
-### License
-
-Apache License 2.0, subject to the disclaimer above. See [LICENSE](./LICENSE) and
-[NOTICE](./NOTICE). Provided **AS IS**, with no warranty — the developers, contributors, and the
-UTokyo Green ICT Project accept no liability for use, modification, distribution, or operation of
-this software (including in production or on physical building equipment). Evaluate and use it at
-your own risk, with your own verification.
+For the full walkthrough (ingest → read → control) see
+[docs/guides/getting-started.md](docs/guides/getting-started.md) (Japanese; ask a maintainer to
+translate a section on request), or the setup/env-var/deployment reference sections of this README
+above (they are not duplicated in Japanese vs. English — this repo's technical reference is
+Japanese-only outside of code comments).
