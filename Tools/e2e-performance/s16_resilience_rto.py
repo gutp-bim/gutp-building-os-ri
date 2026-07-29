@@ -91,7 +91,7 @@ def main() -> int:
         def gen():
             for i in range(args.phase2):
                 yield pb2.TelemetryFrame(gateway_id=gw, point_id=points[i % len(points)],
-                                         value=20.0 + (i % 100) / 10.0, timestamp=now.isoformat())
+                                         value_num=20.0 + (i % 100) / 10.0, timestamp=now.isoformat())
         with grpc.insecure_channel(args.ingress) as ch:
             ack = pb2g.GatewayIngressStub(ch).StreamTelemetry(gen(), timeout=120)
         accepted = int(ack.accepted)

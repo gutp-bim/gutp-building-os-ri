@@ -131,7 +131,7 @@ async def run(args) -> int:
             for i in range(frames):
                 pid = points[i % n_points]
                 yield pb2.TelemetryFrame(
-                    gateway_id=gw, point_id=pid, value=20.0 + (i % 100) / 10.0,
+                    gateway_id=gw, point_id=pid, value_num=20.0 + (i % 100) / 10.0,
                     timestamp=datetime.now(timezone.utc).isoformat())
                 sent += 1
                 if interval:

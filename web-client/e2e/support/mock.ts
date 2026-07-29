@@ -60,6 +60,7 @@ export async function mockLatestTelemetry(
   page: Page,
   latestByPoint: Record<string, string>,
 ): Promise<void> {
+  await mockTelemetryConfig(page);
   await page.route("**/telemetries/query/batch-latest", (route) => {
     const { pointIds = [] } = (route.request().postDataJSON() ?? {}) as {
       pointIds?: string[];
@@ -80,7 +81,21 @@ export async function mockLatestTelemetryFailure(
   page: Page,
   status = 503,
 ): Promise<void> {
+  await mockTelemetryConfig(page);
   await page.route("**/telemetries/query/batch-latest", (route) =>
     fulfillJson(route, { error: "unavailable" }, status),
+  );
+}
+
+/**
+ * Stub the all-role telemetry configuration read used before freshness classification.
+ * Keeping this beside the batch mock prevents route-mock tests from waiting for a real API timeout.
+ */
+async function mockTelemetryConfig(page: Page): Promise<void> {
+  await page.route("**/api/telemetry/config", (route) =>
+    fulfillJson(route, {
+      staleThresholdSeconds: 300,
+      staleIntervalMultiplier: 3,
+    }),
   );
 }

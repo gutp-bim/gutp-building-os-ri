@@ -42,7 +42,7 @@ async def stream_at_rate(pb2, pb2g, target: str, gw: str, points: list[str],
     async def gen():
         for i in range(total):
             p = points[i % len(points)]
-            yield pb2.TelemetryFrame(gateway_id=gw, point_id=p, value=20.0 + (i % 100) / 10.0,
+            yield pb2.TelemetryFrame(gateway_id=gw, point_id=p, value_num=20.0 + (i % 100) / 10.0,
                                      timestamp=datetime.now(timezone.utc).isoformat())
             if interval:
                 await asyncio.sleep(interval)
