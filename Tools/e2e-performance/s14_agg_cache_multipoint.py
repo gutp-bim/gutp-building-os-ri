@@ -92,7 +92,7 @@ def main() -> int:
 
         def gen():
             for p, ts in frames:
-                yield pb2.TelemetryFrame(gateway_id=gw, point_id=p, value=20.0 + (hash(ts) % 100) / 10.0, timestamp=ts)
+                yield pb2.TelemetryFrame(gateway_id=gw, point_id=p, value_num=20.0 + (hash(ts) % 100) / 10.0, timestamp=ts)
         with grpc.insecure_channel(args.ingress) as ch:
             pb2g.GatewayIngressStub(ch).StreamTelemetry(gen(), timeout=300)
         print(f"ingested {len(frames)} frames into settled hours; waiting {args.flush_wait}s "

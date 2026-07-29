@@ -144,7 +144,7 @@ def run(target, gateway_id, points, interval_s, proto_path, iterations=None):
             for point_id, value in values:
                 yield pb2.TelemetryFrame(
                     gateway_id=gateway_id, point_id=point_id,
-                    value=float(value), timestamp=timestamp,
+                    value_num=float(value), timestamp=timestamp,
                 )
 
         try:

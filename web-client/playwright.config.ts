@@ -71,6 +71,9 @@ export default defineConfig({
             NEXT_PUBLIC_KEYCLOAK_AUTHORITY: E2E_KEYCLOAK_AUTHORITY,
             NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: E2E_KEYCLOAK_CLIENT_ID,
             NEXT_PUBLIC_API_BASE_URL: E2E_API_BASE_URL,
+            // Server-side Aspida reads API_BASE_URL first. Override it as well so a
+            // developer's .env.local cannot bypass Playwright's route-mocked API.
+            API_BASE_URL: E2E_API_BASE_URL,
           },
         },
 });

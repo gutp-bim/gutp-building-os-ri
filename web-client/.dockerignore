@@ -1,0 +1,9 @@
+node_modules
+.next
+coverage
+e9-results
+playwright-report
+test-results
+.env*
+npm-debug.log*
+yarn-error.log*

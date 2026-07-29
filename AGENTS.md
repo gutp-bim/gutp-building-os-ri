@@ -73,6 +73,15 @@ dotnet test BuildingOS.IntegrationTest
 
 Integration tests use Testcontainers. They spin up NATS, MinIO, and PostgreSQL (TimescaleDB) automatically.
 
+## GitHub API efficiency
+
+- Prefer the connected GitHub app for repository, pull request, issue, and commit-status reads.
+- Use `gh` primarily for GitHub Actions logs or operations the connected app does not cover.
+- Do not query the same PR, issue, commit, or workflow through both the app and `gh` unless the first result is incomplete.
+- Avoid broad GraphQL list queries (`gh issue list`, `gh pr list`, `gh run list`) when an item number, branch, or commit SHA is already known.
+- Cache identifiers and results within the task; fetch details only for items that affect the requested decision.
+- Check `gh api rate_limit` before a potentially broad CLI investigation, and stop broad queries when the GraphQL budget is low.
+
 ## Keycloak / authentication
 
 The API server validates JWT tokens issued by Keycloak using `JwtBearerDefaults`. The issuer and audience are configured via `KEYCLOAK_AUTHORITY` and `KEYCLOAK_CLIENT_ID` environment variables. Set `DISABLE_AUTH=true` to skip auth in local development.

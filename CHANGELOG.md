@@ -10,7 +10,20 @@ publishes images for (`v*.*.*`).
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Fixed
+
+- Updated the demo and performance gRPC telemetry feeders for the discriminated
+  `TelemetryFrame.value_num` contract, restoring live demo data and full-stack UI E2E coverage.
+- Made demo E2E authentication handle demo auto-login reliably and isolated route-mocked UI tests
+  from developer-local API settings.
+- Excluded frontend build artifacts from the Web Docker context.
+
+### Security
+
+- Updated OpenTelemetry packages to 1.17.0 and pinned AWS SDK packages to published versions,
+  eliminating vulnerable and non-reproducible NuGet dependency resolution.
+- Overrode the vulnerable transitive Snappier version and updated the remaining xUnit 2 test
+  projects so the full solution dependency audit reports no known vulnerabilities.
 
 ## [1.0.0-rc.2] - 2026-07-23
 

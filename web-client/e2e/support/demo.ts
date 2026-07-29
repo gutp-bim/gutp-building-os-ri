@@ -6,11 +6,19 @@ export const DEMO_POINT_ID = process.env.E2E_DEMO_POINT_ID ?? "SOS-PT-004";
 
 export async function loginWithKeycloak(page: Page): Promise<void> {
   await page.goto("/sign-in");
-  await page.getByRole("button", { name: "Keycloakでサインイン" }).click();
 
-  await page.getByRole("textbox", { name: /username|ユーザー名/i }).fill(DEMO_ADMIN_USER);
-  await page.getByRole("textbox", { name: /password|パスワード/i }).fill(DEMO_ADMIN_PASSWORD);
-  await page.getByRole("button", { name: /sign in|ログイン/i }).click();
+  // The demo image auto-signs in when NEXT_PUBLIC_DEMO_MODE=true. Keep the real
+  // Keycloak path for environments that deliberately exercise authentication.
+  // Waiting first avoids racing the transient sign-in button against the demo redirect.
+  await page
+    .waitForURL(/\/home|\/buildings|\/resources|\/points\//, { timeout: 5_000 })
+    .catch(() => undefined);
+  if (new URL(page.url()).pathname === "/sign-in") {
+    await page.getByRole("button", { name: "Keycloakでサインイン" }).click();
+    await page.getByRole("textbox", { name: /username|ユーザー名/i }).fill(DEMO_ADMIN_USER);
+    await page.getByRole("textbox", { name: /password|パスワード/i }).fill(DEMO_ADMIN_PASSWORD);
+    await page.getByRole("button", { name: /sign in|ログイン/i }).click();
+  }
 
   // Post-login landing is the operator home (#191/#200); keep the legacy targets so the helper works
   // against older builds too.

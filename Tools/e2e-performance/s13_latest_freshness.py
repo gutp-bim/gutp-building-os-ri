@@ -94,7 +94,7 @@ def main() -> int:
                 ts = datetime.now(timezone.utc).isoformat()
 
                 def one(p=pid, v=sent_value, t=ts):
-                    yield pb2.TelemetryFrame(gateway_id=gw, point_id=p, value=v, timestamp=t)
+                    yield pb2.TelemetryFrame(gateway_id=gw, point_id=p, value_num=v, timestamp=t)
                 stub.StreamTelemetry(one(), timeout=10)
 
                 # Poll the latest API until it reflects this event (or the bound elapses).

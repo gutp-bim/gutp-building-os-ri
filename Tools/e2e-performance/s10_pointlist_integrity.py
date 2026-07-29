@@ -120,7 +120,7 @@ def stream_frames(pb2, pb2_grpc, target: str, frames: list[tuple[str, str]]) -> 
 
     def gen():
         for gw, pid in frames:
-            yield pb2.TelemetryFrame(gateway_id=gw, point_id=pid, value=21.5, timestamp=now)
+            yield pb2.TelemetryFrame(gateway_id=gw, point_id=pid, value_num=21.5, timestamp=now)
 
     with grpc.insecure_channel(target) as ch:
         stub = pb2_grpc.GatewayIngressStub(ch)
