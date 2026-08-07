@@ -65,9 +65,15 @@ public sealed class NativeAddressingDto
             return null;
         return new NativeAddressingDto
         {
-            // BACnet fields being present resolves e.Protocol to "bacnet" (GatewayPointProtocolResolver),
-            // so this is only a defensive fallback, never actually reached in practice.
-            Protocol = e.Protocol ?? "bacnet",
+            // Deliberately the literal, NOT e.Protocol: this block is the BACnet-native addressing
+            // block (deviceId/objectType/instanceNo are BACnet object identity), and it is emitted
+            // only when those fields are present — so it always describes BACnet addressing. An
+            // explicit bos:protocol may legitimately resolve e.Protocol to something else
+            // (e.g. "bacnet-sim") for a point that still carries BACnet addressing; surfacing that
+            // here would break clients validating native.protocol == "bacnet". The canonical
+            // per-point protocol is the top-level GatewayPointDto.Protocol, which keeps this change
+            // purely additive on the wire.
+            Protocol = "bacnet",
             DeviceId = e.BacnetDeviceId,
             ObjectType = e.BacnetObjectType,
             InstanceNo = e.BacnetInstanceNo,

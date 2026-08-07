@@ -65,6 +65,14 @@ native addressing / unit / writable / control schema / device を含む（無い
    `/` を含む → `"mqtt"`。
 4. どれにも当たらなければ `null`（gateway 側が `"unknown"` 等の既定値を決める）。
 
+`native.protocol` は**常に `"bacnet"` 固定**で、トップレベルの `protocol` とは一致しないことがある。
+`native` は BACnet の object identity（deviceId/objectType/instanceNo）を表すブロックで、それらが
+存在するときにしか出力されないため、記述対象は定義上 BACnet アドレッシングである。BACnet アドレスを
+持ったまま明示 `bos:protocol` が別値（例 `"bacnet-sim"`）を指す point はありうるが、その場合も
+`native.protocol` は `"bacnet"` のまま（`native.protocol == "bacnet"` を検証する既存クライアントを
+壊さないため）で、正準値はトップレベルの `protocol` が持つ。この分離により本変更は wire 上
+**純粋な追加**になっている。
+
 ### 版管理（ETag / 304）
 
 レスポンスは内容ハッシュ ETag（`"sha256:..."`）を返す。pointId 安定ソートで正準化してから SHA-256
