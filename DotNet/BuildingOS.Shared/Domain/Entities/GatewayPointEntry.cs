@@ -19,6 +19,14 @@ public class GatewayPointEntry
     public string? BacnetObjectType { get; set; }
     public string? BacnetInstanceNo { get; set; }
 
+    /// <summary>
+    /// The gateway-native protocol for this point (e.g. "bacnet", "mqtt", "opcua"). Always the final
+    /// resolved value — see <see cref="GatewayPointProtocolResolver"/> — not a raw twin triple: an
+    /// explicit bos:protocol, else "bacnet" when BACnet fields are present, else inferred from
+    /// <see cref="LocalId"/>'s shape, else null when nothing resolves it.
+    /// </summary>
+    public string? Protocol { get; set; }
+
     public string? Unit { get; set; }
     public bool? Writable { get; set; }
 

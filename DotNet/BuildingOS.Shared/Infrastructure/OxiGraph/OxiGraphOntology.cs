@@ -50,6 +50,10 @@ internal static class OxiGraphOntology
     internal const string Prop_MinValue   = BosNs + "minValue";  // number-control lower bound (#153)
     internal const string Prop_MaxValue   = BosNs + "maxValue";  // number-control upper bound (#153)
 
+    // Explicit protocol marker on PointExt (gateway point-list export). No SBCO equivalent — a point
+    // reachable only via sbco:localId (MQTT/OPC-UA/Hono-style) has no other protocol signal on the wire.
+    internal const string Prop_Protocol = BosNs + "protocol";
+
     // Opt-in per-point alarm thresholds on PointExt (#158 Phase 2a, ADR-0005). Distinct from the control
     // bounds above: these are the normal-operation value range, not the valid setpoint-write range.
     // alarm* = critical (outer) limits; warn* = the earlier inner limits. All optional/independent.

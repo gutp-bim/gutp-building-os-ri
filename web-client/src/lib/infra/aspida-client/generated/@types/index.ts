@@ -165,6 +165,7 @@ export type GatewayCollision = {
 export type GatewayPointDto = {
   pointId?: string | undefined;
   localId?: string | null | undefined;
+  protocol?: string | null | undefined;
   native?: NativeAddressingDto | undefined;
   unit?: string | null | undefined;
   writable?: boolean | null | undefined;

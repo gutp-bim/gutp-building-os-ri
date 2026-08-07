@@ -31,6 +31,7 @@ public static class GatewayPointListSerializer
     {
         pointId = e.PointId,
         localId = e.LocalId,
+        protocol = e.Protocol,
         bacnetDeviceId = e.BacnetDeviceId,
         bacnetObjectType = e.BacnetObjectType,
         bacnetInstanceNo = e.BacnetInstanceNo,
