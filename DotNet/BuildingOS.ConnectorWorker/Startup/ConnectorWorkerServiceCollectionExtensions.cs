@@ -150,6 +150,10 @@ public static class ConnectorWorkerServiceCollectionExtensions
         builder.Services.AddSingleton(IngressIdentityOptions.Parse(
             builder.Configuration["GRPC_INGRESS_REQUIRE_GATEWAY_IDENTITY"],
             builder.Configuration["GRPC_INGRESS_GATEWAY_ID_HEADER"]));
+        // Hierarchy completeness (#292): reject telemetry for points the twin does not place under a
+        // building/device when GRPC_INGRESS_REQUIRE_HIERARCHY=true (default off keeps them flowing).
+        builder.Services.AddSingleton(IngressHierarchyOptions.Parse(
+            builder.Configuration["GRPC_INGRESS_REQUIRE_HIERARCHY"]));
         // Ingress bus publishes via JetStream publish-ack (#187) + keeps the KV hot store in sync.
         builder.Services.AddSingleton<IIngressTelemetryBus>(sp => new NatsIngressTelemetryBus(
             sp.GetRequiredService<INatsJSContext>(),

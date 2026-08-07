@@ -6,8 +6,13 @@ namespace BuildingOS.Shared.Domain.TwinAdmin;
 /// </summary>
 public interface ITwinAdminService
 {
-    /// <summary>Stage the Turtle in a temp graph and report triple/gateway counts + collisions, then discard it.</summary>
-    Task<TwinImportPreview> PreviewImportAsync(string turtle, CancellationToken ct = default);
+    /// <summary>
+    /// Stage the Turtle in a temp graph and report triple/gateway counts + collisions, then discard it.
+    /// <paramref name="mode"/> must be the mode the import would be applied with: the hierarchy check
+    /// (#291) has to see the graph the Turtle actually lands in — an append merges into the default
+    /// graph, a replace drops it — so previewing under the wrong mode misreports orphans.
+    /// </summary>
+    Task<TwinImportPreview> PreviewImportAsync(string turtle, TwinImportMode mode, CancellationToken ct = default);
 
     /// <summary>Apply the Turtle to the default graph (append or replace). Caller validates first.</summary>
     Task ApplyImportAsync(string turtle, TwinImportMode mode, CancellationToken ct = default);

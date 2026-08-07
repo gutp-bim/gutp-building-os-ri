@@ -14,26 +14,55 @@ export interface GatewayCollision {
   buildingCount: number;
 }
 
+/** Which link of the building hierarchy is missing for an unreachable resource (#291). */
+export type TwinOrphanReason = "no_device" | "no_room" | "no_building_path";
+
+export interface TwinOrphanResource {
+  resourceId: string;
+  reason: TwinOrphanReason;
+}
+
 export interface TwinImportPreview {
   tripleCount: number;
   gatewayCount: number;
   collisions: GatewayCollision[];
+  /** Total unreachable resources; `orphans` is a capped sample, so it may be shorter (#291). */
+  orphanCount: number;
+  orphans: TwinOrphanResource[];
   valid: boolean;
 }
 
 export type TwinImportMode = "append" | "replace";
 
-/** Pure: an import may be applied only when the preview reports no gateway_id collisions (#322). */
-export function canApplyImport(preview: TwinImportPreview | null): boolean {
-  return preview !== null && preview.valid && preview.collisions.length === 0;
+const ORPHAN_REASON_LABELS: Record<TwinOrphanReason, string> = {
+  no_device: "デバイス未接続",
+  // 部屋（sbco:locatedIn）とフロア文字列（sbco:floor）のどちらも無い＝空間的な足がかりが皆無。
+  no_room: "空間未接続（部屋・フロア未指定）",
+  no_building_path: "フロア・建物へ到達不能",
+};
+
+/** Pure: Japanese label for an orphan reason; an unknown value passes through as-is. */
+export function orphanReasonLabel(reason: string): string {
+  return reason in ORPHAN_REASON_LABELS ? ORPHAN_REASON_LABELS[reason as TwinOrphanReason] : reason;
+}
+
+/**
+ * Pure: an import may be applied only when the preview reports no gateway_id collisions (#322) and
+ * no resources outside the building hierarchy — the latter waivable by an explicit override (#291).
+ */
+export function canApplyImport(preview: TwinImportPreview | null, allowOrphans = false): boolean {
+  if (preview === null) return false;
+  if (preview.collisions.length > 0) return false;
+  return preview.orphanCount === 0 || allowOrphans;
 }
 
 /** Pure: short human summary of a preview for display. */
 export function previewSummary(preview: TwinImportPreview): string {
   const base = `${preview.tripleCount} トリプル / ${preview.gatewayCount} ゲートウェイ`;
-  return preview.collisions.length === 0
-    ? `${base} — 検証 OK`
-    : `${base} — gateway_id 重複 ${preview.collisions.length} 件`;
+  const issues: string[] = [];
+  if (preview.collisions.length > 0) issues.push(`gateway_id 重複 ${preview.collisions.length} 件`);
+  if (preview.orphanCount > 0) issues.push(`階層未接続 ${preview.orphanCount} 件`);
+  return issues.length === 0 ? `${base} — 検証 OK` : `${base} — ${issues.join(" / ")}`;
 }
 
 export async function runReadOnlySparql(query: string, maxRows = 200): Promise<SparqlQueryResult> {
@@ -46,20 +75,31 @@ export async function runReadOnlySparql(query: string, maxRows = 200): Promise<S
   }
 }
 
-export async function previewTwinImport(turtle: string): Promise<TwinImportPreview> {
+/**
+ * 取込前の検証。mode は適用予定のものを渡す — 階層未接続の判定範囲が変わる（append は既存ツインと併合
+ * した後、replace はこの TTL 単体、#291）ため、mode が違うとプレビューと適用の結果がずれる。
+ */
+export async function previewTwinImport(
+  turtle: string,
+  mode: TwinImportMode,
+): Promise<TwinImportPreview> {
   try {
     return (await apiClient().api.admin.twin.import.preview.$post({
-      body: { turtle },
+      body: { turtle, mode },
     })) as TwinImportPreview;
   } catch (e) {
     throw mutationError(e, "プレビューに失敗しました");
   }
 }
 
-export async function applyTwinImport(turtle: string, mode: TwinImportMode): Promise<TwinImportPreview> {
+export async function applyTwinImport(
+  turtle: string,
+  mode: TwinImportMode,
+  allowOrphans = false,
+): Promise<TwinImportPreview> {
   try {
     return (await apiClient().api.admin.twin.import.apply.$post({
-      body: { turtle, mode },
+      body: { turtle, mode, allowOrphans },
     })) as TwinImportPreview;
   } catch (e) {
     throw mutationError(e, "適用に失敗しました");
