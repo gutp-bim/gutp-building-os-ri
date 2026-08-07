@@ -103,11 +103,13 @@ void LogStartup(IServiceProvider services, int? ingressGrpcPort)
     var honoHost = config["HONO_AMQP_HOST"]?.Trim();
     var honoHostRaw = config["HONO_AMQP_HOST"];
 
-    // #296: make the ingress identity-binding state observable so an operator can spot the
-    // security-relevant "listener up but enforcement off" misconfiguration from the logs.
+    // #296/#292: make the ingress identity-binding and hierarchy-check states observable so an
+    // operator can spot the "listener up but enforcement off" misconfiguration from the logs.
     var identity = services.GetService<IngressIdentityOptions>();
+    var hierarchy = services.GetService<IngressHierarchyOptions>();
     var grpcDesc = ingressGrpcPort is int p
-        ? $"enabled port={p}, identity-binding={(identity?.Enforce == true ? $"enforced(header={identity.HeaderName})" : "off")}"
+        ? $"enabled port={p}, identity-binding={(identity?.Enforce == true ? $"enforced(header={identity.HeaderName})" : "off")}" +
+          $", hierarchy-check={(hierarchy?.Enforce == true ? "enforced" : "off")}"
         : "disabled (GRPC_INGRESS_PORT unset)";
 
     services.GetRequiredService<ILoggerFactory>()

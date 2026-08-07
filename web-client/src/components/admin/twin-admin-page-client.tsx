@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   applyTwinImport,
   canApplyImport,
+  orphanReasonLabel,
   previewSummary,
   previewTwinImport,
   runReadOnlySparql,
@@ -14,7 +15,8 @@ import {
 
 /**
  * デジタルツイン管理（#322）: 読み取り専用 SPARQL コンソール + RDF 取込（プレビュー→検証→適用）。
- * 取込は gateway_id 一意性をプレビューで検証し、違反があれば適用ボタンを無効化する。
+ * 取込は gateway_id 一意性と階層未接続（#291）をプレビューで検証し、違反があれば適用ボタンを無効化する。
+ * 階層未接続のみ、明示的なチェックボックス操作で上書き適用できる（監査に記録される）。
  */
 export function TwinAdminPageClient() {
   // ── SPARQL console ──
@@ -36,6 +38,7 @@ export function TwinAdminPageClient() {
   const [turtle, setTurtle] = useState("");
   const [mode, setMode] = useState<TwinImportMode>("append");
   const [preview, setPreview] = useState<TwinImportPreview | null>(null);
+  const [allowOrphans, setAllowOrphans] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -45,6 +48,7 @@ export function TwinAdminPageClient() {
     file.text().then((t) => {
       setTurtle(t);
       setPreview(null);
+      setAllowOrphans(false);
     });
   };
 
@@ -52,7 +56,7 @@ export function TwinAdminPageClient() {
     setImporting(true);
     setImportError(null);
     setImportNotice(null);
-    previewTwinImport(turtle)
+    previewTwinImport(turtle, mode)
       .then(setPreview)
       .catch((e: Error) => setImportError(e.message))
       .finally(() => setImporting(false));
@@ -62,7 +66,7 @@ export function TwinAdminPageClient() {
     setImporting(true);
     setImportError(null);
     setImportNotice(null);
-    applyTwinImport(turtle, mode)
+    applyTwinImport(turtle, mode, allowOrphans)
       .then((p) => {
         setPreview(p);
         setImportNotice(`適用しました（${mode === "replace" ? "全置換" : "追記"}）`);
@@ -130,8 +134,8 @@ export function TwinAdminPageClient() {
       <section data-testid="twin-import">
         <h2 className="mb-2 text-lg font-semibold">RDF / pointlist 取込</h2>
         <p className="mb-2 text-sm text-gray-600">
-          TTL を貼り付けるかアップロードし、プレビューで件数と gateway_id 一意性を確認してから適用します。
-          全置換は破壊的操作です。
+          TTL を貼り付けるかアップロードし、プレビューで件数・gateway_id 一意性・階層未接続を確認してから
+          適用します。全置換は破壊的操作です。
         </p>
         <input
           type="file"
@@ -145,6 +149,7 @@ export function TwinAdminPageClient() {
           onChange={(e) => {
             setTurtle(e.target.value);
             setPreview(null);
+            setAllowOrphans(false);
           }}
           rows={8}
           placeholder="@prefix sbco: <https://www.sbco.or.jp/ont/> . ..."
@@ -163,7 +168,12 @@ export function TwinAdminPageClient() {
           </button>
           <select
             value={mode}
-            onChange={(e) => setMode(e.target.value as TwinImportMode)}
+            onChange={(e) => {
+              setMode(e.target.value as TwinImportMode);
+              // 階層未接続の判定は mode 依存（#291）。取り直すまで前の結果は使わせない。
+              setPreview(null);
+              setAllowOrphans(false);
+            }}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
             data-testid="import-mode"
           >
@@ -172,7 +182,7 @@ export function TwinAdminPageClient() {
           </select>
           <button
             type="button"
-            disabled={importing || !canApplyImport(preview)}
+            disabled={importing || !canApplyImport(preview, allowOrphans)}
             onClick={() => {
               if (mode === "replace" && !confirm("既存のツインを全置換します。よろしいですか？")) return;
               doApply();
@@ -192,6 +202,29 @@ export function TwinAdminPageClient() {
                   <li key={c.gatewayId}>{c.gatewayId}: {c.buildingCount} 建物にまたがっています</li>
                 ))}
               </ul>
+            )}
+            {preview.orphanCount > 0 && (
+              <div data-testid="preview-orphans">
+                <ul className="mt-1 list-disc pl-5 text-red-600">
+                  {preview.orphans.map((o) => (
+                    <li key={o.resourceId}>{o.resourceId}: {orphanReasonLabel(o.reason)}</li>
+                  ))}
+                </ul>
+                {preview.orphans.length < preview.orphanCount && (
+                  <p className="mt-1 text-xs text-gray-600">
+                    ほか {preview.orphanCount - preview.orphans.length} 件（表示上限で省略）
+                  </p>
+                )}
+                <label className="mt-2 flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={allowOrphans}
+                    onChange={(e) => setAllowOrphans(e.target.checked)}
+                    data-testid="allow-orphans"
+                  />
+                  階層未接続を承知のうえで適用する（監査に記録されます）
+                </label>
+              </div>
             )}
           </div>
         )}

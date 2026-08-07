@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using BuildingOS.ConnectorWorker.Connectors;
 using BuildingOS.ConnectorWorker.Protos;
 using BuildingOS.Shared.Entities;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Module;
 using BuildingOS.Shared.Test.Infrastructure.ConnectorWorker.Fakes;
 using Corvus.Json;
@@ -13,10 +15,19 @@ namespace BuildingOS.Shared.Test.Infrastructure.ConnectorWorker;
 public class GatewayIngressServiceTest
 {
     private const string Validated = "building-os.validated.telemetry";
+    private const string IngressInstrumentName = "building_os.ingress.messages";
 
     private static GatewayIngressService NewService(
-        FakeIngressTelemetryBus bus, FakePointMetadataCache cache, IngressIdentityOptions? identity = null)
-        => new(bus, cache, identity ?? new IngressIdentityOptions(), NullLogger<GatewayIngressService>.Instance);
+        FakeIngressTelemetryBus bus,
+        FakePointMetadataCache cache,
+        IngressIdentityOptions? identity = null,
+        IngressHierarchyOptions? hierarchy = null)
+        => new(
+            bus,
+            cache,
+            identity ?? new IngressIdentityOptions(),
+            hierarchy ?? new IngressHierarchyOptions(),
+            NullLogger<GatewayIngressService>.Instance);
 
     [Fact]
     public async Task StreamTelemetry_KnownPoint_PublishesEnrichedValidatedTelemetry()
@@ -494,6 +505,116 @@ public class GatewayIngressServiceTest
     {
         var headers = new Grpc.Core.Metadata { { "x-gateway-id", "GW001" }, { "x-gateway-id", "GW001" } };
         Assert.Equal("GW001", GatewayIngressService.ResolveTrustedGatewayId(headers, "X-Gateway-Id"));
+    }
+
+    // ── Hierarchy completeness (#292) ─────────────────────────────────────────
+
+    [Fact]
+    public async Task HierarchyNotEnforced_MissingBuilding_StillPublishes()
+    {
+        // Default off: a twin whose hierarchy is not finished yet (#118) must keep flowing, otherwise
+        // a deployment mid-modelling would lose every reading of every unplaced point.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "", "Room Temp", "DEV001", "GW-HIER-OFF"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-OFF", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var (accepted, results) = await RunCapturingResultsAsync("GW-HIER-OFF",
+            () => NewService(bus, cache).RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1L, accepted);
+        Assert.Single(bus.Published);
+        Assert.Equal(new[] { "published" }, results);
+    }
+
+    [Fact]
+    public async Task HierarchyEnforced_MissingBuilding_Skipped()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "", "Room Temp", "DEV001", "GW-HIER-BUILDING"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-BUILDING", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var svc = NewService(bus, cache, hierarchy: new IngressHierarchyOptions { Enforce = true });
+        var (accepted, results) = await RunCapturingResultsAsync("GW-HIER-BUILDING",
+            () => svc.RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(0L, accepted);
+        Assert.Empty(bus.Published);
+        Assert.Equal(new[] { "no_building_path" }, results);
+    }
+
+    [Fact]
+    public async Task HierarchyEnforced_MissingDevice_Skipped()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", DeviceId: "", "GW-HIER-DEVICE"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-DEVICE", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var svc = NewService(bus, cache, hierarchy: new IngressHierarchyOptions { Enforce = true });
+        var (accepted, results) = await RunCapturingResultsAsync("GW-HIER-DEVICE",
+            () => svc.RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(0L, accepted);
+        Assert.Empty(bus.Published);
+        Assert.Equal(new[] { "no_device_link" }, results);
+    }
+
+    [Fact]
+    public async Task HierarchyEnforced_FullyConnectedPoint_Publishes()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-HIER-OK"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-OK", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var svc = NewService(bus, cache, hierarchy: new IngressHierarchyOptions { Enforce = true });
+        var (accepted, results) = await RunCapturingResultsAsync("GW-HIER-OK",
+            () => svc.RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1L, accepted);
+        Assert.Single(bus.Published);
+        Assert.Equal(new[] { "published" }, results);
+    }
+
+    /// <summary>
+    /// Runs a stream and collects the ingress counter's <c>result</c> tags emitted while it does. The
+    /// meter is process-wide and xUnit runs test classes in parallel, so measurements are filtered by
+    /// the <c>gateway</c> tag — each case above uses a gateway id unique to itself.
+    /// </summary>
+    private static async Task<(long Accepted, List<string> Results)> RunCapturingResultsAsync(
+        string gatewayId, Func<Task<long>> run)
+    {
+        var results = new List<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == OtelSetup.MeterName && instrument.Name == IngressInstrumentName)
+                l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            string? gateway = null, result = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "gateway") gateway = tag.Value?.ToString();
+                else if (tag.Key == "result") result = tag.Value?.ToString();
+            }
+            if (result is not null && gateway == gatewayId) results.Add(result);
+        });
+        listener.Start();
+
+        var accepted = await run();
+        return (accepted, results);
     }
 
     private sealed class FakeIngressTelemetryBus : IIngressTelemetryBus

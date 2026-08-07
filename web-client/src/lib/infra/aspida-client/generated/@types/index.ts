@@ -487,15 +487,24 @@ export type TwinAdminControllerSparqlQueryRequest = {
 
 export type TwinAdminControllerTwinImportRequest = {
   turtle?: string | undefined;
-  /** "append" (default) or "replace". */
+  /** "append" (default) or "replace". プレビューでも使う（階層未接続の判定範囲、#291）。 */
   mode?: string | null | undefined;
+  /** 階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。 gateway_id 一意性違反は上書きできない。 */
+  allowOrphans?: boolean | undefined;
 }
 
 export type TwinImportPreview = {
   tripleCount?: number | undefined;
   gatewayCount?: number | undefined;
   collisions?: GatewayCollision[] | undefined;
+  orphanCount?: number | undefined;
+  orphans?: TwinOrphanResource[] | undefined;
   valid?: boolean | undefined;
+}
+
+export type TwinOrphanResource = {
+  resourceId?: string | undefined;
+  reason?: string | undefined;
 }
 
 export type UsersControllerAddPermissionRequest = {
