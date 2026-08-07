@@ -14,7 +14,11 @@ public sealed class OxiGraphTwinAdminService : ITwinAdminService
 {
     private const string Sbco = "https://www.sbco.or.jp/ont/";
 
-    /// <summary>Cap on the enumerated orphan sample (the count is exact); matches the read-only query row cap.</summary>
+    /// <summary>
+    /// Cap on the enumerated orphan sample (the count is exact). Same value as the SPARQL console's
+    /// row ceiling (TwinAdminController.MaxQueryRows), which is also what a request that names no
+    /// smaller limit gets, so an admin never sees more rows here than that console would return.
+    /// </summary>
     private const int MaxOrphans = 1000;
 
     private readonly OxiGraphClient _client;

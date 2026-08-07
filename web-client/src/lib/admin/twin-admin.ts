@@ -41,9 +41,15 @@ const ORPHAN_REASON_LABELS: Record<TwinOrphanReason, string> = {
   no_building_path: "フロア・建物へ到達不能",
 };
 
-/** Pure: Japanese label for an orphan reason; an unknown value passes through as-is. */
+/**
+ * Pure: Japanese label for an orphan reason; an unknown value passes through as-is.
+ * The reason is server-supplied, so membership is an own-property check — `in` would also match
+ * inherited keys ("toString" etc.) and return a function where a string is declared.
+ */
 export function orphanReasonLabel(reason: string): string {
-  return reason in ORPHAN_REASON_LABELS ? ORPHAN_REASON_LABELS[reason as TwinOrphanReason] : reason;
+  return Object.hasOwn(ORPHAN_REASON_LABELS, reason)
+    ? ORPHAN_REASON_LABELS[reason as TwinOrphanReason]
+    : reason;
 }
 
 /**
