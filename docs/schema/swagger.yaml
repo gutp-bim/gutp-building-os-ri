@@ -3404,6 +3404,9 @@ components:
         localId:
           type: string
           nullable: true
+        protocol:
+          type: string
+          nullable: true
         native:
           $ref: '#/components/schemas/NativeAddressingDto'
         unit:

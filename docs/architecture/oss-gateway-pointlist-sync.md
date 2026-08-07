@@ -28,6 +28,7 @@ native addressing / unit / writable / control schema / device を含む（無い
     {
       "pointId": "PT001",            // sbco:id（線に載る正準 ID）
       "localId": "LOCAL001",         // sbco:localId（MQTT/Hono の局所キー等、あれば）
+      "protocol": "bacnet",           // ゲートウェイ側プロトコル（下記「protocol の解決順序」参照）
       "native": {                     // BACnet native addressing（あれば）
         "protocol": "bacnet",
         "deviceId": "BAC001",        // sbco:deviceIdBacnet
@@ -47,6 +48,22 @@ native addressing / unit / writable / control schema / device を含む（無い
 
 - 所有 point ゼロ → `200` + `points: []`（404 にしない）。
 - `gatewayId` 空 → `400`。
+
+### protocol の解決順序
+
+`native` は BACnet 専用の形（deviceId/objectType/instanceNo）なので、MQTT/OPC-UA/Hono のように
+`localId` だけで到達する point には従来プロトコルの手がかりが一切なかった。トップレベルの `protocol`
+はそれを解消するため、`ListGatewayPointList`（`GatewayPointProtocolResolver`）が下記の優先順位で
+一度だけ解決した最終値（ETag/diff もこの値を見る）:
+
+1. 明示 `bos:protocol` トリプルがあればそれを採用。
+2. なければ BACnet フィールド（`deviceIdBacnet`/`objectTypeBacnet`/`instanceNoBacnet`）のいずれかが
+   あれば `"bacnet"`。**shape 推測より必ず優先** — `fixtures/e2e/twin.ttl` の実例のとおり、BACnet
+   point でも `localId` が OPC-UA nodeId 形（`ns=2;s=...`）を借用しているケースがあるため。
+3. なければ `localId` の形から推測（nexus-gateway `internal/pointlist/csv.go` の
+   `protocolPatterns` と同じヒューリスティックに揃えている）: `^ns=\d+;[isgb]=` → `"opcua"` /
+   `/` を含む → `"mqtt"`。
+4. どれにも当たらなければ `null`（gateway 側が `"unknown"` 等の既定値を決める）。
 
 ### 版管理（ETag / 304）
 

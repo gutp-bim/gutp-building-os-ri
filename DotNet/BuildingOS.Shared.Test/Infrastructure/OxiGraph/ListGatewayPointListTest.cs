@@ -45,6 +45,7 @@ public class ListGatewayPointListTest
                 ["minV"] = "http://buildingos.gutp.jp/ontology#minValue",
                 ["maxV"] = "http://buildingos.gutp.jp/ontology#maxValue",
                 ["enumLabels"] = "http://buildingos.gutp.jp/ontology#enumLabels",
+                ["protocol"] = "http://buildingos.gutp.jp/ontology#protocol",
             };
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -142,6 +143,8 @@ public class ListGatewayPointListTest
         Assert.Equal("urn:dtid:dev1", e.DeviceDtId);
         Assert.Equal("DEV1", e.DeviceId);
         Assert.Equal("AC-1", e.DeviceName);
+        // BACnet fields present, no explicit bos:protocol → resolves to "bacnet".
+        Assert.Equal("bacnet", e.Protocol);
     }
 
     [Fact]
@@ -162,6 +165,59 @@ public class ListGatewayPointListTest
         Assert.Null(entries[0].LocalId);
         Assert.Null(entries[0].BacnetObjectType);
         Assert.Null(entries[0].Writable);
+        Assert.Null(entries[0].Protocol);
+    }
+
+    // ── Protocol resolution priority (explicit → BACnet-present → localId shape → null) ────────────
+
+    [Fact]
+    public async Task ListGatewayPointList_ExplicitProtocol_WinsOverBacnetFields()
+    {
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:PT010""},
+      ""ptId"": {""type"":""literal"",""value"":""PT010""},
+      ""devIdBac"": {""type"":""literal"",""value"":""BAC001""},
+      ""protocol"": {""type"":""literal"",""value"":""bacnet-sim""} }
+  ]}}");
+
+        var entries = await db.ListGatewayPointList("GW001");
+        Assert.Equal("bacnet-sim", entries[0].Protocol);
+    }
+
+    [Fact]
+    public async Task ListGatewayPointList_BacnetFields_WinOverOpcUaShapedLocalId()
+    {
+        // Mirrors fixtures/e2e/twin.ttl: a real BACnet point whose localId is an OPC-UA nodeId
+        // (used to match the opcua-sim-gateway node numbering). Shape-inference must not override it.
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:PT011""},
+      ""ptId"": {""type"":""literal"",""value"":""PT011""},
+      ""localId"": {""type"":""literal"",""value"":""ns=2;s=PT011""},
+      ""devIdBac"": {""type"":""literal"",""value"":""BAC001""},
+      ""objType"": {""type"":""literal"",""value"":""analogInput""},
+      ""instNo"": {""type"":""literal"",""value"":""1001""} }
+  ]}}");
+
+        var entries = await db.ListGatewayPointList("GW001");
+        Assert.Equal("bacnet", entries[0].Protocol);
+    }
+
+    [Theory]
+    [InlineData("ns=2;s=PT020", "opcua")]
+    [InlineData("sensors/room1/temp", "mqtt")]
+    public async Task ListGatewayPointList_NoBacnetFields_InfersProtocolFromLocalIdShape(string localId, string expectedProtocol)
+    {
+        var db = BuildDb($@"{{
+  ""results"": {{ ""bindings"": [
+    {{ ""pt"": {{""type"":""uri"",""value"":""urn:point:PT020""}},
+      ""ptId"": {{""type"":""literal"",""value"":""PT020""}},
+      ""localId"": {{""type"":""literal"",""value"":""{localId}""}} }}
+  ]}}}}");
+
+        var entries = await db.ListGatewayPointList("GW001");
+        Assert.Equal(expectedProtocol, entries[0].Protocol);
     }
 
     [Fact]

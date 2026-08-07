@@ -373,19 +373,27 @@ ORDER BY ?ptId").ConfigureAwait(false);
             attributes ??= EmptyAttributes;
             devicesByPoint.TryGetValue(point["pt"], out var device);
             device ??= EmptyBinding;
+
+            var localId = attributes.GetValueOrDefault(Prop_LocalId);
+            var bacnetDeviceId = attributes.GetValueOrDefault(Prop_DeviceIdBacnet);
+            var bacnetObjectType = attributes.GetValueOrDefault(Prop_ObjectTypeBacnet);
+            var bacnetInstanceNo = attributes.GetValueOrDefault(Prop_InstanceNoBacnet);
+
             return new GatewayPointEntry
             {
                 PointId = point.GetValueOrDefault("ptId", ""),
-                LocalId = attributes.GetValueOrDefault(Prop_LocalId),
-                BacnetDeviceId = attributes.GetValueOrDefault(Prop_DeviceIdBacnet),
-                BacnetObjectType = attributes.GetValueOrDefault(Prop_ObjectTypeBacnet),
-                BacnetInstanceNo = attributes.GetValueOrDefault(Prop_InstanceNoBacnet),
+                LocalId = localId,
+                BacnetDeviceId = bacnetDeviceId,
+                BacnetObjectType = bacnetObjectType,
+                BacnetInstanceNo = bacnetInstanceNo,
                 Unit = attributes.GetValueOrDefault(Prop_Unit),
                 Writable = attributes.TryGetValue(Prop_Writable, out var writable) ? writable == "true" : null,
                 DataType = attributes.GetValueOrDefault(Prop_DataType),
                 MinValue = attributes.GetValueOrDefault(Prop_MinValue),
                 MaxValue = attributes.GetValueOrDefault(Prop_MaxValue),
                 EnumLabels = attributes.GetValueOrDefault(Prop_EnumLabels),
+                Protocol = GatewayPointProtocolResolver.Resolve(
+                    attributes.GetValueOrDefault(Prop_Protocol), bacnetDeviceId, bacnetObjectType, bacnetInstanceNo, localId),
                 DeviceDtId = device.GetValueOrDefault("devDt"),
                 DeviceId = device.GetValueOrDefault("devId"),
                 DeviceName = device.GetValueOrDefault("devName"),
@@ -408,7 +416,7 @@ WHERE {{
   VALUES ?prop {{
     <{Prop_LocalId}> <{Prop_DeviceIdBacnet}> <{Prop_ObjectTypeBacnet}>
     <{Prop_InstanceNoBacnet}> <{Prop_Unit}> <{Prop_Writable}> <{Prop_DataType}>
-    <{Prop_MinValue}> <{Prop_MaxValue}> <{Prop_EnumLabels}>
+    <{Prop_MinValue}> <{Prop_MaxValue}> <{Prop_EnumLabels}> <{Prop_Protocol}>
   }}
   ?pt ?prop ?value .
 }}";

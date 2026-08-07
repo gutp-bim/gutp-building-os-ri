@@ -32,6 +32,7 @@ public sealed class GatewayPointDto
 {
     public string PointId { get; set; } = "";
     public string? LocalId { get; set; }
+    public string? Protocol { get; set; }
     public NativeAddressingDto? Native { get; set; }
     public string? Unit { get; set; }
     public bool? Writable { get; set; }
@@ -42,6 +43,7 @@ public sealed class GatewayPointDto
     {
         PointId = e.PointId,
         LocalId = e.LocalId,
+        Protocol = e.Protocol,
         Native = NativeAddressingDto.From(e),
         Unit = e.Unit,
         Writable = e.Writable,
@@ -63,7 +65,9 @@ public sealed class NativeAddressingDto
             return null;
         return new NativeAddressingDto
         {
-            Protocol = "bacnet",
+            // BACnet fields being present resolves e.Protocol to "bacnet" (GatewayPointProtocolResolver),
+            // so this is only a defensive fallback, never actually reached in practice.
+            Protocol = e.Protocol ?? "bacnet",
             DeviceId = e.BacnetDeviceId,
             ObjectType = e.BacnetObjectType,
             InstanceNo = e.BacnetInstanceNo,

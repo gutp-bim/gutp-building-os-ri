@@ -6,6 +6,7 @@
     {
       "pointId": "SOS-PT-001",
       "localId": "ns=2;s=SOS-PT-001",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1001" },
       "unit": "degC",
       "writable": false,
@@ -15,6 +16,7 @@
     {
       "pointId": "SOS-PT-002",
       "localId": "ns=2;s=SOS-PT-002",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1002" },
       "unit": "%",
       "writable": false,
@@ -24,6 +26,7 @@
     {
       "pointId": "SOS-PT-003",
       "localId": "ns=2;s=SOS-PT-003",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1003" },
       "unit": "ppm",
       "writable": false,
@@ -33,6 +36,7 @@
     {
       "pointId": "SOS-PT-004",
       "localId": "ns=2;s=SOS-PT-004",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "binaryOutput", "instanceNo": "2001" },
       "unit": null,
       "writable": true,
@@ -42,6 +46,7 @@
     {
       "pointId": "SOS-PT-005",
       "localId": "ns=2;s=SOS-PT-005",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "binaryInput", "instanceNo": "2002" },
       "unit": null,
       "writable": false,
@@ -51,6 +56,7 @@
     {
       "pointId": "SOS-PT-006",
       "localId": "ns=2;s=SOS-PT-006",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "analogValue", "instanceNo": "1002" },
       "unit": "degC",
       "writable": true,
@@ -60,6 +66,7 @@
     {
       "pointId": "SOS-PT-007",
       "localId": "ns=2;s=SOS-PT-007",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "multiStateValue", "instanceNo": "3001" },
       "unit": null,
       "writable": true,
@@ -69,6 +76,7 @@
     {
       "pointId": "SOS-PT-008",
       "localId": "ns=2;s=SOS-PT-008",
+      "protocol": "bacnet",
       "native": { "protocol": "bacnet", "deviceId": "BAC-1", "objectType": "analogInput", "instanceNo": "1004" },
       "unit": "kW",
       "writable": false,

@@ -208,3 +208,24 @@
   sbco:instanceNoBacnet "1001" ;
   sbco:objectTypeBacnet "Analog-Input" ;
   sbco:extra "alpha" .
+
+<https://www.sbco.or.jp/ont/resource/PT006> a sbco:PointExt ;
+  sbco:id "PT006" ;
+  sbco:name "Occupancy Sensor" ;
+  sbco:gatewayId "GW001" ;
+  sbco:deviceType "Sensor" ;
+  sbco:site "site-1" ;
+  sbco:building "bldg-1" ;
+  sbco:floor "floor-1" ;
+  sbco:installationArea "Room 101" ;
+  sbco:targetArea "Room 101" ;
+  sbco:pointType "Occupancy" ;
+  sbco:pointSpecification "Measurement" ;
+  sbco:writable "false" ;
+  sbco:interval "60" ;
+  sbco:scale "1.0" ;
+  sbco:tags "occupancy&&room101" ;
+  sbco:supplier "VendorD" ;
+  sbco:owner "Building Management" ;
+  sbco:description "Room 101 occupancy sensor (MQTT, no BACnet native address, no explicit protocol — exercises the localId-shape fallback)" ;
+  sbco:localId "sensors/room101/occupancy" .

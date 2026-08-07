@@ -8,8 +8,8 @@ namespace BuildingOS.ApiServer.Test.GatewayProvisioning;
 /// </summary>
 public class GatewayPointListSerializerTest
 {
-    private static GatewayPointEntry P(string id, string? unit = null, bool? writable = null) =>
-        new() { PointId = id, Unit = unit, Writable = writable };
+    private static GatewayPointEntry P(string id, string? unit = null, bool? writable = null, string? protocol = null) =>
+        new() { PointId = id, Unit = unit, Writable = writable, Protocol = protocol };
 
     [Fact]
     public void Etag_IsOrderIndependent()
@@ -25,6 +25,15 @@ public class GatewayPointListSerializerTest
     {
         var baseline = new[] { P("PT001", unit: "C") };
         var changed = new[] { P("PT001", unit: "F") };
+
+        Assert.NotEqual(PointListEtag.Compute(baseline), PointListEtag.Compute(changed));
+    }
+
+    [Fact]
+    public void Etag_ChangesWhenProtocolChanges()
+    {
+        var baseline = new[] { P("PT001", protocol: "bacnet") };
+        var changed = new[] { P("PT001", protocol: "mqtt") };
 
         Assert.NotEqual(PointListEtag.Compute(baseline), PointListEtag.Compute(changed));
     }

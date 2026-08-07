@@ -6,8 +6,8 @@ namespace BuildingOS.ApiServer.Test.GatewayProvisioning;
 /// <summary>Pure tests for the gateway point-list diff (#224/diff): added / removed / changed.</summary>
 public class PointListDifferTest
 {
-    private static GatewayPointEntry P(string id, string? unit = null) =>
-        new() { PointId = id, Unit = unit };
+    private static GatewayPointEntry P(string id, string? unit = null, string? protocol = null) =>
+        new() { PointId = id, Unit = unit, Protocol = protocol };
 
     [Fact]
     public void Diff_DetectsAdded()
@@ -43,6 +43,16 @@ public class PointListDifferTest
         Assert.Equal(["PT001"], diff.Changed.Select(e => e.PointId));
         Assert.Empty(diff.Added);
         Assert.Empty(diff.Removed);
+    }
+
+    [Fact]
+    public void Diff_DetectsChanged_ByProtocolChange()
+    {
+        var prev = new[] { P("PT001", protocol: "bacnet") };
+        var curr = new[] { P("PT001", protocol: "mqtt") };
+
+        var diff = PointListDiffer.Diff(prev, curr);
+        Assert.Equal(["PT001"], diff.Changed.Select(e => e.PointId));
     }
 
     [Fact]
