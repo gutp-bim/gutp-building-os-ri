@@ -127,10 +127,14 @@ public sealed class GatewayIngressService(
         }
 
         // Hierarchy completeness (#292): a point the twin does not place under a building/device
-        // yields telemetry no resource view can navigate to. Both fields were already loaded above,
-        // so the check costs no extra query. Opt-in — an incomplete twin (#118) must keep flowing by
-        // default, or a deployment mid-modelling would lose every reading.
-        var hierarchyDecision = IngressHierarchyPolicy.Check(hierarchy.Enforce, meta.Building, meta.DeviceId);
+        // yields telemetry no resource view can navigate to. Both fields were already resolved with
+        // the cached metadata, so the check costs no extra query on the hot path. Opt-in — an
+        // incomplete twin (#118) must keep flowing by default, or a deployment mid-modelling would
+        // lose every reading.
+        //
+        // HasBuildingPath, not Building: the latter is the denormalized literal published as the
+        // telemetry's building field, which is not evidence of placement in the hierarchy.
+        var hierarchyDecision = IngressHierarchyPolicy.Check(hierarchy.Enforce, meta.HasBuildingPath, meta.DeviceId);
         if (hierarchyDecision != IngressHierarchyDecision.Allow)
         {
             var reason = hierarchyDecision == IngressHierarchyDecision.RejectNoBuildingPath

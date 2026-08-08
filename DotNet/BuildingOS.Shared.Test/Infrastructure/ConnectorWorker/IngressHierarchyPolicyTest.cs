@@ -5,26 +5,23 @@ namespace BuildingOS.Shared.Test.Infrastructure.ConnectorWorker;
 public class IngressHierarchyPolicyTest
 {
     [Theory]
-    [InlineData("bldg-1", "DEV001")]
-    [InlineData("", "DEV001")]
-    [InlineData("bldg-1", "")]
-    [InlineData(null, null)]
-    public void NotEnforced_AlwaysAllows(string? building, string? deviceId)
+    [InlineData(true, "DEV001")]
+    [InlineData(false, "DEV001")]
+    [InlineData(true, "")]
+    [InlineData(false, null)]
+    public void NotEnforced_AlwaysAllows(bool hasBuildingPath, string? deviceId)
         => Assert.Equal(IngressHierarchyDecision.Allow,
-            IngressHierarchyPolicy.Check(enforce: false, building, deviceId));
+            IngressHierarchyPolicy.Check(enforce: false, hasBuildingPath, deviceId));
 
     [Fact]
-    public void Enforced_BuildingAndDevice_Allows()
+    public void Enforced_BuildingPathAndDevice_Allows()
         => Assert.Equal(IngressHierarchyDecision.Allow,
-            IngressHierarchyPolicy.Check(enforce: true, building: "bldg-1", deviceId: "DEV001"));
+            IngressHierarchyPolicy.Check(enforce: true, hasBuildingPath: true, deviceId: "DEV001"));
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Enforced_NoBuilding_RejectsNoBuildingPath(string? building)
+    [Fact]
+    public void Enforced_NoBuildingPath_RejectsNoBuildingPath()
         => Assert.Equal(IngressHierarchyDecision.RejectNoBuildingPath,
-            IngressHierarchyPolicy.Check(enforce: true, building, deviceId: "DEV001"));
+            IngressHierarchyPolicy.Check(enforce: true, hasBuildingPath: false, deviceId: "DEV001"));
 
     [Theory]
     [InlineData(null)]
@@ -32,12 +29,12 @@ public class IngressHierarchyPolicyTest
     [InlineData("   ")]
     public void Enforced_NoDevice_RejectsNoDeviceLink(string? deviceId)
         => Assert.Equal(IngressHierarchyDecision.RejectNoDeviceLink,
-            IngressHierarchyPolicy.Check(enforce: true, building: "bldg-1", deviceId));
+            IngressHierarchyPolicy.Check(enforce: true, hasBuildingPath: true, deviceId));
 
     [Fact]
     public void Enforced_NeitherLink_ReportsTheOutermostBreak()
         => Assert.Equal(IngressHierarchyDecision.RejectNoBuildingPath,
-            IngressHierarchyPolicy.Check(enforce: true, building: "", deviceId: ""));
+            IngressHierarchyPolicy.Check(enforce: true, hasBuildingPath: false, deviceId: ""));
 
     [Theory]
     [InlineData(null, false)]

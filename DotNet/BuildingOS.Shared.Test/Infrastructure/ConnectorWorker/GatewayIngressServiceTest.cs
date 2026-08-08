@@ -553,7 +553,8 @@ public class GatewayIngressServiceTest
     {
         var bus = new FakeIngressTelemetryBus();
         var cache = new FakePointMetadataCache(
-            new PointMetadata("PT001", "bldg-1", "Room Temp", DeviceId: "", "GW-HIER-DEVICE"));
+            new PointMetadata("PT001", "bldg-1", "Room Temp", DeviceId: "", "GW-HIER-DEVICE",
+                HasBuildingPath: true));
         var reader = new FakeStreamReader<TelemetryFrame>();
         reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-DEVICE", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
@@ -572,7 +573,8 @@ public class GatewayIngressServiceTest
     {
         var bus = new FakeIngressTelemetryBus();
         var cache = new FakePointMetadataCache(
-            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-HIER-OK"));
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-HIER-OK",
+                HasBuildingPath: true));
         var reader = new FakeStreamReader<TelemetryFrame>();
         reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-OK", PointId = "PT001", ValueNum = 1.0 });
         reader.Complete();
@@ -584,6 +586,76 @@ public class GatewayIngressServiceTest
         Assert.Equal(1L, accepted);
         Assert.Single(bus.Published);
         Assert.Equal(new[] { "published" }, results);
+    }
+
+    // The two cases that gating on the denormalized sbco:building literal got wrong. The literal is
+    // a string nobody joins: it can be absent from a point a building plainly contains, and present
+    // on a point no building does.
+
+    [Fact]
+    public async Task HierarchyEnforced_ReachableWithoutTheBuildingLiteral_Publishes()
+    {
+        // A twin with no Rooms, joined building→equipment through sbco:floor — valid here, and the
+        // shape that motivated this work. Such a point carries no sbco:building literal, so the old
+        // check rejected every reading from it while the import-time orphan check called it fine.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "", "On/Off Status", "DEV001", "GW-HIER-FLOORJOIN",
+                HasBuildingPath: true));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-FLOORJOIN", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var svc = NewService(bus, cache, hierarchy: new IngressHierarchyOptions { Enforce = true });
+        var (accepted, results) = await RunCapturingResultsAsync("GW-HIER-FLOORJOIN",
+            () => svc.RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1L, accepted);
+        Assert.Single(bus.Published);
+        Assert.Equal(new[] { "published" }, results);
+    }
+
+    [Fact]
+    public async Task HierarchyEnforced_UnreachableDespiteTheBuildingLiteral_Skipped()
+    {
+        // A stale or mistyped sbco:building naming a building that does not contain this point —
+        // nothing joins the literal, so the old check waved it through.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "bldg-typo", "Room Temp", "DEV001", "GW-HIER-STALE",
+                HasBuildingPath: false));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-STALE", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var svc = NewService(bus, cache, hierarchy: new IngressHierarchyOptions { Enforce = true });
+        var (accepted, results) = await RunCapturingResultsAsync("GW-HIER-STALE",
+            () => svc.RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(0L, accepted);
+        Assert.Empty(bus.Published);
+        Assert.Equal(new[] { "no_building_path" }, results);
+    }
+
+    [Fact]
+    public async Task HierarchyEnforced_PublishesTheBuildingLiteralNotTheResolvedPath()
+    {
+        // The literal remains the enrichment value and the lake's partition key; only the *gate*
+        // moved to real reachability.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", Building: "bldg-1", "Room Temp", "DEV001", "GW-HIER-PAYLOAD",
+                HasBuildingPath: true));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-HIER-PAYLOAD", PointId = "PT001", ValueNum = 1.0 });
+        reader.Complete();
+
+        var svc = NewService(bus, cache, hierarchy: new IngressHierarchyOptions { Enforce = true });
+        await svc.RunAsync(reader, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(Assert.Single(bus.Published).Message);
+        Assert.Equal("bldg-1",
+            doc.RootElement.GetProperty("telemetries")[0].GetProperty("building").GetString());
     }
 
     /// <summary>
