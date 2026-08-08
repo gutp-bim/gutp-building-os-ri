@@ -27,9 +27,25 @@ public class OxiGraphPointDetailMetadataTest
     private static OxiGraphDigitalTwinDatabase BuildDb(string responseJson)
         => BuildCapturing(responseJson).Db;
 
-    /// <summary>Variables in the SELECT clause, i.e. what the caller can actually read back.</summary>
-    private static HashSet<string> ProjectedVariables(string sparql)
+    /// <summary>
+    /// The SPARQL the client actually sent. `LastRequestBody` is the form-encoded POST body
+    /// (`query=PREFIX+sbco%3A+%3Chttps...`), so raw query text never matches it — `<` is `%3C` and
+    /// spaces are `+`. Decoding once here keeps every assertion below written in SPARQL rather than
+    /// in percent-escapes.
+    /// </summary>
+    private static string SentSparql(string requestBody)
     {
+        var raw = requestBody.StartsWith("query=", StringComparison.Ordinal)
+            ? requestBody["query=".Length..]
+            : requestBody;
+        // Form encoding maps space to '+' and any literal '+' to %2B, so this substitution is safe.
+        return Uri.UnescapeDataString(raw.Replace('+', ' '));
+    }
+
+    /// <summary>Variables in the SELECT clause, i.e. what the caller can actually read back.</summary>
+    private static HashSet<string> ProjectedVariables(string requestBody)
+    {
+        var sparql = SentSparql(requestBody);
         var select = Regex.Match(sparql, @"SELECT\s+(.*?)\s+WHERE", RegexOptions.Singleline);
         Assert.True(select.Success, $"could not locate a SELECT ... WHERE clause in:\n{sparql}");
         return Regex.Matches(select.Groups[1].Value, @"\?(\w+)")
@@ -96,7 +112,7 @@ public class OxiGraphPointDetailMetadataTest
 
         await db.GetPointDetailByPointId("PT001");
 
-        var sparql = handler.LastRequestBody!;
+        var sparql = SentSparql(handler.LastRequestBody!);
         Assert.Contains("devBuilding", sparql);
         Assert.Contains("/Building>", sparql);
         Assert.Contains("UNION", sparql);
@@ -146,7 +162,7 @@ public class OxiGraphPointDetailMetadataTest
 
         var details = await db.ListPointDetails("urn:dtid:b1");
 
-        Assert.Contains("devBuilding", handler.LastRequestBody!);
+        Assert.Contains("devBuilding", SentSparql(handler.LastRequestBody!));
         Assert.Single(details);
         Assert.Equal("THX", details[0].Device?.BuildingName);
     }
