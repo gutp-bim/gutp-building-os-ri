@@ -2,6 +2,7 @@ namespace BuildingOs.ApiServer.Controllers;
 
 using System.Text.Json;
 using BuildingOs.ApiServer.Extensions;
+using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.UserManagement;
@@ -14,7 +15,9 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[UserManagementUnavailableFilter]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
+[ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
 public class UsersController : ControllerBase
 {
     private readonly IUserManagementService _userService;
@@ -118,6 +121,12 @@ public class UsersController : ControllerBase
                 new { role = request.Role, permissions = request.Permissions?.Count ?? 0 }, ct).ConfigureAwait(false);
             return Ok(ToResponse(user));
         }
+        catch (UserManagementUnavailableException)
+        {
+            // Not a bad request — Keycloak admin is unconfigured, so nothing was attempted. Let the
+            // controller filter answer 503 rather than reporting it as a client error (#293).
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update attributes for user {UserId}", id);
@@ -177,6 +186,11 @@ public class UsersController : ControllerBase
             await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Success,
                 new { enabled = request.Enabled }, ct).ConfigureAwait(false);
             return Ok(ToResponse(updated));
+        }
+        catch (UserManagementUnavailableException)
+        {
+            // See UpdateAttributes: a configuration gap must surface as 503, not 400 (#293).
+            throw;
         }
         catch (Exception ex)
         {
