@@ -93,6 +93,16 @@ public class AuthorizationContextMiddleware
                     return authContext;
                 }
             }
+            catch (UserManagementUnavailableException)
+            {
+                // Keycloak admin is simply not configured (#293). That is a steady state, not a
+                // failure, so it must not log an error on every request — the fallback below is the
+                // intended behaviour. Before the unconfigured service existed this branch was skipped
+                // entirely because the service resolved to null.
+                _logger.LogDebug(
+                    "User management not configured; resolving authorization context from claims only for {UserId}",
+                    userId);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to resolve authorization context for user {UserId} via Admin API", userId);

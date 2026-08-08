@@ -19,8 +19,12 @@ public class UsersControllerTest
         Id = id, DisplayName = id, Role = role, Enabled = enabled
     };
 
+    /// <param name="service">
+    /// Overrides the mock, so a test can drive the controller with a real implementation —
+    /// <see cref="UnconfiguredUserManagementService"/> for the unconfigured path (#293).
+    /// </param>
     private static (UsersController controller, Mock<IUserManagementService> svc, Mock<IAdminAuditRecorder> audit)
-        Build(AuthorizationContext auth, IReadOnlyList<EntraUser>? users = null)
+        Build(AuthorizationContext auth, IReadOnlyList<EntraUser>? users = null, IUserManagementService? service = null)
     {
         var svc = new Mock<IUserManagementService>();
         svc.Setup(s => s.GetUsersAsync(It.IsAny<CancellationToken>()))
@@ -28,7 +32,7 @@ public class UsersControllerTest
         var mapping = new Mock<IResourceIdMappingRepository>();
         var audit = new Mock<IAdminAuditRecorder>();
         var controller = new UsersController(
-            svc.Object, mapping.Object, audit.Object, NullLogger<UsersController>.Instance)
+            service ?? svc.Object, mapping.Object, audit.Object, NullLogger<UsersController>.Instance)
         {
             ControllerContext = new ControllerContext
             {

@@ -30,7 +30,9 @@ public static partial class IServiceCollectionExtension
     }
 
     /// <summary>
-    /// Registers IUserManagementService via Keycloak Admin REST API.
+    /// Registers <see cref="IUserManagementService"/> via the Keycloak admin REST API when the admin
+    /// env is configured; otherwise registers <see cref="UnconfiguredUserManagementService"/> so the
+    /// controller returns 503 instead of failing DI activation with a 500 (#293).
     /// </summary>
     public static IServiceCollection AddUserManagementService(
         this IServiceCollection services,
@@ -52,6 +54,10 @@ public static partial class IServiceCollectionExtension
                         envModule.KeycloakAdminClientId!,
                         envModule.KeycloakAdminClientSecret ?? string.Empty,
                         sp.GetRequiredService<ILogger<KeycloakUserManagementService>>()));
+        }
+        else
+        {
+            services.AddSingleton<IUserManagementService, UnconfiguredUserManagementService>();
         }
 
         return services;
