@@ -269,7 +269,6 @@ export default function PointDetailPageComponent({
             }}
             scale={pointDetail.point.scale ?? undefined}
             unit={pointDetail.point.unit ?? undefined}
-            labels={pointDetail.point.labels ?? undefined}
             expectedIntervalSeconds={pointDetail.point.interval ?? undefined}
             staleThresholdSeconds={telemetryConfig?.staleThresholdSeconds}
             staleIntervalMultiplier={telemetryConfig?.staleIntervalMultiplier}

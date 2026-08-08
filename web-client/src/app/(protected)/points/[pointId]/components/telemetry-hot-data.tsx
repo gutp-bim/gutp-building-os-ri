@@ -21,7 +21,6 @@ export function TelemetryHotData({
   onDownloadClick,
   scale = 1,
   unit,
-  labels,
   expectedIntervalSeconds,
   staleThresholdSeconds = DEFAULT_STALE_THRESHOLD_SECONDS,
   staleIntervalMultiplier,
@@ -32,15 +31,12 @@ export function TelemetryHotData({
   onDownloadClick: () => void;
   scale?: number;
   unit?: string;
-  labels?: string;
   /** Expected telemetry interval (seconds, sbco:interval) driving this point's stale threshold (#183). */
   expectedIntervalSeconds?: number | null;
   /** Effective system-default stale threshold + multiplier (#183), from GET /api/telemetry/config. */
   staleThresholdSeconds?: number;
   staleIntervalMultiplier?: number;
 }) {
-  const splitLabels = labels ? labels.split(",") : null;
-
   const displayHotData = useMemo(() => {
     if (!hotData) return "-";
 
@@ -51,16 +47,8 @@ export function TelemetryHotData({
       return formatTelemetryValue(hotData) ?? "-";
     if (resolved.kind === "none") return "-";
 
-    // DEPRECATED (#152 Phase C): the numeric-code → label index mapping is the pre-#152 enum
-    // workaround. A first-class string value (handled above) now takes precedence; this path stays
-    // only for legacy points that still send a numeric code + `labels`. New enum/state points should
-    // send the label as a first-class string (value_str) — see docs/architecture/telemetry-specification.md.
-    if (splitLabels && splitLabels.length > 0) {
-      return splitLabels[resolved.value - 1];
-    }
-
     return `${resolved.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
-  }, [hotData, scale, splitLabels, unit]);
+  }, [hotData, scale, unit]);
 
   // Freshness of the latest sample, evaluated against the current time on each render. The stale
   // threshold is derived from this point's expected interval (`interval × N`, #183) with N a fixed

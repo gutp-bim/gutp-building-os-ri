@@ -16,7 +16,6 @@ const Device = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   buildingName: z.string().nullish(),
-  floorNumber: z.number().int().nullish(),
   owner: z.string().nullish(),
   site: z.string().nullish(),
   supplier: z.string().nullish(),
@@ -31,7 +30,6 @@ const Point = z.object({
   min: z.number().int().nullish(),
   max: z.number().int().nullish(),
   targetArea: z.string().nullish(),
-  panel: z.string().nullish(),
   writable: z.boolean().nullish(),
 });
 const Space = z.object({ id: z.string().min(1), name: z.string().min(1) });

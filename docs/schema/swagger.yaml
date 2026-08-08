@@ -3273,10 +3273,6 @@ components:
         buildingName:
           type: string
           nullable: true
-        floorNumber:
-          type: integer
-          format: int32
-          nullable: true
         owner:
           type: string
           nullable: true
@@ -3710,12 +3706,6 @@ components:
         targetArea:
           type: string
           nullable: true
-        panel:
-          type: string
-          nullable: true
-        labels:
-          type: string
-          nullable: true
         scale:
           type: number
           format: float
@@ -3754,9 +3744,6 @@ components:
           type: string
           nullable: true
         deviceIdBacnet:
-          type: string
-          nullable: true
-        rowDataString:
           type: string
           nullable: true
         identifiers:

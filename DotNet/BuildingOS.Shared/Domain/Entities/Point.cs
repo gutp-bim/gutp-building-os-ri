@@ -26,8 +26,6 @@ public class Point
     public int? MinPresValue { get; set; }
     public int? MaxPresValue { get; set; }
     public string? TargetArea { get; set; }
-    public string? Panel { get; set; }
-    public string? Labels { get; set; }
     public float? Scale { get; set; }
     public string? InstallationArea { get; set; }
     public string? Unit { get; set; }
@@ -43,8 +41,6 @@ public class Point
     public int? InstanceNoBacnet { get; set; }
     public string? ObjectTypeBacnet { get; set; }
     public string? DeviceIdBacnet { get; set; }
-
-    public string? RowDataString { get; set; }
 
     public Dictionary<string, string> Identifiers { get; set; } = new();
     public Dictionary<string, bool> CustomTags { get; set; } = new();

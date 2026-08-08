@@ -748,7 +748,6 @@ export interface components {
             name: string;
             buildingName?: string | null;
             /** Format: int32 */
-            floorNumber?: number | null;
             owner?: string | null;
             site?: string | null;
             supplier?: string | null;
@@ -768,7 +767,6 @@ export interface components {
             /** Format: int32 */
             max?: number | null;
             targetArea?: string | null;
-            panel?: string | null;
             writable?: boolean | null;
         };
         ProblemDetails: {

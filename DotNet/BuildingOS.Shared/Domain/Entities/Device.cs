@@ -20,7 +20,6 @@ public class Device
     public string Name { get; set; } = null!;
 
     public string? BuildingName { get; set; }
-    public int? FloorNumber { get; set; }
     public string? Owner { get; set; }
     public string? Site { get; set; }
     public string? Supplier { get; set; }

@@ -32,13 +32,10 @@ export function MultiStateOutputControlModal({
         // パース失敗時はフォールバック
       }
     }
-    // フォールバック: point.labelsを使用（後方互換性）
-    const labels = pointDetail.point.labels?.split(",") ?? [];
-    return labels.map((label, idx) => ({
-      value: idx + 1,
-      label: label.trim(),
-    }));
-  }, [pointDetail.controlSchema?.enumLabels, pointDetail.point.labels]);
+    // bos:enumLabels がなければ選択肢は無い。以前は point.labels をフォールバックにしていたが、
+    // twin にその述語は存在せず値が入ったことはないため、常に空配列を返す枝でしかなかった (#299)。
+    return [];
+  }, [pointDetail.controlSchema?.enumLabels]);
 
   const handleSubmit = async () => {
     await onControl(value);
