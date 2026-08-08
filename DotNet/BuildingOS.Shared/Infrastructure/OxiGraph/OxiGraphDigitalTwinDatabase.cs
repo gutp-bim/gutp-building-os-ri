@@ -188,14 +188,26 @@ SELECT ?devId ?devName ?devGw ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
 
     public async Task<BuildingOS.Shared.Point?> GetPoint(string pointId)
     {
+        // Keep the projected point fields a superset of BuildPointSelect's: a single-point lookup
+        // returning less than the list it belongs to is the defect in #294 (?ptSpec / ?ptType /
+        // ?ptGw and the thresholds were absent here, so MapPoint's GetValueOrDefault silently
+        // yielded null and the detail screen showed "-" for metadata the twin actually held).
         var sparql = $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?devIdBac ?objType ?instNo ?ptInterval ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
+       ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
   OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
+  OPTIONAL {{ ?pt <{Prop_PointSpec}> ?ptSpec . }}
+  OPTIONAL {{ ?pt <{Prop_PointType}> ?ptType . }}
+  OPTIONAL {{ ?pt <{Prop_GatewayId}> ?ptGw . }}
   OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
   OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
+  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
+  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
   FILTER(?ptId = ""{EscapeStringLiteral(pointId)}"")
   BIND(?pt AS ?ptDt)
   OPTIONAL {{
@@ -227,8 +239,15 @@ SELECT ?ptDt ?ptId ?ptName ?ptWritable ?devIdBac ?objType ?instNo ?ptInterval ?i
         if (point == null) return null;
 
         var pointUri = point.DtId;
+        // The building is resolved by EITHER of the two paths the repository treats as valid, matching
+        // the orphan-reachability definition in #291 Phase 1. Requiring only the spatial chain would
+        // leave BuildingName null for every twin that models no Rooms — which this repository allows,
+        // and which `ListPointDetails` already relies on by joining building→equipment through the
+        // sbco:floor literal. SAMPLE because a device satisfying both paths would otherwise duplicate
+        // rows.
         var sparql = $@"{Prefixes}
-SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw)
+SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
+       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding)
 WHERE {{
   ?dev <{Prop_HasPoint}> <{pointUri}> ;
        a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
@@ -241,6 +260,20 @@ WHERE {{
     ?floor <{Prop_HasPart}> ?space .
     ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
     BIND(?floor AS ?floorDt)
+  }}
+  OPTIONAL {{
+    {{
+      ?dev <{Prop_LocatedIn}> ?bSpace .
+      ?bFloor <{Prop_HasPart}> ?bSpace .
+      ?bFloor a <{Cls_Level}> .
+      ?bldg <{Prop_HasPart}> ?bFloor .
+      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
+    }} UNION {{
+      ?dev <{Prop_Floor}> ?devFloorName .
+      ?bFloorLit a <{Cls_Level}> ; <{Prop_Name}> ?devFloorName .
+      ?bldg <{Prop_HasPart}> ?bFloorLit .
+      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
+    }}
   }}
 }}
 GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
@@ -263,10 +296,17 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
         // making this join OPTIONAL would remove building scoping and return all equipment everywhere.
         // Equipment without sbco:floor or with a mismatched floor literal will not appear.
         // SAMPLE aggregates gatewayId across all points of a device for deterministic selection.
+        //
+        // ?devBuilding is the building's own name — this query is already scoped BY building, so there
+        // is no reason for the list to disagree with the single-point detail about which building a
+        // point is in (#294). Its triple is OPTIONAL: the building is the query's input, and a nameless
+        // one must not silently collapse the whole result the way a required triple would.
         var sparql = $@"{Prefixes}
 SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
+       ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow ?devBuilding
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw)
 WHERE {{
+  OPTIONAL {{ <{buildingDtId}> <{Prop_Name}> ?devBuilding . }}
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
   BIND(?floor AS ?floorDt)
@@ -289,8 +329,13 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
   OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
+  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
+  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
+  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
 }}
 GROUP BY ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
+         ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow ?devBuilding
          ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
 
         var rows = await _client.QueryAsync(sparql);
@@ -550,6 +595,11 @@ WHERE {{
             Id = r.GetValueOrDefault("devId", ""),
             Name = r.GetValueOrDefault("devName", ""),
             GatewayId = r.GetValueOrDefault("devGw"),
+            // Device.BuildingName had no assignment anywhere in the repository, so the point-detail
+            // screen — which reads exactly this field — showed "-" no matter how complete the twin
+            // was (#294). Populated by the two point-detail paths; still null for callers that do
+            // not project ?devBuilding (ListDevices / GetDevice), where the building is not in scope.
+            BuildingName = r.GetValueOrDefault("devBuilding"),
         };
 
     private static string EscapeStringLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");

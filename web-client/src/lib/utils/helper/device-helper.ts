@@ -7,17 +7,27 @@ export const toDisplayDeviceType = (deviceTypeString: string) => {
 };
 
 /**
- * ポイントから制御タイプを判定する
- * @param point
- * @returns "BACnet" | null
+ * ポイントの「収集プロトコル」を判定する。
+ *
+ * BACnet 固有フィールド（objectType / instanceNo / deviceId）が示すのは *アドレッシング* であって
+ * 制御可否ではない。制御できるかどうかは `point.writable`（および ControlSchema）が決める。
+ * 両者を 1 つの「制御タイプ」に畳んでいたため、read-only な BACnet ポイントが
+ * 「BACnet で収集している」ことすら表示できなかった (#294)。
+ *
+ * `instanceNoBacnet` は 0 も有効な値なので、truthy ではなく `!= null` で判定する。
+ * この述語がリポジトリ内で唯一の BACnet 判定であること — 以前は同じ画面で
+ * 1 条件版と 3 条件版の 2 実装が併存していた。
  */
-export const getControlType = (
+export const getCollectionProtocol = (
   point: Point | undefined,
 ): "BACnet" | null => {
   if (!point) return null;
 
-  // BACnet判定ロジック（point に BACnet 固有フィールドが存在する）
-  if (point.deviceIdBacnet != null) {
+  if (
+    point.objectTypeBacnet != null ||
+    point.instanceNoBacnet != null ||
+    point.deviceIdBacnet != null
+  ) {
     return "BACnet";
   }
 

@@ -1,5 +1,5 @@
 import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
-import { getControlType } from "@/lib/utils/helper/device-helper";
+import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
 import { Dialog } from "@headlessui/react";
 import { ClipboardIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
@@ -20,7 +20,12 @@ const BACNET_OBJECT_TYPE_MAP: Record<string, string> = {
 export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
   const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
-  const controlType = getControlType(pointDetail.point);
+  // 収集プロトコル（アドレッシング）と書き込み可否（制御できるか）は別の問い。以前は
+  // 「制御タイプ」1 行に畳んでいたため、read-only な BACnet ポイントは収集経路も空欄になった (#294)。
+  const collectionProtocol = getCollectionProtocol(pointDetail.point);
+  // 階層が欠けているのは「値が無い」ではなく「まだ割り当てられていない」状態。"-" だと
+  // データ不足と表示不具合の区別がつかない (#294)。
+  const unassigned = "未割当";
 
   // Clipboard copy used to be fire-and-forget with no feedback either way (#196). Confirm success
   // and surface a failure (some browsers/permissions reject writeText).
@@ -40,15 +45,15 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
       <div className="border-b border-gray-200 pb-4 mb-4">
         <div className="grid grid-cols-2 gap-y-2 text-sm">
           <div className="font-semibold">ビル</div>
-          <div>{pointDetail.device?.buildingName || "-"}</div>
+          <div>{pointDetail.device?.buildingName || unassigned}</div>
           <div className="font-semibold">フロア</div>
-          <div>{pointDetail.floor?.name || "-"}</div>
+          <div>{pointDetail.floor?.name || unassigned}</div>
         </div>
       </div>
       <div className="border-b border-gray-200 pb-4 mb-4">
         <div className="grid grid-cols-2 gap-y-2 text-sm">
           <div className="font-semibold">スペース</div>
-          <div>{pointDetail.space?.name || "-"}</div>
+          <div>{pointDetail.space?.name || unassigned}</div>
         </div>
       </div>
       <div className="border-b border-gray-200 pb-4 mb-4">
@@ -60,12 +65,20 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
           <div className="font-semibold">ポイント区分</div>
           <div>{pointDetail.point.specification || "-"}</div>
           <div className="font-semibold">書き込み可否</div>
-          <div>{pointDetail.point.writable ? "可" : "不可"}</div>
-          <div className="font-semibold">制御タイプ</div>
+          {/* writable が null（twin に未設定）を "不可" と同じに描くと、読み取り専用と
+              メタデータ欠落が同じ表示になってしまう。 */}
           <div>
-            {controlType ? (
+            {pointDetail.point.writable == null
+              ? unassigned
+              : pointDetail.point.writable
+                ? "可"
+                : "不可（読み取り専用）"}
+          </div>
+          <div className="font-semibold">収集プロトコル</div>
+          <div>
+            {collectionProtocol ? (
               <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                {controlType}
+                {collectionProtocol}
               </span>
             ) : (
               "-"
@@ -75,7 +88,7 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
       </div>
 
       {/* BACnet情報 */}
-      {controlType === "BACnet" && (
+      {collectionProtocol === "BACnet" && (
         <div className="pb-2">
           <div className="bg-blue-50 p-3 rounded mb-2">
             <h3 className="font-semibold text-sm text-blue-800 mb-2">

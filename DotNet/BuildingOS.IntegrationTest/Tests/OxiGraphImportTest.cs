@@ -145,6 +145,107 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         await svc.RunAsync(SampleTtlPath, null, CancellationToken.None); // must not throw
     }
 
+    // ── #294: single-point detail must not return less than the list ─────────────
+    //
+    // These run against a real store on purpose. The defect they guard is semantic, not syntactic:
+    // a query that omits a variable, or a reachability chain that quietly matches nothing, parses
+    // perfectly and returns a row with fields silently absent. Handler-inspecting unit tests can
+    // confirm a variable is *requested*; only a real graph confirms it comes back.
+
+    [Fact]
+    public async Task GetPoint_ReturnsSpecificationTypeAndGateway()
+    {
+        var ttl = await File.ReadAllTextAsync(SampleTtlPath);
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        var point = await db.GetPoint("PT004");
+
+        Assert.NotNull(point);
+        // All three are in the seed; before #294 GetPoint did not SELECT them, so the detail screen
+        // rendered "-" while the list screen showed the same point's values correctly.
+        Assert.Equal("Measurement", point!.Specification);
+        Assert.Equal("CO2 Concentration", point.Type);
+        Assert.Equal("GW001", point.GatewayName);
+    }
+
+    [Fact]
+    public async Task GetPointDetailByPointId_ResolvesBuildingViaSpatialChain()
+    {
+        var ttl = await File.ReadAllTextAsync(SampleTtlPath);
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        var detail = await db.GetPointDetailByPointId("PT004");
+
+        Assert.NotNull(detail);
+        // Device.BuildingName had no assignment anywhere in the repository — the field the point
+        // detail UI reads was structurally always null.
+        Assert.Equal("bldg-1", detail!.Device?.BuildingName);
+    }
+
+    // The THX shape: Building → Level, equipment joined to the level by the sbco:floor literal, and
+    // no Room anywhere. This repository treats Room/locatedIn as optional (ListPointDetails already
+    // joins through the literal), so requiring the spatial chain would leave BuildingName null for
+    // every twin modelled this way — which is most of them.
+    [Fact]
+    public async Task GetPointDetailByPointId_ResolvesBuildingWithoutRooms()
+    {
+        const string roomlessTtl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <https://www.sbco.or.jp/ont/resource/bldg-thx> a sbco:Building ;
+              sbco:id "THX" ; sbco:name "THX" ;
+              sbco:hasPart <https://www.sbco.or.jp/ont/resource/level-thx-7f> .
+            <https://www.sbco.or.jp/ont/resource/level-thx-7f> a sbco:Level ;
+              sbco:id "7F" ; sbco:name "7F" .
+            <https://www.sbco.or.jp/ont/resource/dev-thx-1> a sbco:EquipmentExt ;
+              sbco:id "172_31_105_17" ; sbco:name "AHU" ;
+              sbco:floor "7F" ;
+              sbco:hasPoint <https://www.sbco.or.jp/ont/resource/pt-thx-3002> .
+            <https://www.sbco.or.jp/ont/resource/pt-thx-3002> a sbco:PointExt ;
+              sbco:id "172_31_105_17-3002" ; sbco:name "On/Off Status" ;
+              sbco:pointType "On_Off_Status" ; sbco:pointSpecification "Status" ;
+              sbco:writable "false" .
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(roomlessTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        var detail = await db.GetPointDetailByPointId("172_31_105_17-3002");
+
+        Assert.NotNull(detail);
+        Assert.Equal("THX", detail!.Device?.BuildingName);
+        // The same point's type/specification must survive the detail path too — this is the exact
+        // point from the THX report.
+        Assert.Equal("On_Off_Status", detail.Point.Type);
+        Assert.Equal("Status", detail.Point.Specification);
+        // No Room in this twin: Space stays blank rather than the query returning nothing at all.
+        Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
+    }
+
+    [Fact]
+    public async Task ListPointDetails_ReportsTheBuildingItWasQueriedFor()
+    {
+        const string Bldg1DtId =
+            "https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-1";
+
+        var ttl = await File.ReadAllTextAsync(SampleTtlPath);
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+        var details = await db.ListPointDetails(Bldg1DtId);
+
+        Assert.NotEmpty(details);
+        // List and detail must agree about which building a point is in (#294).
+        Assert.All(details, d => Assert.Equal("bldg-1", d.Device?.BuildingName));
+    }
+
     private async Task<int> CountTriplesAsync()
     {
         var rows = await oxiGraph.Client.QueryAsync(
