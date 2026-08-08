@@ -126,6 +126,77 @@ public class UserManagementUnavailableTest
             () => UnconfiguredController().GetAll(default));
     }
 
+    // ── No side effects for an operation that returns 503 ────────────────────
+    //
+    // UpdateAttributes used to persist the hash→resource-id mappings *before* calling the service.
+    // With Keycloak unconfigured the call then threw, the caller got 503 — and the mappings stayed
+    // written. A write committed for an operation the caller was told did not happen, with nothing
+    // in the audit trail to explain it.
+
+    private static (UsersController Controller, Mock<IResourceIdMappingRepository> Mapping, Mock<IAdminAuditRecorder> Audit)
+        UnconfiguredControllerWithSpies()
+    {
+        var auth = new AuthorizationContext { UserId = "actor", Role = "admin", Permissions = [] };
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        var audit = new Mock<IAdminAuditRecorder>();
+        var controller = new UsersController(
+            new UnconfiguredUserManagementService(),
+            mapping.Object,
+            audit.Object,
+            NullLogger<UsersController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { Items = { ["AuthorizationContext"] = auth } },
+            },
+        };
+        return (controller, mapping, audit);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_Unconfigured_PersistsNoResourceIdMapping()
+    {
+        var (controller, mapping, _) = UnconfiguredControllerWithSpies();
+
+        // Permissions without Role: the path that reaches the service without an earlier
+        // GetUsersAsync short-circuiting it, i.e. the one that actually wrote.
+        await Assert.ThrowsAsync<UserManagementUnavailableException>(
+            () => controller.UpdateAttributes(
+                "u1",
+                new UsersController.UpdateUserAttributesApiRequest
+                {
+                    Permissions = new List<string> { "building:bldg-1:read" },
+                    ResourceDisplayNames = new Dictionary<string, string> { ["bldg-1"] = "Building 1" },
+                },
+                default));
+
+        mapping.Verify(
+            m => m.SaveMappingAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "a request answered with 503 must not leave a resource-id mapping behind");
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_Unconfigured_RecordsAFailureAudit()
+    {
+        var (controller, _, audit) = UnconfiguredControllerWithSpies();
+
+        await Assert.ThrowsAsync<UserManagementUnavailableException>(
+            () => controller.UpdateAttributes(
+                "u1",
+                new UsersController.UpdateUserAttributesApiRequest
+                {
+                    Permissions = new List<string> { "building:bldg-1:read" },
+                },
+                default));
+
+        // A rejected admin mutation that leaves no trace is indistinguishable from one never attempted.
+        audit.Verify(
+            a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     [Fact]
     public void GetRoles_Unconfigured_StillWorks()
     {
