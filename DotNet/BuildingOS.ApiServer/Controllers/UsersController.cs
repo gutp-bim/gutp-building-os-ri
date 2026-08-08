@@ -2,6 +2,7 @@ namespace BuildingOs.ApiServer.Controllers;
 
 using System.Text.Json;
 using BuildingOs.ApiServer.Extensions;
+using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.UserManagement;
@@ -14,7 +15,9 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[UserManagementUnavailableFilter]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
+[ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
 public class UsersController : ControllerBase
 {
     private readonly IUserManagementService _userService;
@@ -98,7 +101,19 @@ public class UsersController : ControllerBase
 
         try
         {
-            // ハッシュ→元IDのマッピングを保存（逆引き用）
+            var updateRequest = new UpdateUserAttributesRequest
+            {
+                Role = request.Role,
+                Permissions = request.Permissions?.Select(HashPermissionResourceId).ToList()
+            };
+
+            var user = await _userService.UpdateUserAttributesAsync(id, updateRequest, ct).ConfigureAwait(false);
+
+            // ハッシュ→元IDのマッピングを保存（逆引き用）。
+            // The update has to land first. Saving these before it meant a request that ended in 503
+            // (Keycloak unconfigured) or any other failure still persisted the resource-id mappings —
+            // a write committed for an operation the caller was told did not happen. The mapping is a
+            // reverse-lookup record for permissions that now exist, so it is only true once they do.
             if (request.Permissions != null)
             {
                 foreach (var permission in request.Permissions)
@@ -107,16 +122,19 @@ public class UsersController : ControllerBase
                 }
             }
 
-            var updateRequest = new UpdateUserAttributesRequest
-            {
-                Role = request.Role,
-                Permissions = request.Permissions?.Select(HashPermissionResourceId).ToList()
-            };
-
-            var user = await _userService.UpdateUserAttributesAsync(id, updateRequest, ct).ConfigureAwait(false);
             await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Success,
                 new { role = request.Role, permissions = request.Permissions?.Count ?? 0 }, ct).ConfigureAwait(false);
             return Ok(ToResponse(user));
+        }
+        catch (UserManagementUnavailableException)
+        {
+            // Not a bad request — Keycloak admin is unconfigured, so nothing was attempted. Let the
+            // controller filter answer 503 rather than reporting it as a client error (#293).
+            // Still audit it: a rejected admin mutation that leaves no trace is indistinguishable
+            // from one that was never attempted.
+            await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
+                new { role = request.Role, error = "user management unavailable" }, ct).ConfigureAwait(false);
+            throw;
         }
         catch (Exception ex)
         {
@@ -177,6 +195,14 @@ public class UsersController : ControllerBase
             await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Success,
                 new { enabled = request.Enabled }, ct).ConfigureAwait(false);
             return Ok(ToResponse(updated));
+        }
+        catch (UserManagementUnavailableException)
+        {
+            // See UpdateAttributes: a configuration gap must surface as 503, not 400 (#293), and
+            // must still be audited.
+            await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
+                new { enabled = request.Enabled, error = "user management unavailable" }, ct).ConfigureAwait(false);
+            throw;
         }
         catch (Exception ex)
         {
