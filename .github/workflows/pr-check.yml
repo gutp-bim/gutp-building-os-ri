@@ -54,8 +54,11 @@ jobs:
 
       # actionlint catches the class of defect behind #306: a workflow that GitHub cannot load
       # produces no failing check at all, only an absence of runs, so nothing surfaces it.
+      # Pinned by digest: `:latest` would let the linter change under us, so a run could start
+      # failing with no repo change and no way to attribute it. This digest is the image this
+      # branch's first green run actually pulled (rhysd/actionlint:latest as of 2026-08-09).
       - name: Lint workflows
-        uses: docker://rhysd/actionlint:latest
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
           args: -color
 
