@@ -44,9 +44,27 @@ internal static class OxiGraphOntology
     internal const string Prop_ObjectTypeBacnet = SbcoNs + "objectTypeBacnet";
     internal const string Prop_InstanceNoBacnet = SbcoNs + "instanceNoBacnet";
 
+    // Descriptive PointExt properties the seeds have always carried but no query SELECTed (#298).
+    // minPresValue/maxPresValue are the BACnet *raw* bounds of the object — NOT the control-write
+    // range, which is bos:minValue/bos:maxValue on the ControlSchema (see Prop_MinValue below).
+    internal const string Prop_Scale            = SbcoNs + "scale";
+    internal const string Prop_TargetArea       = SbcoNs + "targetArea";
+    internal const string Prop_InstallationArea = SbcoNs + "installationArea";
+    internal const string Prop_MinPresValue     = SbcoNs + "minPresValue";
+    internal const string Prop_MaxPresValue     = SbcoNs + "maxPresValue";
+
+    // Descriptive equipment properties (#298). CSV-derived twins repeat them on every PointExt row
+    // because the point list is the import unit, so the read paths accept either carrier.
+    internal const string Prop_DeviceType = SbcoNs + "deviceType";
+    internal const string Prop_Supplier   = SbcoNs + "supplier";
+    internal const string Prop_Owner      = SbcoNs + "owner";
+    internal const string Prop_Site       = SbcoNs + "site";
+
     // Building OS extension properties (not in SBCO; used by ControlSchema queries)
     internal const string Prop_DataType   = BosNs + "dataType";
     internal const string Prop_EnumLabels = BosNs + "enumLabels";
+    // The canonical control-write range (#153). sbco:minPresValue/maxPresValue above describe the
+    // BACnet object's raw span and are only a display fallback when no ControlSchema exists (#298).
     internal const string Prop_MinValue   = BosNs + "minValue";  // number-control lower bound (#153)
     internal const string Prop_MaxValue   = BosNs + "maxValue";  // number-control upper bound (#153)
 

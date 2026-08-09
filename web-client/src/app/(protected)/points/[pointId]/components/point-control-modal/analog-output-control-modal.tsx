@@ -1,6 +1,11 @@
 import { Dialog } from "@headlessui/react";
 import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { useState } from "react";
+import {
+  controlRangeLabel,
+  initialControlValue,
+  resolveControlRange,
+} from "./resolve-control-range";
 
 export function AnalogOutputControlModal({
   isOpen,
@@ -15,9 +20,10 @@ export function AnalogOutputControlModal({
   onControl: (value: number) => Promise<void>;
   isLoading: boolean;
 }) {
-  const min = pointDetail.point.minPresValue ?? 0;
-  const max = pointDetail.point.maxPresValue ?? 100;
-  const [value, setValue] = useState(min);
+  // 制御範囲の正は ControlSchema。詳細は resolve-control-range.ts を参照 (#298)。
+  const { min, max } = resolveControlRange(pointDetail);
+  const rangeLabel = controlRangeLabel({ min, max });
+  const [value, setValue] = useState(initialControlValue({ min, max }));
 
   const handleSubmit = async () => {
     await onControl(value);
@@ -32,10 +38,14 @@ export function AnalogOutputControlModal({
             AnalogOutput制御
           </Dialog.Title>
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">
-              値（{min}～{max}）
+            <label
+              className="block text-sm font-medium mb-1"
+              htmlFor="analog-control-value"
+            >
+              値{rangeLabel ? `（${rangeLabel}）` : ""}
             </label>
             <input
+              id="analog-control-value"
               type="number"
               min={min}
               max={max}
@@ -43,6 +53,11 @@ export function AnalogOutputControlModal({
               onChange={(e) => setValue(Number(e.target.value))}
               className="w-full border rounded-md px-3 py-2"
             />
+            {rangeLabel === null && (
+              <p className="mt-1 text-xs text-gray-500" data-testid="range-unknown">
+                この点には制御範囲が登録されていません。
+              </p>
+            )}
           </div>
           <div className="flex justify-end space-x-3">
             <button
