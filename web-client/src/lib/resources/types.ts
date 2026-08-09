@@ -22,7 +22,6 @@ export type PointResource = ResourceRef & {
   writable: boolean | null;
   unit: string | null;
   scale: number | null;
-  labels: string | null;
   specification: string | null;
   /** The point's measurement kind (aspida `Point.type`), renamed to avoid clashing with `type`. */
   kind: string | null;

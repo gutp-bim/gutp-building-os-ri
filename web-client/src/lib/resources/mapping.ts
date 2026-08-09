@@ -39,7 +39,6 @@ export function toPointResource(p: Point): PointResource {
     writable: p.writable ?? null,
     unit: p.unit ?? null,
     scale: p.scale ?? null,
-    labels: p.labels ?? null,
     specification: p.specification ?? null,
     kind: p.type ?? null,
     expectedIntervalSeconds: p.interval ?? null,

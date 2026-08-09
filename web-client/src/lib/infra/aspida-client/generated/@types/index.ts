@@ -82,7 +82,6 @@ export type Device = {
   id: string;
   name: string;
   buildingName?: string | null | undefined;
-  floorNumber?: number | null | undefined;
   owner?: string | null | undefined;
   site?: string | null | undefined;
   supplier?: string | null | undefined;
@@ -316,8 +315,6 @@ export type Point = {
   minPresValue?: number | null | undefined;
   maxPresValue?: number | null | undefined;
   targetArea?: string | null | undefined;
-  panel?: string | null | undefined;
-  labels?: string | null | undefined;
   scale?: number | null | undefined;
   installationArea?: string | null | undefined;
   unit?: string | null | undefined;
@@ -329,7 +326,6 @@ export type Point = {
   instanceNoBacnet?: number | null | undefined;
   objectTypeBacnet?: string | null | undefined;
   deviceIdBacnet?: string | null | undefined;
-  rowDataString?: string | null | undefined;
 
   identifiers?: {
     [key: string]: string;
@@ -489,7 +485,10 @@ export type TwinAdminControllerTwinImportRequest = {
   turtle?: string | undefined;
   /** "append" (default) or "replace". プレビューでも使う（階層未接続の判定範囲、#291）。 */
   mode?: string | null | undefined;
-  /** 階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。 gateway_id 一意性違反は上書きできない。 */
+  /**
+   * 階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。
+   * gateway_id 一意性違反は上書きできない。
+   */
   allowOrphans?: boolean | undefined;
 }
 
