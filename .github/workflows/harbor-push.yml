@@ -150,7 +150,7 @@ jobs:
       - name: Verify same digest on both registries
         if: vars.HARBOR_REGISTRY != ''
         run: |
-          GHCR_DIGEST=$(echo "${{ steps.build.outputs.digest }}")
+          GHCR_DIGEST="${{ steps.build.outputs.digest }}"
           echo "GHCR digest: $GHCR_DIGEST"
           # Harbor build runs from the same layer cache so digests match
           echo "Both registries received image from identical build context"

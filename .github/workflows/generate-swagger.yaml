@@ -53,7 +53,7 @@ jobs:
       - name: Check for changes
         id: git-check
         run: |
-          git diff --exit-code docs/schema/swagger.yaml || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --exit-code docs/schema/swagger.yaml || echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push changes
         if: steps.git-check.outputs.changed == 'true'

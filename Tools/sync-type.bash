@@ -25,7 +25,8 @@ cd $repository_root/web-client
 CLIENT_PATH=$repository_root/web-client/src/lib/infra/aspida-client/generated
 
 if [ -d "$CLIENT_PATH" ]; then
-  rm -rf "$CLIENT_PATH"/*
+  # ${VAR:?} so an empty CLIENT_PATH aborts instead of expanding to `rm -rf /*`
+  rm -rf "${CLIENT_PATH:?}"/*
 else
   mkdir -p "$CLIENT_PATH"
 fi

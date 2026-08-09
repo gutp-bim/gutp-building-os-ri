@@ -72,7 +72,7 @@ jobs:
         if: always()
         run: |
           if [ -f TestResults/coverage-report/SummaryGithub.md ]; then
-            cat TestResults/coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+            cat TestResults/coverage-report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Publish Test Results
@@ -239,7 +239,8 @@ jobs:
         working-directory: web-client
         run: |
           CLIENT_PATH="$(pwd)/src/lib/infra/aspida-client/generated"
-          rm -rf "$CLIENT_PATH"/*
+          # ${VAR:?} so an empty CLIENT_PATH aborts instead of expanding to `rm -rf /*`
+          rm -rf "${CLIENT_PATH:?}"/*
           npx openapi2aspida -i="$(pwd)/../docs/schema/swagger.yaml" -o="$CLIENT_PATH"
 
       - name: Fail if the Aspida client drifted
