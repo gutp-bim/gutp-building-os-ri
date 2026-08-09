@@ -22,14 +22,20 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      dotnet: ${{ steps.filter.outputs.dotnet == 'true' || steps.force.outputs.force == 'true' }}
-      web-client: ${{ steps.filter.outputs['web-client'] == 'true' || steps.force.outputs.force == 'true' }}
+      # The build matrix itself, not just the flags: an image is selected here rather than
+      # filtered later. A job-level `if` cannot read `matrix` — that context does not exist until
+      # after the job's condition has been evaluated — so the previous attempt to skip per image
+      # that way made the whole workflow fail to load (#306).
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Force full build on tag push
+      # A release tag is not necessarily on top of a diff against the previous commit, and a manual
+      # run is an explicit request to rebuild — both mean "build everything".
+      - name: Force full build on tag push or manual run
         id: force
-        run: echo "force=${{ startsWith(github.ref, 'refs/tags/v') }}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "force=${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}" >> "$GITHUB_OUTPUT"
 
       - uses: dorny/paths-filter@v4
         id: filter
@@ -41,10 +47,31 @@ jobs:
             web-client:
               - 'web-client/**'
 
+      - name: Build the image matrix
+        id: build-matrix
+        env:
+          DOTNET: ${{ steps.filter.outputs.dotnet == 'true' || steps.force.outputs.force == 'true' }}
+          WEB: ${{ steps.filter.outputs['web-client'] == 'true' || steps.force.outputs.force == 'true' }}
+        run: |
+          matrix=$(jq -cn --argjson dotnet "$DOTNET" --argjson web "$WEB" '
+            [
+              {name: "api-server",       context: ".",          dockerfile: "DotNet/BuildingOS.ApiServer/Dockerfile",     group: "dotnet"},
+              {name: "connector-worker", context: ".",          dockerfile: "DotNet/BuildingOS.ConnectorWorker/Dockerfile", group: "dotnet"},
+              {name: "gateway-bridge",   context: ".",          dockerfile: "DotNet/BuildingOS.GatewayBridge/Dockerfile",  group: "dotnet"},
+              {name: "web-client",       context: "web-client", dockerfile: "web-client/Dockerfile",                       group: "web"}
+            ]
+            | map(select((.group == "dotnet" and $dotnet) or (.group == "web" and $web)))
+            | map(del(.group))')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Selected images: $(jq -r "[.[].name] | join(\", \") | if . == \"\" then \"(none)\" else . end" <<<"$matrix")" >> "$GITHUB_STEP_SUMMARY"
+
   build-and-push:
     name: Build & Push (${{ matrix.name }})
     needs: changes
-    if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+    # `needs` IS available to a job-level `if`, unlike `matrix`. An empty matrix is a hard error
+    # ("Matrix vector 'include' does not contain any values"), so the no-changes case has to be
+    # answered by not running the job at all rather than by running it with nothing to do.
+    if: needs.changes.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,23 +79,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: api-server
-            context: .
-            dockerfile: DotNet/BuildingOS.ApiServer/Dockerfile
-            changed: ${{ needs.changes.outputs.dotnet }}
-          - name: connector-worker
-            context: .
-            dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
-            changed: ${{ needs.changes.outputs.dotnet }}
-          - name: gateway-bridge
-            context: .
-            dockerfile: DotNet/BuildingOS.GatewayBridge/Dockerfile
-            changed: ${{ needs.changes.outputs.dotnet }}
-          - name: web-client
-            context: web-client
-            dockerfile: web-client/Dockerfile
-            changed: ${{ needs.changes.outputs['web-client'] }}
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v7
