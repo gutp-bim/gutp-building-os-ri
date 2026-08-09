@@ -1,11 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { canApplyImport, previewSummary, type TwinImportPreview } from "./twin-admin";
+import {
+  canApplyImport,
+  orphanReasonLabel,
+  previewSummary,
+  type TwinImportPreview,
+} from "./twin-admin";
 
-const valid: TwinImportPreview = { tripleCount: 100, gatewayCount: 3, collisions: [], valid: true };
+const valid: TwinImportPreview = {
+  tripleCount: 100,
+  gatewayCount: 3,
+  collisions: [],
+  orphanCount: 0,
+  orphans: [],
+  valid: true,
+};
 const invalid: TwinImportPreview = {
   tripleCount: 100,
   gatewayCount: 2,
   collisions: [{ gatewayId: "GW001", buildingCount: 2 }],
+  orphanCount: 0,
+  orphans: [],
+  valid: false,
+};
+const orphaned: TwinImportPreview = {
+  tripleCount: 100,
+  gatewayCount: 1,
+  collisions: [],
+  orphanCount: 2,
+  orphans: [
+    { resourceId: "urn:pt:1", reason: "no_device" },
+    { resourceId: "urn:pt:2", reason: "no_building_path" },
+  ],
   valid: false,
 };
 
@@ -19,6 +44,13 @@ describe("canApplyImport", () => {
   it("blocks when no preview yet", () => {
     expect(canApplyImport(null)).toBe(false);
   });
+  it("blocks orphans unless overridden", () => {
+    expect(canApplyImport(orphaned)).toBe(false);
+    expect(canApplyImport(orphaned, true)).toBe(true);
+  });
+  it("never lets the orphan override waive a collision", () => {
+    expect(canApplyImport({ ...invalid, orphanCount: 1 }, true)).toBe(false);
+  });
 });
 
 describe("previewSummary", () => {
@@ -28,5 +60,25 @@ describe("previewSummary", () => {
   });
   it("flags collisions", () => {
     expect(previewSummary(invalid)).toContain("gateway_id 重複 1 件");
+  });
+  it("flags orphans", () => {
+    expect(previewSummary(orphaned)).toContain("階層未接続 2 件");
+    expect(previewSummary(orphaned)).not.toContain("検証 OK");
+  });
+  it("flags both at once", () => {
+    const summary = previewSummary({ ...invalid, orphanCount: 3 });
+    expect(summary).toContain("gateway_id 重複 1 件");
+    expect(summary).toContain("階層未接続 3 件");
+  });
+});
+
+describe("orphanReasonLabel", () => {
+  it("labels the three missing links", () => {
+    expect(orphanReasonLabel("no_device")).toBe("デバイス未接続");
+    expect(orphanReasonLabel("no_room")).toBe("空間未接続（部屋・フロア未指定）");
+    expect(orphanReasonLabel("no_building_path")).toBe("フロア・建物へ到達不能");
+  });
+  it("passes an unknown reason through", () => {
+    expect(orphanReasonLabel("no_such_reason")).toBe("no_such_reason");
   });
 });

@@ -76,11 +76,40 @@ public class TwinAdminControllerTest
     }
 
     [Fact]
+    public async Task PreviewImport_PreviewsInTheRequestedMode()
+    {
+        // #291: an append is validated against the default graph it merges into, a replace against the
+        // staged triples alone — so the preview has to be told which one the operator picked, or it
+        // reports orphans the apply would not have.
+        var (c, svc, _) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, []));
+
+        var result = await c.PreviewImport(
+            new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
+
+        Assert.IsType<OkObjectResult>(result);
+        svc.Verify(s => s.PreviewImportAsync("ttl", TwinImportMode.Replace, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PreviewImport_DefaultsToAppend_WhenModeOmitted()
+    {
+        var (c, svc, _) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(1, 0, [], 0, []));
+
+        await c.PreviewImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
+
+        svc.Verify(s => s.PreviewImportAsync("ttl", TwinImportMode.Append, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task ApplyImport_Collision_Returns409_AndDoesNotApply()
     {
         var (c, svc, audit) = Build(Auth("admin"));
-        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(10, 1, [new GatewayCollision("GW001", 2)]));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [new GatewayCollision("GW001", 2)], 0, []));
 
         var result = await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
 
@@ -92,16 +121,73 @@ public class TwinAdminControllerTest
     }
 
     [Fact]
+    public async Task ApplyImport_Orphans_Returns409_AndDoesNotApply()
+    {
+        // #291: an import that leaves resources outside the building hierarchy is rejected by default.
+        var (c, svc, audit) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 2,
+                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoDevice),
+                 new TwinOrphanResource("urn:pt:2", TwinOrphanReasons.NoBuildingPath)]));
+
+        var result = await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        svc.Verify(s => s.ApplyImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()), Times.Never);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "import-apply" && r.Result == AdminAuditResult.Failure
+                && r.DetailJson!.Contains("\"orphanCount\":2") && r.DetailJson.Contains("\"allowOrphans\":false")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApplyImport_Orphans_WithOverride_Applies_AndAuditsTheOverride()
+    {
+        var (c, svc, audit) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 2,
+                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoRoom)]));
+
+        var result = await c.ApplyImport(
+            new TwinAdminController.TwinImportRequest { Turtle = "ttl", AllowOrphans = true }, default);
+
+        Assert.IsType<OkObjectResult>(result);
+        svc.Verify(s => s.ApplyImportAsync("ttl", TwinImportMode.Append, It.IsAny<CancellationToken>()), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "import-apply" && r.Result == AdminAuditResult.Success
+                && r.DetailJson!.Contains("\"orphanCount\":2") && r.DetailJson.Contains("\"allowOrphans\":true")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApplyImport_Collision_IsNotOverridableByAllowOrphans()
+    {
+        // The override waives the hierarchy check only — a gateway_id collision stays fatal.
+        var (c, svc, _) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [new GatewayCollision("GW001", 2)], 1,
+                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoDevice)]));
+
+        var result = await c.ApplyImport(
+            new TwinAdminController.TwinImportRequest { Turtle = "ttl", AllowOrphans = true }, default);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        svc.Verify(s => s.ApplyImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ApplyImport_Valid_AppliesWithMode_AndAuditsSuccess()
     {
         var (c, svc, audit) = Build(Auth("admin"));
-        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(10, 1, []));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, []));
 
         var result = await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
 
         Assert.IsType<OkObjectResult>(result);
         svc.Verify(s => s.ApplyImportAsync("ttl", TwinImportMode.Replace, It.IsAny<CancellationToken>()), Times.Once);
+        // The gate must be evaluated in the mode it gates (#291) — not under the append default.
+        svc.Verify(s => s.PreviewImportAsync("ttl", TwinImportMode.Replace, It.IsAny<CancellationToken>()), Times.Once);
         audit.Verify(a => a.RecordAsync(
             It.Is<AdminAuditRecord>(r => r.Action == "import-apply" && r.Result == AdminAuditResult.Success),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -111,8 +197,8 @@ public class TwinAdminControllerTest
     public async Task ApplyImport_DefaultsToAppend_WhenModeOmitted()
     {
         var (c, svc, _) = Build(Auth("admin"));
-        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(1, 0, []));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(1, 0, [], 0, []));
 
         await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
 
@@ -126,8 +212,8 @@ public class TwinAdminControllerTest
         revisions.Setup(store => store.BeginUpdateAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("revision store unavailable"));
         var (controller, twin, _) = Build(Auth("admin"), revisions.Object);
-        twin.Setup(service => service.PreviewImportAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(1, 1, []));
+        twin.Setup(service => service.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(1, 1, [], 0, []));
 
         var result = await controller.ApplyImport(
             new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);

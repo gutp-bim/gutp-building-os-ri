@@ -28,6 +28,8 @@ test.describe("Twin RDF import", () => {
       tripleCount: 42,
       gatewayCount: 1,
       collisions: [],
+      orphanCount: 0,
+      orphans: [],
       valid: true,
     });
     await page.route("**/api/admin/twin/import/apply", (route) =>
@@ -35,6 +37,8 @@ test.describe("Twin RDF import", () => {
         tripleCount: 42,
         gatewayCount: 1,
         collisions: [],
+        orphanCount: 0,
+        orphans: [],
         valid: true,
       }),
     );
@@ -64,6 +68,8 @@ test.describe("Twin RDF import", () => {
       tripleCount: 30,
       gatewayCount: 2,
       collisions: [{ gatewayId: "GW-DUP-001", buildingCount: 2 }],
+      orphanCount: 0,
+      orphans: [],
       valid: true,
     });
 
@@ -76,6 +82,32 @@ test.describe("Twin RDF import", () => {
     await expect(result).toContainText("GW-DUP-001");
     // A collision makes the twin invalid to apply — the button stays disabled.
     await expect(page.getByTestId("apply-button")).toBeDisabled();
+  });
+
+  test("blocks apply on unreachable resources until the operator overrides", async ({
+    page,
+  }) => {
+    // #291: 階層未接続は明示的な上書きでのみ適用できる。
+    await mockTwinPreview(page, {
+      tripleCount: 30,
+      gatewayCount: 1,
+      collisions: [],
+      orphanCount: 1,
+      orphans: [{ resourceId: "urn:pt:1", reason: "no_device" }],
+      valid: false,
+    });
+
+    await page.goto("/admin/twin");
+    await page.getByTestId("ttl-input").fill(VALID_TTL);
+    await page.getByTestId("preview-button").click();
+
+    const result = page.getByTestId("preview-result");
+    await expect(result).toContainText("階層未接続 1 件");
+    await expect(result).toContainText("デバイス未接続");
+    await expect(page.getByTestId("apply-button")).toBeDisabled();
+
+    await page.getByTestId("allow-orphans").check();
+    await expect(page.getByTestId("apply-button")).toBeEnabled();
   });
 
   test("surfaces a preview error instead of failing silently", async ({

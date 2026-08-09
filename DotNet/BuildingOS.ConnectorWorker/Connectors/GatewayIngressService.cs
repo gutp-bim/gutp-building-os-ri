@@ -18,8 +18,9 @@ namespace BuildingOS.ConnectorWorker.Connectors;
 /// validated telemetry straight to <c>building-os.validated.telemetry</c> — no raw.{protocol} hop
 /// and no per-protocol connector needed for this path.
 ///
-/// A frame with an unknown <c>point_id</c>, or whose <c>gateway_id</c> does not own that point in
-/// the twin, is skipped (logged + metered); the stream continues and <see cref="StreamAck"/>
+/// A frame with an unknown <c>point_id</c>, whose <c>gateway_id</c> does not own that point in the
+/// twin, or (opt-in, #292) whose point is not connected to the building hierarchy, is skipped
+/// (logged + metered); the stream continues and <see cref="StreamAck"/>
 /// counts only successfully-enqueued frames. The service is stateless, so Ingress pods scale
 /// horizontally. Enabled only when GRPC_INGRESS_PORT is set (see Program.cs).
 /// </summary>
@@ -27,6 +28,7 @@ public sealed class GatewayIngressService(
     IIngressTelemetryBus bus,
     IPointMetadataCache metadataCache,
     IngressIdentityOptions identity,
+    IngressHierarchyOptions hierarchy,
     ILogger<GatewayIngressService> logger) : Protos.GatewayIngress.GatewayIngressBase
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
@@ -121,6 +123,27 @@ public sealed class GatewayIngressService(
             logger.LogWarning("Ingress: gateway '{Gateway}' does not own point '{PointId}' (owner '{Owner}'), skipping",
                 frame.GatewayId, frame.PointId, meta.GatewayId);
             Count(frame.GatewayId, "gateway_mismatch");
+            return false;
+        }
+
+        // Hierarchy completeness (#292): a point the twin does not place under a building/device
+        // yields telemetry no resource view can navigate to. Both fields were already resolved with
+        // the cached metadata, so the check costs no extra query on the hot path. Opt-in — an
+        // incomplete twin (#118) must keep flowing by default, or a deployment mid-modelling would
+        // lose every reading.
+        //
+        // HasBuildingPath, not Building: the latter is the denormalized literal published as the
+        // telemetry's building field, which is not evidence of placement in the hierarchy.
+        var hierarchyDecision = IngressHierarchyPolicy.Check(hierarchy.Enforce, meta.HasBuildingPath, meta.DeviceId);
+        if (hierarchyDecision != IngressHierarchyDecision.Allow)
+        {
+            var reason = hierarchyDecision == IngressHierarchyDecision.RejectNoBuildingPath
+                ? "no_building_path"
+                : "no_device_link";
+            logger.LogWarning(
+                "Ingress: point '{PointId}' is not connected to the building hierarchy ({Reason}), skipping",
+                frame.PointId, reason);
+            Count(frame.GatewayId, reason);
             return false;
         }
 
