@@ -59,7 +59,7 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
         <urn:test:thx-pt> a sbco:PointExt ; sbco:id "THX-PT" ; sbco:name "THX Point" .
         """;
 
-    private OxiGraphTwinAdminService Service() => new(oxiGraph.Client);
+    private OxiGraphTwinAdminService Service() => new(oxiGraph.Client, new OxiGraphIngestMaterializer(oxiGraph.Client));
 
     public Task InitializeAsync() => oxiGraph.ClearAsync();
 

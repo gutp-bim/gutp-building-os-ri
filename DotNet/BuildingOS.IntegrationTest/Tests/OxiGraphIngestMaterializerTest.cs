@@ -1,5 +1,6 @@
 using BuildingOS.IntegrationTest.Common;
 using BuildingOS.IntegrationTest.Common.Fixtures;
+using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.OxiGraph;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
