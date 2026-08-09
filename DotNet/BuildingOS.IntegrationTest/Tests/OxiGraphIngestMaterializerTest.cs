@@ -120,6 +120,70 @@ public class OxiGraphIngestMaterializerTest(OxiGraphFixture oxiGraph)
         Assert.Empty(rows);
     }
 
+    // A second, independent twin fragment (different building/device/point ids) used to verify Append
+    // merges on top of whatever MaterializeAsync (Replace) already seeded, rather than requiring a
+    // clean store.
+    private const string SecondRecFragmentTtl = """
+        @prefix rec: <https://w3id.org/rec/> .
+        @prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+        <https://www.sbco.or.jp/ont/resource/bldg-rec-2> a rec:Building ;
+          sbco:id "REC-BLDG-2" ; rec:name "REC Annex" ;
+          rec:hasPart <https://www.sbco.or.jp/ont/resource/level-rec-3f> .
+        <https://www.sbco.or.jp/ont/resource/level-rec-3f> a rec:Level ;
+          sbco:id "3F" ; rec:name "3F" .
+        <https://www.sbco.or.jp/ont/resource/dev-rec-2> a sbco:EquipmentExt ;
+          sbco:id "REC-AHU-02" ; rec:name "AHU (appended)" ;
+          sbco:floor "3F" ;
+          rec:hasPoint <https://www.sbco.or.jp/ont/resource/pt-rec-2> .
+        <https://www.sbco.or.jp/ont/resource/pt-rec-2> a sbco:PointExt ;
+          sbco:id "REC-PT-02" ; rec:name "Return Air Temperature" ;
+          sbco:pointType "TemperatureSensor" ; sbco:pointSpecification "Measurement" ;
+          sbco:writable "false" ; sbco:gatewayId "GW-REC-02" ;
+          sbco:site "rec-site" ; sbco:building "REC-BLDG-2" .
+        """;
+
+    [Fact]
+    public async Task MaterializeAppendAsync_RecVocabularyFragment_MergesWithoutDroppingExistingTwin()
+    {
+        var materializer = new OxiGraphIngestMaterializer(oxiGraph.Client);
+        await materializer.MaterializeAsync(RecVocabularyTtl);
+        await materializer.MaterializeAppendAsync(SecondRecFragmentTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        // The originally-seeded (Replace) point is still there...
+        var original = await db.GetPointDetailByPointId("REC-PT-01");
+        Assert.NotNull(original);
+        Assert.Equal("REC Tower", original!.Device?.BuildingName);
+
+        // ...and the appended REC-vocabulary fragment is materialized and queryable too, exactly like
+        // the Replace path (the gap the review comment on #313 flagged: Append used to silently import
+        // rec:/brick: triples verbatim, invisible to this same sbco:-only read path).
+        var appended = await db.GetPointDetailByPointId("REC-PT-02");
+        Assert.NotNull(appended);
+        Assert.Equal("REC Annex", appended!.Device?.BuildingName);
+    }
+
+    [Fact]
+    public async Task MaterializeAppendAsync_DoesNotRetainStagingGraphAsProvenance()
+    {
+        var materializer = new OxiGraphIngestMaterializer(oxiGraph.Client);
+        await materializer.MaterializeAppendAsync(SecondRecFragmentTtl);
+
+        // Append staging graphs are per-call GUIDs, always dropped -- unlike Replace's fixed
+        // urn:bos:twin-source, there should be no leftover named graph after an append completes.
+        var rows = await oxiGraph.Client.QueryAsync("""
+            SELECT (COUNT(*) AS ?c) WHERE {
+              GRAPH ?g { ?s ?p ?o }
+              FILTER(STRSTARTS(STR(?g), "urn:bos:twin-append-source:"))
+            }
+            """);
+
+        Assert.Equal("0", rows[0]["c"]);
+    }
+
     private async Task Seed(string turtle)
     {
         var tmp = Path.GetTempFileName();

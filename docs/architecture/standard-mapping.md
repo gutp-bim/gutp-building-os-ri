@@ -175,10 +175,25 @@ REC/Brick（`rec:`/`brick:`）を正規語彙として出力する。一方 `Oxi
 
 これを解消するため、`OxiGraphIngestMaterializer`
 （`DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphIngestMaterializer.cs`）が
-**取り込み時（`OxiGraphSeedHostedService` の起動時シード、`OxiGraphTwinAdminService` の管理画面
-Replace インポート）に** 元RDFを名前付きグラフ（`urn:bos:twin-source`）へ一時保持したうえで、
-デフォルトグラフへ `sbco:`/`bos:` 正規形を再構築する。クエリ側（上記の実装群）は変更不要 —
+**取り込み時**（`OxiGraphSeedHostedService` の起動時シード、`OxiGraphTwinAdminService` の管理画面
+Replace/Append 双方のインポート）に元RDFを名前付きグラフへ一時保持したうえで、
+`sbco:`/`bos:` 正規形を再構築する。クエリ側（上記の実装群）は変更不要 —
 デフォルトグラフは常に取り込み語彙によらず正規形になるため。
+
+- **Replace**（`MaterializeAsync`）: 元RDFを固定グラフ `urn:bos:twin-source` へ保持（次回取り込み時に
+  上書き、監査目的で破棄しない）したうえで、デフォルトグラフを丸ごと再構築する。
+- **Append**（`MaterializeAppendAsync`）: 元RDFを追加ごとに使い捨てのグラフ
+  （`urn:bos:twin-append-source:{guid}`、完了後に必ず破棄）へ一時保持し、既存のデフォルトグラフは
+  クリアせずマテリアライズ結果のみを追加する。
+
+いずれも「グラフのクリア（Replaceのみ）＋コピースルー＋クラス/プロパティルール」を **1回の
+SPARQL UPDATE リクエスト（セミコロン区切りの複数ステートメント）** にまとめて送信する。OxiGraph は
+1リクエスト内の全ステートメントを単一トランザクションとして実行する（全ステートメント完了後に
+1回だけコミット）ため、同時実行の読み取りは「取り込み前の状態」か「取り込み後の状態」のどちらかしか
+観測できず、クリア直後・再構築途中のような中間状態を観測することはない。
+（OxiGraph は SPARQL 1.1 の `MOVE`/`ADD`/`COPY` グラフ管理操作を実装していない — `GraphUpdateOperation`
+の対応が `InsertData`/`DeleteData`/`DeleteInsert`/`Load`/`Clear`/`Create`/`Drop` のみであることを
+ソースで確認済み — ため、複数リクエストに分けず1リクエストにまとめる方式を採用している。）
 
 ### マテリアライズ対象（完全一致のみ・自動反映）
 

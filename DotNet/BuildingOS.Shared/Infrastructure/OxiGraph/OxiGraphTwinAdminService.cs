@@ -104,10 +104,7 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         }
         else
         {
-            // Append mode merges into whatever vocabulary the existing default graph already uses
-            // (materialization only runs on Replace, matching this repo's committed twin.ttl/sample
-            // fixtures being sbco:-native today; a REC-vocabulary append target is not yet supported).
-            await _client.ImportTurtleAsync(turtle, ct).ConfigureAwait(false);
+            await _materializer.MaterializeAppendAsync(turtle, ct).ConfigureAwait(false);
         }
     }
 
