@@ -1,11 +1,12 @@
 using BuildingOs.ApiServer.Controllers;
 using BuildingOs.ApiServer.Filters;
+using BuildingOs.ApiServer.Middlewares;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.UserManagement;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
@@ -21,17 +22,35 @@ namespace BuildingOS.ApiServer.Test;
 /// </summary>
 public class UserManagementUnavailableTest
 {
-    private static ExceptionContext ExceptionContextFor(Exception ex) =>
-        new(
+    private static ExceptionContext ExceptionContextFor(
+        Exception ex, string method = "PATCH", string actionName = "UpdateAttributes", string? id = "u1")
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Method = method;
+        http.Items[AuthorizationContextMiddleware.HttpContextKey] =
+            new AuthorizationContext { UserId = "actor", Role = "admin", Permissions = [] };
+
+        var route = new RouteData();
+        if (id is not null) route.Values["id"] = id;
+
+        return new ExceptionContext(
             new ActionContext(
-                new DefaultHttpContext(),
-                new RouteData(),
-                new ActionDescriptor(),
+                http,
+                route,
+                new ControllerActionDescriptor { ActionName = actionName },
                 new ModelStateDictionary()),
             new List<IFilterMetadata>())
         {
             Exception = ex,
         };
+    }
+
+    private static (UserManagementUnavailableExceptionFilter Filter, Mock<IAdminAuditRecorder> Audit) NewFilter()
+    {
+        var audit = new Mock<IAdminAuditRecorder>();
+        return (new UserManagementUnavailableExceptionFilter(
+            audit.Object, NullLogger<UserManagementUnavailableExceptionFilter>.Instance), audit);
+    }
 
     // ── Fallback service ─────────────────────────────────────────────────────
 
@@ -61,11 +80,11 @@ public class UserManagementUnavailableTest
     // ── Filter ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Filter_MapsUnavailableTo503()
+    public async Task Filter_MapsUnavailableTo503()
     {
         var context = ExceptionContextFor(new UserManagementUnavailableException("not configured"));
 
-        new UserManagementUnavailableFilter().OnException(context);
+        await NewFilter().Filter.OnExceptionAsync(context);
 
         Assert.True(context.ExceptionHandled);
         var result = Assert.IsType<ObjectResult>(context.Result);
@@ -73,14 +92,131 @@ public class UserManagementUnavailableTest
     }
 
     [Fact]
-    public void Filter_LeavesOtherExceptionsAlone()
+    public async Task Filter_LeavesOtherExceptionsAlone()
     {
         var context = ExceptionContextFor(new InvalidOperationException("something else"));
 
-        new UserManagementUnavailableFilter().OnException(context);
+        await NewFilter().Filter.OnExceptionAsync(context);
 
         Assert.False(context.ExceptionHandled);
         Assert.Null(context.Result);
+    }
+
+    // ── Filter: the 503 must always leave a trace ────────────────────────────
+    //
+    // The per-action catch blocks could only audit exceptions raised inside their try. The lockout
+    // guard's GetUsersAsync throws before it, so those requests returned 503 with no record at all —
+    // indistinguishable, afterwards, from a request nobody made.
+
+    [Fact]
+    public async Task Filter_RecordsAFailureAudit()
+    {
+        var (filter, audit) = NewFilter();
+        AdminAuditRecord? recorded = null;
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AdminAuditRecord, CancellationToken>((r, _) => recorded = r)
+            .Returns(Task.CompletedTask);
+
+        await filter.OnExceptionAsync(
+            ExceptionContextFor(new UserManagementUnavailableException("not configured")));
+
+        Assert.NotNull(recorded);
+        Assert.Equal(AdminAuditResult.Failure, recorded!.Result);
+        Assert.Equal(AdminAuditSubjects.User, recorded.SubjectType);
+        Assert.Equal("actor", recorded.ActorSub);
+        Assert.Equal("u1", recorded.TargetId);
+        // The name matches what the action used to write by hand, so existing audit queries still work.
+        Assert.Equal("set-attributes", recorded.Action);
+    }
+
+    // The audit log records mutations; a request that could not be served but never intended to
+    // change anything is not one. HEAD matters specifically: ASP.NET routes it to the same action
+    // as GET, so an "everything except GET" rule filed HEAD probes as refused mutations.
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("HEAD")]
+    [InlineData("OPTIONS")]
+    public async Task Filter_DoesNotAuditSafeMethods(string method)
+    {
+        var (filter, audit) = NewFilter();
+
+        await filter.OnExceptionAsync(ExceptionContextFor(
+            new UserManagementUnavailableException("not configured"), method: method, actionName: "GetAll"));
+
+        audit.Verify(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task Filter_AuditsEveryMutationVerb(string method)
+    {
+        var (filter, audit) = NewFilter();
+
+        await filter.OnExceptionAsync(ExceptionContextFor(
+            new UserManagementUnavailableException("not configured"), method: method, actionName: "SetEnabled"));
+
+        audit.Verify(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Filter_BoundsTheAuditWriteWithItsOwnTimeout()
+    {
+        // Not the request-abort token — a disconnected client must not erase the evidence — but
+        // still cancellable, so a wedged audit store cannot hold the 503 open indefinitely.
+        var (filter, audit) = NewFilter();
+        CancellationToken captured = default;
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AdminAuditRecord, CancellationToken>((_, ct) => captured = ct)
+            .Returns(Task.CompletedTask);
+
+        await filter.OnExceptionAsync(
+            ExceptionContextFor(new UserManagementUnavailableException("not configured")));
+
+        Assert.True(captured.CanBeCanceled);
+        Assert.False(captured.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task Filter_StillReturns503WhenAuditingFails()
+    {
+        // Auditing is best-effort: whatever goes wrong writing the record, the caller needs the 503.
+        var audit = new Mock<IAdminAuditRecorder>();
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("audit store down"));
+        var filter = new UserManagementUnavailableExceptionFilter(
+            audit.Object, NullLogger<UserManagementUnavailableExceptionFilter>.Instance);
+        var context = ExceptionContextFor(new UserManagementUnavailableException("not configured"));
+
+        await filter.OnExceptionAsync(context);
+
+        Assert.True(context.ExceptionHandled);
+        Assert.Equal(
+            StatusCodes.Status503ServiceUnavailable,
+            Assert.IsType<ObjectResult>(context.Result).StatusCode);
+    }
+
+    // A new action added to the controller is audited without anyone remembering to wire it up —
+    // the whole point of moving this out of the per-action catch blocks.
+    [Theory]
+    [InlineData("UpdateAttributes", "set-attributes")]
+    [InlineData("SetEnabled", "set-enabled")]
+    [InlineData("AddPermission", "add-permission")]
+    [InlineData("DeleteUser", "delete-user")]
+    public async Task Filter_DerivesAnActionNameForAnyAction(string actionName, string expected)
+    {
+        var (filter, audit) = NewFilter();
+        AdminAuditRecord? recorded = null;
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AdminAuditRecord, CancellationToken>((r, _) => recorded = r)
+            .Returns(Task.CompletedTask);
+
+        await filter.OnExceptionAsync(ExceptionContextFor(
+            new UserManagementUnavailableException("not configured"), actionName: actionName));
+
+        Assert.Equal(expected, recorded?.Action);
     }
 
     // ── Controller: the generic catch blocks must not swallow it into a 400 ──
@@ -177,8 +313,10 @@ public class UserManagementUnavailableTest
             "a request answered with 503 must not leave a resource-id mapping behind");
     }
 
+    // The failure audit is the filter's job (#303), so the controller must NOT also write one —
+    // otherwise a single refused request produces two records.
     [Fact]
-    public async Task UpdateAttributes_Unconfigured_RecordsAFailureAudit()
+    public async Task UpdateAttributes_Unconfigured_LeavesTheAuditToTheFilter()
     {
         var (controller, _, audit) = UnconfiguredControllerWithSpies();
 
@@ -191,10 +329,9 @@ public class UserManagementUnavailableTest
                 },
                 default));
 
-        // A rejected admin mutation that leaves no trace is indistinguishable from one never attempted.
         audit.Verify(
             a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Never);
     }
 
     [Fact]

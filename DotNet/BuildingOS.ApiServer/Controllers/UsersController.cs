@@ -128,12 +128,10 @@ public class UsersController : ControllerBase
         }
         catch (UserManagementUnavailableException)
         {
-            // Not a bad request — Keycloak admin is unconfigured, so nothing was attempted. Let the
-            // controller filter answer 503 rather than reporting it as a client error (#293).
-            // Still audit it: a rejected admin mutation that leaves no trace is indistinguishable
-            // from one that was never attempted.
-            await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
-                new { role = request.Role, error = "user management unavailable" }, ct).ConfigureAwait(false);
+            // Not a bad request — Keycloak admin is unconfigured. Rethrow past the catch-all below so
+            // UserManagementUnavailableFilter can answer 503 instead of reporting a deployment gap as
+            // a client error (#293). The filter also writes the failure audit, which is why there is
+            // none here: it covers the paths that throw before this try block too (#303).
             throw;
         }
         catch (Exception ex)
@@ -198,10 +196,7 @@ public class UsersController : ControllerBase
         }
         catch (UserManagementUnavailableException)
         {
-            // See UpdateAttributes: a configuration gap must surface as 503, not 400 (#293), and
-            // must still be audited.
-            await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
-                new { enabled = request.Enabled, error = "user management unavailable" }, ct).ConfigureAwait(false);
+            // See UpdateAttributes: 503 not 400, and the filter owns the audit (#293, #303).
             throw;
         }
         catch (Exception ex)
