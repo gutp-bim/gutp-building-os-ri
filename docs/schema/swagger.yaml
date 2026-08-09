@@ -2652,7 +2652,7 @@ paths:
     post:
       tags:
         - TwinAdmin
-      summary: 取込のプレビュー（件数 + gateway_id 一意性検証）。適用はしない。監査必須。管理者のみ。
+      summary: "取込のプレビュー（件数 + gateway_id 一意性 + 階層未接続検証）。適用はしない。階層未接続の判定は\nmode に依存する（append は既定グラフとの併合後、replace はステージングのみ）ため、適用予定と同じ\nmode を渡すこと。監査必須。管理者のみ。"
       requestBody:
         content:
           application/json:
@@ -2681,7 +2681,7 @@ paths:
     post:
       tags:
         - TwinAdmin
-      summary: 取込を適用する（append / replace）。gateway_id 一意性違反があれば 409 で拒否。監査必須。管理者のみ。
+      summary: "取込を適用する（append / replace）。gateway_id 一意性違反、および階層未接続リソース（#291）があれば\n409 で拒否。階層未接続のみ `allowOrphans` による明示的な上書きで適用できる（監査に記録される）。\n監査必須。管理者のみ。"
       requestBody:
         content:
           application/json:
@@ -2736,6 +2736,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:
@@ -2778,6 +2780,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:
@@ -2837,6 +2841,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:
@@ -2891,6 +2897,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:
@@ -2944,6 +2952,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:
@@ -3015,6 +3025,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:
@@ -3073,6 +3085,8 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: Service Unavailable
         '200':
           description: OK
           content:

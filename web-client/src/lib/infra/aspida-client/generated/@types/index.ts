@@ -485,7 +485,10 @@ export type TwinAdminControllerTwinImportRequest = {
   turtle?: string | undefined;
   /** "append" (default) or "replace". プレビューでも使う（階層未接続の判定範囲、#291）。 */
   mode?: string | null | undefined;
-  /** 階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。 gateway_id 一意性違反は上書きできない。 */
+  /**
+   * 階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。
+   * gateway_id 一意性違反は上書きできない。
+   */
   allowOrphans?: boolean | undefined;
 }
 
