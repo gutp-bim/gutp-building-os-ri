@@ -122,6 +122,26 @@ ControlSchema は OxiGraph（ポイントリスト）上の `sbco:PointExt` の 
 > `bos:` = `http://buildingos.gutp.jp/ontology#`。`ControlType`（送信プロトコル）の動的解決は
 > ゲートウェイ接続レジストリ（#154）が担い、Hono 固定は解消済み。
 
+### 制御範囲の正: ControlSchema（`bos:minValue` / `bos:maxValue`）（#298）
+
+number 型の**制御書き込み範囲の唯一の正は ControlSchema** であり、サーバ側の 400 判定
+（`ControlValueValidator`）もこれだけを見る。
+
+`sbco:minPresValue` / `sbco:maxPresValue`（`Point.MinPresValue` / `MaxPresValue`）は **BACnet
+オブジェクトの raw レンジ**であって制御範囲ではない。#298 で読み取り経路に配線したが、位置づけは
+**UI の表示上のフォールバック**に限る:
+
+| 状況 | UI が出す範囲 | サーバ検証 |
+|---|---|---|
+| ControlSchema が境界を持つ | その境界 | その境界で 400 判定 |
+| ControlSchema に境界が無い / スキーマ自体が無い | `min/maxPresValue`（境界ごとに独立してフォールバック） | 検証スキップ（従来どおり許容） |
+| どちらも無い | 範囲なし（入力を制限しない） | 検証スキップ |
+
+解決は `web-client/.../point-control-modal/resolve-control-range.ts`（純関数）に集約。ここを
+`?? 0` / `?? 100` にフォールバックさせてはならない — twin に正しい範囲があってもなくても
+常に 0〜100 と表示して送信していたのが #298 の実害だった。制御範囲を厳格にしたいポイントには
+`min/maxPresValue` ではなく **ControlSchema を付与する**こと。
+
 ---
 
 ## 3. フェールセーフ設定

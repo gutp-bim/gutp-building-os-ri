@@ -13,6 +13,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+const orUnset = (value: string | null | undefined) =>
+  value != null && value !== "" ? value : "未登録";
+
 export default function DeviceDetailPageComponent({
   deviceId,
 }: {
@@ -71,12 +74,19 @@ export default function DeviceDetailPageComponent({
         <>
           <div className="grow-2 rounded-lg bg-white p-4 shadow">
             <h2 className="mb-4 text-xl font-bold">{device.name}</h2>
+            {/* 値が無いときに "Owner : " と行末を空白のままにすると、未登録なのか
+                取得漏れなのかが運用者から区別できない。#294 の階層表示に揃えて明示する。 */}
             <div className="space-y-2 text-gray-700">
-              <div>Owner : {device.owner}</div>
-              <div>Site : {device.site}</div>
-              <div>Supplier : {device.supplier}</div>
-              <div>Gateway ID : {device.gatewayId}</div>
-              <div>Device Type : {toDisplayDeviceType(device.deviceType ?? "")}</div>
+              <div>Owner : {orUnset(device.owner)}</div>
+              <div>Site : {orUnset(device.site)}</div>
+              <div>Supplier : {orUnset(device.supplier)}</div>
+              <div>Gateway ID : {orUnset(device.gatewayId)}</div>
+              <div>
+                Device Type :{" "}
+                {orUnset(
+                  device.deviceType ? toDisplayDeviceType(device.deviceType) : null,
+                )}
+              </div>
             </div>
           </div>
 

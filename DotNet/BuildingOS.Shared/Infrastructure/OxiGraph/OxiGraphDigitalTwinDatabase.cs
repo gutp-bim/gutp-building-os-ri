@@ -132,29 +132,43 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
         // SAMPLE aggregates gatewayId across all points of a device for deterministic selection.
         if (string.IsNullOrEmpty(spaceDtId))
         {
-            var rows = await _client.QueryAsync(
-                $"{Prefixes} SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) WHERE {{ ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName . BIND(?dev AS ?devDt) OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }} }} GROUP BY ?devDt ?devId ?devName");
+            var rows = await _client.QueryAsync($@"{Prefixes}
+SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
+WHERE {{
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
+  BIND(?dev AS ?devDt)
+  OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
+}}
+GROUP BY ?devDt ?devId ?devName");
             return rows.Select(MapDevice).ToArray();
         }
 
-        var spaceRows = await _client.QueryAsync(
-            $"{Prefixes} SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) WHERE {{ ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName ; <{Prop_LocatedIn}> <{spaceDtId}> . BIND(?dev AS ?devDt) OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }} }} GROUP BY ?devDt ?devId ?devName");
+        var spaceRows = await _client.QueryAsync($@"{Prefixes}
+SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
+WHERE {{
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName ; <{Prop_LocatedIn}> <{spaceDtId}> .
+  BIND(?dev AS ?devDt)
+  OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
+}}
+GROUP BY ?devDt ?devId ?devName");
         return spaceRows.Select(MapDevice).ToArray();
     }
 
     public async Task<Device?> GetDevice(string dtId)
     {
-        // Single-resource query; SAMPLE not needed — DistinctBy handles any cross-product from OPTIONALs.
+        // Single-resource query; SAMPLE not needed — DistinctBy handles any cross-product from OPTIONALs
+        // and FirstBound picks the descriptive attributes the same way SAMPLE does for the list queries.
         var sparql = $@"{Prefixes}
-SELECT ?devId ?devName ?devGw ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
-  <{dtId}> a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
-  OPTIONAL {{ <{dtId}> <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?devGw . }}
+SELECT ?devId ?devName ?devGw {DeviceAttrRawVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  BIND(<{dtId}> AS ?dev)
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
+  OPTIONAL {{ ?dev <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?devGw . }}{DeviceAttrOptionals(dtId)}
   OPTIONAL {{
-    <{dtId}> <{Prop_Identifiers}> ?identEntry .
+    ?dev <{Prop_Identifiers}> ?identEntry .
     ?identEntry a <{Cls_KeyStringMapEntry}> ; <{Prop_Key}> ?identKey ; <{Prop_Value}> ?identVal .
   }}
   OPTIONAL {{
-    <{dtId}> <{Prop_CustomTags}> ?tagEntry .
+    ?dev <{Prop_CustomTags}> ?tagEntry .
     ?tagEntry a <{Cls_KeyBoolMapEntry}> ; <{Prop_Key}> ?tagKey ; <{Prop_Value}> ?tagBoolVal .
   }}
 }}";
@@ -165,7 +179,11 @@ SELECT ?devId ?devName ?devGw ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
             DtId = dtId,
             Id = rows[0].GetValueOrDefault("devId", ""),
             Name = rows[0].GetValueOrDefault("devName", ""),
-            GatewayId = rows.Select(r => r.GetValueOrDefault("devGw")).FirstOrDefault(g => g != null),
+            GatewayId = FirstBound(rows, "devGw"),
+            DeviceType = FirstBound(rows, "devTypeRaw"),
+            Supplier = FirstBound(rows, "supplierRaw"),
+            Owner = FirstBound(rows, "ownerRaw"),
+            Site = FirstBound(rows, "siteRaw"),
         };
         device.Identifiers = rows
             .Where(r => r.ContainsKey("identKey") && r.ContainsKey("identVal"))
@@ -192,22 +210,10 @@ SELECT ?devId ?devName ?devGw ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
         // returning less than the list it belongs to is the defect in #294 (?ptSpec / ?ptType /
         // ?ptGw and the thresholds were absent here, so MapPoint's GetValueOrDefault silently
         // yielded null and the detail screen showed "-" for metadata the twin actually held).
+        // Sharing PointVars/PointOptionals makes that a structural guarantee rather than a habit.
         var sparql = $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
-       ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
-  ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
-  OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
-  OPTIONAL {{ ?pt <{Prop_PointSpec}> ?ptSpec . }}
-  OPTIONAL {{ ?pt <{Prop_PointType}> ?ptType . }}
-  OPTIONAL {{ ?pt <{Prop_GatewayId}> ?ptGw . }}
-  OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
-  OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
-  OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
-  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
-  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
-  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
-  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
-  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
+SELECT {PointVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
+  ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .{PointOptionals}
   FILTER(?ptId = ""{EscapeStringLiteral(pointId)}"")
   BIND(?pt AS ?ptDt)
   OPTIONAL {{
@@ -247,12 +253,12 @@ SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType 
         // rows.
         var sparql = $@"{Prefixes}
 SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
-       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding)
+       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding) {DeviceAttrAggregates}
 WHERE {{
   ?dev <{Prop_HasPoint}> <{pointUri}> ;
        a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
   BIND(?dev AS ?devDt)
-  OPTIONAL {{ ?dev <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?gwRaw . }}
+  OPTIONAL {{ ?dev <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
   OPTIONAL {{
     ?dev <{Prop_LocatedIn}> ?space .
     BIND(?space AS ?spaceDt)
@@ -302,9 +308,9 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
         // point is in (#294). Its triple is OPTIONAL: the building is the query's input, and a nameless
         // one must not silently collapse the whole result the way a required triple would.
         var sparql = $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
-       ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow ?devBuilding
-       ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw)
+SELECT {PointVars} ?devBuilding
+       ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
+       (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
 WHERE {{
   OPTIONAL {{ <{buildingDtId}> <{Prop_Name}> ?devBuilding . }}
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
@@ -317,25 +323,12 @@ WHERE {{
     ?dev <{Prop_LocatedIn}> ?space .
     BIND(?space AS ?spaceDt)
     ?space <{Prop_Id}> ?spaceId ; <{Prop_Name}> ?spaceName .
-  }}
+  }}{DeviceAttrOptionals()}
   ?dev <{Prop_HasPoint}> ?pt .
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
-  BIND(?pt AS ?ptDt)
-  OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
-  OPTIONAL {{ ?pt <{Prop_PointSpec}> ?ptSpec . }}
-  OPTIONAL {{ ?pt <{Prop_PointType}> ?ptType . }}
-  OPTIONAL {{ ?pt <{Prop_GatewayId}> ?ptGw . }}
-  OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
-  OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
-  OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
-  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
-  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
-  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
-  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
-  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
+  BIND(?pt AS ?ptDt){PointOptionals}
 }}
-GROUP BY ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval
-         ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow ?devBuilding
+GROUP BY {PointVars} ?devBuilding
          ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
 
         var rows = await _client.QueryAsync(sparql);
@@ -354,7 +347,8 @@ GROUP BY ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objTyp
         // making this join OPTIONAL would remove building scoping and return all equipment everywhere.
         // Equipment without sbco:floor or with a mismatched floor literal will not appear.
         var sparql = $@"{Prefixes}
-SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName
+SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
+       ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName
 WHERE {{
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
@@ -366,7 +360,7 @@ WHERE {{
     ?dev <{Prop_LocatedIn}> ?space .
     BIND(?space AS ?spaceDt)
     ?space <{Prop_Id}> ?spaceId ; <{Prop_Name}> ?spaceName .
-  }}
+  }}{DeviceAttrOptionals()}
 }}
 GROUP BY ?devDt ?devId ?devName ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName";
 
@@ -527,12 +521,19 @@ ORDER BY ?gw";
             return await factory();
         }) ?? Array.Empty<T>();
 
-    private static string BuildPointSelect(string? deviceUri) => deviceUri is null
-        ? $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow
-WHERE {{
-  ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
-  BIND(?pt AS ?ptDt)
+    // ── shared point / device projections ────────────────────────────────────
+    //
+    // #294 and #298 are the same defect twice: the point SELECT was hand-copied into three query
+    // builders, they drifted, and a point carried different metadata depending on which endpoint
+    // returned it. These are the one definition every point read path composes, so wiring a new
+    // predicate reaches ListPoints, GetPoint and ListPointDetails together. Keep MapPoint's reads
+    // aligned with PointVars.
+    private const string PointVars =
+        "?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval " +
+        "?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow " +
+        "?ptUnit ?ptScale ?ptTargetArea ?ptInstallArea ?ptMinPres ?ptMaxPres";
+
+    private static readonly string PointOptionals = $@"
   OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
   OPTIONAL {{ ?pt <{Prop_PointSpec}> ?ptSpec . }}
   OPTIONAL {{ ?pt <{Prop_PointType}> ?ptType . }}
@@ -545,25 +546,80 @@ WHERE {{
   OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
   OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
   OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
+  OPTIONAL {{ ?pt <{Prop_Unit}> ?ptUnit . }}
+  OPTIONAL {{ ?pt <{Prop_Scale}> ?ptScale . }}
+  OPTIONAL {{ ?pt <{Prop_TargetArea}> ?ptTargetArea . }}
+  OPTIONAL {{ ?pt <{Prop_InstallationArea}> ?ptInstallArea . }}
+  OPTIONAL {{ ?pt <{Prop_MinPresValue}> ?ptMinPres . }}
+  OPTIONAL {{ ?pt <{Prop_MaxPresValue}> ?ptMaxPres . }}";
+
+    /// <summary>
+    /// Binds ?devTypeRaw / ?supplierRaw / ?ownerRaw / ?siteRaw for an already-bound ?dev (#298).
+    /// </summary>
+    /// <remarks>
+    /// sbco:deviceType / supplier / owner / site describe the equipment, but a CSV-derived twin
+    /// repeats them on every PointExt row because the point list is the import unit (see
+    /// Fixtures/SeedData/sbco-sample.ttl, where only deviceType also reaches the EquipmentExt).
+    /// So the equipment's own triple is read first and falls back to one of its points.
+    ///
+    /// The point-level lookup is an aggregating subquery rather than a plain join: the callers that
+    /// need this already walk ?dev→?gwPt (and, in ListPointDetails, ?dev→?pt), so a third
+    /// equipment→point join would multiply rather than add. The subquery collapses to one row per
+    /// device before the join, keeping the fan-out unchanged.
+    /// </remarks>
+    /// <param name="deviceUri">
+    /// Scopes the subquery when the caller already knows the equipment; otherwise it aggregates
+    /// once across the twin and joins on ?dev.
+    /// </param>
+    private static string DeviceAttrOptionals(string? deviceUri = null)
+    {
+        var scope = deviceUri is null ? "" : $"        VALUES ?dev {{ <{deviceUri}> }}\n";
+        return $@"
+  OPTIONAL {{ ?dev <{Prop_DeviceType}> ?devTypeOwn . }}
+  OPTIONAL {{ ?dev <{Prop_Supplier}> ?supplierOwn . }}
+  OPTIONAL {{ ?dev <{Prop_Owner}> ?ownerOwn . }}
+  OPTIONAL {{ ?dev <{Prop_Site}> ?siteOwn . }}
+  OPTIONAL {{
+    {{
+      SELECT ?dev (SAMPLE(?attrDevType) AS ?devTypePt) (SAMPLE(?attrSupplier) AS ?supplierPt)
+                  (SAMPLE(?attrOwner) AS ?ownerPt) (SAMPLE(?attrSite) AS ?sitePt)
+      WHERE {{
+{scope}        ?dev a <{Cls_Equipment}> ; <{Prop_HasPoint}> ?attrPt .
+        OPTIONAL {{ ?attrPt <{Prop_DeviceType}> ?attrDevType . }}
+        OPTIONAL {{ ?attrPt <{Prop_Supplier}> ?attrSupplier . }}
+        OPTIONAL {{ ?attrPt <{Prop_Owner}> ?attrOwner . }}
+        OPTIONAL {{ ?attrPt <{Prop_Site}> ?attrSite . }}
+      }}
+      GROUP BY ?dev
+    }}
+  }}
+  BIND(COALESCE(?devTypeOwn, ?devTypePt) AS ?devTypeRaw)
+  BIND(COALESCE(?supplierOwn, ?supplierPt) AS ?supplierRaw)
+  BIND(COALESCE(?ownerOwn, ?ownerPt) AS ?ownerRaw)
+  BIND(COALESCE(?siteOwn, ?sitePt) AS ?siteRaw)";
+    }
+
+    // Aggregate form for the GROUP BY queries; the ungrouped GetDevice projects the ?*Raw variables
+    // directly and picks the first bound row instead.
+    private const string DeviceAttrAggregates =
+        "(SAMPLE(?devTypeRaw) AS ?devType) (SAMPLE(?supplierRaw) AS ?devSupplier) " +
+        "(SAMPLE(?ownerRaw) AS ?devOwner) (SAMPLE(?siteRaw) AS ?devSite)";
+
+    private const string DeviceAttrRawVars = "?devTypeRaw ?supplierRaw ?ownerRaw ?siteRaw";
+
+    private static string BuildPointSelect(string? deviceUri) => deviceUri is null
+        ? $@"{Prefixes}
+SELECT {PointVars}
+WHERE {{
+  ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
+  BIND(?pt AS ?ptDt){PointOptionals}
 }}"
         : $@"{Prefixes}
-SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval ?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow
+SELECT {PointVars}
 WHERE {{
   <{deviceUri}> <{Prop_HasPoint}> ?pt .
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
-  BIND(?pt AS ?ptDt)
-  OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
-  OPTIONAL {{ ?pt <{Prop_PointSpec}> ?ptSpec . }}
-  OPTIONAL {{ ?pt <{Prop_PointType}> ?ptType . }}
-  OPTIONAL {{ ?pt <{Prop_GatewayId}> ?ptGw . }}
-  OPTIONAL {{ ?pt <{Prop_DeviceIdBacnet}> ?devIdBac . }}
-  OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
-  OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
-  OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
-  OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
-  OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
-  OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
-  OPTIONAL {{ ?pt <{Prop_WarnLow}> ?ptWarnLow . }}
+  BIND(?pt AS ?ptDt){PointOptionals}
 }}";
 
     private static BuildingOS.Shared.Point MapPoint(IReadOnlyDictionary<string, string> r) =>
@@ -580,12 +636,22 @@ WHERE {{
             ObjectTypeBacnet = r.GetValueOrDefault("objType"),
             InstanceNoBacnet = TryParseNullableInt(r.GetValueOrDefault("instNo")),
             Interval = TryParseNullableFloat(r.GetValueOrDefault("ptInterval")),
-            // #158 Phase 2a: opt-in alarm thresholds; absent for read paths that don't SELECT them
-            // (GetValueOrDefault → null), so only the device→points list carries them today.
+            // #158 Phase 2a: opt-in alarm thresholds.
             AlarmHigh = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmHigh")),
             AlarmLow = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmLow")),
             WarnHigh = TryParseNullableFloat(r.GetValueOrDefault("ptWarnHigh")),
             WarnLow = TryParseNullableFloat(r.GetValueOrDefault("ptWarnLow")),
+            // #298: descriptive metadata the seeds always carried but no query SELECTed, so every
+            // consumer read null — the chart dropped the unit and scale, the point tables showed an
+            // empty 対象エリア column, and the analog-control modal silently fell back to 0–100.
+            // Min/MaxPresValue are the BACnet raw span; the control-write range is ControlSchema
+            // (bos:minValue/maxValue) and stays authoritative — these are only its display fallback.
+            Unit = r.GetValueOrDefault("ptUnit"),
+            Scale = TryParseNullableFloat(r.GetValueOrDefault("ptScale")),
+            TargetArea = r.GetValueOrDefault("ptTargetArea"),
+            InstallationArea = r.GetValueOrDefault("ptInstallArea"),
+            MinPresValue = TryParseNullableInt(r.GetValueOrDefault("ptMinPres")),
+            MaxPresValue = TryParseNullableInt(r.GetValueOrDefault("ptMaxPres")),
         };
 
     private static Device MapDevice(IReadOnlyDictionary<string, string> r) =>
@@ -600,7 +666,18 @@ WHERE {{
             // was (#294). Populated by the two point-detail paths; still null for callers that do
             // not project ?devBuilding (ListDevices / GetDevice), where the building is not in scope.
             BuildingName = r.GetValueOrDefault("devBuilding"),
+            // #298: sourced from DeviceAttrOptionals — the equipment's own triple, else one of its
+            // points. Unassigned before, so the device screen printed "Owner : " with nothing after it.
+            DeviceType = r.GetValueOrDefault("devType"),
+            Supplier = r.GetValueOrDefault("devSupplier"),
+            Owner = r.GetValueOrDefault("devOwner"),
+            Site = r.GetValueOrDefault("devSite"),
         };
+
+    /// <summary>First non-empty binding of <paramref name="key"/> across rows — the ungrouped
+    /// equivalent of the SAMPLE() the GROUP BY queries use.</summary>
+    private static string? FirstBound(IReadOnlyList<IReadOnlyDictionary<string, string>> rows, string key)
+        => rows.Select(r => r.GetValueOrDefault(key)).FirstOrDefault(v => !string.IsNullOrEmpty(v));
 
     private static string EscapeStringLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
