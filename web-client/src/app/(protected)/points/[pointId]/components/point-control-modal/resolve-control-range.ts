@@ -31,6 +31,18 @@ export const resolveControlRange = (
     undefined,
 });
 
+/**
+ * 入力の初期値。分かっている境界の内側から始める。
+ *
+ * 素朴に `min ?? 0` とすると、下限が無く上限だけが負の点（例: 上限 -5）で初期値 0 が
+ * いきなり範囲外になる。0 が入るならそれを使い、入らなければ既知の境界に寄せる。
+ */
+export const initialControlValue = ({ min, max }: ControlRange): number => {
+  if (min != null) return min;
+  if (max != null && max < 0) return max;
+  return 0;
+};
+
 /** 範囲ラベル。片側だけ分かっている場合も、分かっている側だけを見せる。 */
 export const controlRangeLabel = ({
   min,

@@ -3,6 +3,7 @@ import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { useState } from "react";
 import {
   controlRangeLabel,
+  initialControlValue,
   resolveControlRange,
 } from "./resolve-control-range";
 
@@ -22,7 +23,7 @@ export function AnalogOutputControlModal({
   // 制御範囲の正は ControlSchema。詳細は resolve-control-range.ts を参照 (#298)。
   const { min, max } = resolveControlRange(pointDetail);
   const rangeLabel = controlRangeLabel({ min, max });
-  const [value, setValue] = useState(min ?? 0);
+  const [value, setValue] = useState(initialControlValue({ min, max }));
 
   const handleSubmit = async () => {
     await onControl(value);

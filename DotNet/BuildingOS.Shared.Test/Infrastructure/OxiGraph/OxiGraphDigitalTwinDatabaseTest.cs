@@ -129,19 +129,27 @@ public class OxiGraphDigitalTwinDatabaseTest
     // error. These assert by predicate that the shared projection reaches all three paths, so
     // wiring a predicate in one place and forgetting the rest fails here instead of in the UI.
 
+    // Matching on the bare local name would not actually test anything for several of these: the
+    // SPARQL also names variables after them, so `body.Contains("site")` is satisfied by the
+    // surviving `?siteOwn` / `?siteRaw` even when the triple pattern is gone — the exact deletion
+    // these tests exist to catch. Assert on the full predicate IRI as it is written into the query.
+    private const string SbcoNs = "https://www.sbco.or.jp/ont/";
+
     /// <summary>Point predicates every point read path is required to SELECT.</summary>
-    private static readonly string[] WiredPointPredicates = new[]
+    private static readonly string[] WiredPointPredicates =
     {
-        "writable", "pointSpecification", "pointType", "gatewayId", "interval",
-        "deviceIdBacnet", "objectTypeBacnet", "instanceNoBacnet",
+        SbcoNs + "writable", SbcoNs + "pointSpecification", SbcoNs + "pointType",
+        SbcoNs + "gatewayId", SbcoNs + "interval",
+        SbcoNs + "deviceIdBacnet", SbcoNs + "objectTypeBacnet", SbcoNs + "instanceNoBacnet",
         // #298: present in the seeds all along, but no query asked for them.
-        "unit", "scale", "targetArea", "installationArea", "minPresValue", "maxPresValue",
+        SbcoNs + "unit", SbcoNs + "scale", SbcoNs + "targetArea", SbcoNs + "installationArea",
+        SbcoNs + "minPresValue", SbcoNs + "maxPresValue",
     };
 
     /// <summary>Equipment predicates every device read path is required to SELECT (#298).</summary>
-    private static readonly string[] WiredDevicePredicates = new[]
+    private static readonly string[] WiredDevicePredicates =
     {
-        "deviceType", "supplier", "owner", "site",
+        SbcoNs + "deviceType", SbcoNs + "supplier", SbcoNs + "owner", SbcoNs + "site",
     };
 
     private static (OxiGraphDigitalTwinDatabase Db, CapturingHttpHandler Handler) BuildCapturingDb()
@@ -155,7 +163,9 @@ public class OxiGraphDigitalTwinDatabaseTest
     private static void AssertQueryRequests(string? body, string[] predicates, string readPath)
     {
         Assert.NotNull(body);
-        var missing = predicates.Where(p => !body!.Contains(p)).ToArray();
+        // Angle brackets included: the IRI must appear as a predicate position, not merely as a
+        // substring of some longer IRI.
+        var missing = predicates.Where(p => !body!.Contains($"<{p}>")).ToArray();
         Assert.True(
             missing.Length == 0,
             $"{readPath} does not SELECT: {string.Join(", ", missing)}");
