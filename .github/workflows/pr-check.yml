@@ -22,17 +22,42 @@ jobs:
     outputs:
       dotnet: ${{ steps.filter.outputs.dotnet }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          # A workflow-only PR used to match nothing here, so every job was skipped and the PR
+          # merged with CodeQL as its only real check — that is how #306 (harbor-push unable to
+          # load for a month) reached main. Workflow edits now get linted, and an edit to this
+          # file re-runs both suites because it is the thing deciding whether they run at all.
           filters: |
             dotnet:
               - 'DotNet/**'
               - 'proto/**'
+              - '.github/workflows/pr-check.yml'
             frontend:
               - 'web-client/**'
+              - '.github/workflows/pr-check.yml'
+            workflows:
+              - '.github/workflows/**'
+
+  # ── Workflow lint ─────────────────────────────────────────────
+  actionlint:
+    name: Workflow Lint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # actionlint catches the class of defect behind #306: a workflow that GitHub cannot load
+      # produces no failing check at all, only an absence of runs, so nothing surfaces it.
+      - name: Lint workflows
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
 
   # ── .NET build + unit tests ───────────────────────────────────
   dotnet-check:
