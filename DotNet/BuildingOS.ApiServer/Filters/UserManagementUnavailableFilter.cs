@@ -57,10 +57,17 @@ public sealed class UserManagementUnavailableExceptionFilter(
         context.ExceptionHandled = true;
     }
 
+    // How long the audit write may hold up the 503. The record matters, but the caller is waiting on
+    // a response that says the service is unavailable — an audit store that is itself unavailable
+    // must not turn that into a hang.
+    private static readonly TimeSpan AuditTimeout = TimeSpan.FromSeconds(5);
+
     private async Task TryAuditAsync(ExceptionContext context)
     {
-        // The audit log records mutations; a read that could not be served is not one.
-        if (HttpMethods.IsGet(context.HttpContext.Request.Method)) return;
+        // The audit log records mutations, and only the verbs that are one. Excluding GET alone was
+        // not enough: ASP.NET routes HEAD to the same action as GET, so a HEAD probe would have been
+        // filed as a refused mutation.
+        if (!IsMutation(context.HttpContext.Request.Method)) return;
 
         try
         {
@@ -74,9 +81,12 @@ public sealed class UserManagementUnavailableExceptionFilter(
                 AdminAuditResult.Failure,
                 JsonSerializer.Serialize(new { error = "user management unavailable" }));
 
-            // CancellationToken.None deliberately: the point of this record is that the operation was
-            // refused, and a client that has already disconnected must not erase the evidence.
-            await audit.RecordAsync(record, CancellationToken.None).ConfigureAwait(false);
+            // Deliberately not the request-abort token: the point of this record is that the
+            // operation was refused, and a client that has already disconnected must not erase the
+            // evidence. Bounded by its own timeout so a wedged audit store delays the 503 by at
+            // most AuditTimeout instead of indefinitely.
+            using var cts = new CancellationTokenSource(AuditTimeout);
+            await audit.RecordAsync(record, cts.Token).ConfigureAwait(false);
         }
         catch (Exception auditEx)
         {
@@ -85,6 +95,17 @@ public sealed class UserManagementUnavailableExceptionFilter(
             logger.LogError(auditEx, "Failed to record the user-management-unavailable audit entry");
         }
     }
+
+    /// <summary>
+    /// Whether the verb is one that changes state. An allowlist rather than "not GET": HEAD reaches
+    /// the same action as GET, and OPTIONS is answered by the framework — filing either as a refused
+    /// mutation would put entries in the audit log for requests that never intended to mutate.
+    /// </summary>
+    internal static bool IsMutation(string method) =>
+        HttpMethods.IsPost(method)
+        || HttpMethods.IsPut(method)
+        || HttpMethods.IsPatch(method)
+        || HttpMethods.IsDelete(method);
 
     /// <summary>
     /// The audit `action` for this request. The existing per-action audits use kebab-case verbs

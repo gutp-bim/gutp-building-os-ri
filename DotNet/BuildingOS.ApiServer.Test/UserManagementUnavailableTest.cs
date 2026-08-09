@@ -129,16 +129,54 @@ public class UserManagementUnavailableTest
         Assert.Equal("set-attributes", recorded.Action);
     }
 
-    [Fact]
-    public async Task Filter_DoesNotAuditReads()
+    // The audit log records mutations; a request that could not be served but never intended to
+    // change anything is not one. HEAD matters specifically: ASP.NET routes it to the same action
+    // as GET, so an "everything except GET" rule filed HEAD probes as refused mutations.
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("HEAD")]
+    [InlineData("OPTIONS")]
+    public async Task Filter_DoesNotAuditSafeMethods(string method)
     {
-        // The audit log records mutations; a GET that could not be served is not one.
         var (filter, audit) = NewFilter();
 
         await filter.OnExceptionAsync(ExceptionContextFor(
-            new UserManagementUnavailableException("not configured"), method: "GET", actionName: "GetAll"));
+            new UserManagementUnavailableException("not configured"), method: method, actionName: "GetAll"));
 
         audit.Verify(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task Filter_AuditsEveryMutationVerb(string method)
+    {
+        var (filter, audit) = NewFilter();
+
+        await filter.OnExceptionAsync(ExceptionContextFor(
+            new UserManagementUnavailableException("not configured"), method: method, actionName: "SetEnabled"));
+
+        audit.Verify(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Filter_BoundsTheAuditWriteWithItsOwnTimeout()
+    {
+        // Not the request-abort token — a disconnected client must not erase the evidence — but
+        // still cancellable, so a wedged audit store cannot hold the 503 open indefinitely.
+        var (filter, audit) = NewFilter();
+        CancellationToken captured = default;
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<AdminAuditRecord, CancellationToken>((_, ct) => captured = ct)
+            .Returns(Task.CompletedTask);
+
+        await filter.OnExceptionAsync(
+            ExceptionContextFor(new UserManagementUnavailableException("not configured")));
+
+        Assert.True(captured.CanBeCanceled);
+        Assert.False(captured.IsCancellationRequested);
     }
 
     [Fact]
