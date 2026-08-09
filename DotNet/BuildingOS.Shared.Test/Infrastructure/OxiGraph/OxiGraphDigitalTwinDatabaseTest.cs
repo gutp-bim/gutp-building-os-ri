@@ -163,9 +163,14 @@ public class OxiGraphDigitalTwinDatabaseTest
     private static void AssertQueryRequests(string? body, string[] predicates, string readPath)
     {
         Assert.NotNull(body);
-        // Angle brackets included: the IRI must appear as a predicate position, not merely as a
+        // OxiGraphClient posts the query as FormUrlEncodedContent, so the captured body is
+        // percent-encoded and the IRIs are unrecognisable in it (`<https://…>` arrives as
+        // `%3Chttps%3A%2F%2F…%3E`). Decode before matching. Bare local names happened to survive
+        // encoding, which is how the weaker version of this assertion looked like it worked.
+        var query = Uri.UnescapeDataString(body!);
+        // Angle brackets included: the IRI must appear in predicate position, not merely as a
         // substring of some longer IRI.
-        var missing = predicates.Where(p => !body!.Contains($"<{p}>")).ToArray();
+        var missing = predicates.Where(p => !query.Contains($"<{p}>")).ToArray();
         Assert.True(
             missing.Length == 0,
             $"{readPath} does not SELECT: {string.Join(", ", missing)}");
