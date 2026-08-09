@@ -747,7 +747,6 @@ export interface components {
             id: string;
             name: string;
             buildingName?: string | null;
-            /** Format: int32 */
             owner?: string | null;
             site?: string | null;
             supplier?: string | null;
