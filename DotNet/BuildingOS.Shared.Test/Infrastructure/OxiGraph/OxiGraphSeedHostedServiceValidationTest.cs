@@ -85,7 +85,8 @@ public class OxiGraphSeedHostedServiceValidationTest : IDisposable
         var handler = new MultiResponseHandler(sparqlJson, importStatus);
         var http = new HttpClient(handler);
         var oxiClient = new OxiGraphClient(http, "http://oxigraph:7878");
-        return new OxiGraphSeedHostedService(oxiClient, NullLogger<OxiGraphSeedHostedService>.Instance);
+        var materializer = new OxiGraphIngestMaterializer(oxiClient, NullLogger<OxiGraphIngestMaterializer>.Instance);
+        return new OxiGraphSeedHostedService(oxiClient, materializer, NullLogger<OxiGraphSeedHostedService>.Instance);
     }
 
     private string WriteTempJson(object template)

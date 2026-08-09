@@ -55,6 +55,9 @@ namespace BuildingOs.ApiServer
                 var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("oxigraph");
                 return new BuildingOS.Shared.Infrastructure.OxiGraph.OxiGraphClient(http, _envModule.OxiGraphEndpoint);
             });
+            // Materializes REC/Brick-vocabulary twin RDF into the sbco:/bos: canonical form the rest
+            // of the codebase queries against — see OxiGraphIngestMaterializer's doc comment.
+            services.AddSingleton<OxiGraphIngestMaterializer>();
 
             // Seed OxiGraph with pointlist RDF on startup (no-op when OXIGRAPH_SEED_TTL_PATH is unset)
             services.AddHostedService<OxiGraphSeedHostedService>();
@@ -66,6 +69,7 @@ namespace BuildingOs.ApiServer
             services.AddScoped<BuildingOS.Shared.Domain.TwinAdmin.ITwinAdminService>(
                 sp => new OxiGraphTwinAdminService(
                     sp.GetRequiredService<OxiGraphClient>(),
+                    sp.GetRequiredService<OxiGraphIngestMaterializer>(),
                     sp.GetRequiredService<ILogger<OxiGraphTwinAdminService>>()));
 
             // === Telemetry layer ===

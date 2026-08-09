@@ -70,6 +70,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
             await File.WriteAllTextAsync(tmp, replaceTtl);
             var svc = new OxiGraphSeedHostedService(
                 oxiGraph.Client,
+                new OxiGraphIngestMaterializer(oxiGraph.Client),
                 NullLogger<OxiGraphSeedHostedService>.Instance);
             await svc.RunAsync(tmp, null, CancellationToken.None);
         }
@@ -124,7 +125,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         {
             await File.WriteAllTextAsync(tmp, dupTtl);
             var svc = new OxiGraphSeedHostedService(
-                oxiGraph.Client, NullLogger<OxiGraphSeedHostedService>.Instance);
+                oxiGraph.Client, new OxiGraphIngestMaterializer(oxiGraph.Client), NullLogger<OxiGraphSeedHostedService>.Instance);
             // Import the dup seed, then validate → must throw.
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => svc.RunAsync(tmp, null, CancellationToken.None));
@@ -140,7 +141,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
     {
         // sbco-sample.ttl: GW001→bldg-1, GW002→bldg-2 (unique per building).
         var svc = new OxiGraphSeedHostedService(
-            oxiGraph.Client, NullLogger<OxiGraphSeedHostedService>.Instance);
+            oxiGraph.Client, new OxiGraphIngestMaterializer(oxiGraph.Client), NullLogger<OxiGraphSeedHostedService>.Instance);
 
         await svc.RunAsync(SampleTtlPath, null, CancellationToken.None); // must not throw
     }

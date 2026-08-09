@@ -75,6 +75,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
             new OxiGraphClient(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("oxigraph"),
                 oxiGraphEndpoint));
+        // Materializes REC/Brick-vocabulary twin RDF into the sbco:/bos: canonical form the rest of
+        // the codebase queries against — see OxiGraphIngestMaterializer's doc comment.
+        builder.Services.AddSingleton<OxiGraphIngestMaterializer>();
         // Point-list-update publisher (#224/push): seed import signals each gateway to revalidate.
         builder.Services.AddSingleton<IPointListUpdatePublisher>(sp =>
             new NatsPointListUpdatePublisher(sp.GetRequiredService<INatsConnection>()));
