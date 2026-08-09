@@ -342,6 +342,26 @@ actions, no RAG/vector DB.** Frontend: `src/lib/assistant/` (pure `buildAssistan
 3. Generated files land in `web-client/src/lib/gen/`
 4. Backend `.csproj` files auto-compile protos at build time
 
+### Twin read paths (`OxiGraphDigitalTwinDatabase`)
+
+Point and device metadata is only as complete as the SPARQL that asks for it, and `MapPoint` /
+`MapDevice` turn an un-SELECTed predicate into a silent `null` rather than an error — that is
+exactly how #294 and #298 happened. So the point projection is **one shared definition**
+(`PointVars` + `PointOptionals`) composed by `BuildPointSelect` / `GetPoint` / `ListPointDetails`,
+and the equipment attributes are one shared `DeviceAttrOptionals(...)` used by `ListDevices` /
+`GetDevice` / `ListDeviceDetails` / the two point-detail paths. **Wire a new predicate there, not in
+one query** — `OxiGraphDigitalTwinDatabaseTest` asserts by predicate that every read path requests
+the full set.
+
+`sbco:deviceType` / `supplier` / `owner` / `site` are read from the `EquipmentExt` first and fall
+back to one of its `PointExt` rows (an aggregating subquery, so the join stays 1:1): CSV-derived
+twins repeat them on every point row because the point list is the import unit.
+
+**Control range:** `bos:minValue` / `bos:maxValue` (ControlSchema) is the only authority for the
+control-write range — `ControlValueValidator` validates against it. `sbco:minPresValue` /
+`maxPresValue` are the BACnet raw span and are a **display-only fallback** in the UI. See
+`docs/architecture/oss-control-safety.md` §2.5 and `resolve-control-range.ts`.
+
 ### Authorization Model
 
 The `AuthorizationContext` (populated from the Keycloak JWT) carries `IsAdmin`, the user's role, and a list of permission strings. Permission strings follow the format `{resourceType}:{resourceId}:{actions}`. Resource IDs that are not group IDs are hashed (SHA-256 prefix) before storage.

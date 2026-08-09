@@ -40,15 +40,26 @@ function renderPage() {
   );
 }
 
+// twin (sbco:owner / site / supplier / deviceType) が持っている値を、API がそのまま返す形。
+// 以前のフィクスチャは owner/site/supplier を手で与え deviceType だけ空文字にしていたため、
+// 「twin にあるのにバックエンドが返していない」状態をこのテストは一切捕捉できていなかった (#298)。
 const device = {
   id: "device:1",
   dtId: "urn:dev:1",
   name: "AHU-1",
-  owner: "o",
-  site: "s",
-  supplier: "sup",
+  owner: "Building Management",
+  site: "site-1",
+  supplier: "VendorA",
   gatewayId: "GW-SOS-001",
-  deviceType: "",
+  deviceType: "Sensor",
+};
+
+// 未配線だった頃の応答＝記述メタデータが一切付かない形。
+const deviceWithoutMetadata = {
+  id: "device:1",
+  dtId: "urn:dev:1",
+  name: "AHU-1",
+  gatewayId: "GW-SOS-001",
 };
 
 beforeEach(() => {
@@ -71,6 +82,27 @@ describe("DeviceDetailPageComponent (#195)", () => {
     expect(link.tagName).toBe("A");
     expect(link).toHaveAttribute("href", "/points/point%3A1");
     expect(screen.getByText("AHU-1")).toBeInTheDocument();
+  });
+
+  it("renders the descriptive metadata the twin holds (#298)", async () => {
+    deviceGet.mockResolvedValueOnce(device);
+    pointsGet.mockResolvedValueOnce([]);
+    renderPage();
+
+    expect(await screen.findByText("Owner : Building Management")).toBeInTheDocument();
+    expect(screen.getByText("Site : site-1")).toBeInTheDocument();
+    expect(screen.getByText("Supplier : VendorA")).toBeInTheDocument();
+    expect(screen.getByText("Device Type : Sensor")).toBeInTheDocument();
+  });
+
+  it("says 未登録 instead of leaving the label trailing into nothing", async () => {
+    deviceGet.mockResolvedValueOnce(deviceWithoutMetadata);
+    pointsGet.mockResolvedValueOnce([]);
+    renderPage();
+
+    expect(await screen.findByText("Owner : 未登録")).toBeInTheDocument();
+    expect(screen.getByText("Supplier : 未登録")).toBeInTheDocument();
+    expect(screen.getByText("Device Type : 未登録")).toBeInTheDocument();
   });
 
   it("shows an inline error banner when the fetch fails", async () => {

@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - "DotNet/BuildingOS.ApiServer/**"
+      # The DTOs Swagger documents live in Shared, not ApiServer — a change to Point/Device alone
+      # never regenerated swagger.yaml, leaving the committed schema advertising properties the API
+      # no longer returns (#298/#299).
+      - "DotNet/BuildingOS.Shared/Domain/Entities/**"
+      - "DotNet/BuildingOS.Shared/Defines/Entities/**"
   workflow_dispatch:
 
 concurrency:
@@ -48,7 +53,7 @@ jobs:
       - name: Check for changes
         id: git-check
         run: |
-          git diff --exit-code docs/schema/swagger.yaml || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --exit-code docs/schema/swagger.yaml || echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push changes
         if: steps.git-check.outputs.changed == 'true'
