@@ -73,13 +73,19 @@ SBCO ではノード URI そのものが Digital Twins ID（DtId）を表す（�
 
 | SBCO プロパティ | 方向 | Brick | REC | IFC | DTDL (ADT) | ラベル |
 |----------------|------|-------|-----|-----|-----------|--------|
-| `sbco:hasPart` | Site→Building, Building→Level, Level→Room | `brick:isLocationOf`（逆） | `rec:isPartOf`（逆） | `IfcRelAggregates` | `hasPart` リレーションシップ | **部分一致**[^5] |
+| `sbco:hasPart` | Site→Building, Building→Level, Level→Room | `brick:isLocationOf`（逆） | `rec:hasPart` | `IfcRelAggregates` | `hasPart` リレーションシップ | **完全一致**[^5] |
+| `sbco:isPartOf` | Building→Site, Level→Building, Room→Level | `brick:hasLocation`（逆） | `rec:isPartOf` | — | `isPartOf` リレーションシップ | **完全一致**[^5] |
 | `sbco:locatedIn` | EquipmentExt→Room | `brick:isLocationOf` | `rec:locatedIn` | `IfcRelContainedInSpatialStructure` | `locatedIn` リレーションシップ | **完全一致**[^loc] |
-| `sbco:hasPoint` | EquipmentExt→PointExt | `brick:hasPoint` | —（直接対応なし） | —（直接対応なし） | `hasPoint` リレーションシップ | **完全一致**（Brick 準拠） |
+| `sbco:hasPoint` | EquipmentExt→PointExt | `brick:hasPoint` | `rec:hasPoint` | —（直接対応なし） | `hasPoint` リレーションシップ | **完全一致**[^hasPoint] |
 | `sbco:floor` | EquipmentExt→（Level 名の文字列） | —（命名規約） | — | — | — | **独自**[^floor] |
 
-[^5]: Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` 両方を文脈で使い分ける。`sbco:hasPart` は REC の構成関係（Site has Building has Level has Room）に相当し、REC の `rec:isPartOf` の逆方向。
+[^5]: **訂正（2026-08）**: 本表は以前 `sbco:hasPart` を REC の `rec:isPartOf` の逆方向として記載していたが誤り。
+smartbuilding_datamodels の LinkML 正本（`schema/building_model_owl.yaml`）では `hasPart` と `isPartOf` は
+それぞれ独立した直接スロット（`slot_uri: rec:hasPart` / `slot_uri: rec:isPartOf`）として定義されており、
+REC 側も `hasPart`/`isPartOf` を別個に持つ（相互に逆方向の関係ではあるが、SBCO↔REC 間ではどちらも直接対応）。
+Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` を文脈で使い分ける。
 [^loc]: SBCO サンプルデータ（TTL）によっては `sbco:Room` ノードや `sbco:locatedIn` 関係を含まない場合がある。その際、空間でフィルタするクエリは空を返し、詳細応答の space フィールドは空になる。
+[^hasPoint]: **訂正（2026-08）**: 本表は以前 REC 側を「直接対応なし」としていたが誤り。LinkML 正本の `hasPoint` slot は `slot_uri: rec:hasPoint` を持つ（Brick の `brick:hasPoint` と併記されているわけではなく、REC 側の直接対応として定義されている）。
 [^floor]: `sbco:floor` は EquipmentExt 上の**文字列リテラル**で、Level の `sbco:name` と突合して機器を階に紐づける（SBCO サンプルでは building → equipment の唯一の経路）。RDF リレーションシップではなく命名規約による結合のため独自。
 
 ---
@@ -160,7 +166,63 @@ SBCO ではノード URI そのものが Digital Twins ID（DtId）を表す（�
 
 ---
 
-## 6. `bos:` 残存拡張の根拠
+## 6. REC/Brick 語彙の受け入れ（マテリアライズ）
+
+上流パイプライン（smartbuilding_datamodels → smartbuilding_datamodel_builder）は建物階層を
+REC/Brick（`rec:`/`brick:`）を正規語彙として出力する。一方 `OxiGraphOntology.cs` および
+`ResourceSearchQueryBuilder.cs` / `OxiGraphDigitalTwinDatabase.cs` / `OxiGraphHierarchyResolver.cs` /
+#291・#292 の階層チェックは `sbco:`/`bos:` のみを前提に実装されている（100件超のクエリ箇所に及ぶ）。
+
+これを解消するため、`OxiGraphIngestMaterializer`
+（`DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphIngestMaterializer.cs`）が
+**取り込み時（`OxiGraphSeedHostedService` の起動時シード、`OxiGraphTwinAdminService` の管理画面
+Replace インポート）に** 元RDFを名前付きグラフ（`urn:bos:twin-source`）へ一時保持したうえで、
+デフォルトグラフへ `sbco:`/`bos:` 正規形を再構築する。クエリ側（上記の実装群）は変更不要 —
+デフォルトグラフは常に取り込み語彙によらず正規形になるため。
+
+### マテリアライズ対象（完全一致のみ・自動反映）
+
+§1・§2 の対応表のうち **完全一致** と判定されている行のみを対象とする。
+
+| REC/Brick | → | SBCO |
+|-----------|---|------|
+| `rec:Building` | → | `sbco:Building` |
+| `rec:Level` | → | `sbco:Level` |
+| `rec:locatedIn` | → | `sbco:locatedIn` |
+| `rec:name` | → | `sbco:name` |
+| `rec:hasPart` | → | `sbco:hasPart` |
+| `rec:hasPoint` | → | `sbco:hasPoint` |
+
+`sbco:`/`bos:` 語彙で既に表現されているトリプルはそのままコピースルーされる。各ルールは
+`FILTER NOT EXISTS` で保護されており、seed の再実行や再起動を跨いでも冪等。
+
+### 対象外（部分一致・HITL 承認待ち）
+
+以下は §1 で **部分一致** と判定されており、意味的等価性が SBCO/GUTP ワーキングによる HITL
+レビュー対象のため、**現時点ではマテリアライズしない**（コードで黙って承認したことにしない）。
+レビューが完了し次第、`OxiGraphIngestMaterializer` の `ClassRules`/`PropertyRules` に1行追加する。
+
+- `rec:Room` → `sbco:Room`
+- `brick:Equipment` → `sbco:EquipmentExt`
+- `brick:Point` → `sbco:PointExt`
+- `rec:id` → `sbco:id`
+
+> `Room` を除外している間、REC 語彙のみで表現された階層（Building/Level はマテリアライズされるが
+> Room が `sbco:Room` に反映されない）は Room 配下の機器・ポイントの一部クエリが空を返す場合がある。
+> §1 の脚注（`sbco:Room` は REC の `rec:Room` に準拠、IFC/Brick 側にのみ粒度差がある旨）を踏まえた
+> 承認が下り次第、優先してこの1行を追加する。
+
+### 元RDFの保持
+
+名前付きグラフ `urn:bos:twin-source` はマテリアライズ完了後も**破棄せず保持**する。次回の取り込み時に
+`PUT /store?graph=...`（全置換）で上書きされるため、常に「直近取り込んだツインの元RDF」を反映する
+（履歴として蓄積されるわけではない）。デフォルトグラフに対する通常のSPARQLクエリには現れないため、
+既存の実装への影響はない。監査・再エクスポート用途では `GRAPH <urn:bos:twin-source> { ... }` で
+明示的に問い合わせる。
+
+---
+
+## 7. `bos:` 残存拡張の根拠
 
 SBCO に等価語彙がないため `bos:` 名前空間に残している概念とその理由。
 
@@ -176,15 +238,17 @@ SBCO に等価語彙がないため `bos:` 名前空間に残している概念�
 
 ---
 
-## 7. 既存ドキュメントとの連結
+## 8. 既存ドキュメントとの連結
 
 | ドキュメント | 内容 | 本書との関係 |
 |------------|------|------------|
 | [`oss-sparql-mapping.md`](oss-sparql-mapping.md) | ADT クエリ → SBCO SPARQL 変換対照表 | ADT DTMI → SBCO クラス/プロパティのマッピング実装詳細 |
 | [`telemetry-specification.md`](telemetry-specification.md) | NATS 正規化済みメッセージ仕様 | §4 テレメトリフィールドの正本 |
 | `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphOntology.cs` | SBCO 名前空間・クラス・プロパティ定数 | 主オントロジーの実装正本 |
+| `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphIngestMaterializer.cs` | REC/Brick → SBCO マテリアライズルール | §6 の実装正本 |
 | `DotNet/BuildingOS.Shared/Defines/Schemas/` | JSON Schema（テレメトリエンティティの source of truth） | テレメトリ payload の実装形 |
 
 ---
 
-*更新: 2026-06-10（SBCO 主・`bos:` 残存拡張へ整合）/ HITL レビュー: SBCO ↔ 外部標準の意味的等価性は確認対象*
+*更新: 2026-08-09（REC/Brick 受け入れ用マテリアライズ層を追加、hasPart/isPartOf・hasPoint の REC 対応誤りを訂正）/
+HITL レビュー: SBCO ↔ 外部標準の意味的等価性は確認対象（§6 の部分一致行は特に要レビュー）*

@@ -12,7 +12,9 @@ public class OxiGraphTwinAdminServiceTest
     private static OxiGraphTwinAdminService Create(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
         var http = new HttpClient(new TwinAdminMockHandler(handler)) { BaseAddress = new Uri("http://oxi:7878") };
-        return new OxiGraphTwinAdminService(new OxiGraphClient(http, "http://oxi:7878"));
+        var client = new OxiGraphClient(http, "http://oxi:7878");
+        var materializer = new OxiGraphIngestMaterializer(client);
+        return new OxiGraphTwinAdminService(client, materializer);
     }
 
     private static HttpResponseMessage Bindings(params Dictionary<string, string>[] rows)

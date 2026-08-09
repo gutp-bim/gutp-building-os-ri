@@ -14,6 +14,7 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// </summary>
 public sealed class OxiGraphSeedHostedService(
     OxiGraphClient client,
+    OxiGraphIngestMaterializer materializer,
     ILogger<OxiGraphSeedHostedService> logger,
     IPointListUpdatePublisher? pointListUpdatePublisher = null) : IHostedService
 {
@@ -149,7 +150,7 @@ public sealed class OxiGraphSeedHostedService(
         try
         {
             var turtle = await File.ReadAllTextAsync(seedTtlPath, ct).ConfigureAwait(false);
-            await client.ReplaceDefaultGraphAsync(turtle, ct).ConfigureAwait(false);
+            await materializer.MaterializeAsync(turtle, ct).ConfigureAwait(false);
             logger.LogInformation("Imported OxiGraph seed RDF from {Path}", seedTtlPath);
         }
         catch (Exception ex)

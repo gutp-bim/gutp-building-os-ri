@@ -23,8 +23,9 @@ public class OxiGraphSeedHostedServicePointListPushTest
     {
         var handler = new SeedQueryRoutingHandler(gatewayIds: ["GW001", "GW002", "GW003"]);
         var client = new OxiGraphClient(new HttpClient(handler), "http://oxigraph:7878");
+        var materializer = new OxiGraphIngestMaterializer(client, NullLogger<OxiGraphIngestMaterializer>.Instance);
         var publisher = new RecordingPointListUpdatePublisher();
-        var service = new OxiGraphSeedHostedService(client, NullLogger<OxiGraphSeedHostedService>.Instance, publisher);
+        var service = new OxiGraphSeedHostedService(client, materializer, NullLogger<OxiGraphSeedHostedService>.Instance, publisher);
 
         await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
 
@@ -42,8 +43,9 @@ public class OxiGraphSeedHostedServicePointListPushTest
     {
         var handler = new SeedQueryRoutingHandler(gatewayIds: []);
         var client = new OxiGraphClient(new HttpClient(handler), "http://oxigraph:7878");
+        var materializer = new OxiGraphIngestMaterializer(client, NullLogger<OxiGraphIngestMaterializer>.Instance);
         var publisher = new RecordingPointListUpdatePublisher();
-        var service = new OxiGraphSeedHostedService(client, NullLogger<OxiGraphSeedHostedService>.Instance, publisher);
+        var service = new OxiGraphSeedHostedService(client, materializer, NullLogger<OxiGraphSeedHostedService>.Instance, publisher);
 
         await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
 
@@ -55,7 +57,8 @@ public class OxiGraphSeedHostedServicePointListPushTest
     {
         var handler = new SeedQueryRoutingHandler(gatewayIds: ["GW001"]);
         var client = new OxiGraphClient(new HttpClient(handler), "http://oxigraph:7878");
-        var service = new OxiGraphSeedHostedService(client, NullLogger<OxiGraphSeedHostedService>.Instance, pointListUpdatePublisher: null);
+        var materializer = new OxiGraphIngestMaterializer(client, NullLogger<OxiGraphIngestMaterializer>.Instance);
+        var service = new OxiGraphSeedHostedService(client, materializer, NullLogger<OxiGraphSeedHostedService>.Instance, pointListUpdatePublisher: null);
 
         await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
         // No exception + no publisher to assert against — reaching here is the assertion.
@@ -66,8 +69,9 @@ public class OxiGraphSeedHostedServicePointListPushTest
     {
         var handler = new SeedQueryRoutingHandler(gatewayIds: ["GW001", "GW002"]);
         var client = new OxiGraphClient(new HttpClient(handler), "http://oxigraph:7878");
+        var materializer = new OxiGraphIngestMaterializer(client, NullLogger<OxiGraphIngestMaterializer>.Instance);
         var publisher = new RecordingPointListUpdatePublisher { ThrowFor = "GW001" };
-        var service = new OxiGraphSeedHostedService(client, NullLogger<OxiGraphSeedHostedService>.Instance, publisher);
+        var service = new OxiGraphSeedHostedService(client, materializer, NullLogger<OxiGraphSeedHostedService>.Instance, publisher);
 
         await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
 

@@ -22,12 +22,16 @@ public sealed class OxiGraphTwinAdminService : ITwinAdminService
     private const int MaxOrphans = 1000;
 
     private readonly OxiGraphClient _client;
+    private readonly OxiGraphIngestMaterializer _materializer;
     private readonly ILogger<OxiGraphTwinAdminService> _logger;
 
     public OxiGraphTwinAdminService(
-        OxiGraphClient client, ILogger<OxiGraphTwinAdminService>? logger = null)
+        OxiGraphClient client,
+        OxiGraphIngestMaterializer materializer,
+        ILogger<OxiGraphTwinAdminService>? logger = null)
     {
         _client = client;
+        _materializer = materializer;
         _logger = logger ?? NullLogger<OxiGraphTwinAdminService>.Instance;
     }
 
@@ -96,10 +100,13 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     {
         if (mode == TwinImportMode.Replace)
         {
-            await _client.ReplaceDefaultGraphAsync(turtle, ct).ConfigureAwait(false);
+            await _materializer.MaterializeAsync(turtle, ct).ConfigureAwait(false);
         }
         else
         {
+            // Append mode merges into whatever vocabulary the existing default graph already uses
+            // (materialization only runs on Replace, matching this repo's committed twin.ttl/sample
+            // fixtures being sbco:-native today; a REC-vocabulary append target is not yet supported).
             await _client.ImportTurtleAsync(turtle, ct).ConfigureAwait(false);
         }
     }

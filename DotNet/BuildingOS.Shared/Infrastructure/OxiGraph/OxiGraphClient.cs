@@ -97,6 +97,16 @@ public class OxiGraphClient
         await UpdateAsync($"DROP GRAPH <{graphUri}>", ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Clear only the default graph (SPARQL <c>DROP DEFAULT</c>), leaving named graphs untouched.
+    /// Unlike <see cref="ReplaceDefaultGraphAsync"/>'s <c>DROP ALL</c>, this is safe to call while a
+    /// named graph is staged (e.g. <see cref="OxiGraphIngestMaterializer"/>'s source-of-truth graph).
+    /// </summary>
+    public async Task ClearDefaultGraphAsync(CancellationToken ct = default)
+    {
+        await UpdateAsync("DROP DEFAULT", ct).ConfigureAwait(false);
+    }
+
     private static IReadOnlyList<IReadOnlyDictionary<string, string>> ParseSparqlResults(string json)
     {
         using var doc = JsonDocument.Parse(json);
