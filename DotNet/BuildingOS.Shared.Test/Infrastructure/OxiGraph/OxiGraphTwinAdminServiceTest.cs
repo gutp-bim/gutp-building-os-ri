@@ -35,8 +35,9 @@ public class OxiGraphTwinAdminServiceTest
     // The orphan count and the orphan sample share one graph pattern; both mention ?reason.
     private static bool IsOrphanQuery(string sparql) => sparql.Contains("?reason");
 
-    // Runs a preview against a store that reports nothing, and hands back the staging graph URI plus
-    // the orphan-enumeration query, so a test can assert on the graph pattern the mode produced.
+    // Runs a preview against a store that reports nothing, and hands back the materialized staging
+    // graph URI plus the orphan-enumeration query, so a test can assert on the graph pattern the
+    // mode produced. Preview evaluates the same canonical graph that ApplyImport would write.
     private static async Task<(string Graph, string OrphanQuery)> CaptureOrphanQueryAsync(TwinImportMode mode)
     {
         var graph = "";
@@ -55,7 +56,7 @@ public class OxiGraphTwinAdminServiceTest
         });
 
         await service.PreviewImportAsync("ttl", mode);
-        return (graph, orphanQuery);
+        return ($"{graph}:materialized", orphanQuery);
     }
 
     [Fact]

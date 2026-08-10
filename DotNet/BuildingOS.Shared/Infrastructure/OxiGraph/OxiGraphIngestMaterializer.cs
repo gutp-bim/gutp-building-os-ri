@@ -15,12 +15,12 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// small set of <c>INSERT ... WHERE</c> statements that derive the missing <c>sbco:</c> triples into
 /// the default graph — so the rest of the codebase never has to change.
 ///
-/// Only the 完全一致 (exact-match) REC↔SBCO class/property pairs from
-/// <c>docs/architecture/standard-mapping.md</c> are materialized. The 部分一致 (partial-match) pairs
-/// (<c>Room</c>↔<c>rec:Room</c>, <c>EquipmentExt</c>↔<c>brick:Equipment</c>,
-/// <c>PointExt</c>↔<c>brick:Point</c>, ...) are intentionally excluded pending SBCO/GUTP
-/// working-group (HITL) sign-off — see that document's "マテリアライズルール" section. Add a rule
-/// here only once that review lands for it.
+/// The complete REC↔SBCO class/property pairs from
+/// <c>docs/architecture/standard-mapping.md</c> are materialized. This includes
+/// <c>rec:Room</c>→<c>sbco:Room</c>, whose formal <c>owl:equivalentClass</c> axiom is supplied by
+/// smartbuilding_datamodels. Partial-match pairs such as <c>brick:Equipment</c>→
+/// <c>sbco:EquipmentExt</c> and <c>brick:Point</c>→<c>sbco:PointExt</c> remain excluded pending
+/// SBCO/GUTP working-group (HITL) sign-off.
 ///
 /// <b>Atomicity</b>: every statement for one materialization pass (the graph clear/stage plus every
 /// copy-through/rule INSERT) is sent as a single semicolon-separated SPARQL UPDATE request, not one
@@ -51,6 +51,8 @@ public sealed class OxiGraphIngestMaterializer
     {
         (RecNs + "Building", OxiGraphOntology.Cls_Building),
         (RecNs + "Level", OxiGraphOntology.Cls_Level),
+        // smartbuilding_datamodels PR #34 defines sbco:Room owl:equivalentClass rec:Room.
+        (RecNs + "Room", OxiGraphOntology.Cls_Space),
     };
 
     private static readonly (string From, string To)[] PropertyRules =
@@ -126,20 +128,41 @@ public sealed class OxiGraphIngestMaterializer
         }
     }
 
+    /// <summary>
+    /// Materializes an already-staged source graph into an isolated named graph. Import preview uses
+    /// this to validate the same SBCO projection that an eventual apply will write, without touching
+    /// the default graph.
+    /// </summary>
+    internal async Task MaterializeNamedGraphAsync(
+        string sourceGraph, string targetGraph, CancellationToken ct = default)
+    {
+        var statements = new List<string> { $"DROP SILENT GRAPH <{targetGraph}>" };
+        AppendMaterializationStatements(statements, sourceGraph, targetGraph);
+        await _client.UpdateAsync(string.Join(" ;\n", statements), ct).ConfigureAwait(false);
+    }
+
     // Builds the copy-through + class/property rule INSERT statements reading from sourceGraph, and
     // appends them to `statements` (shared by both Replace, after a leading DROP DEFAULT, and Append).
-    private static void AppendMaterializationStatements(List<string> statements, string sourceGraph)
+    private static void AppendMaterializationStatements(
+        List<string> statements, string sourceGraph, string? targetGraph = null)
     {
+        string Insert(string triples) => targetGraph is null
+            ? $"INSERT {{ {triples} }}"
+            : $"INSERT {{ GRAPH <{targetGraph}> {{ {triples} }} }}";
+        string TargetPattern(string triples) => targetGraph is null
+            ? triples
+            : $"GRAPH <{targetGraph}> {{ {triples} }}";
+
         // Triples/types already expressed in sbco:/bos: vocabulary pass through unchanged — the
         // materialization rules below only need to cover the REC/Brick vocabulary gap.
         statements.Add($@"
-INSERT {{ ?s ?p ?o }}
+{Insert("?s ?p ?o")}
 WHERE {{
   GRAPH <{sourceGraph}> {{ ?s ?p ?o }}
   FILTER(STRSTARTS(STR(?p), ""{SbcoNs}"") || STRSTARTS(STR(?p), ""{BosNs}""))
 }}");
         statements.Add($@"
-INSERT {{ ?s a ?type }}
+{Insert("?s a ?type")}
 WHERE {{
   GRAPH <{sourceGraph}> {{ ?s a ?type }}
   FILTER(STRSTARTS(STR(?type), ""{SbcoNs}"") || STRSTARTS(STR(?type), ""{BosNs}""))
@@ -148,20 +171,20 @@ WHERE {{
         foreach (var (from, to) in ClassRules)
         {
             statements.Add($@"
-INSERT {{ ?s a <{to}> }}
+{Insert($"?s a <{to}>")}
 WHERE {{
   GRAPH <{sourceGraph}> {{ ?s a <{from}> }}
-  FILTER NOT EXISTS {{ ?s a <{to}> }}
+  FILTER NOT EXISTS {{ {TargetPattern($"?s a <{to}>")} }}
 }}");
         }
 
         foreach (var (from, to) in PropertyRules)
         {
             statements.Add($@"
-INSERT {{ ?s <{to}> ?o }}
+{Insert($"?s <{to}> ?o")}
 WHERE {{
   GRAPH <{sourceGraph}> {{ ?s <{from}> ?o }}
-  FILTER NOT EXISTS {{ ?s <{to}> ?o }}
+  FILTER NOT EXISTS {{ {TargetPattern($"?s <{to}> ?o")} }}
 }}");
         }
     }

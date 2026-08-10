@@ -59,6 +59,23 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
         <urn:test:thx-pt> a sbco:PointExt ; sbco:id "THX-PT" ; sbco:name "THX Point" .
         """;
 
+    // Standard upstream input: hierarchy and containment use REC, while Building OS-specific
+    // equipment/point fields remain SBCO. Preview must judge the graph that ApplyImport will
+    // materialize, otherwise it incorrectly reports the point as having no device.
+    private const string RecHierarchyTtl = """
+        @prefix rec: <https://w3id.org/rec/> .
+        @prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+        <urn:test:rec-building> a rec:Building ; sbco:id "REC-BLDG" ; rec:name "REC Building" ;
+          rec:hasPart <urn:test:rec-level> .
+        <urn:test:rec-level> a rec:Level ; sbco:id "REC-LVL" ; rec:name "REC Level" ;
+          rec:hasPart <urn:test:rec-room> .
+        <urn:test:rec-room> a rec:Room ; sbco:id "REC-ROOM" ; rec:name "REC Room" .
+        <urn:test:rec-equipment> a sbco:EquipmentExt ; sbco:id "REC-EQ" ; sbco:name "REC AHU" ;
+          rec:locatedIn <urn:test:rec-room> ; rec:hasPoint <urn:test:rec-point> .
+        <urn:test:rec-point> a sbco:PointExt ; sbco:id "REC-PT" ; sbco:name "REC Point" .
+        """;
+
     private OxiGraphTwinAdminService Service() => new(oxiGraph.Client, new OxiGraphIngestMaterializer(oxiGraph.Client));
 
     public Task InitializeAsync() => oxiGraph.ClearAsync();
@@ -121,6 +138,16 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
         Assert.Equal("urn:test:thx-pt", orphan.ResourceId);
         Assert.Equal(TwinOrphanReasons.NoRoom, orphan.Reason);
         Assert.False(preview.Valid);
+    }
+
+    [Fact]
+    public async Task PreviewImport_Replace_RecRoomHierarchy_IsNotOrphaned()
+    {
+        var preview = await Service().PreviewImportAsync(RecHierarchyTtl, TwinImportMode.Replace);
+
+        Assert.Equal(0, preview.OrphanCount);
+        Assert.Empty(preview.Orphans);
+        Assert.True(preview.Valid);
     }
 
     [Fact]
