@@ -45,7 +45,7 @@ SBCO ではノード URI そのものが Digital Twins ID（DtId）を表す（�
 | `sbco:Site` | —（旧実装になし） | `brick:Site` | `rec:Site` | `IfcSite` | `dtmi:org:w3id:rec:Site;1` | **部分一致**[^site] |
 | `sbco:Building` | `bos:Building` | `brick:Building` | `rec:Building` | `IfcBuilding` | `dtmi:org:w3id:rec:Building;1` | **完全一致** |
 | `sbco:Level` | `bos:Level` | `brick:Floor` | `rec:Level` | `IfcBuildingStorey` | `dtmi:org:w3id:rec:Level;1` | **完全一致** |
-| `sbco:Room` | `bos:Room` | `brick:Room` | `rec:Room` | `IfcSpace` | `dtmi:org:w3id:rec:Room;1` | **部分一致**[^1] |
+| `sbco:Room` | `bos:Room` | `brick:Room` | `rec:Room` | `IfcSpace` | `dtmi:org:w3id:rec:Room;1` | **REC と完全一致**[^1] |
 
 `sbco:Building` / `sbco:Level` / `sbco:Room` は SBCO の Architecture → Space サブクラス階層に属し、
 **`Ext` サフィックスを持たない**（`sbco:SpaceExt` は存在しないため空間ノードには `sbco:Room` を用いる）。
@@ -203,6 +203,7 @@ SPARQL UPDATE リクエスト（セミコロン区切りの複数ステートメ
 |-----------|---|------|
 | `rec:Building` | → | `sbco:Building` |
 | `rec:Level` | → | `sbco:Level` |
+| `rec:Room` | → | `sbco:Room` |
 | `rec:locatedIn` | → | `sbco:locatedIn` |
 | `rec:name` | → | `sbco:name` |
 | `rec:hasPart` | → | `sbco:hasPart` |
@@ -217,15 +218,13 @@ SPARQL UPDATE リクエスト（セミコロン区切りの複数ステートメ
 レビュー対象のため、**現時点ではマテリアライズしない**（コードで黙って承認したことにしない）。
 レビューが完了し次第、`OxiGraphIngestMaterializer` の `ClassRules`/`PropertyRules` に1行追加する。
 
-- `rec:Room` → `sbco:Room`
 - `brick:Equipment` → `sbco:EquipmentExt`
 - `brick:Point` → `sbco:PointExt`
 - `rec:id` → `sbco:id`
 
-> `Room` を除外している間、REC 語彙のみで表現された階層（Building/Level はマテリアライズされるが
-> Room が `sbco:Room` に反映されない）は Room 配下の機器・ポイントの一部クエリが空を返す場合がある。
-> §1 の脚注（`sbco:Room` は REC の `rec:Room` に準拠、IFC/Brick 側にのみ粒度差がある旨）を踏まえた
-> 承認が下り次第、優先してこの1行を追加する。
+> `rec:Room` → `sbco:Room` は、上流 `smartbuilding_datamodels` の
+> `sbco:Room owl:equivalentClass rec:Room` を根拠に materialize 対象とする。IFC/Brick 側には
+> 粒度差が残るため、これらを根拠とした別クラスの自動マッピングは引き続き HITL 承認待ちとする。
 
 ### 元RDFの保持
 
@@ -265,5 +264,5 @@ SBCO に等価語彙がないため `bos:` 名前空間に残している概念�
 
 ---
 
-*更新: 2026-08-09（REC/Brick 受け入れ用マテリアライズ層を追加、hasPart/isPartOf・hasPoint の REC 対応誤りを訂正）/
+*更新: 2026-08-10（`rec:Room` → `sbco:Room` を上流の正式な `owl:equivalentClass` 定義に基づき materialize 対象へ追加）/
 HITL レビュー: SBCO ↔ 外部標準の意味的等価性は確認対象（§6 の部分一致行は特に要レビュー）*

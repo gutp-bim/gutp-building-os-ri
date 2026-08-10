@@ -7,8 +7,9 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 
 /// <summary>
 /// <see cref="ITwinAdminService"/> over <see cref="OxiGraphClient"/> (#322). Import preview stages the
-/// Turtle in a temporary named graph, runs scoped count/uniqueness queries, then drops the staging
-/// graph — so a destructive replace is validated before it touches the default graph.
+/// Turtle and materializes it into a second temporary named graph before running scoped
+/// count/uniqueness queries; both graphs are then dropped, so a destructive replace is validated
+/// before it touches the default graph.
 /// </summary>
 public sealed class OxiGraphTwinAdminService : ITwinAdminService
 {
@@ -39,19 +40,25 @@ public sealed class OxiGraphTwinAdminService : ITwinAdminService
         string turtle, TwinImportMode mode, CancellationToken ct = default)
     {
         var graph = $"urn:bos:import-preview:{Guid.NewGuid():N}";
+        var materializedGraph = $"{graph}:materialized";
         await _client.LoadNamedGraphAsync(graph, turtle, ct).ConfigureAwait(false);
         try
         {
+            // Preview must validate the normalized graph ApplyImport will leave behind. In particular,
+            // a standard REC hierarchy uses rec:Room/hasPart/locatedIn, while all hierarchy checks
+            // below intentionally query only canonical sbco: terms.
+            await _materializer.MaterializeNamedGraphAsync(graph, materializedGraph, ct).ConfigureAwait(false);
+
             var triples = await ScalarCountAsync(
                 $"SELECT (COUNT(*) AS ?n) WHERE {{ GRAPH <{graph}> {{ ?s ?p ?o }} }}", ct).ConfigureAwait(false);
 
             var gateways = await ScalarCountAsync(
-                $"SELECT (COUNT(DISTINCT ?gw) AS ?n) WHERE {{ GRAPH <{graph}> {{ ?pt <{Sbco}gatewayId> ?gw }} }}",
+                $"SELECT (COUNT(DISTINCT ?gw) AS ?n) WHERE {{ GRAPH <{materializedGraph}> {{ ?pt <{Sbco}gatewayId> ?gw }} }}",
                 ct).ConfigureAwait(false);
 
             var collisionRows = await _client.QueryAsync($@"
 SELECT ?gw (COUNT(DISTINCT ?b) AS ?n) WHERE {{
-  GRAPH <{graph}> {{ ?pt a <{Sbco}PointExt> ; <{Sbco}gatewayId> ?gw ; <{Sbco}building> ?b . }}
+  GRAPH <{materializedGraph}> {{ ?pt a <{Sbco}PointExt> ; <{Sbco}gatewayId> ?gw ; <{Sbco}building> ?b . }}
 }}
 GROUP BY ?gw
 HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
@@ -65,7 +72,7 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
             // Hierarchy completeness (#291): count every unreachable point, then enumerate a capped
             // sample of them for display — a bulk import can orphan far more points than are useful
             // (or affordable) to ship back in the preview response.
-            var orphanPattern = OrphanPattern(graph, mode);
+            var orphanPattern = OrphanPattern(materializedGraph, mode);
             var orphanTotal = await ScalarCountAsync(
                 $"SELECT (COUNT(DISTINCT ?pt) AS ?n) WHERE {{ {orphanPattern} }}", ct).ConfigureAwait(false);
 
@@ -83,15 +90,18 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         }
         finally
         {
-            // Always discard the staging graph, even if validation queries throw. Swallow cleanup
-            // errors so they never mask the original validation exception (best-effort cleanup).
-            try
+            // Always discard both the raw and normalized staging graphs, even if validation queries
+            // throw. Swallow cleanup errors so they never mask the original validation exception.
+            foreach (var stagedGraph in new[] { materializedGraph, graph })
             {
-                await _client.DropNamedGraphAsync(graph, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to drop import-preview staging graph {Graph}", graph);
+                try
+                {
+                    await _client.DropNamedGraphAsync(stagedGraph, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to drop import-preview staging graph {Graph}", stagedGraph);
+                }
             }
         }
     }
