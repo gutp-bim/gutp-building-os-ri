@@ -12,4 +12,5 @@ import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
  */
 export const getControlProtocol = (
   pointDetail: PointDetail,
-): "BACnet" | null => getCollectionProtocol(pointDetail.point);
+): "BACnet" | null =>
+  getCollectionProtocol(pointDetail.point) === "BACnet" ? "BACnet" : null;

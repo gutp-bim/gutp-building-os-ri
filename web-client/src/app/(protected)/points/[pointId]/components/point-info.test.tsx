@@ -81,4 +81,30 @@ describe("PointInfo missing metadata (#294)", () => {
     expect(screen.getByText("On_Off_Status")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
   });
+
+  it("shows MQTT protocol, concrete topic, unit, and interval from point metadata", () => {
+    render(
+      <PointInfo
+        pointDetail={
+          {
+            ...unresolvedPointDetail,
+            point: {
+              ...unresolvedPointDetail.point,
+              protocol: "mqtt",
+              localId: "takenaka.co.jp/Tokyo/THX/HVAC/temp/R",
+              unit: "Cel",
+              interval: 300,
+            },
+          } as unknown as PointDetail
+        }
+      />,
+    );
+
+    expect(screen.getByText("MQTT")).toBeInTheDocument();
+    expect(
+      screen.getByText("takenaka.co.jp/Tokyo/THX/HVAC/temp/R"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cel")).toBeInTheDocument();
+    expect(screen.getByText("300 s")).toBeInTheDocument();
+  });
 });

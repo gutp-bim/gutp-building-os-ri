@@ -96,6 +96,28 @@ public class OxiGraphPointDetailMetadataTest
         Assert.Equal("GW-THX-001", point.GatewayName);
     }
 
+    [Fact]
+    public async Task GetPoint_MapsConcreteMqttTopicAndResolvedProtocol()
+    {
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""ptDt"": {""type"":""uri"",""value"":""urn:dtid:pt1""},
+      ""ptId"": {""type"":""literal"",""value"":""PT-MQTT-001""},
+      ""ptName"": {""type"":""literal"",""value"":""Room Temperature""},
+      ""ptLocalId"": {""type"":""literal"",""value"":""takenaka.co.jp/Tokyo/THX/HVAC/temp/R""},
+      ""ptUnit"": {""type"":""literal"",""value"":""Cel""},
+      ""ptInterval"": {""type"":""literal"",""value"":""300""} }
+  ]}}");
+
+        var point = await db.GetPoint("PT-MQTT-001");
+
+        Assert.NotNull(point);
+        Assert.Equal("takenaka.co.jp/Tokyo/THX/HVAC/temp/R", point!.LocalId);
+        Assert.Equal("mqtt", point.Protocol); // inferred from the concrete local-id shape
+        Assert.Equal("Cel", point.Unit);
+        Assert.Equal(300, point.Interval);
+    }
+
     // Building reachability accepts either the spatial chain or the sbco:floor literal join, matching
     // the orphan definition settled in #291 Phase 1. Requiring only the spatial chain would leave
     // BuildingName null for every twin that models no Rooms — which this repository permits, and

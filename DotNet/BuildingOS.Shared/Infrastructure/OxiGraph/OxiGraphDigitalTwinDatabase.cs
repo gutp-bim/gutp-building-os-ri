@@ -568,7 +568,7 @@ ORDER BY ?gw";
     // predicate reaches ListPoints, GetPoint and ListPointDetails together. Keep MapPoint's reads
     // aligned with PointVars.
     private const string PointVars =
-        "?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval " +
+        "?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval ?ptLocalId ?ptProtocol " +
         "?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow " +
         "?ptUnit ?ptScale ?ptTargetArea ?ptInstallArea ?ptMinPres ?ptMaxPres";
 
@@ -581,6 +581,8 @@ ORDER BY ?gw";
   OPTIONAL {{ ?pt <{Prop_ObjectTypeBacnet}> ?objType . }}
   OPTIONAL {{ ?pt <{Prop_InstanceNoBacnet}> ?instNo . }}
   OPTIONAL {{ ?pt <{Prop_Interval}> ?ptInterval . }}
+  OPTIONAL {{ ?pt <{Prop_LocalId}> ?ptLocalId . }}
+  OPTIONAL {{ ?pt <{Prop_Protocol}> ?ptProtocol . }}
   OPTIONAL {{ ?pt <{Prop_AlarmHigh}> ?ptAlarmHigh . }}
   OPTIONAL {{ ?pt <{Prop_AlarmLow}> ?ptAlarmLow . }}
   OPTIONAL {{ ?pt <{Prop_WarnHigh}> ?ptWarnHigh . }}
@@ -675,7 +677,13 @@ WHERE {{
             ObjectTypeBacnet = r.GetValueOrDefault("objType"),
             InstanceNoBacnet = TryParseNullableInt(r.GetValueOrDefault("instNo")),
             Interval = TryParseNullableFloat(r.GetValueOrDefault("ptInterval")),
-
+            LocalId = r.GetValueOrDefault("ptLocalId"),
+            Protocol = GatewayPointProtocolResolver.Resolve(
+                r.GetValueOrDefault("ptProtocol"),
+                r.GetValueOrDefault("devIdBac"),
+                r.GetValueOrDefault("objType"),
+                r.GetValueOrDefault("instNo"),
+                r.GetValueOrDefault("ptLocalId")),
             // #158 Phase 2a: opt-in alarm thresholds.
             AlarmHigh = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmHigh")),
             AlarmLow = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmLow")),
