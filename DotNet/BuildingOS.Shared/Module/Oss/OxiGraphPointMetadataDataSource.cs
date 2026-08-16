@@ -14,9 +14,8 @@ public sealed class OxiGraphPointMetadataDataSource(OxiGraphClient client) : IPo
     //
     // The traversal mirrors the import-time orphan definition exactly (#291,
     // OxiGraphTwinAdminService.OrphanPattern): from the OWNING EQUIPMENT, via the spatial chain or
-    // the sbco:floor literal join, EITHER of which counts. Anchoring on the equipment rather than
-    // the point matters — sbco:floor lives on EquipmentExt, and it is the twin's only
-    // building→equipment join.
+    // direct Level location, or the sbco:floor literal join, ANY of which counts. Anchoring on the
+    // equipment rather than the point matters — the two latter paths live on EquipmentExt.
     //
     // BOUND(?bldg) rather than a second query: this is the bulk load behind a TTL cache
     // (PointMetadataCache), so the cost is periodic, not per-frame.
@@ -36,6 +35,12 @@ public sealed class OxiGraphPointMetadataDataSource(OxiGraphClient client) : IPo
               ?anyRoom a sbco:Room .
               ?anyFloor sbco:hasPart ?anyRoom ;
                         a sbco:Level .
+              ?bldg sbco:hasPart ?anyFloor ;
+                    a sbco:Building .
+            } UNION {
+              ?anyDev sbco:hasPoint ?point ;
+                      sbco:locatedIn ?anyFloor .
+              ?anyFloor a sbco:Level .
               ?bldg sbco:hasPart ?anyFloor ;
                     a sbco:Building .
             } UNION {

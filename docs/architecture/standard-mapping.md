@@ -50,6 +50,20 @@ SBCO ではノード URI そのものが Digital Twins ID（DtId）を表す（�
 `sbco:Building` / `sbco:Level` / `sbco:Room` は SBCO の Architecture → Space サブクラス階層に属し、
 **`Ext` サフィックスを持たない**（`sbco:SpaceExt` は存在しないため空間ノードには `sbco:Room` を用いる）。
 
+### Equipment placement
+
+Building OS accepts each of the following as a building-scoped Equipment/Point hierarchy. The
+direct-Level form does not require a synthetic `sbco:Room` or an `sbco:floor` literal.
+
+```text
+Building --sbco:hasPart--> Level --sbco:hasPart--> Room <--sbco:locatedIn-- EquipmentExt --sbco:hasPoint--> PointExt
+Building --sbco:hasPart--> Level <--sbco:locatedIn-- EquipmentExt --sbco:hasPoint--> PointExt
+Building --sbco:hasPart--> Level <--sbco:name / sbco:floor-- EquipmentExt --sbco:hasPoint--> PointExt
+```
+
+The final form is retained for backward compatibility. In the direct-Level form, point and device
+detail responses contain the Level as `Floor` and leave `Space` empty.
+
 [^site]: `sbco:Site` は SBCO の最上位コンテナ（敷地）。旧 `bos:` 実装には対応クラスがなかった。SBCO ↔ 標準の意味的等価性は HITL 確認対象。
 [^1]: IFC の `IfcSpace` は廊下・吹き抜けなど部屋以外の空間も包含する。Brick の `brick:Room` と `brick:Zone` も区別があるが、SBCO の `sbco:Room`（および旧 `bos:Room`）は REC の `rec:Room` に準拠。
 

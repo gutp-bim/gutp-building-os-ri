@@ -44,12 +44,12 @@ Node URI = DtId  (no transformation; the node IRI itself IS the DtId)
 | ADT Relationship | RDF Property | Direction |
 |---|---|---|
 | `hasPart` | `sbco:hasPart` | Site→Building, Building→Level, Level→Room |
-| `locatedIn` | `sbco:locatedIn` | EquipmentExt→Room |
+| `locatedIn` | `sbco:locatedIn` | EquipmentExt→Room or EquipmentExt→Level |
 | `hasPoint` | `sbco:hasPoint` | EquipmentExt→PointExt |
 | (building scoping) | `sbco:floor` | EquipmentExt → Level **name** (string literal join) |
 
-`sbco:floor` is a string literal on `sbco:EquipmentExt` matched against a Level's `sbco:name`; in the
-current SBCO TTL it is the only path from a building down to its equipment.
+`sbco:floor` is a legacy string literal on `sbco:EquipmentExt` matched against a Level's `sbco:name`.
+Building-scoped reads accept it alongside the Room path and direct EquipmentExt→Level placement.
 
 ## Query Mapping
 
@@ -179,8 +179,8 @@ MATCH (Building)-[:hasPart]->(Floor)-[:hasPart]->(Space)<-[:locatedIn]-(Device)-
 WHERE Building.$dtId = '{buildingDtId}'
 ```
 
-**SPARQL** — building→equipment is joined via the `sbco:floor` string literal (non-`OPTIONAL`, so
-equipment without a matching `sbco:floor` is excluded); space/`locatedIn` is `OPTIONAL`:
+**SPARQL** — building scope accepts the Room path, direct Level location, or the legacy
+`sbco:floor` string join. Space is projected only for the Room path:
 ```sparql
 PREFIX sbco: <https://www.sbco.or.jp/ont/>
 SELECT ?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw
@@ -190,11 +190,18 @@ WHERE {
   <{buildingDtId}> sbco:hasPart ?floor .
   ?floor a sbco:Level ; sbco:id ?floorId ; sbco:name ?floorName .
   BIND(?floor AS ?floorDt)
-  ?dev a sbco:EquipmentExt ; sbco:id ?devId ; sbco:name ?devName ; sbco:floor ?floorName .
+  ?dev a sbco:EquipmentExt ; sbco:id ?devId ; sbco:name ?devName .
   BIND(?dev AS ?devDt)
+  FILTER EXISTS {
+    { ?dev sbco:locatedIn ?room . ?room a sbco:Room . ?floor sbco:hasPart ?room . }
+    UNION { ?dev sbco:locatedIn ?floor . }
+    UNION { ?dev sbco:floor ?floorName . }
+  }
   OPTIONAL { ?dev sbco:hasPoint ?gwPt . ?gwPt sbco:gatewayId ?gwRaw . }
   OPTIONAL {
     ?dev sbco:locatedIn ?space .
+    ?space a sbco:Room .
+    ?floor sbco:hasPart ?space .
     BIND(?space AS ?spaceDt)
     ?space sbco:id ?spaceId ; sbco:name ?spaceName .
   }
@@ -223,8 +230,8 @@ WHERE Point.$dtId = '{pointDtId}'
 ```
 
 **SPARQL** — `OxiGraphHierarchyResolver` first resolves the point DtId by `sbco:id`, then walks the
-chain with **explicit multi-hop BGP** (not a recursive property path); the spatial portion is
-`OPTIONAL` because SBCO TTL may lack Room / `locatedIn`:
+Room path, direct Level path, or legacy `sbco:floor` path with explicit multi-hop BGP (not a
+recursive property path). Room is optional, so direct-Level equipment returns no space ancestor:
 ```sparql
 PREFIX sbco: <https://www.sbco.or.jp/ont/>
 SELECT ?buildingId ?floorId ?spaceId ?devId
@@ -232,12 +239,24 @@ WHERE {
   ?dev sbco:hasPoint <{pointUri}> .
   ?dev a sbco:EquipmentExt ; sbco:id ?devId .
   OPTIONAL {
-    ?dev sbco:locatedIn ?space .
-    ?space a sbco:Room ; sbco:id ?spaceId .
-    ?floor sbco:hasPart ?space .
-    ?floor a sbco:Level ; sbco:id ?floorId .
-    ?building sbco:hasPart ?floor .
-    ?building a sbco:Building ; sbco:id ?buildingId .
+    {
+      ?dev sbco:locatedIn ?space .
+      ?space a sbco:Room ; sbco:id ?spaceId .
+      ?floor sbco:hasPart ?space .
+      ?floor a sbco:Level ; sbco:id ?floorId .
+      ?building sbco:hasPart ?floor .
+      ?building a sbco:Building ; sbco:id ?buildingId .
+    } UNION {
+      ?dev sbco:locatedIn ?floor .
+      ?floor a sbco:Level ; sbco:id ?floorId .
+      ?building sbco:hasPart ?floor .
+      ?building a sbco:Building ; sbco:id ?buildingId .
+    } UNION {
+      ?dev sbco:floor ?floorName .
+      ?floor a sbco:Level ; sbco:id ?floorId ; sbco:name ?floorName .
+      ?building sbco:hasPart ?floor .
+      ?building a sbco:Building ; sbco:id ?buildingId .
+    }
   }
 }
 ```
@@ -276,19 +295,12 @@ LIMIT 1
 
 ### SBCO-specific quirks
 
-- **Room / `locatedIn` may be absent.** The current SBCO TTL may not include `sbco:Room` nodes or
-  `sbco:locatedIn`. Space-filtered queries then return empty and space fields are empty; spatial
-  joins are therefore `OPTIONAL` in detail/ancestor queries.
-- **Building → equipment is a string join.** `sbco:floor` (a string literal on `sbco:EquipmentExt`) is
-  matched against a Level's `sbco:name`. This join is **non-`OPTIONAL`** in building-scoped queries —
-  making it optional would drop building scoping and return all equipment everywhere. Equipment with a
-  missing or mismatched `sbco:floor` will not appear.
-  > **Data requirement:** `sbco:floor` (and `sbco:deviceType`, below) must be asserted on the
-  > `sbco:EquipmentExt` node — that is where the live queries read them. Asserting them only on
-  > `sbco:PointExt` will make building-scoped `ListDeviceDetails` / equipment results empty. (The
-  > integration seed `DotNet/BuildingOS.IntegrationTest/Common/Fixtures/SeedData/sbco-sample.ttl`
-  > currently places these on `sbco:PointExt`, which does not satisfy the queries above — tracked
-  > separately.)
+- **Room is optional.** Equipment may be `sbco:locatedIn` a Room below a Level, directly
+  `sbco:locatedIn` a Level, or use the legacy `sbco:floor` literal. Direct-Level equipment has an
+  empty Space field in detail responses.
+- **Building scope remains structural.** A building-scoped query matches a device only when one of
+  those three paths reaches a Level directly contained by that Building. `sbco:floor` alone remains
+  a backward-compatible name join; it is not required for direct-Level models.
 - **Gateway aggregation.** A device may have many points; `(SAMPLE(?gwRaw) AS ?devGw)` with
   `GROUP BY` picks one gatewayId deterministically per device.
 - **`deviceType` lives on EquipmentExt** (not PointExt) per the SBCO ontology, and is used by device

@@ -195,6 +195,16 @@ public class OxiGraphTwinAdminServiceTest
     }
 
     [Fact]
+    public async Task PreviewImport_AcceptsDirectLevelLocationAsAPathToTheBuilding()
+    {
+        var (graph, orphanQuery) = await CaptureOrphanQueryAsync(TwinImportMode.Replace);
+
+        Assert.Contains($"GRAPH <{graph}> {{ ?anyDev <{Sbco}locatedIn> ?anyFloor . }}", orphanQuery);
+        Assert.Contains($"GRAPH <{graph}> {{ ?anyFloor a <{Sbco}Level> . }}", orphanQuery);
+        Assert.Contains($"GRAPH <{graph}> {{ ?anyBuilding <{Sbco}hasPart> ?anyFloor . }}", orphanQuery);
+    }
+
+    [Fact]
     public async Task PreviewImport_OrphanEnumerationIsCapped_ButCountIsExact()
     {
         // The count query is unbounded while the sample is LIMIT-ed, so a bulk import that orphans

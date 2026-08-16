@@ -83,17 +83,19 @@ public class ResourceSearchQueryBuilderTest
     }
 
     [Fact]
-    public void Build_BuildingScope_OmitsDeviceAndPointBranches()
+    public void Build_BuildingScope_IncludesDeviceAndPointBranchesThroughTheSupportedHierarchyPaths()
     {
-        // Device/point cannot be reliably building-scoped in SBCO (they join via the sbco:floor
-        // string literal, not hasPart), so a building-scoped search returns structural resources only.
         var sparql = ResourceSearchQueryBuilder.Build("x", null, "urn:b1", NoTags, 50, 0);
 
         Assert.Contains($"<{Building}>", sparql);
         Assert.Contains($"<{Level}>", sparql);
         Assert.Contains($"<{Room}>", sparql);
-        Assert.DoesNotContain($"<{Equipment}>", sparql);
-        Assert.DoesNotContain($"<{Point}>", sparql);
+        Assert.Contains($"<{Equipment}>", sparql);
+        Assert.Contains($"<{Point}>", sparql);
+        Assert.Contains("FILTER EXISTS", sparql);
+        Assert.Contains("?dt <https://www.sbco.or.jp/ont/locatedIn> ?scopeFloor", sparql);
+        Assert.Contains("?dt <https://www.sbco.or.jp/ont/floor> ?scopeFloorName", sparql);
+        Assert.Contains("?scopeDevice a <https://www.sbco.or.jp/ont/EquipmentExt>", sparql);
     }
 
     [Fact]

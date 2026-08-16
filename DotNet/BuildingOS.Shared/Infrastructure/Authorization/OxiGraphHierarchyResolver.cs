@@ -7,8 +7,8 @@ using static OxiGraphOntology;
 
 /// <summary>
 /// IResourceHierarchyResolver backed by OxiGraph SPARQL.
-/// Queries use SBCO vocabulary; Space (SpaceExt) and sbco:locatedIn are optional
-/// since current SBCO TTL may not include spatial hierarchy below Level.
+/// Queries use SBCO vocabulary. Equipment can be located in a Room, directly in a Level, or joined
+/// to a Level by the legacy <c>sbco:floor</c> name literal.
 /// </summary>
 public class OxiGraphHierarchyResolver : IResourceHierarchyResolver
 {
@@ -41,12 +41,24 @@ WHERE {{
   ?dev <{Prop_HasPoint}> <{pointUri}> .
   ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId .
   OPTIONAL {{
-    ?dev <{Prop_LocatedIn}> ?space .
-    ?space a <{Cls_Space}> ; <{Prop_Id}> ?spaceId .
-    ?floor <{Prop_HasPart}> ?space .
-    ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
-    ?building <{Prop_HasPart}> ?floor .
-    ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    {{
+      ?dev <{Prop_LocatedIn}> ?space .
+      ?space a <{Cls_Space}> ; <{Prop_Id}> ?spaceId .
+      ?floor <{Prop_HasPart}> ?space .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?floor .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }} UNION {{
+      ?dev <{Prop_Floor}> ?floorName .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }}
   }}
 }}";
 
@@ -68,12 +80,24 @@ SELECT ?buildingId ?floorId ?spaceId
 WHERE {{
   ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ""{EscapeLiteral(deviceId)}"" .
   OPTIONAL {{
-    ?dev <{Prop_LocatedIn}> ?space .
-    ?space a <{Cls_Space}> ; <{Prop_Id}> ?spaceId .
-    ?floor <{Prop_HasPart}> ?space .
-    ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
-    ?building <{Prop_HasPart}> ?floor .
-    ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    {{
+      ?dev <{Prop_LocatedIn}> ?space .
+      ?space a <{Cls_Space}> ; <{Prop_Id}> ?spaceId .
+      ?floor <{Prop_HasPart}> ?space .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?floor .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }} UNION {{
+      ?dev <{Prop_Floor}> ?floorName .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }}
   }}
 }}";
 

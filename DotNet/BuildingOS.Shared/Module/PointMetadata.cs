@@ -12,16 +12,16 @@ namespace BuildingOS.Shared.Module;
 /// <para>
 /// It is NOT evidence that the point is placed in the hierarchy: it is a string nobody joins, so it
 /// can be present on a point no building actually contains, and absent from a point a building
-/// plainly does (the twin's own building→equipment join goes through <c>sbco:floor</c>, not this).
+/// plainly does (the twin's own building→equipment join is structural, not this literal).
 /// Use <see cref="HasBuildingPath"/> for that question.
 /// </para>
 /// </param>
 /// <param name="HasBuildingPath">
 /// Whether the twin actually places this point under a <c>sbco:Building</c> node, by the same
 /// definition the import-time orphan preview uses (#291): traversed from the owning equipment, via
-/// the spatial chain (<c>locatedIn</c> → Room → Level → Building) OR the <c>sbco:floor</c> literal
-/// join (equipment's floor name → Level → Building). Either path counts; a twin that models no Rooms
-/// is legitimate here.
+/// the Room spatial chain (<c>locatedIn</c> → Room → Level → Building), direct Level location, OR
+/// the <c>sbco:floor</c> literal join (equipment's floor name → Level → Building). Any path counts;
+/// a twin that models no Rooms is legitimate here.
 /// </param>
 public sealed record PointMetadata(
     string PointId,

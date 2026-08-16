@@ -21,8 +21,8 @@ public enum IngressHierarchyDecision
 /// This deliberately takes <c>hasBuildingPath</c> — real graph reachability — and not the
 /// denormalized <c>sbco:building</c> literal. Gating on the literal made strict ingress disagree
 /// with the import-time orphan check inside the same feature: a point reachable only through the
-/// <c>sbco:floor</c> join (a twin with no Rooms, which this repository treats as valid, and the
-/// shape that motivated the work) carries no such literal and would have been rejected, while a
+/// direct-Level or <c>sbco:floor</c> join (both valid without a Room) carries no such literal and
+/// would have been rejected, while a
 /// point carrying a stale literal for a building that does not exist would have been accepted.
 /// The literal is a string nobody joins; it cannot answer this question.
 /// </para>
@@ -32,7 +32,8 @@ public static class IngressHierarchyPolicy
     /// <param name="enforce">Whether hierarchy completeness is required (false ⇒ legacy accept-all).</param>
     /// <param name="hasBuildingPath">
     /// Whether the twin actually places the point under a Building, by the #291 definition
-    /// (spatial chain OR sbco:floor literal join, traversed from the owning equipment).
+    /// (Room spatial chain OR direct-Level chain OR sbco:floor literal join, traversed from the
+    /// owning equipment).
     /// </param>
     /// <param name="deviceId">The point's device from the twin (empty when undefined).</param>
     public static IngressHierarchyDecision Check(bool enforce, bool hasBuildingPath, string? deviceId)

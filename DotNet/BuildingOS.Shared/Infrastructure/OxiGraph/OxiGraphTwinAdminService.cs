@@ -149,13 +149,13 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     // only the points it adds and never re-judges the ones already in the twin; reachability, by
     // contrast, is evaluated over the graphs the chosen mode actually leaves behind (see Link).
     //
-    // A point is "connected" when either path reaches a Building:
+    // A point is "connected" when any supported path reaches a Building:
     //   A. the spatial chain Building →hasPart→ Level →hasPart→ Room ←locatedIn← EquipmentExt →hasPoint→ PointExt
-    //   B. the sbco:floor literal on EquipmentExt matched against a Level's sbco:name — the same join
-    //      the read side uses (OxiGraphDigitalTwinDatabase.ListPointDetails), and the only path an
-    //      SBCO TTL without Room/locatedIn offers.
-    // Either one suffices: Room/locatedIn are optional throughout this repository, so requiring the
-    // spatial chain would report a legitimate twin as entirely orphaned. The three UNION branches
+    //   B. the direct chain Building →hasPart→ Level ←locatedIn← EquipmentExt →hasPoint→ PointExt
+    //   C. the sbco:floor literal on EquipmentExt matched against a Level's sbco:name.
+    // Any one suffices: Room/locatedIn are optional throughout this repository, and an Equipment
+    // may be directly located in a Level. Requiring only the Room chain would report legitimate
+    // twins as entirely orphaned. The three UNION branches
     // stay mutually exclusive (no device / a device with no spatial anchor at all / an anchor that
     // reaches no Building), so a point is reported exactly once, under the outermost link that is
     // missing. Shared by the count and the capped enumeration so both always agree on what "orphan"
@@ -169,6 +169,7 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         var inRoom      = $"?anyDev <{Sbco}locatedIn> ?anyRoom .";
         var isRoom      = $"?anyRoom a <{Sbco}Room> .";
         var roomOfFloor = $"?anyFloor <{Sbco}hasPart> ?anyRoom .";
+        var inFloor     = $"?anyDev <{Sbco}locatedIn> ?anyFloor .";
         var devFloor    = $"?anyDev <{Sbco}floor> ?anyFloorName .";
         var floorName   = $"?anyFloor <{Sbco}name> ?anyFloorName .";
         var isFloor     = $"?anyFloor a <{Sbco}Level> .";
@@ -178,13 +179,17 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         var candidate = $"GRAPH <{graph}> {{ ?pt a <{Sbco}PointExt> . }}";
         var device = Chain(hasPoint);
 
-        // Any spatial anchor on the point's device — a Room via sbco:locatedIn, or an sbco:floor
-        // literal. A device carrying neither is placed nowhere, so there is nothing to trace upwards.
+        // Any supported spatial anchor on the point's device — a Room, a Level via sbco:locatedIn,
+        // or an sbco:floor literal. A device carrying none is placed nowhere, so there is nothing
+        // to trace upwards.
         var anchor =
-            $"{{ {Chain(hasPoint, inRoom, isRoom)} }} UNION {{ {Chain(hasPoint, devFloor)} }}";
+            $"{{ {Chain(hasPoint, inRoom, isRoom)} }} UNION " +
+            $"{{ {Chain(hasPoint, inFloor, isFloor)} }} UNION " +
+            $"{{ {Chain(hasPoint, devFloor)} }}";
 
         var reachable =
             $"{{ {Chain(hasPoint, inRoom, isRoom, roomOfFloor, isFloor, floorOfBldg, isBuilding)} }} UNION " +
+            $"{{ {Chain(hasPoint, inFloor, isFloor, floorOfBldg, isBuilding)} }} UNION " +
             $"{{ {Chain(hasPoint, devFloor, floorName, isFloor, floorOfBldg, isBuilding)} }}";
 
         return $@"

@@ -221,11 +221,41 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
 
         Assert.NotNull(detail);
         Assert.Equal("THX", detail!.Device?.BuildingName);
+        Assert.Equal("7F", detail.Floor?.Name);
         // The same point's type/specification must survive the detail path too — this is the exact
         // point from the THX report.
         Assert.Equal("On_Off_Status", detail.Point.Type);
         Assert.Equal("Status", detail.Point.Specification);
         // No Room in this twin: Space stays blank rather than the query returning nothing at all.
+        Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
+    }
+
+    [Fact]
+    public async Task GetPointDetailByPointId_ResolvesDirectLevelLocationWithoutFloorLiteral()
+    {
+        const string directLevelTtl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <https://www.sbco.or.jp/ont/resource/bldg-thx> a sbco:Building ;
+              sbco:id "THX" ; sbco:name "THX" ;
+              sbco:hasPart <https://www.sbco.or.jp/ont/resource/level-thx-3f> .
+            <https://www.sbco.or.jp/ont/resource/level-thx-3f> a sbco:Level ;
+              sbco:id "3F" ; sbco:name "3F" .
+            <https://www.sbco.or.jp/ont/resource/dev-thx-1> a sbco:EquipmentExt ;
+              sbco:id "dev-1" ; sbco:name "Light" ;
+              sbco:locatedIn <https://www.sbco.or.jp/ont/resource/level-thx-3f> ;
+              sbco:hasPoint <https://www.sbco.or.jp/ont/resource/pt-thx-1> .
+            <https://www.sbco.or.jp/ont/resource/pt-thx-1> a sbco:PointExt ;
+              sbco:id "pt-1" ; sbco:name "Energy" ; sbco:writable "false" .
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(directLevelTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+        var detail = await db.GetPointDetailByPointId("pt-1");
+
+        Assert.NotNull(detail);
+        Assert.Equal("THX", detail!.Device?.BuildingName);
+        Assert.Equal("3F", detail.Floor?.Name);
         Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
     }
 

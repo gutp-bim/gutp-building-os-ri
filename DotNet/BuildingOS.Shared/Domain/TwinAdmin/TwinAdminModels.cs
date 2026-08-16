@@ -15,11 +15,11 @@ public sealed record GatewayCollision(string GatewayId, int BuildingCount);
 
 /// <summary>
 /// Why a staged resource is not reachable from a Building (#291). A point is reachable by either of
-/// the two paths the twin actually models — the spatial chain
+/// the three paths the twin accepts — the Room spatial chain
 /// (Building →hasPart→ Level →hasPart→ Room ←locatedIn← EquipmentExt →hasPoint→ PointExt) or the
-/// <c>sbco:floor</c> literal on EquipmentExt matched against a Level's <c>sbco:name</c>, which is what
-/// the read side traverses — and each value names the outermost link missing on both. The wire values
-/// are unchanged; their meaning is widened accordingly (see <see cref="NoRoom"/>).
+/// direct-Level chain (Building →hasPart→ Level ←locatedIn← EquipmentExt →hasPoint→ PointExt), or the
+/// <c>sbco:floor</c> literal on EquipmentExt matched against a Level's <c>sbco:name</c>. The wire
+/// values are unchanged; their meaning is widened accordingly (see <see cref="NoRoom"/>).
 /// </summary>
 public static class TwinOrphanReasons
 {
@@ -28,13 +28,13 @@ public static class TwinOrphanReasons
 
     /// <summary>
     /// The point has a device, but no device of it carries any spatial anchor at all — neither
-    /// <c>sbco:locatedIn</c> an <c>sbco:Room</c> nor an <c>sbco:floor</c> literal. (Widened from
-    /// "no Room": Room/<c>sbco:locatedIn</c> are optional in SBCO TTL, so a floor-literal twin is
-    /// legitimate and must not be reported.)
+    /// <c>sbco:locatedIn</c> an <c>sbco:Room</c> or <c>sbco:Level</c>, nor an <c>sbco:floor</c>
+    /// literal. (Widened from "no Room": a Room is optional in SBCO TTL, so a direct-Level or
+    /// floor-literal twin is legitimate and must not be reported.)
     /// </summary>
     public const string NoRoom = "no_room";
 
-    /// <summary>The device is anchored, but neither path reaches an <c>sbco:Building</c> via <c>sbco:hasPart</c>.</summary>
+    /// <summary>The device is anchored, but no supported path reaches an <c>sbco:Building</c> via <c>sbco:hasPart</c>.</summary>
     public const string NoBuildingPath = "no_building_path";
 }
 

@@ -245,12 +245,12 @@ SELECT {PointVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
         if (point == null) return null;
 
         var pointUri = point.DtId;
-        // The building is resolved by EITHER of the two paths the repository treats as valid, matching
+        // The building is resolved through the Room, direct Level, or legacy floor-name path, matching
         // the orphan-reachability definition in #291 Phase 1. Requiring only the spatial chain would
         // leave BuildingName null for every twin that models no Rooms — which this repository allows,
         // and which `ListPointDetails` already relies on by joining building→equipment through the
         // sbco:floor literal. SAMPLE because a device satisfying both paths would otherwise duplicate
-        // rows.
+        // rows when more than one path is declared.
         var sparql = $@"{Prefixes}
 SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
        (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding) {DeviceAttrAggregates}
@@ -260,11 +260,19 @@ WHERE {{
   BIND(?dev AS ?devDt)
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
   OPTIONAL {{
-    ?dev <{Prop_LocatedIn}> ?space .
-    BIND(?space AS ?spaceDt)
-    ?space <{Prop_Id}> ?spaceId ; <{Prop_Name}> ?spaceName .
-    ?floor <{Prop_HasPart}> ?space .
-    ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
+    {{
+      ?dev <{Prop_LocatedIn}> ?space .
+      BIND(?space AS ?spaceDt)
+      ?space a <{Cls_Space}> ; <{Prop_Id}> ?spaceId ; <{Prop_Name}> ?spaceName .
+      ?floor <{Prop_HasPart}> ?space .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?floor .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
+    }} UNION {{
+      ?dev <{Prop_Floor}> ?floorName .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
+    }}
     BIND(?floor AS ?floorDt)
   }}
   OPTIONAL {{
@@ -273,6 +281,11 @@ WHERE {{
       ?bFloor <{Prop_HasPart}> ?bSpace .
       ?bFloor a <{Cls_Level}> .
       ?bldg <{Prop_HasPart}> ?bFloor .
+      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?bFloorDirect .
+      ?bFloorDirect a <{Cls_Level}> .
+      ?bldg <{Prop_HasPart}> ?bFloorDirect .
       ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
     }} UNION {{
       ?dev <{Prop_Floor}> ?devFloorName .
@@ -298,9 +311,9 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
 
     public async Task<PointDetail[]> ListPointDetails(string buildingDtId)
     {
-        // sbco:floor (string literal on EquipmentExt) is the only path from building to equipment in SBCO;
-        // making this join OPTIONAL would remove building scoping and return all equipment everywhere.
-        // Equipment without sbco:floor or with a mismatched floor literal will not appear.
+        // A device belongs to the selected Building through one of three supported paths: a Room
+        // under the Level, direct sbco:locatedIn Level, or the legacy sbco:floor name join. FILTER
+        // EXISTS preserves that scope without multiplying rows when a device declares more than one.
         // SAMPLE aggregates gatewayId across all points of a device for deterministic selection.
         //
         // ?devBuilding is the building's own name — this query is already scoped BY building, so there
@@ -316,11 +329,24 @@ WHERE {{
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
   BIND(?floor AS ?floorDt)
-  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName ; <{Prop_Floor}> ?floorName .
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
   BIND(?dev AS ?devDt)
+  FILTER EXISTS {{
+    {{
+      ?dev <{Prop_LocatedIn}> ?room .
+      ?room a <{Cls_Space}> .
+      ?floor <{Prop_HasPart}> ?room .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?floor .
+    }} UNION {{
+      ?dev <{Prop_Floor}> ?floorName .
+    }}
+  }}
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?gwRaw . }}
   OPTIONAL {{
     ?dev <{Prop_LocatedIn}> ?space .
+    ?space a <{Cls_Space}> .
+    ?floor <{Prop_HasPart}> ?space .
     BIND(?space AS ?spaceDt)
     ?space <{Prop_Id}> ?spaceId ; <{Prop_Name}> ?spaceName .
   }}{DeviceAttrOptionals()}
@@ -343,9 +369,9 @@ GROUP BY {PointVars} ?devBuilding
 
     public async Task<DeviceDetail[]> ListDeviceDetails(string buildingDtId)
     {
-        // sbco:floor (string literal on EquipmentExt) is the only path from building to equipment in SBCO;
-        // making this join OPTIONAL would remove building scoping and return all equipment everywhere.
-        // Equipment without sbco:floor or with a mismatched floor literal will not appear.
+        // A device belongs to the selected Building through one of three supported paths: a Room
+        // under the Level, direct sbco:locatedIn Level, or the legacy sbco:floor name join. FILTER
+        // EXISTS preserves that scope without multiplying rows when a device declares more than one.
         var sparql = $@"{Prefixes}
 SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName
@@ -353,11 +379,24 @@ WHERE {{
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
   BIND(?floor AS ?floorDt)
-  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName ; <{Prop_Floor}> ?floorName .
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
   BIND(?dev AS ?devDt)
+  FILTER EXISTS {{
+    {{
+      ?dev <{Prop_LocatedIn}> ?room .
+      ?room a <{Cls_Space}> .
+      ?floor <{Prop_HasPart}> ?room .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?floor .
+    }} UNION {{
+      ?dev <{Prop_Floor}> ?floorName .
+    }}
+  }}
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}
   OPTIONAL {{
     ?dev <{Prop_LocatedIn}> ?space .
+    ?space a <{Cls_Space}> .
+    ?floor <{Prop_HasPart}> ?space .
     BIND(?space AS ?spaceDt)
     ?space <{Prop_Id}> ?spaceId ; <{Prop_Name}> ?spaceName .
   }}{DeviceAttrOptionals()}
@@ -636,6 +675,7 @@ WHERE {{
             ObjectTypeBacnet = r.GetValueOrDefault("objType"),
             InstanceNoBacnet = TryParseNullableInt(r.GetValueOrDefault("instNo")),
             Interval = TryParseNullableFloat(r.GetValueOrDefault("ptInterval")),
+
             // #158 Phase 2a: opt-in alarm thresholds.
             AlarmHigh = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmHigh")),
             AlarmLow = TryParseNullableFloat(r.GetValueOrDefault("ptAlarmLow")),

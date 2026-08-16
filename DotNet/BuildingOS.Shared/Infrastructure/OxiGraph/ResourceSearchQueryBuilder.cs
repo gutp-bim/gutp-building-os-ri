@@ -9,21 +9,20 @@ using static OxiGraphOntology;
 /// resource type, each binding <c>?type</c>/<c>?dt</c>/<c>?id</c>/<c>?name</c>, with an optional
 /// case-insensitive CONTAINS filter on name/id and an optional building scope.
 ///
-/// Building scope only covers building/floor/space (reachable via sbco:hasPart). Device/point join to
-/// a building via the sbco:floor string literal, not hasPart, so they cannot be reliably building-
-/// scoped here; their branches are omitted when a building scope is requested.
+/// Building scope covers every resource type. Devices and points are scoped through the owning
+/// equipment's Room path, direct Level location, or legacy <c>sbco:floor</c> name join.
 /// </summary>
 internal static class ResourceSearchQueryBuilder
 {
-    private record TypeBranch(string Token, string ClassIri, bool BuildingScopeable);
+    private record TypeBranch(string Token, string ClassIri);
 
     private static readonly TypeBranch[] AllBranches =
     [
-        new("building", Cls_Building, true),
-        new("floor", Cls_Level, true),
-        new("space", Cls_Space, true),
-        new("device", Cls_Equipment, false),
-        new("point", Cls_Point, false),
+        new("building", Cls_Building),
+        new("floor", Cls_Level),
+        new("space", Cls_Space),
+        new("device", Cls_Equipment),
+        new("point", Cls_Point),
     ];
 
     internal static string Build(
@@ -35,9 +34,6 @@ internal static class ResourceSearchQueryBuilder
         var branches = AllBranches.AsEnumerable();
         if (!string.IsNullOrEmpty(typeFilter))
             branches = branches.Where(b => b.Token == typeFilter);
-        if (hasBuildingScope)
-            branches = branches.Where(b => b.BuildingScopeable);
-
         var unions = branches.Select(b => BuildBranch(b, hasBuildingScope ? buildingDtId! : null)).ToArray();
 
         var sb = new StringBuilder();
@@ -84,6 +80,10 @@ internal static class ResourceSearchQueryBuilder
             _ when b.Token == "floor" => $"    <{buildingDtId}> <{Prop_HasPart}> ?dt .\n",
             // space: building → floor → space
             _ when b.Token == "space" => $"    <{buildingDtId}> <{Prop_HasPart}> ?mid . ?mid <{Prop_HasPart}> ?dt .\n",
+            _ when b.Token == "device" => EquipmentBuildingScope("?dt", buildingDtId),
+            _ when b.Token == "point" =>
+                $"    ?scopeDevice a <{Cls_Equipment}> ; <{Prop_HasPoint}> ?dt .\n" +
+                EquipmentBuildingScope("?scopeDevice", buildingDtId),
             _ => "",
         };
         return
@@ -93,6 +93,22 @@ internal static class ResourceSearchQueryBuilder
             $"    BIND(\"{b.Token}\" AS ?type)\n" +
             $"  }}\n";
     }
+
+    private static string EquipmentBuildingScope(string equipment, string buildingDtId) =>
+        $"    FILTER EXISTS {{\n" +
+        $"      <{buildingDtId}> <{Prop_HasPart}> ?scopeFloor .\n" +
+        $"      ?scopeFloor a <{Cls_Level}> .\n" +
+        $"      {{\n" +
+        $"        {equipment} <{Prop_LocatedIn}> ?scopeRoom .\n" +
+        $"        ?scopeRoom a <{Cls_Space}> .\n" +
+        $"        ?scopeFloor <{Prop_HasPart}> ?scopeRoom .\n" +
+        $"      }} UNION {{\n" +
+        $"        {equipment} <{Prop_LocatedIn}> ?scopeFloor .\n" +
+        $"      }} UNION {{\n" +
+        $"        {equipment} <{Prop_Floor}> ?scopeFloorName .\n" +
+        $"        ?scopeFloor <{Prop_Name}> ?scopeFloorName .\n" +
+        $"      }}\n" +
+        $"    }}\n";
 
     // Escape for a SPARQL short string literal ("..."). Backslash first, then quote, then the control
     // characters that are illegal raw inside a short literal — a raw newline/CR would otherwise break
