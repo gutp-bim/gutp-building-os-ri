@@ -31,6 +31,12 @@ public class Point
     public string? Unit { get; set; }
     public float? Interval { get; set; }
 
+    /// <summary>Protocol-native point address (for MQTT, the concrete topic).</summary>
+    public string? LocalId { get; set; }
+
+    /// <summary>Resolved collection protocol (explicit twin value, native fields, or local-id shape).</summary>
+    public string? Protocol { get; set; }
+
     // Opt-in per-point alarm thresholds (#158 Phase 2a, ADR-0005). Distinct from Min/MaxPresValue
     // (legacy BACnet raw bounds) and the ControlSchema control-write range: these are the
     // normal-operation value range. alarm* = critical (outer) limits, warn* = inner limits; all optional.

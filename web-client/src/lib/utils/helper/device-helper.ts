@@ -19,9 +19,17 @@ export const toDisplayDeviceType = (deviceTypeString: string) => {
  * 1 条件版と 3 条件版の 2 実装が併存していた。
  */
 export const getCollectionProtocol = (
-  point: Point | undefined,
-): "BACnet" | null => {
+  point: (Point & { protocol?: string | null }) | undefined,
+): string | null => {
   if (!point) return null;
+
+  if (point.protocol) {
+    const normalized = point.protocol.toLowerCase();
+    if (normalized === "mqtt") return "MQTT";
+    if (normalized === "opcua" || normalized === "opc-ua") return "OPC-UA";
+    if (normalized === "bacnet") return "BACnet";
+    return point.protocol;
+  }
 
   if (
     point.objectTypeBacnet != null ||
@@ -33,3 +41,7 @@ export const getCollectionProtocol = (
 
   return null;
 };
+
+export const getPointLocalId = (
+  point: (Point & { localId?: string | null }) | undefined,
+): string | null => point?.localId || null;
