@@ -152,14 +152,22 @@ public sealed class OxiGraphSeedHostedService(
 
     // A refused connection or an unresolvable name is the startup race, not a misconfiguration:
     // the container is coming up. HttpRequestException also covers DNS failure while Compose is
-    // still wiring the network. A request timeout also surfaces as TaskCanceledException — keyed
-    // off *our* token rather than the exception's, because HttpClient's timeout cancels an internal
-    // linked source, so TaskCanceledException.CancellationToken is that source's token and never
-    // `default`. Testing the exception's token would silently classify every real timeout as fatal.
-    // Our own cancellation is already rethrown by the filter above, so reaching here means the
-    // caller did not cancel.
+    // still wiring the network.
+    //
+    // But only when no response arrived: QueryAsync calls EnsureSuccessStatusCode, which reports a
+    // non-2xx as HttpRequestException too. A store answering 500 is reporting a real problem, and
+    // retrying it would bury that behind the whole budget — exactly what the remarks above promise
+    // not to do. StatusCode is null precisely when the request never got an HTTP response, so it is
+    // the transport/application split we want.
+    //
+    // A request timeout also surfaces as TaskCanceledException — keyed off *our* token rather than
+    // the exception's, because HttpClient's timeout cancels an internal linked source, so
+    // TaskCanceledException.CancellationToken is that source's token and never `default`. Testing
+    // the exception's token would silently classify every real timeout as fatal. Our own
+    // cancellation is already rethrown by the filter above, so reaching here means the caller did
+    // not cancel.
     private static bool IsTransientStartupFailure(Exception ex) =>
-        ex is HttpRequestException or TaskCanceledException;
+        ex is HttpRequestException { StatusCode: null } or TaskCanceledException;
 
     // internal (not private): lets tests route a fake OxiGraph response by exact query text instead
     // of a fragile content heuristic — see OxiGraphSeedHostedServicePointListPushTest.

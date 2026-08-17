@@ -151,6 +151,22 @@ public class OxiGraphSeedHostedServiceStartupTest
             $"spent only {handler.Attempts} attempt(s): the budget was abandoned before it elapsed");
     }
 
+    [Fact]
+    public async Task RunAsync_StoreAnswersWithServerError_FailsFastWithoutRetrying()
+    {
+        // A store that answers at all is up; a 500 from it is a real problem, not the startup
+        // race. QueryAsync surfaces that through EnsureSuccessStatusCode as HttpRequestException —
+        // the same type a refused connection produces — so treating the type alone as transient
+        // would retry a genuine fault for the whole budget and bury the diagnosis.
+        var handler = new ErroringOxiGraphHandler(HttpStatusCode.InternalServerError);
+        var svc = BuildService(handler, startupTimeout: TimeSpan.FromMinutes(5));
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => svc.RunAsync(seedTtlPath: MissingSeedPath(), templatePath: null, ct: default));
+
+        Assert.Equal(1, handler.Attempts);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────
 
     // A path that does not exist: TrySeedAsync skips the import but the run still reaches the
@@ -198,6 +214,26 @@ public class OxiGraphSeedHostedServiceStartupTest
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(EmptyResults, Encoding.UTF8, "application/sparql-results+json"),
+            });
+        }
+    }
+
+    /// <summary>
+    /// Always answers with the given non-2xx status, standing in for a store that is up and
+    /// reporting a fault.
+    /// </summary>
+    private sealed class ErroringOxiGraphHandler(HttpStatusCode status) : HttpMessageHandler
+    {
+        private int _attempts;
+        public int Attempts => Volatile.Read(ref _attempts);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref _attempts);
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent("boom", Encoding.UTF8, "text/plain"),
             });
         }
     }
