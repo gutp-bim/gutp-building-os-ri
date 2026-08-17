@@ -45,6 +45,8 @@ public sealed class OxiGraphSeedHostedService(
     // Internal for testing — allows injecting paths directly without env var manipulation.
     internal async Task RunAsync(string? seedTtlPath, string? templatePath, CancellationToken ct)
     {
+        var waited = false;
+
         if (string.IsNullOrEmpty(seedTtlPath))
             logger.LogDebug("OXIGRAPH_SEED_TTL_PATH not set; skipping seed import");
         else
@@ -54,6 +56,7 @@ public sealed class OxiGraphSeedHostedService(
             // the uniqueness validation in particular has no error handling of its own — an
             // unbound port used to propagate straight out of StartAsync and kill the process (#321).
             await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
+            waited = true;
 
             await TrySeedAsync(seedTtlPath, ct).ConfigureAwait(false);
 
@@ -70,7 +73,16 @@ public sealed class OxiGraphSeedHostedService(
         }
 
         if (!string.IsNullOrEmpty(templatePath))
+        {
+            // Template validation queries the store too (DeviceTemplateValidator issues its own
+            // SPARQL), so it faces the same unbound-listener race. Without a seed path configured
+            // the branch above never ran, and this would be the first thing to touch OxiGraph —
+            // reintroducing exactly the crash #321 reports.
+            if (!waited)
+                await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
+
             await ValidateDeviceTemplatesAsync(templatePath, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -115,29 +127,39 @@ public sealed class OxiGraphSeedHostedService(
                 last = ex;
             }
 
-            if (DateTimeOffset.UtcNow + delay >= deadline)
+            // Clamp the sleep to what is left rather than giving up as soon as a full backoff step
+            // would overshoot: otherwise the budget is effectively short by up to one delay (2s at
+            // the ceiling), and a store that binds just inside the configured timeout is failed.
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
             {
                 throw new InvalidOperationException(
                     $"OxiGraph did not become reachable within {_startupTimeout.TotalSeconds:0}s " +
-                    $"({attempts} attempts). Startup needs it for the RDF seed import and the gateway " +
-                    "uniqueness check. Check that the OxiGraph service is running and that " +
+                    $"({attempts} attempts). Startup needs it for the RDF seed import, the gateway " +
+                    "uniqueness check and device-template validation. Check that the OxiGraph " +
+                    "service is running and that " +
                     "OXIGRAPH_ENDPOINT points at it; raise OXIGRAPH_STARTUP_TIMEOUT_SEC if the store " +
                     "legitimately takes longer to start.", last);
             }
 
+            var wait = delay < remaining ? delay : remaining;
             logger.LogInformation(
-                "OxiGraph not reachable yet (attempt {Attempt}); retrying in {Delay}", attempts, delay);
-            await Task.Delay(delay, ct).ConfigureAwait(false);
+                "OxiGraph not reachable yet (attempt {Attempt}); retrying in {Delay}", attempts, wait);
+            await Task.Delay(wait, ct).ConfigureAwait(false);
             delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 2000));
         }
     }
 
     // A refused connection or an unresolvable name is the startup race, not a misconfiguration:
     // the container is coming up. HttpRequestException also covers DNS failure while Compose is
-    // still wiring the network. A request timeout surfaces as TaskCanceledException with no
-    // cancellation requested on our token.
+    // still wiring the network. A request timeout also surfaces as TaskCanceledException — keyed
+    // off *our* token rather than the exception's, because HttpClient's timeout cancels an internal
+    // linked source, so TaskCanceledException.CancellationToken is that source's token and never
+    // `default`. Testing the exception's token would silently classify every real timeout as fatal.
+    // Our own cancellation is already rethrown by the filter above, so reaching here means the
+    // caller did not cancel.
     private static bool IsTransientStartupFailure(Exception ex) =>
-        ex is HttpRequestException || (ex is TaskCanceledException tce && tce.CancellationToken == default);
+        ex is HttpRequestException or TaskCanceledException;
 
     // internal (not private): lets tests route a fake OxiGraph response by exact query text instead
     // of a fragile content heuristic — see OxiGraphSeedHostedServicePointListPushTest.
