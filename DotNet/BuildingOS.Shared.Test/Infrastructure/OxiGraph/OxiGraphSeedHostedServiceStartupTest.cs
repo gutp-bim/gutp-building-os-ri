@@ -107,14 +107,29 @@ public class OxiGraphSeedHostedServiceStartupTest
         // template-only startup path hits the store just like the seed path does. It sat outside
         // the readiness wait, which left the original crash reachable whenever
         // OXIGRAPH_DEVICE_TEMPLATE_PATH was set without OXIGRAPH_SEED_TTL_PATH.
+        using var templates = TempTemplateFile();
         var handler = new FlakyOxiGraphHandler(refusalsBeforeReady: 3);
         var svc = BuildService(handler);
 
-        await svc.RunAsync(seedTtlPath: null, templatePath: MissingTemplatePath(), ct: default);
+        await svc.RunAsync(seedTtlPath: null, templatePath: templates.Path, ct: default);
 
         Assert.True(
             handler.Attempts > 3,
             $"template-only startup did not wait for OxiGraph (saw {handler.Attempts} attempts)");
+    }
+
+    [Fact]
+    public async Task RunAsync_TemplateFileMissing_DoesNotWaitForOxiGraph()
+    {
+        // A missing template file is only a warning — validation skips it and never queries the
+        // store. Waiting on the mere presence of the variable would promote that misconfiguration
+        // into a hard startup dependency that fails the process on an unrelated timeout.
+        var handler = new FlakyOxiGraphHandler(refusalsBeforeReady: int.MaxValue);
+        var svc = BuildService(handler, startupTimeout: TimeSpan.FromMinutes(5));
+
+        await svc.RunAsync(seedTtlPath: null, templatePath: MissingTemplatePath(), ct: default);
+
+        Assert.Equal(0, handler.Attempts);
     }
 
     [Fact]
@@ -199,6 +214,32 @@ public class OxiGraphSeedHostedServiceStartupTest
 
     private static string MissingTempPath(string prefix, string extension) =>
         Path.Combine(Path.GetTempPath(), $"no_such_{prefix}_{Guid.NewGuid():N}{extension}");
+
+    /// <summary>
+    /// A device template file with one parseable template, so validation reaches the SPARQL query
+    /// rather than returning early — which is the only case that needs OxiGraph at all.
+    /// </summary>
+    private static TempFile TempTemplateFile()
+    {
+        const string json = """
+            [{"namespace":"test","deviceType":"AHU","className":"AirHandler",
+              "properties":[{"name":"temp","access":"r","pointType":"Temperature"}]}]
+            """;
+        var path = Path.Combine(Path.GetTempPath(), $"templates_321_{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, json);
+        return new TempFile(path);
+    }
+
+    private sealed class TempFile(string path) : IDisposable
+    {
+        public string Path { get; } = path;
+
+        public void Dispose()
+        {
+            try { File.Delete(Path); }
+            catch (IOException) { /* best effort: a leftover temp file must not fail a test */ }
+        }
+    }
 
     private static OxiGraphSeedHostedService BuildService(
         HttpMessageHandler handler, TimeSpan? startupTimeout = null)

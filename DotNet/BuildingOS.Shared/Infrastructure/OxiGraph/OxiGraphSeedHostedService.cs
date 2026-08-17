@@ -73,16 +73,7 @@ public sealed class OxiGraphSeedHostedService(
         }
 
         if (!string.IsNullOrEmpty(templatePath))
-        {
-            // Template validation queries the store too (DeviceTemplateValidator issues its own
-            // SPARQL), so it faces the same unbound-listener race. Without a seed path configured
-            // the branch above never ran, and this would be the first thing to touch OxiGraph —
-            // reintroducing exactly the crash #321 reports.
-            if (!waited)
-                await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
-
-            await ValidateDeviceTemplatesAsync(templatePath, ct).ConfigureAwait(false);
-        }
+            await ValidateDeviceTemplatesAsync(templatePath, ct, alreadyWaited: waited).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -297,7 +288,11 @@ public sealed class OxiGraphSeedHostedService(
         }
     }
 
-    private async Task ValidateDeviceTemplatesAsync(string templatePath, CancellationToken ct)
+    /// <param name="alreadyWaited">
+    /// Whether the seed branch has already waited for OxiGraph, so this path does not wait twice.
+    /// </param>
+    private async Task ValidateDeviceTemplatesAsync(
+        string templatePath, CancellationToken ct, bool alreadyWaited)
     {
         if (!File.Exists(templatePath))
         {
@@ -315,6 +310,12 @@ public sealed class OxiGraphSeedHostedService(
                 "Device template file {Path} contains no parseable templates; skipping validation", templatePath);
             return;
         }
+
+        // Only now is a store query certain. Waiting any earlier — on the mere presence of
+        // OXIGRAPH_DEVICE_TEMPLATE_PATH — would turn a missing or empty template file, which is
+        // only a warning, into a hard startup dependency on OxiGraph that can time out and fail.
+        if (!alreadyWaited)
+            await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
 
         var errors = await DeviceTemplateValidator.ValidateAsync(templates, client, ct).ConfigureAwait(false);
 
