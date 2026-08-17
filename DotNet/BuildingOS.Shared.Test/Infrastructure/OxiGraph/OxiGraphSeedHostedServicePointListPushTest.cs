@@ -95,9 +95,10 @@ public class OxiGraphSeedHostedServicePointListPushTest
     }
 
     /// <summary>
-    /// Fakes the OxiGraph `/query` endpoint for the two SPARQL queries RunAsync issues once a (nonempty)
-    /// seed path is set: the gateway-uniqueness check (always answered with no violations — out of scope
-    /// for this test) and the distinct-gateway-id query (answered from the fixture list). Routes by an
+    /// Fakes the OxiGraph `/query` endpoint for the SPARQL queries RunAsync issues once a (nonempty)
+    /// seed path is set: the startup readiness probe (#321), the gateway-uniqueness check (always
+    /// answered with no violations — out of scope for this test) and the distinct-gateway-id query
+    /// (answered from the fixture list). Routes by an
     /// exact match against the service's own query constants (internal, exposed for this reason) rather
     /// than a content heuristic, so a future rewording of either query can't silently misroute the fake.
     /// </summary>
@@ -116,7 +117,9 @@ public class OxiGraphSeedHostedServicePointListPushTest
             var sparql = WebUtility.UrlDecode(encodedValue);
 
             string body;
-            if (sparql == OxiGraphSeedHostedService.GatewayUniquenessQuery)
+            if (sparql == OxiGraphSeedHostedService.ReadinessQuery)
+                body = @"{ ""results"": { ""bindings"": [] } }"; // store is up (#321 startup probe)
+            else if (sparql == OxiGraphSeedHostedService.GatewayUniquenessQuery)
                 body = @"{ ""results"": { ""bindings"": [] } }"; // uniqueness check: no violations
             else if (sparql == OxiGraphSeedHostedService.DistinctGatewayQuery)
                 body = $@"{{ ""results"": {{ ""bindings"": [{string.Join(",", gatewayIds.Select(g =>

@@ -16,8 +16,25 @@ public sealed class OxiGraphSeedHostedService(
     OxiGraphClient client,
     OxiGraphIngestMaterializer materializer,
     ILogger<OxiGraphSeedHostedService> logger,
-    IPointListUpdatePublisher? pointListUpdatePublisher = null) : IHostedService
+    IPointListUpdatePublisher? pointListUpdatePublisher = null,
+    TimeSpan? startupTimeout = null) : IHostedService
 {
+    /// <summary>
+    /// How long to wait for OxiGraph to start accepting connections before giving up (#321).
+    /// Override with OXIGRAPH_STARTUP_TIMEOUT_SEC.
+    /// </summary>
+    private static readonly TimeSpan DefaultStartupTimeout = TimeSpan.FromSeconds(60);
+
+    private readonly TimeSpan _startupTimeout = startupTimeout ?? ResolveStartupTimeout();
+
+    private static TimeSpan ResolveStartupTimeout()
+    {
+        var raw = Environment.GetEnvironmentVariable("OXIGRAPH_STARTUP_TIMEOUT_SEC");
+        return int.TryParse(raw, out var seconds) && seconds > 0
+            ? TimeSpan.FromSeconds(seconds)
+            : DefaultStartupTimeout;
+    }
+
     public async Task StartAsync(CancellationToken ct)
     {
         var seedTtlPath = Environment.GetEnvironmentVariable("OXIGRAPH_SEED_TTL_PATH");
@@ -32,6 +49,12 @@ public sealed class OxiGraphSeedHostedService(
             logger.LogDebug("OXIGRAPH_SEED_TTL_PATH not set; skipping seed import");
         else
         {
+            // Compose starts OxiGraph alongside the API, and its image carries no healthcheck, so
+            // the store's listener may not be bound yet. Everything below talks to OxiGraph, and
+            // the uniqueness validation in particular has no error handling of its own — an
+            // unbound port used to propagate straight out of StartAsync and kill the process (#321).
+            await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
+
             await TrySeedAsync(seedTtlPath, ct).ConfigureAwait(false);
 
             // gateway_id must be globally unique: a gateway addresses a point by gateway_id +
@@ -49,6 +72,72 @@ public sealed class OxiGraphSeedHostedService(
         if (!string.IsNullOrEmpty(templatePath))
             await ValidateDeviceTemplatesAsync(templatePath, ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Cheapest possible round trip that proves the store is answering queries. internal for the
+    /// same reason as the two query constants below — test fakes route on exact query text.
+    /// </summary>
+    internal const string ReadinessQuery = "SELECT ?s WHERE { ?s ?p ?o } LIMIT 1";
+
+    /// <summary>
+    /// Blocks until OxiGraph answers a query, or the startup budget elapses.
+    /// </summary>
+    /// <remarks>
+    /// Only transport-level failures are retried. A store that answers with an error is reporting a
+    /// real problem — retrying it would just delay a diagnosis by the whole budget. Backoff grows
+    /// to a 2s ceiling: the wait is usually a second or two of container startup, so a long tail
+    /// would add avoidable dead time to every boot.
+    /// </remarks>
+    private async Task WaitForOxiGraphAsync(CancellationToken ct)
+    {
+        var deadline = DateTimeOffset.UtcNow + _startupTimeout;
+        var delay = TimeSpan.FromMilliseconds(100);
+        var attempts = 0;
+        Exception? last = null;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            attempts++;
+            try
+            {
+                await client.QueryAsync(ReadinessQuery, ct).ConfigureAwait(false);
+                if (attempts > 1)
+                    logger.LogInformation("OxiGraph became reachable after {Attempts} attempts", attempts);
+                return;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (IsTransientStartupFailure(ex))
+            {
+                last = ex;
+            }
+
+            if (DateTimeOffset.UtcNow + delay >= deadline)
+            {
+                throw new InvalidOperationException(
+                    $"OxiGraph did not become reachable within {_startupTimeout.TotalSeconds:0}s " +
+                    $"({attempts} attempts). Startup needs it for the RDF seed import and the gateway " +
+                    "uniqueness check. Check that the OxiGraph service is running and that " +
+                    "OXIGRAPH_ENDPOINT points at it; raise OXIGRAPH_STARTUP_TIMEOUT_SEC if the store " +
+                    "legitimately takes longer to start.", last);
+            }
+
+            logger.LogInformation(
+                "OxiGraph not reachable yet (attempt {Attempt}); retrying in {Delay}", attempts, delay);
+            await Task.Delay(delay, ct).ConfigureAwait(false);
+            delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 2000));
+        }
+    }
+
+    // A refused connection or an unresolvable name is the startup race, not a misconfiguration:
+    // the container is coming up. HttpRequestException also covers DNS failure while Compose is
+    // still wiring the network. A request timeout surfaces as TaskCanceledException with no
+    // cancellation requested on our token.
+    private static bool IsTransientStartupFailure(Exception ex) =>
+        ex is HttpRequestException || (ex is TaskCanceledException tce && tce.CancellationToken == default);
 
     // internal (not private): lets tests route a fake OxiGraph response by exact query text instead
     // of a fragile content heuristic — see OxiGraphSeedHostedServicePointListPushTest.
