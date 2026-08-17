@@ -92,6 +92,13 @@ public sealed class OxiGraphSeedHostedService(
     internal const string ReadinessQuery = "SELECT ?s WHERE { ?s ?p ?o } LIMIT 1";
 
     /// <summary>
+    /// Minimum time a probe is given once the budget is nearly spent, so the attempt made at the
+    /// deadline boundary is a real one rather than cancelled on arrival. Total overshoot is capped
+    /// at this, against the ~100s an unbounded HttpClient probe could otherwise take.
+    /// </summary>
+    private static readonly TimeSpan FinalProbeGrace = TimeSpan.FromSeconds(1);
+
+    /// <summary>
     /// Blocks until OxiGraph answers a query, or the startup budget elapses.
     /// </summary>
     /// <remarks>
@@ -111,9 +118,21 @@ public sealed class OxiGraphSeedHostedService(
         {
             ct.ThrowIfCancellationRequested();
             attempts++;
+
+            // Bound the probe itself, not just the gap between probes. A store that accepts the
+            // connection and then stalls answers nothing, and the deadline is only examined
+            // between attempts — so a single probe would sit for HttpClient's default 100s and
+            // overrun a shorter budget wholesale. Near the deadline the boundary attempt still
+            // gets a small grace, otherwise clamping the sleep to the remainder buys nothing.
+            var probeBudget = deadline - DateTimeOffset.UtcNow;
+            if (probeBudget < FinalProbeGrace)
+                probeBudget = FinalProbeGrace;
+
+            using var probeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            probeCts.CancelAfter(probeBudget);
             try
             {
-                await client.QueryAsync(ReadinessQuery, ct).ConfigureAwait(false);
+                await client.QueryAsync(ReadinessQuery, probeCts.Token).ConfigureAwait(false);
                 if (attempts > 1)
                     logger.LogInformation("OxiGraph became reachable after {Attempts} attempts", attempts);
                 return;

@@ -167,16 +167,38 @@ public class OxiGraphSeedHostedServiceStartupTest
         Assert.Equal(1, handler.Attempts);
     }
 
+    [Fact]
+    public async Task RunAsync_StoreAcceptsThenStalls_DoesNotOutrunTheBudget()
+    {
+        // The deadline is only examined between attempts, so a probe that never returns is not
+        // bounded by the budget at all — it runs until HttpClient's own ~100s timeout, whatever
+        // OXIGRAPH_STARTUP_TIMEOUT_SEC says.
+        var handler = new StallingOxiGraphHandler();
+        var svc = BuildService(handler, startupTimeout: TimeSpan.FromMilliseconds(200));
+
+        var started = DateTimeOffset.UtcNow;
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.RunAsync(seedTtlPath: MissingSeedPath(), templatePath: null, ct: default));
+        var elapsed = DateTimeOffset.UtcNow - started;
+
+        // Well under HttpClient's default: the ceiling is the budget plus one probe grace.
+        Assert.True(elapsed < TimeSpan.FromSeconds(30), $"a stalled probe ran for {elapsed}");
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────
 
     // A path that does not exist: TrySeedAsync skips the import but the run still reaches the
-    // gateway-uniqueness query, which is the call that was crashing.
-    private static string MissingSeedPath() => Path.Combine(Path.GetTempPath(), "no_such_seed_321.ttl");
+    // gateway-uniqueness query, which is the call that was crashing. The name is randomised so the
+    // "missing" precondition is guaranteed rather than assumed — a stray file of a fixed name in
+    // the temp directory would otherwise be imported and quietly change what these tests exercise.
+    private static string MissingSeedPath() => MissingTempPath("seed_321", ".ttl");
 
     // Likewise for the template path: validation skips a missing file, but the readiness wait must
     // already have happened by then — that is what this pins.
-    private static string MissingTemplatePath() =>
-        Path.Combine(Path.GetTempPath(), "no_such_templates_321.csv");
+    private static string MissingTemplatePath() => MissingTempPath("templates_321", ".csv");
+
+    private static string MissingTempPath(string prefix, string extension) =>
+        Path.Combine(Path.GetTempPath(), $"no_such_{prefix}_{Guid.NewGuid():N}{extension}");
 
     private static OxiGraphSeedHostedService BuildService(
         HttpMessageHandler handler, TimeSpan? startupTimeout = null)
@@ -215,6 +237,20 @@ public class OxiGraphSeedHostedServiceStartupTest
             {
                 Content = new StringContent(EmptyResults, Encoding.UTF8, "application/sparql-results+json"),
             });
+        }
+    }
+
+    /// <summary>
+    /// Accepts the request and never answers, standing in for a store whose listener is bound but
+    /// which is not yet serving.
+    /// </summary>
+    private sealed class StallingOxiGraphHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage req, CancellationToken ct)
+        {
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+            throw new InvalidOperationException("unreachable: the delay above only ends by cancellation");
         }
     }
 
