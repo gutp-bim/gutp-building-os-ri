@@ -144,7 +144,7 @@ nexus-gateway の Egress Agent → コネクタが `WriteProperty`（BACnet）/ 
 
 | コンポーネント | リポジトリ | 役割 | 実装言語 |
 |---|---|---|---|
-| **Building OS (OSS)** | `gutp-building-os-ri` | System of Record。テレメトリ蓄積・API・ダッシュボード・デジタルツイン・制御ルーティング | .NET 8 / Next.js 15 |
+| **Building OS (OSS)** | `gutp-building-os-ri` | System of Record。テレメトリ蓄積・API・ダッシュボード・デジタルツイン・制御ルーティング | .NET 8 / Next.js 16 |
 | **nexus-gateway** | `nexus-gateway` | エッジ統合ゲートウェイ。プロトコル差異の吸収と `(gateway_id, point_id)` への正規化、Building OS への上り/下り | Go（コネクタは Go/Python/Java）|
 | **bacnet-sim-gateway** | `bacnet-sim-gateway` | SBCO 点リストから標準準拠の **仮想 BACnet B-BC** を生成し BACnet/IP で公開 | Python 3.12 |
 | **opcua-sim-gateway** | `opcua-sim-gateway` | SBCO 点リストから **仮想 OPC UA サーバ**（アドレス空間）を生成し opc.tcp で公開 | Python 3.12 |
@@ -496,9 +496,13 @@ API を叩けます（認証を試すときは `WithLocalAuth`。詳細は [Step
 | `site` / `building` / `floor` / `installation_area` | 階層（サイト→建物→フロア→部屋） |
 | `local_id` | ゲートウェイ側のネイティブアドレス（BACnet なら ObjectID、OPC-UA なら nodeId、MQTT なら topic） |
 
-> ⚠️ **既知の制約:** `installation_area` を空や `-` のままにすると、Building OS は
-> 「Room を経由しない階層」を有効な階層として受理しません。必ず実在の部屋名（fixture の
-> `Room 101` のような値）を入れてください。
+> ⚠️ **既知の制約:** Equipment が Room を経由せず Level に直接ぶら下がる階層は Building OS
+> 側では正当なパスとして受理されます（`rec:locatedIn` を Level に直接向ける、または
+> `sbco:floor` リテラルで Level 名と一致させる、のいずれでも可）。ただし変換ツール
+> （smartbuilding_datamodel_builder）は `installation_area` が空/`-` だと空間アンカー
+> （Room への `locatedIn`）を出力できず、いずれの経路にも到達できない **orphan**（どの
+> Building にも繋がらない機器）を生成することがあります。`installation_area` を埋めるか、
+> 空にする場合は `floor` が実在の Level 名と一致していることを確認してください。
 
 #### A-3-2. CSVをRDF(Turtle)に変換する
 
@@ -542,8 +546,14 @@ SHACL 検証で警告(warning)が出ても、それだけでは書き込みは�
 
   sbr:SOS-PT-004 bos:dataType "boolean" .
   sbr:SOS-PT-006 bos:dataType "number" ; bos:minValue "16" ; bos:maxValue "30" .
-  sbr:SOS-PT-007 bos:dataType "enum" ; bos:enumLabels "Off&&Low&&Medium&&High" .
+  sbr:SOS-PT-007 bos:dataType "enum" ;
+    bos:enumLabels "{\"1\":\"Off\",\"2\":\"Low\",\"3\":\"Medium\",\"4\":\"High\"}" .
   ```
+
+  > ⚠️ `bos:enumLabels` は `&&` 区切りの文字列ではなく、**キーが許容コード(数値)の JSON
+  > オブジェクト**です（`ControlValueValidator` が `JsonDocument.Parse` でキー集合を読み、
+  > 許容値として使います。パースに失敗すると enum 検証は素通りします）。上のキー番号は
+  > 実際に送る `present_value`(BACnet multiStateValue の 1 始まり)と一致させてください。
 
   このパッチを当てるまでは、`GET /gateways/{id}/pointlist` の `controlSchema` は
   `null` のままです([A-4](#a-4-起動確認)・[Step D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)
