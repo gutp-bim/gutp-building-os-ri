@@ -158,7 +158,11 @@ services:
       - oxigraph_data:/data
     networks:
       - oss
-    # distroless image — no shell/curl; health verified by scripts/test-oss-stack.sh from host
+    # distroless image — no shell/curl, so no Docker healthcheck is possible here and dependents
+    # cannot wait on `service_healthy`. The API instead retries its startup queries until the
+    # listener binds (OxiGraphSeedHostedService, OXIGRAPH_STARTUP_TIMEOUT_SEC) — which also covers
+    # K8s and any other orchestrator, not just Compose (#321).
+    # Health from the host is verified by scripts/test-oss-stack.sh
 
   # ── MinIO S3 (← Azure Blob Storage) ──────────────────────────────────────
   building-os.minio:
@@ -411,6 +415,12 @@ services:
         condition: service_healthy
       building-os.minio:
         condition: service_healthy
+      # service_started, not service_healthy: the OxiGraph image is distroless, so it can carry no
+      # healthcheck for Compose to wait on (see its service definition). This only orders the
+      # container starts — the API's own bounded retry is what actually waits for the store's
+      # listener to bind before the RDF seed and gateway-uniqueness check (#321).
+      building-os.oxigraph:
+        condition: service_started
     networks:
       - oss
     # No Docker healthcheck: the runtime image is aspnet:8.0-noble-chiseled (A-5), which ships
