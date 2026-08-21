@@ -17,6 +17,8 @@
   fail-fast、`/admin/twin` 経由は 409 を返します。
   詳細: [onboarding-e2e-gateway.md](onboarding-e2e-gateway.md)の「A-3. デジタルツインに設備を入れる」節、
   Turtle の最小構成例は [getting-started.md](getting-started.md)の §4。
+  **実際のポイントリスト CSV から変換する場合**は同ドキュメントの A-3-1〜A-3-3
+  (CSV 準備 → RDF 変換 → インポート)を参照。
 
 - [ ] **2. 制御 binding を設定する(制御を使う場合)**
   `GatewayConnectionTypes__Map__{gatewayId}` env に `hono` / `kandt` / `bacnet-sim` のいずれかを

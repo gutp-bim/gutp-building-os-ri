@@ -12,17 +12,19 @@
 </head>
 <body>
 
-<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更)。
+     例外: index-en.html だけは nav ラベルと「メニュー」ボタンの文言を英訳する
+     (それ以外の href / 構造 / 順序は他5ページと同一に保つこと) ===== -->
 <header class="site-header">
   <div class="container header-inner">
     <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
-    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
     <nav id="site-nav" class="site-nav" aria-label="Site navigation">
-      <a href="index.html">ホーム</a>
-      <a href="product.html">プロダクト</a>
-      <a href="quickstart.html">クイックスタート</a>
-      <a href="architecture.html">アーキテクチャ</a>
-      <a href="ecosystem.html">エコシステム</a>
+      <a href="index.html">Home</a>
+      <a href="product.html">Product</a>
+      <a href="quickstart.html">Quickstart</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="ecosystem.html">Ecosystem</a>
       <a href="index-en.html" aria-current="page">EN</a>
       <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
     </nav>
