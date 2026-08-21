@@ -12,7 +12,8 @@
 </head>
 <body>
 
-<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更) ===== -->
+<!-- ===== SITE CHROME (header) — 全6ページで同一に保つこと(aria-current のみページごとに変更)。
+     例外: index-en.html だけは nav ラベルと「メニュー」ボタンの文言を英訳している ===== -->
 <header class="site-header">
   <div class="container header-inner">
     <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
@@ -44,8 +45,9 @@
 
   <!--
     コマンドの正本は docs/guides/getting-started.md。
-    getting-started.md を更新したら、このページの手順・コマンドも必ず突き合わせて更新すること。
-    ここには 5 ステップのハッピーパスだけを載せ、詳細は blob リンクへ寄せる。
+    getting-started.md を更新したら、このページの手順・コマンドも必ず突き合わせて更新すること
+    (特に「最短デモ」ボックスと、認証トークン取得を含むステップ番号)。
+    ここにはハッピーパスだけを載せ、詳細は blob リンクへ寄せる。
   -->
 
   <section class="section">
@@ -57,6 +59,33 @@
         <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a>を確認し、
         利用者自身の責任で十分に検証してください。
       </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>🚀 最短デモ — <code>make demo</code>(1コマンド)</h2>
+      <p>「まず動いている状態を見たい」なら、これだけで<strong>データが流れている画面</strong>まで到達します。</p>
+      <pre><code>git clone https://github.com/gutp-bim/gutp-building-os-ri
+cd gutp-building-os-ri
+make demo
+# → http://localhost:3000 (ログイン: admin / admin)</code></pre>
+      <p>
+        これ 1 つで、OSS スタック + Web Client + テレメトリ生成器(feeder)が起動し、サンプルツイン
+        (<code>GW-SOS-001</code> / <code>SOS-PT-001..008</code>)へ gRPC で周期テレメトリが投入され続けます。
+        ブラウザで <code>/resources</code> を開いて建物→機器→ポイントを辿り、<code>/points/&#123;id&#125;</code> で
+        最新値と履歴グラフを確認できます。書込可のポイント(<code>SOS-PT-004</code> 照明 /
+        <code>SOS-PT-006</code> 設定温度 / <code>SOS-PT-007</code> ファン)では制御も実行できます
+        (デモは in-process のシミュレート制御ハンドラが応答するため、実ゲートウェイなしでも成功します)。
+      </p>
+      <p class="fineprint">
+        認証トークンの取得なしでこのまま使えます — <code>make demo</code> は API を
+        <code>DISABLE_AUTH=true</code> で起動するためです。停止は <code>make demo-down</code>。
+        以下は、この 1 コマンドの中身を段階的に理解したい人向けの詳細手順です。
+        実ゲートウェイ(nexus-gateway 等)を繋ぐ実経路の手順は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/guides/onboarding-e2e-gateway.md" rel="noopener">onboarding-e2e-gateway.md</a>
+        を参照してください。
+      </p>
     </div>
   </section>
 
@@ -124,8 +153,12 @@ docker compose -f docker-compose.oss.yaml up -d</code></pre>
 
   <section class="section section--alt">
     <div class="container">
-      <h2>3. テレメトリを流す</h2>
-      <p>いちばん簡単なのは MQTT 経由です。Mosquitto プロファイルを有効化して起動します。</p>
+      <h2>3. テレメトリを流す(手動で試したい場合)</h2>
+      <p>
+        <code>make demo</code> を使った場合は feeder が自動でテレメトリを流し続けるため、この
+        ステップは不要です。ここでは自分でテレメトリを送る場合の最小手順を示します。
+        いちばん簡単なのは MQTT 経由です。Mosquitto プロファイルを有効化して起動します。
+      </p>
       <pre><code>MQTT_HOST=building-os.mosquitto docker compose -f docker-compose.oss.yaml --profile mqtt up -d</code></pre>
       <p>付属のデバイスシミュレータで 1 件 publish してみます。</p>
       <pre><code>MQTT_HOST=localhost MQTT_PORT=11883 MQTT_USERNAME=devices MQTT_PASSWORD=buildingos-devices \
@@ -142,21 +175,43 @@ docker compose -f docker-compose.oss.yaml up -d</code></pre>
 
   <section class="section">
     <div class="container">
-      <h2>4. API で読み出す</h2>
-      <p>統一エンドポイント <code>GET /telemetries/query</code> が、最新値・履歴・集計の置き場所を自動選択します。</p>
-      <pre><code># 最新値(Hot KV)
-curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;latest=true'
-
-# 期間レンジ(tier 自動選択: warm / cold / 集計)
-curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;start=2026-06-15T00:00:00Z&amp;end=2026-06-16T00:00:00Z&amp;granularity=Hour'</code></pre>
-      <p class="fineprint">※ <code>pointId</code> はデジタルツインに登録済みのポイント ID を指定します(未登録は 404)。</p>
+      <h2>4. 認証トークンを取得する</h2>
+      <p>
+        <code>make demo</code> を使わず素の <code>docker compose -f docker-compose.oss.yaml up -d</code>
+        で起動した場合、API は既定で JWT 認証が必須です。以降の curl 例で使うトークンを取得します
+        (<code>make demo</code> / <code>DISABLE_AUTH=true</code> 起動時はこのステップは不要です)。
+      </p>
+      <pre><code>TOKEN=$(curl -s http://localhost:8080/realms/building-os/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=web-client \
+  -d username=admin -d password=admin | jq -r .access_token)</code></pre>
+      <p class="fineprint">
+        既定の dev realm には <code>admin</code>/<code>admin</code>(全操作可)と
+        <code>testoperator</code>/<code>testpass</code>(読取 + 制御)が投入済みです。
+        ラボ/CI 専用の既定資格情報なので、本番前に必ず変更してください。
+      </p>
     </div>
   </section>
 
   <section class="section section--alt">
     <div class="container">
-      <h2>5. ポイントを制御する</h2>
+      <h2>5. API で読み出す</h2>
+      <p>統一エンドポイント <code>GET /telemetries/query</code> が、最新値・履歴・集計の置き場所を自動選択します。</p>
+      <pre><code># 最新値(Hot KV)
+curl -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;latest=true'
+
+# 期間レンジ(tier 自動選択: warm / cold / 集計)
+curl -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;start=2026-06-15T00:00:00Z&amp;end=2026-06-16T00:00:00Z&amp;granularity=Hour'</code></pre>
+      <p class="fineprint">※ <code>pointId</code> はデジタルツインに登録済みのポイント ID を指定します(未登録は 404)。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>6. ポイントを制御する</h2>
       <pre><code>curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"value": 1}'</code></pre>
       <p>
         <code>202 Accepted</code> と <code>controlId</code> が返り、実行結果は非同期で通知されます。
@@ -166,7 +221,7 @@ curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;start=2026
     </div>
   </section>
 
-  <section class="section">
+  <section class="section section--alt">
     <div class="container">
       <h2>さらに詳しく</h2>
       <ul class="link-list">

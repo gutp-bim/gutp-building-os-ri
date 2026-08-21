@@ -4,7 +4,12 @@
 共通で使う **1 セットのポイントリスト / リソース定義**です。両者が同じ
 `(gateway_id, point_id)` を指すことで、上り（テレメトリ）と下り（制御）が端から端まで繋がります。
 
-ポイントリストの列定義は **スマートビル標準ポイントリスト**（`pointlist.md`）に準拠します。
+ポイントリストの列定義は **スマートビル標準ポイントリスト**
+（[`pointlist.md`](https://github.com/smartbuilding-co-creation-organization/smartbuilding_datamodel_builder/blob/main/pointlist.md)、
+`smartbuilding_datamodel_builder` リポジトリ）に準拠します。CSV から本 `twin.ttl` 相当の
+Turtle(RDF) を生成する手順は
+[`docs/guides/onboarding-e2e-gateway.md` の A-3-1〜A-3-3](../../docs/guides/onboarding-e2e-gateway.md#a-3-1-ポイントcsvを準備する)
+を参照してください。
 
 ## データセット概要
 
