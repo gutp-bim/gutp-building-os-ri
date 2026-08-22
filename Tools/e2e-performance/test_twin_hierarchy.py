@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from seed_from_csv import build_insert as build_csv_insert  # noqa: E402
 from seed_twin_points import (  # noqa: E402
+    build_building_reset,
     build_control_point_insert,
     build_insert as build_points_insert,
 )
@@ -46,13 +47,19 @@ def parse(update: str) -> list[tuple[str, str, str]]:
         elif ch == '"':
             j = i + 1
             buf = []
-            while body[j] != '"':
+            while j < len(body) and body[j] != '"':
                 if body[j] == "\\":
+                    # An escape needs its following character; a trailing backslash would otherwise
+                    # read past the end and surface as an IndexError instead of a usable message.
+                    if j + 1 >= len(body):
+                        raise AssertionError("unterminated escape in a Turtle literal")
                     buf.append(body[j + 1])
                     j += 2
                 else:
                     buf.append(body[j])
                     j += 1
+            if j >= len(body):
+                raise AssertionError("unterminated Turtle literal — parse() cannot read this output")
             tokens.append("".join(buf))
             i = j + 1
         elif ch in ";.":
@@ -163,6 +170,37 @@ class TestSeedTwinPoints:
         # twin is shaped correctly but telemetry still fails to enrich.
         update = build_points_insert(["perf-point-abcdef12-00000-000"])
         assert f'<{SBCO}building>' in update
+
+
+class TestBuildingReset:
+    def test_reset_targets_only_the_building_literal_of_the_given_points(self):
+        # The scale sweep re-seeds the same point ids per building (both sides derive them from
+        # run_id[:8], and the per-building run ids share that prefix), and INSERT DATA is additive —
+        # so without this one point would carry a sbco:building literal per building and enrichment
+        # would pick whichever it read first.
+        update = build_building_reset(["p1", "p2"])
+        assert update.startswith("DELETE")
+        assert f"<{SBCO}building>" in update
+        assert "<urn:perf:pt:p1>" in update and "<urn:perf:pt:p2>" in update
+        # Must not touch anything else about the point.
+        for other in ("PointExt", "writable", "hasPoint", "locatedIn"):
+            assert other not in update
+
+
+class TestParser:
+    def test_unterminated_literal_fails_loudly(self):
+        # The module's whole value is that assert_no_orphans reads what the seeders actually emit;
+        # a silent mis-parse (or a bare IndexError) would undermine that.
+        import pytest
+
+        with pytest.raises(AssertionError, match="unterminated"):
+            parse('INSERT DATA { <a> <b> "unclosed }')
+
+    def test_unexpected_token_after_object_fails_loudly(self):
+        import pytest
+
+        with pytest.raises(AssertionError, match="unsupported Turtle token"):
+            parse("INSERT DATA { <a> <b> <c> <d> . }")
 
 
 class TestSeedFromCsv:

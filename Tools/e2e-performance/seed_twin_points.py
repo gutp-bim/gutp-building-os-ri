@@ -40,6 +40,27 @@ def point_ids(run_id: str, devices: int, points_per_device: int) -> list[str]:
     ]
 
 
+def build_building_reset(ids: list[str]) -> str:
+    """Drop any existing `sbco:building` on these point ids before re-seeding them.
+
+    `INSERT DATA` is additive, and the scale sweep re-seeds the *same* point ids for every building:
+    both this script and `device_load_generator` derive them from `run_id[:8]`, and the sweep's per
+    building run ids (`{base}-b1`, `{base}-b2`, …) share that prefix. Without this, one PointExt
+    accumulates a `sbco:building` literal per building and `IPointMetadataCache` enriches telemetry
+    with whichever one it happens to read.
+
+    This makes the write idempotent and last-seed-wins *deterministically*. It does not make the ids
+    unique — that is a pre-existing limitation of the `run_id[:8]` scheme, already documented in
+    `quality_checker.py` (which offers `--building` as the exact-match escape hatch), and changing it
+    would mean changing the load generator's naming contract too.
+    """
+    values = " ".join(f"<urn:perf:pt:{pid}>" for pid in ids)
+    return (
+        f"DELETE {{ ?pt <{SBCO}building> ?b }}\n"
+        f"WHERE {{ VALUES ?pt {{ {values} }} ?pt <{SBCO}building> ?b }}"
+    )
+
+
 def build_insert(ids: list[str], building_id: str | None = None) -> str:
     """Points, plus the equipment and spatial chain that make them reachable from a Building (#300).
 
@@ -135,6 +156,7 @@ def main() -> None:
 
     ids = point_ids(args.run_id, args.devices, args.points_per_device)
     logger.info("Seeding %d PointExt nodes into %s (run8=%s)", len(ids), args.oxigraph, args.run_id[:8])
+    post_update(args.oxigraph, build_building_reset(ids))
     post_update(args.oxigraph, build_insert(ids, args.building))
     logger.info("Seeded %d points. Sample: %s", len(ids), ", ".join(ids[:3]))
     # Emit the point ids (comma-separated) to stdout so a runner can pass them to k6 as POINT_IDS.
