@@ -75,7 +75,7 @@ public sealed class ControlAuditWriter(
 
         return WriteAsync(controlId, ResultWriteTimeout, async (repository, token) =>
         {
-            var existing = await repository.GetPointControlInfoAsync(id).ConfigureAwait(false);
+            var existing = await repository.GetPointControlInfoAsync(id, token).ConfigureAwait(false);
             // Already resolved — a gateway did answer despite our local dispatch error. Leave it.
             if (existing?.Result is not null) return;
 

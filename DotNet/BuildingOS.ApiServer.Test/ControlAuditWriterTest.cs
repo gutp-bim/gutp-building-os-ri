@@ -78,7 +78,7 @@ public class ControlAuditWriterTest
     {
         var (writer, repo) = Build();
         var controlId = Guid.NewGuid();
-        repo.Setup(r => r.GetPointControlInfoAsync(controlId))
+        repo.Setup(r => r.GetPointControlInfoAsync(controlId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PointControlInfo { id = controlId, Type = "BacnetSim", Body = "{}" });
         PointControlInfo? persisted = null;
         repo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
@@ -98,7 +98,7 @@ public class ControlAuditWriterTest
         var controlId = Guid.NewGuid();
         // A dispatch error does not prove the command never reached a gateway; if the gateway did
         // answer, that outcome is the truth and our local failure must not clobber it.
-        repo.Setup(r => r.GetPointControlInfoAsync(controlId))
+        repo.Setup(r => r.GetPointControlInfoAsync(controlId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PointControlInfo
             {
                 id = controlId, Type = "BacnetSim", Body = "{}", Result = PointControlResult.Success,

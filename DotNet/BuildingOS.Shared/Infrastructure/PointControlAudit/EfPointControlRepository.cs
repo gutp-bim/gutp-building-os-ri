@@ -13,10 +13,10 @@ public sealed class EfPointControlRepository : IPointControlRepository
 
     public EfPointControlRepository(RelationalDbContext context) => _context = context;
 
-    public async Task<PointControlInfo?> GetPointControlInfoAsync(Guid id)
+    public async Task<PointControlInfo?> GetPointControlInfoAsync(Guid id, CancellationToken ct = default)
     {
         var entry = await _context.PointControlAudits
-            .FindAsync(id)
+            .FindAsync([id], ct)
             .ConfigureAwait(false);
         return entry is null ? null : PointControlAuditSerializer.ToDomain(entry);
     }

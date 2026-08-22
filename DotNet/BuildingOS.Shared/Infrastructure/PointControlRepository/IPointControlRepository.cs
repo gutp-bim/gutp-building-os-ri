@@ -3,7 +3,7 @@ using BuildingOS.Shared.Domain.PointControl;
 
 public interface IPointControlRepository
 {
-    Task<PointControlInfo?> GetPointControlInfoAsync(Guid id);
+    Task<PointControlInfo?> GetPointControlInfoAsync(Guid id, CancellationToken ct = default);
     Task CreatePointControlInfoAsync(PointControlInfo pointControlInfo, CancellationToken ct = default);
     Task UpdatePointControlInfoAsync(PointControlInfo pointControlInfo, CancellationToken ct = default);
 
