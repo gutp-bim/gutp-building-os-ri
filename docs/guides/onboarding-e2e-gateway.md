@@ -908,10 +908,11 @@ go run ./cmd/gateway
 
 - `GATEWAY_ID` は twin に登録した `sbco:gatewayId` と一致させます（例 `GW-SOS-001`）。
 - `BOS_INSECURE=true`（平文 h2c）は **dev/CI 専用**。本番は [Step F](#step-f--証明書と-mtls本番寄り) の mTLS に置き換えます。
-- Point List は Building OS の twin が正本。`PROVISIONING_URL=https://.../provisioning` を
-  与えれば twin から同期（ETag / `If-None-Match`→304 / `?since=` 差分）します。CSV 固定
-  (`PROVISIONING_FILE`) の代わりにこちらを使うと、A-3 で投入した twin の内容が変わるたびに
-  gateway 側が自動で追従します。
+- Point List は Building OS の twin が正本。`PROVISIONING_URL=https://bos.example.com` を
+  与えれば twin から同期（ETag / `If-None-Match`→304 / `?since=` 差分）します。gateway が
+  `/gateways/{gatewayId}/pointlist` を自分で末尾に付けるので、**パスは含めないベース URL**
+  （スキーム+ホスト[:ポート]のみ）を渡してください。CSV 固定 (`PROVISIONING_FILE`) の代わりに
+  こちらを使うと、A-3 で投入した twin の内容が変わるたびに gateway 側が自動で追従します。
 
 #### D-2 補足. ポイントリスト同期を手動で確認する
 
@@ -1129,13 +1130,149 @@ BOS_CA_FILE=/etc/nexus/tls/ca.pem \
 BOS_CERT_FILE=/etc/nexus/tls/gateway.crt \   # CN/SAN が GATEWAY_ID を表す
 BOS_KEY_FILE=/etc/nexus/tls/gateway.key \
 BOS_SERVER_NAME=bos.example.com \            # 任意: SNI/検証名の上書き
-PROVISIONING_URL=https://bos.example.com/provisioning \
+PROVISIONING_URL=https://bos.example.com \
+PROVISIONING_CA_FILE=/etc/nexus/tls/ca.pem \
+PROVISIONING_CERT_FILE=/etc/nexus/tls/gateway.crt \
+PROVISIONING_KEY_FILE=/etc/nexus/tls/gateway.key \
 go run ./cmd/gateway
 ```
 
 - `--bos-cert`/`--bos-key` を省くと **サーバ認証のみ TLS**（CA 検証だけ）、付けると **mTLS**。
 - gateway 自身は `X-Gateway-Id` を送りません（Traefik エッジが証明書から供給）。
-- 詳細: `nexus-gateway/SECURITY.md` と ADR-0007。
+- **Point List チャネル（`PROVISIONING_*`）は `BOS_*` とは別設定**です（nexus-gateway#135）。
+  両リンクが同じエッジで終端していても、`BOS_CA_FILE` 等は `PROVISIONING_*` に暗黙で継承されません
+  — 上のように明示してください。未設定のままなら通常の HTTPS（system roots 検証。無検証ではない）
+  のままで、証明書だけ・鍵だけの片方指定は起動時に拒否されます。
+- 詳細: `nexus-gateway/SECURITY.md` と ADR-0007、`nexus-gateway/README.md` の
+  “Point List provisioning over TLS/mTLS” 節。
+
+### 手を動かして試す — ローカルで mTLS ポイントリスト同期を実演する（advanced, 任意）
+
+> ここまでの F-1 は「本番でどう設定するか」でした。この節は逆に、**自己署名証明書だけで
+> 今この場で実際に動かして確かめる**節です。読み飛ばして [F-2](#f-2-building-os-側エッジ-mtls-の配線)
+> に進んでも構いません。
+
+用意するもの: `openssl` と `docker`（[前提ツール](#4-前提ツール実行環境の整備)と同じ）。
+Step A・Step D-2 まで済んでいる前提です（`GATEWAY_ID=GW-SOS-001` の twin が投入済み）。
+
+#### 1. 自己署名の CA・サーバ証明書・クライアント証明書を作る
+
+```bash
+mkdir -p /tmp/mtls-demo && cd /tmp/mtls-demo
+
+# CA（このデモだけで使う使い捨て）
+openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt -days 2 \
+  -subj "/CN=local-demo-ca"
+
+# サーバ証明書（mTLS 終端エッジ用。SAN=localhost）
+openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=localhost"
+printf "subjectAltName=DNS:localhost,IP:127.0.0.1\n" > server.ext
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 2 -extfile server.ext
+
+# クライアント証明書（gateway 用。CN = gateway_id — 本番の cert-manager 束縛と同じルール）
+openssl req -newkey rsa:2048 -nodes -keyout client.key -out client.csr -subj "/CN=GW-SOS-001"
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 2
+```
+
+#### 2. mTLS 終端エッジを nginx で立てる
+
+本番はこれを Traefik の `passTLSClientCert` が担います（[F-2](#f-2-building-os-側エッジ-mtls-の配線)）。
+ローカルではもっと軽く、nginx 1 コンテナで同じ性質（クライアント証明書必須 + 証明書 CN を信頼ヘッダに
+注入）を再現します。
+
+```bash
+cat > /tmp/mtls-demo/nginx.conf <<'EOF'
+events {}
+http {
+  # nginx に「証明書 CN だけを取り出す」変数は無いため、$ssl_client_s_dn（DN 全体）から
+  # map で CN を抜き出す。単一 CN の自己署名証明書なら "CN=..." だけの文字列になる。
+  map $ssl_client_s_dn $ssl_client_cn {
+    default "";
+    "~(?:^|,)CN=(?<CN>[^,]+)" $CN;
+  }
+
+  server {
+    listen 15443 ssl;
+    ssl_certificate        /certs/server.crt;
+    ssl_certificate_key    /certs/server.key;
+    ssl_client_certificate /certs/ca.crt;
+    ssl_verify_client on;                 # クライアント証明書必須。無ければ 400 で拒否（後述）
+
+    location / {
+      # クライアントが自分で送ってきた X-Gateway-Id はここで上書きされる（詐称防止）。
+      # 注入するのは「検証済み証明書の CN」だけ — Traefik の passTLSClientCert と同じ性質。
+      proxy_set_header X-Gateway-Id $ssl_client_cn;
+      proxy_pass http://host.docker.internal:5000;
+    }
+  }
+}
+EOF
+
+docker run -d --name mtls-demo-edge -p 15443:15443 \
+  --add-host=host.docker.internal:host-gateway \
+  -v /tmp/mtls-demo:/certs:ro \
+  -v /tmp/mtls-demo/nginx.conf:/etc/nginx/nginx.conf:ro \
+  nginx:1.31.4-alpine   # 検証済みバージョン。$ssl_client_s_dn の書式(RFC2253)自体は 1.19.5+ で共通だが、タグを固定して再現性を確保
+```
+
+> `--add-host=host.docker.internal:host-gateway` は Linux 向けです（Docker Desktop では既定で解決できます）。
+
+#### 3. gateway を mTLS 経由の Point List 同期で起動する
+
+ingress/egress（`BOS_*`）は D-2 のまま `BOS_INSECURE=true` で構いません。Point List チャネルだけを
+mTLS に切り替えます。
+
+```bash
+cd nexus-gateway
+GATEWAY_ID=GW-SOS-001 \
+BOS_INGRESS_ADDR=localhost:5051 \
+BOS_EGRESS_ADDR=localhost:5052 \
+BOS_INSECURE=true \
+PROVISIONING_URL=https://localhost:15443 \
+PROVISIONING_CA_FILE=/tmp/mtls-demo/ca.crt \
+PROVISIONING_CERT_FILE=/tmp/mtls-demo/client.crt \
+PROVISIONING_KEY_FILE=/tmp/mtls-demo/client.key \
+go run ./cmd/gateway
+```
+
+ログに `pointsync: point list updated ... count=8` が出れば、mTLS 終端エッジ経由で twin から
+Point List を取得できています。[D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)の curl 例は
+`DISABLE_AUTH=true` で偶然通っていましたが、ここでは gateway 自身は `X-Gateway-Id` を一切送らず、
+**エッジが証明書の CN から注入した値だけ**で Building OS 側の trusted-header 検証を実際に通しています
+— 本番と同じ認証経路をローカルで確かめられます。
+
+#### 4. curl で直接確認する（任意）
+
+```bash
+# 正しいクライアント証明書 → 200、gatewayId は証明書 CN どおり GW-SOS-001
+curl -s --cacert /tmp/mtls-demo/ca.crt \
+  --cert /tmp/mtls-demo/client.crt --key /tmp/mtls-demo/client.key \
+  https://localhost:15443/gateways/GW-SOS-001/pointlist | head -c 200
+
+# クライアント証明書なし → 400 "No required SSL certificate was sent"
+# （nginx の ssl_verify_client on はアプリ層での拒否です。本番の Traefik は
+#   clientAuth.clientAuthType: RequireAndVerifyClientCert — TLS ハンドシェイクの
+#   時点で拒否するため、こちらのほうが早く落ちます。「証明書がなければ拒否される」
+#   という結論は同じでも、拒否される層は異なります）
+curl -i --cacert /tmp/mtls-demo/ca.crt \
+  https://localhost:15443/gateways/GW-SOS-001/pointlist
+
+# ヘッダ詐称を試みる → CN 由来の値が優先され、詐称は効かない（gatewayId は GW-SOS-001 のまま）
+curl -s --cacert /tmp/mtls-demo/ca.crt \
+  --cert /tmp/mtls-demo/client.crt --key /tmp/mtls-demo/client.key \
+  -H "X-Gateway-Id: GW-EVIL" https://localhost:15443/gateways/GW-SOS-001/pointlist | head -c 200
+```
+
+ETag / `If-None-Match` → 304 の挙動自体は平文のときと同じです
+（[D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)）。
+
+#### 5. 片付け
+
+```bash
+docker rm -f mtls-demo-edge
+rm -rf /tmp/mtls-demo
+```
 
 ### F-2. Building OS 側（エッジ mTLS の配線）
 
@@ -1274,6 +1411,7 @@ nexus-gateway を起動したとき、JetStream の `EVENTS` ストリーム作�
 | 18090 | Keycloak（dev） | nexus-gateway | – |
 | 14222 / 18222 | NATS（client / monitor） | nexus-gateway | – |
 | 15051 | mock Building OS（gRPC スタブ） | nexus-gateway | – |
+| 15443 | mTLS 終端エッジ（nginx、[Step F advanced](#手を動かして試す--ローカルで-mtls-ポイントリスト同期を実演するadvanced-任意)のみ） | Step F advanced | – |
 | 4840 | OPC UA（opc.tcp） | opcua-sim | – |
 | 47808 | BACnet/IP（UDP） | bacnet-sim | – |
 
