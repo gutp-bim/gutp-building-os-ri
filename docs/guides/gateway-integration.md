@@ -96,6 +96,9 @@ twin が point list の正本で、ゲートウェイはこれに追従します
   `gateway_id` は provenance として扱い、所有権は twin で検証）— mTLS ingress 配線のある本番で ON にする。
 - 詳細な信頼境界・Traefik 配線は [oss-gateway-bridge-infra.md](../operations/oss-gateway-bridge-infra.md) と
   [oss-gateway-pointlist-sync.md](../architecture/oss-gateway-pointlist-sync.md)。
+- **自己署名証明書だけでローカルに手を動かして試す**なら
+  [onboarding-e2e-gateway.md の該当節](onboarding-e2e-gateway.md#手を動かして試す--ローカルで-mtls-ポイントリスト同期を実演するadvanced-任意)
+  （nginx を mTLS 終端エッジ代わりに立て、証明書 CN から `X-Gateway-Id` を注入する実演）。
 
 ---
 
