@@ -20,6 +20,8 @@ import os
 import sys
 import urllib.request
 
+from twin_hierarchy import TwinHierarchy
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,13 @@ def build_delete_conflicts(point_ids: list[str]) -> str:
 
 
 def build_insert(rows: list[dict]) -> str:
+    """Points + equipment + the spatial chain that makes them reachable from a Building (#300).
+
+    The CSV's own site/building/floor columns are deliberately not mapped: the canonical CSV→RDF
+    converter is the external `smartbuilding_datamodel_builder`, and what this fixture owes the perf
+    suite is a twin the product considers valid, not a faithful column translation.
+    """
+    hierarchy = TwinHierarchy("perf:csv")
     triples: list[str] = []
     devices: dict[str, dict] = {}
 
@@ -96,6 +105,8 @@ def build_insert(rows: list[dict]) -> str:
             props.append(f'<{SBCO}pointSpecification> "{_esc(row["point_specification"].strip())}"')
         if row.get("scale", "").strip():
             props.append(f'<{SBCO}scale> "{_esc(row["scale"].strip())}"')
+        # Required by IPointMetadataCache to resolve the building on ingress (and the lake partition key).
+        props.extend(hierarchy.point_props())
 
         body = " ;\n    ".join(props)
         triples.append(f"  <{pt_uri}> a <{SBCO}PointExt> ;\n    {body} .")
@@ -108,10 +119,13 @@ def build_insert(rows: list[dict]) -> str:
         ]
         if info["type"]:
             props.append(f'<{SBCO}deviceType> "{_esc(info["type"])}"')
+        props.extend(hierarchy.equipment_props())
         for pt_uri in info["points"]:
             props.append(f"<{SBCO}hasPoint> <{pt_uri}>")
         body = " ;\n    ".join(props)
         triples.append(f"  <{dev_uri}> a <{SBCO}EquipmentExt> ;\n    {body} .")
+
+    triples.extend(hierarchy.triples())
 
     return "INSERT DATA {\n" + "\n\n".join(triples) + "\n}"
 

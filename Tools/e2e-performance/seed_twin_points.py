@@ -22,6 +22,8 @@ import os
 import sys
 import urllib.request
 
+from twin_hierarchy import TwinHierarchy
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -39,26 +41,54 @@ def point_ids(run_id: str, devices: int, points_per_device: int) -> list[str]:
 
 
 def build_insert(ids: list[str]) -> str:
-    triples = "\n".join(
+    """Points, plus the equipment and spatial chain that make them reachable from a Building (#300).
+
+    Bare PointExt nodes are orphans by the product's own definition, so a load test against them
+    measures a shape the product treats as broken (and that strict ingress, #292, would discard).
+    """
+    hierarchy = TwinHierarchy("perf")
+    dev_uri = "urn:perf:dev:points"
+
+    point_props = " ; ".join(hierarchy.point_props())
+    triples = [
         f'  <urn:perf:pt:{pid}> a <{SBCO}PointExt> ; '
-        f'<{SBCO}id> "{pid}" ; <{SBCO}name> "{pid}" ; <{SBCO}writable> false .'
+        f'<{SBCO}id> "{pid}" ; <{SBCO}name> "{pid}" ; <{SBCO}writable> false ; {point_props} .'
         for pid in ids
+    ]
+
+    dev_props = " ; ".join(
+        [
+            f'<{SBCO}id> "DEV-perf-points"',
+            f'<{SBCO}name> "Perf Load Device"',
+            f'<{SBCO}deviceType> "Sensor"',
+            *hierarchy.equipment_props(),
+            *(f"<{SBCO}hasPoint> <urn:perf:pt:{pid}>" for pid in ids),
+        ]
     )
-    return f"INSERT DATA {{\n{triples}\n}}"
+    triples.append(f"  <{dev_uri}> a <{SBCO}EquipmentExt> ; {dev_props} .")
+    triples.extend(hierarchy.triples())
+
+    return "INSERT DATA {\n" + "\n".join(triples) + "\n}"
 
 
 def build_control_point_insert(point_id: str, gateway_id: str) -> str:
     """A writable, controllable point for S6: PointExt(writable, gatewayId) + an EquipmentExt that
-    hasPoint it. GetPointDetailByPointId requires the point reachable from an EquipmentExt via hasPoint,
-    and the control path needs writable=true + a gatewayId (its binding resolves the egress ControlType)."""
+    hasPoint it, anchored in a real spatial chain (#300). GetPointDetailByPointId requires the point
+    reachable from an EquipmentExt via hasPoint, and the control path needs writable=true + a
+    gatewayId (its binding resolves the egress ControlType)."""
     pt = f"urn:perf:ctlpt:{point_id}"
     dev = f"urn:perf:ctldev:{point_id}"
+    hierarchy = TwinHierarchy("perf")
+    point_props = " ; ".join(hierarchy.point_props())
+    dev_anchor = " ; ".join(hierarchy.equipment_props())
+    spatial = "\n".join(hierarchy.triples())
     return (
         f"INSERT DATA {{\n"
         f'  <{pt}> a <{SBCO}PointExt> ; <{SBCO}id> "{point_id}" ; <{SBCO}name> "{point_id}" ; '
-        f'<{SBCO}writable> true ; <{SBCO}gatewayId> "{gateway_id}" .\n'
+        f'<{SBCO}writable> true ; <{SBCO}gatewayId> "{gateway_id}" ; {point_props} .\n'
         f'  <{dev}> a <{SBCO}EquipmentExt> ; <{SBCO}id> "DEV-{point_id}" ; <{SBCO}name> "Device {point_id}" ; '
-        f"<{SBCO}hasPoint> <{pt}> .\n"
+        f"{dev_anchor} ; <{SBCO}hasPoint> <{pt}> .\n"
+        f"{spatial}\n"
         f"}}"
     )
 
