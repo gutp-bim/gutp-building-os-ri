@@ -5,9 +5,9 @@ import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-
  * の状態へ写像する純関数（#162）。
  *
  * 403（権限不足）と 503（ゲートウェイオフライン, #186）を汎用エラーと区別することで、ステータス
- * バーが「なぜ操作できないのか」を説明できるようにする。統一エラーポリシー（#162 (a), 要 product
- * 判断）には踏み込まず、既存の success/failed/timeout と同じ粒度でフィードバックを一段細かくする
- * だけに留める。
+ * バーが「なぜ操作できないのか」を説明できるようにする。400（制御スキーマ違反）はサーバ側が
+ * 「何をどう直すか」を持っているため、その本文をそのまま見せる — 通知ポリシーの
+ * 「バリデーション → 何をどう直すか」（`docs/architecture/oss-frontend-notification-policy.md`）。
  *
  * gRPC ストリーム（`useControlExecution`）は POST が 2xx を返した後にしか開かないため、403/503 は
  * ここ（POST の catch）でしか観測されない。
@@ -31,6 +31,19 @@ function httpStatusOf(error: unknown): number | undefined {
   return typeof status === "number" ? status : undefined;
 }
 
+/**
+ * サーバが返した説明（`{ error, dataType }`）を取り出す。制御値の検証は twin の ControlSchema が
+ * 正本で、許容範囲も enum の許容コードもサーバしか知らない（`ControlValueValidator`）。ここで文言を
+ * 組み立て直すと二重管理になるため、サーバの説明をそのまま見せる。
+ */
+function serverErrorMessageOf(error: unknown): string | undefined {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  const message = (data as { error?: unknown } | undefined)?.error;
+  return typeof message === "string" && message.trim() !== ""
+    ? message
+    : undefined;
+}
+
 export function controlPostErrorResult(
   error: unknown,
   pointId: string,
@@ -50,6 +63,18 @@ export function controlPostErrorResult(
       status: "gateway_offline",
       message:
         "ゲートウェイが接続されていないため制御を実行できません。接続状態を確認してください。",
+    };
+  }
+
+  if (status === 400) {
+    // 例: "value 45 is above the maximum 30" /
+    //     "enum control value 9 is not one of [1, 2, 3, 4]"
+    const detail = serverErrorMessageOf(error);
+    return {
+      status: "failed",
+      message: detail
+        ? `指定した値は受け付けられません: ${detail}`
+        : "指定した値は受け付けられません。値を確認してください。",
     };
   }
 

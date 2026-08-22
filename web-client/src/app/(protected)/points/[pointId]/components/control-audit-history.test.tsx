@@ -31,15 +31,44 @@ const entries: ControlAuditEntry[] = [
 ];
 
 describe("ControlAuditHistory", () => {
+  it("refetches when reloadKey changes, so a control just issued appears without a reload", async () => {
+    // The audit row is written server-side while the operator is still on the page (#333), so the
+    // panel must be told to look again — otherwise it stays frozen at page-load state.
+    const load = vi.fn().mockResolvedValue([]);
+    const { rerender } = render(
+      <ControlAuditHistory pointId="PT001" load={load} reloadKey={0} />,
+    );
+    await screen.findByTestId("control-audit-empty");
+    expect(load).toHaveBeenCalledTimes(1);
+
+    load.mockResolvedValue(entries);
+    rerender(<ControlAuditHistory pointId="PT001" load={load} reloadKey={1} />);
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(await screen.findAllByTestId("control-audit-row")).toHaveLength(3);
+  });
+
+  it("does not refetch when reloadKey is unchanged", async () => {
+    const load = vi.fn().mockResolvedValue([]);
+    const { rerender } = render(
+      <ControlAuditHistory pointId="PT001" load={load} reloadKey={3} />,
+    );
+    await screen.findByTestId("control-audit-empty");
+
+    rerender(<ControlAuditHistory pointId="PT001" load={load} reloadKey={3} />);
+
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
   it("renders one row per audit entry with a status badge and command value", async () => {
     const load = vi.fn().mockResolvedValue(entries);
     render(<ControlAuditHistory pointId="PT001" load={load} />);
 
     const rows = await screen.findAllByTestId("control-audit-row");
     expect(rows).toHaveLength(3);
-    expect(screen.getByTestId("control-status-success")).toHaveTextContent("成功");
-    expect(screen.getByTestId("control-status-failed")).toHaveTextContent("失敗");
-    expect(screen.getByTestId("control-status-pending")).toHaveTextContent("実行中");
+    expect(screen.getByTestId("control-audit-status-success")).toHaveTextContent("成功");
+    expect(screen.getByTestId("control-audit-status-failed")).toHaveTextContent("失敗");
+    expect(screen.getByTestId("control-audit-status-pending")).toHaveTextContent("実行中");
     expect(rows[0]).toHaveTextContent("値 21.5");
     expect(load).toHaveBeenCalledWith("PT001");
   });

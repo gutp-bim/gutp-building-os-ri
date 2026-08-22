@@ -1,4 +1,6 @@
 import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-execution";
+import { CONTROL_AUDIT_ANCHOR_ID } from "../control-audit-anchor";
+import { leavesAuditTrail } from "./leaves-audit-trail";
 
 export function ControlStatusBar({
   state,
@@ -86,6 +88,20 @@ export function ControlStatusBar({
           </div>
         )}
       </div>
+
+      {/*
+        結果 → 監査履歴への導線（#162）。行が残る結果のときだけ出す: 403 は行が作られる前に弾かれる
+        ので、リンク先には何も増えない。
+      */}
+      {leavesAuditTrail(state) && (
+        <a
+          href={`#${CONTROL_AUDIT_ANCHOR_ID}`}
+          data-testid="control-audit-link"
+          className="flex-shrink-0 ml-3 self-center text-sm text-blue-600 underline hover:text-blue-800 whitespace-nowrap"
+        >
+          制御履歴を見る
+        </a>
+      )}
 
       <div className="flex-shrink-0 ml-3">
         {state.status === "executing" ? (

@@ -20,15 +20,25 @@ export type ControlAuditLoader = (pointId: string) => Promise<ControlAuditEntry[
 
 /**
  * Point-detail control history (#162): shows the recorded device-control commands for a point
- * (newest first) with their normalized status. Fills the gap where `point_control_audit` was written
- * but never surfaced in the UI. Read-gated server-side on point read access.
+ * (newest first) with their normalized status. Read-gated server-side on point read access.
+ *
+ * Status testids are prefixed `control-audit-status-` to stay distinct from `ControlStatusBar`'s
+ * `control-status-`: both render on the point-detail page, and both emit success/failed, so a shared
+ * prefix makes any selector for one of them ambiguous.
  */
 export function ControlAuditHistory({
   pointId,
   load = fetchControlAudit,
+  reloadKey = 0,
 }: {
   pointId: string;
   load?: ControlAuditLoader;
+  /**
+   * Bump to refetch. The audit row for a command is written server-side while the operator is still
+   * on the page, so without this the table stays frozen at page-load state and the control they just
+   * ran appears to have left no trace (#162).
+   */
+  reloadKey?: number;
 }) {
   const [entries, setEntries] = useState<ControlAuditEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +57,7 @@ export function ControlAuditHistory({
     return () => {
       active = false;
     };
-  }, [pointId, load]);
+  }, [pointId, load, reloadKey]);
 
   return (
     <section
@@ -91,7 +101,7 @@ export function ControlAuditHistory({
                   </td>
                   <td className="py-2 pr-4">
                     <span
-                      data-testid={`control-status-${e.status}`}
+                      data-testid={`control-audit-status-${e.status}`}
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[e.status]}`}
                     >
                       {controlStatusLabel(e.status)}

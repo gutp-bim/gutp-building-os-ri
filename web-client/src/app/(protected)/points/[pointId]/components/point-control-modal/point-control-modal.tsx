@@ -1,19 +1,29 @@
 import { apiClient } from "@/lib/infra/aspida-client";
 import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
-import { useControlExecution } from "@/lib/infra/grpc-client/use-control-execution";
-import { useCallback, useMemo, useState } from "react";
+import {
+  useControlExecution,
+  type ControlExecutionState,
+} from "@/lib/infra/grpc-client/use-control-execution";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
 import { controlPostErrorResult } from "./control-post-error";
 import { ControlStatusBar } from "./control-status-bar";
 import { getControlProtocol } from "./get-control-protocol";
+import { leavesAuditTrail } from "./leaves-audit-trail";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
 import { toControlValue } from "./to-control-value";
 
 export function PointControlModal({
   pointDetail,
+  onControlSettled,
 }: {
   pointDetail: PointDetail;
+  /**
+   * Called once per control that reached the server, when it settles. The point detail page uses it
+   * to refresh 制御履歴 so the command the operator just ran is visible without a reload (#162).
+   */
+  onControlSettled?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,6 +36,18 @@ export function PointControlModal({
     setDirectResult,
     isExecuting,
   } = useControlExecution();
+
+  // Fire onControlSettled once per terminal state, not on every render while it is displayed.
+  const settledRef = useRef<ControlExecutionState["status"] | null>(null);
+  useEffect(() => {
+    if (!leavesAuditTrail(executionState)) {
+      if (executionState.status === "idle") settledRef.current = null;
+      return;
+    }
+    if (settledRef.current === executionState.status) return;
+    settledRef.current = executionState.status;
+    onControlSettled?.();
+  }, [executionState, onControlSettled]);
 
   const controlProtocol = getControlProtocol(pointDetail);
   const controlSchema = pointDetail.controlSchema;

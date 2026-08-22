@@ -32,6 +32,7 @@ import type {
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
+import { CONTROL_AUDIT_ANCHOR_ID } from "./components/control-audit-anchor";
 import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
 import { PointInfo } from "./components/point-info";
@@ -46,6 +47,8 @@ export default function PointDetailPageComponent({
 }) {
   const router = useRouter();
   const [pointDetail, setPointDetail] = useState<PointDetail | null>(null);
+  // Bumped when a control settles, so 制御履歴 refetches and shows the command just issued (#162).
+  const [controlAuditReloadKey, setControlAuditReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hotData, setHotData] = useState<ValidTelemetryData | null>(null);
@@ -247,7 +250,10 @@ export default function PointDetailPageComponent({
       <div className="flex gap-4 mb-8">
         <div className={"flex flex-col gap-4 w-1/2 flex-shrink-0"}>
           <PointInfo pointDetail={pointDetail} />
-          <PointControlModal pointDetail={pointDetail} />
+          <PointControlModal
+            pointDetail={pointDetail}
+            onControlSettled={() => setControlAuditReloadKey((n) => n + 1)}
+          />
         </div>
         <div className="flex flex-1 flex-col gap-2">
           {hotError && (
@@ -317,7 +323,12 @@ export default function PointDetailPageComponent({
         <TelemetryStateTimeline points={stateData} loading={warmLoading} />
       )}
 
-      <ControlAuditHistory pointId={pointDetail.point.id} />
+      <div id={CONTROL_AUDIT_ANCHOR_ID}>
+        <ControlAuditHistory
+          pointId={pointDetail.point.id}
+          reloadKey={controlAuditReloadKey}
+        />
+      </div>
 
       <ColdDataDownloadModal
         isOpen={isModalOpen}
