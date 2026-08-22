@@ -37,17 +37,23 @@ export function PointControlModal({
     isExecuting,
   } = useControlExecution();
 
-  // Fire onControlSettled once per terminal state, not on every render while it is displayed.
-  const settledRef = useRef<ControlExecutionState["status"] | null>(null);
+  // Whether the last attempt got far enough for the server to open an audit row. A 403 (and any
+  // other outright POST rejection) never does; a 503 does, because the server closes the row it
+  // opened (#333). Only the modal sees how the result was reached, so the flag lives here.
+  const [dispatched, setDispatched] = useState(false);
+
+  // Fire onControlSettled once per *result*, not once per status: two consecutive controls can
+  // settle in the same status (retry after a failure, or a second success inside the auto-dismiss
+  // window), and comparing statuses would swallow the second one — leaving 制御履歴 stale, which is
+  // the bug this exists to prevent. useControlExecution allocates a new state object per result, so
+  // reference identity is exactly "this is a new result".
+  const settledRef = useRef<ControlExecutionState | null>(null);
   useEffect(() => {
-    if (!leavesAuditTrail(executionState)) {
-      if (executionState.status === "idle") settledRef.current = null;
-      return;
-    }
-    if (settledRef.current === executionState.status) return;
-    settledRef.current = executionState.status;
+    if (!leavesAuditTrail(executionState, dispatched)) return;
+    if (settledRef.current === executionState) return;
+    settledRef.current = executionState;
     onControlSettled?.();
-  }, [executionState, onControlSettled]);
+  }, [executionState, dispatched, onControlSettled]);
 
   const controlProtocol = getControlProtocol(pointDetail);
   const controlSchema = pointDetail.controlSchema;
@@ -75,6 +81,7 @@ export function PointControlModal({
       // モーダルを閉じて gRPC ストリームで結果を待機
       setIsOpen(false);
       setIsLoading(false);
+      setDispatched(true);
       startExecution(controlId);
     } catch (error) {
       setIsLoading(false);
@@ -83,6 +90,10 @@ export function PointControlModal({
         error,
         pointDetail.point.id,
       );
+      // A rejected POST leaves no audit row — except 503, where the server opened one and closed it
+      // out as failed. leavesAuditTrail reads gateway_offline directly, so this only has to say that
+      // nothing else here was dispatched.
+      setDispatched(false);
       setDirectResult(status, message);
     }
   };
@@ -99,6 +110,7 @@ export function PointControlModal({
         state={executionState}
         onCancel={cancel}
         onDismiss={dismiss}
+        showAuditLink={leavesAuditTrail(executionState, dispatched)}
       />
 
       {/* 制御ボタン: executing 中は非表示 */}

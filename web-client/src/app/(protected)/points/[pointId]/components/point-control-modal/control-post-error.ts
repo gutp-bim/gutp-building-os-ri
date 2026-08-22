@@ -5,8 +5,8 @@ import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-
  * の状態へ写像する純関数（#162）。
  *
  * 403（権限不足）と 503（ゲートウェイオフライン, #186）を汎用エラーと区別することで、ステータス
- * バーが「なぜ操作できないのか」を説明できるようにする。400（制御スキーマ違反）はサーバ側が
- * 「何をどう直すか」を持っているため、その本文をそのまま見せる — 通知ポリシーの
+ * バーが「なぜ操作できないのか」を説明できるようにする。制御スキーマ違反（`dataType` を伴う 400）は
+ * サーバ側が「何をどう直すか」を持っているため、その本文をそのまま見せる — 通知ポリシーの
  * 「バリデーション → 何をどう直すか」（`docs/architecture/oss-frontend-notification-policy.md`）。
  *
  * gRPC ストリーム（`useControlExecution`）は POST が 2xx を返した後にしか開かないため、403/503 は
@@ -36,11 +36,16 @@ function httpStatusOf(error: unknown): number | undefined {
  * 正本で、許容範囲も enum の許容コードもサーバしか知らない（`ControlValueValidator`）。ここで文言を
  * 組み立て直すと二重管理になるため、サーバの説明をそのまま見せる。
  */
-function serverErrorMessageOf(error: unknown): string | undefined {
-  const data = (error as { response?: { data?: unknown } })?.response?.data;
-  const message = (data as { error?: unknown } | undefined)?.error;
-  return typeof message === "string" && message.trim() !== ""
-    ? message
+function controlSchemaViolationOf(error: unknown): string | undefined {
+  const data = (error as { response?: { data?: unknown } })?.response?.data as
+    | { error?: unknown; dataType?: unknown }
+    | undefined;
+  // `dataType` is what distinguishes a schema violation from the other 400s PointController returns
+  // ("value is required", an unsupported gateway binding, or a dispatch exception such as NATS being
+  // down). Without it, telling the operator to fix their value would send them after the wrong thing.
+  if (typeof data?.dataType !== "string") return undefined;
+  return typeof data.error === "string" && data.error.trim() !== ""
+    ? data.error
     : undefined;
 }
 
@@ -66,15 +71,12 @@ export function controlPostErrorResult(
     };
   }
 
-  if (status === 400) {
-    // 例: "value 45 is above the maximum 30" /
-    //     "enum control value 9 is not one of [1, 2, 3, 4]"
-    const detail = serverErrorMessageOf(error);
+  // 例: "value 45 is above the maximum 30" / "enum control value 9 is not one of [1, 2, 3, 4]"
+  const schemaViolation = controlSchemaViolationOf(error);
+  if (schemaViolation) {
     return {
       status: "failed",
-      message: detail
-        ? `指定した値は受け付けられません: ${detail}`
-        : "指定した値は受け付けられません。値を確認してください。",
+      message: `指定した値は受け付けられません: ${schemaViolation}`,
     };
   }
 

@@ -1,15 +1,21 @@
 import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-execution";
 import { CONTROL_AUDIT_ANCHOR_ID } from "../control-audit-anchor";
-import { leavesAuditTrail } from "./leaves-audit-trail";
 
 export function ControlStatusBar({
   state,
   onCancel,
   onDismiss,
+  showAuditLink = false,
 }: {
   state: ControlExecutionState;
   onCancel: () => void;
   onDismiss: () => void;
+  /**
+   * Whether this result left a row in 制御履歴. Decided by the caller (`leavesAuditTrail`), which is
+   * the only place that knows whether the POST was actually dispatched — linking otherwise would
+   * send the operator to a list that gained nothing.
+   */
+  showAuditLink?: boolean;
 }) {
   if (state.status === "idle") return null;
 
@@ -89,11 +95,8 @@ export function ControlStatusBar({
         )}
       </div>
 
-      {/*
-        結果 → 監査履歴への導線（#162）。行が残る結果のときだけ出す: 403 は行が作られる前に弾かれる
-        ので、リンク先には何も増えない。
-      */}
-      {leavesAuditTrail(state) && (
+      {/* 結果 → 監査履歴への導線（#162）。行が残る結果のときだけ出す。 */}
+      {showAuditLink && (
         <a
           href={`#${CONTROL_AUDIT_ANCHOR_ID}`}
           data-testid="control-audit-link"

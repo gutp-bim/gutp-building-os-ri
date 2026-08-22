@@ -33,11 +33,19 @@ describe("controlPostErrorResult", () => {
     expect(result.message).toContain("value 45 is above the maximum 30");
   });
 
-  it("explains a 400 without a usable body as a value problem, not a send failure", () => {
-    const result = controlPostErrorResult(axiosError(400, {}), "p1");
-    expect(result.status).toBe("failed");
-    expect(result.message).toContain("値");
-    expect(result.message).not.toContain("送信に失敗");
+  it("does not blame the value for a 400 that is not a schema violation", () => {
+    // PointController also returns 400 for "value is required", an unsupported gateway binding, and
+    // any dispatch exception (e.g. NATS down). Only the schema violation carries `dataType`; telling
+    // the operator to fix their value in the other cases sends them after the wrong thing.
+    for (const data of [
+      {},
+      { error: "value is required" },
+      { error: "Connection is closed." },
+    ]) {
+      const result = controlPostErrorResult(axiosError(400, data), "p1");
+      expect(result.status).toBe("failed");
+      expect(result.message).toBe("制御信号の送信に失敗しました。");
+    }
   });
 
   it("falls back to a generic failure for other HTTP errors", () => {

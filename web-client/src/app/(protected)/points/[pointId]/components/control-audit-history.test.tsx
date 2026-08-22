@@ -48,6 +48,51 @@ describe("ControlAuditHistory", () => {
     expect(await screen.findAllByTestId("control-audit-row")).toHaveLength(3);
   });
 
+  it("retries once when the refreshed history still shows the command as 実行中", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const pending: ControlAuditEntry[] = [
+        { ...entries[0], status: "pending", completedAt: null },
+      ];
+      const load = vi
+        .fn()
+        .mockResolvedValueOnce(pending) // page load
+        .mockResolvedValueOnce(pending) // refetch on settle — result write has not landed yet
+        .mockResolvedValue(entries); // retry sees the committed outcome
+      const { rerender } = render(
+        <ControlAuditHistory pointId="PT001" load={load} reloadKey={0} />,
+      );
+      await screen.findAllByTestId("control-audit-row");
+
+      rerender(<ControlAuditHistory pointId="PT001" load={load} reloadKey={1} />);
+      await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+      expect(await screen.findByTestId("control-audit-status-success")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the current rows visible while refetching, so the anchor does not move", async () => {
+    let resolveSecond: (v: ControlAuditEntry[]) => void = () => {};
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(entries)
+      .mockImplementationOnce(() => new Promise((r) => (resolveSecond = r)));
+    const { rerender } = render(
+      <ControlAuditHistory pointId="PT001" load={load} reloadKey={0} />,
+    );
+    await screen.findAllByTestId("control-audit-row");
+
+    rerender(<ControlAuditHistory pointId="PT001" load={load} reloadKey={1} />);
+
+    // Still showing the previous rows rather than collapsing to 読み込み中…
+    expect(screen.getAllByTestId("control-audit-row")).toHaveLength(3);
+    resolveSecond(entries);
+  });
+
   it("does not refetch when reloadKey is unchanged", async () => {
     const load = vi.fn().mockResolvedValue([]);
     const { rerender } = render(
