@@ -40,7 +40,8 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<RelationalDbContext>().Database.MigrateAsync();
 
-        var controller = BuildController(scope, pointId, out var publisher);
+        var auditWriter = AuditWriter(services);
+        var controller = BuildController(scope, auditWriter, pointId, out var publisher);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.Delivered);
 
@@ -67,7 +68,8 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<RelationalDbContext>().Database.MigrateAsync();
 
-        var controller = BuildController(scope, pointId, out var publisher);
+        var auditWriter = AuditWriter(services);
+        var controller = BuildController(scope, auditWriter, pointId, out var publisher);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.Delivered);
 
@@ -76,10 +78,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         var controlId = Assert.IsType<PointController.ControlAcceptedResponse>(accepted.Value).ControlId;
 
         // Stand in for the result arriving on building-os.control.result.{controlId}: this is the
-        // exact call NatsControlResultBus makes when either dispatch path reports back.
-        var auditWriter = new ControlAuditWriter(
-            services.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<ControlAuditWriter>.Instance);
+        // exact call ControlAuditResultSubscriber makes when either dispatch path reports back.
         await auditWriter.RecordResultAsync(
             controlId.ToString(), success: true, response: "{\"ok\":true}", CancellationToken.None);
 
@@ -99,7 +98,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<RelationalDbContext>().Database.MigrateAsync();
 
-        var controller = BuildController(scope, pointId, out var publisher, gatewayId: "gw-offline");
+        var controller = BuildController(scope, AuditWriter(services), pointId, out var publisher, gatewayId: "gw-offline");
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.GatewayOffline);
 
@@ -116,6 +115,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
 
     private static PointController BuildController(
         AsyncServiceScope scope,
+        IControlAuditWriter auditWriter,
         string pointId,
         out Mock<IPointControlCommandPublisher> publisher,
         string gatewayId = "gw-1")
@@ -151,7 +151,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
             Mock.Of<IControlResultBus>(),
             publisher.Object,
             scope.ServiceProvider.GetRequiredService<IPointControlRepository>(),
-            NullLogger<PointController>.Instance);
+            auditWriter);
 
         var httpContext = new DefaultHttpContext();
         httpContext.Items["AuthorizationContext"] =
@@ -160,6 +160,11 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
 
         return controller;
     }
+
+    private static IControlAuditWriter AuditWriter(IServiceProvider services)
+        => new ControlAuditWriter(
+            services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<ControlAuditWriter>.Instance);
 
     private ServiceProvider CreateServices()
     {

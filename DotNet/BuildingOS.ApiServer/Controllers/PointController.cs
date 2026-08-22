@@ -28,7 +28,7 @@ public class PointController(
     IControlResultBus controlResultBus,
     IPointControlCommandPublisher commandPublisher,
     IPointControlRepository pointControlRepository,
-    ILogger<PointController> logger) : ControllerBase
+    IControlAuditWriter auditWriter) : ControllerBase
 {
     /// <summary>
     /// ポイント情報の一括取得
@@ -122,7 +122,7 @@ public class PointController(
             // Record the audit row *before* publishing (#333). The result can come back within
             // milliseconds (the in-process simulated handler does), and the result writer updates an
             // existing row by id — inserting afterwards would race and silently drop the outcome.
-            await RecordControlRequestedAsync(pointControlInfo).ConfigureAwait(false);
+            await auditWriter.RecordRequestAsync(pointControlInfo, ct).ConfigureAwait(false);
 
             var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
@@ -136,8 +136,8 @@ public class PointController(
                     new KeyValuePair<string, object?>("result", "gateway_offline"));
                 // Close the audit row we just opened: nothing will publish a result for a command
                 // that was never delivered, so it would otherwise stay "pending" forever.
-                await RecordControlCompletedAsync(
-                    pointControlInfo, PointControlResult.Failed, "target gateway is not currently connected")
+                await auditWriter.RecordResultAsync(
+                    controlId, success: false, response: "target gateway is not currently connected", ct)
                     .ConfigureAwait(false);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
@@ -151,46 +151,15 @@ public class PointController(
         catch (Exception ex)
         {
             if (preparedControlId is not null)
+            {
                 await controlResultBus.UnsubscribeAsync(preparedControlId).ConfigureAwait(false);
+                // Dispatch failed after the audit row was opened (e.g. NATS is down): nothing will
+                // ever publish a result for it, so close it here rather than leave it pending.
+                await auditWriter
+                    .RecordResultAsync(preparedControlId, success: false, response: ex.Message, ct)
+                    .ConfigureAwait(false);
+            }
             return BadRequest(new { error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// 制御受付を point_control_audit に記録する（#333）。監査の書き込み失敗で制御そのものを
-    /// 失敗させない（可用性を優先し、代わりに必ずログに残す）。
-    /// </summary>
-    private async Task RecordControlRequestedAsync(PointControlInfo info)
-    {
-        try
-        {
-            await pointControlRepository.CreatePointControlInfoAsync(info).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Failed to record control audit request {ControlId} for point {PointId}",
-                info.id, info.PointId);
-        }
-    }
-
-    /// <summary>
-    /// 制御結果を point_control_audit に反映する（#333）。上と同じ理由でベストエフォート。
-    /// </summary>
-    private async Task RecordControlCompletedAsync(
-        PointControlInfo info, PointControlResult result, string response)
-    {
-        try
-        {
-            info.Result = result;
-            info.Response = response;
-            await pointControlRepository.UpdatePointControlInfoAsync(info).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Failed to record control audit result {ControlId} for point {PointId}",
-                info.id, info.PointId);
         }
     }
 

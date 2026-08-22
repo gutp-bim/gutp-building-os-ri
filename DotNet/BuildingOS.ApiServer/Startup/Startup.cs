@@ -333,9 +333,12 @@ namespace BuildingOs.ApiServer
             var nats = new NATS.Client.Core.NatsConnection(
                 new NATS.Client.Core.NatsOpts { Url = _envModule.NatsUrl });
             services.AddSingleton<NATS.Client.Core.INatsConnection>(nats);
-            // Audit writer first: the result bus depends on it to persist outcomes (#333).
-            services.AddSingleton<Services.IControlAuditWriter, Services.ControlAuditWriter>();
             services.AddSingleton<Services.IControlResultBus, Services.NatsControlResultBus>();
+            // Control audit trail (#333): the writer owns the best-effort/time-bounded policy, and
+            // the subscriber keeps result persistence on its own long-lived subscription — the
+            // per-command one above only lives while a caller waits, so it would miss late results.
+            services.AddSingleton<Services.IControlAuditWriter, Services.ControlAuditWriter>();
+            services.AddHostedService<Services.ControlAuditResultSubscriber>();
             services.AddSingleton<BuildingOS.Shared.Infrastructure.PointControl.IPointControlCommandPublisher,
                 Services.NatsPointControlCommandPublisher>();
 

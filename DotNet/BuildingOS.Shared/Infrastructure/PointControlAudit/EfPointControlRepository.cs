@@ -21,13 +21,13 @@ public sealed class EfPointControlRepository : IPointControlRepository
         return entry is null ? null : PointControlAuditSerializer.ToDomain(entry);
     }
 
-    public async Task CreatePointControlInfoAsync(PointControlInfo info)
+    public async Task CreatePointControlInfoAsync(PointControlInfo info, CancellationToken ct = default)
     {
         var entry = PointControlAuditSerializer.ToEntry(info);
         _context.PointControlAudits.Add(entry);
         try
         {
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            await _context.SaveChangesAsync(ct).ConfigureAwait(false);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.SqlState == UniqueViolation)
         {
@@ -36,15 +36,15 @@ public sealed class EfPointControlRepository : IPointControlRepository
         }
     }
 
-    public async Task UpdatePointControlInfoAsync(PointControlInfo info)
+    public async Task UpdatePointControlInfoAsync(PointControlInfo info, CancellationToken ct = default)
     {
         var entry = await _context.PointControlAudits
-            .FindAsync(info.id)
+            .FindAsync([info.id], ct)
             .ConfigureAwait(false);
         if (entry is null) return;
 
         PointControlAuditSerializer.ApplyResult(entry, info);
-        await _context.SaveChangesAsync().ConfigureAwait(false);
+        await _context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(

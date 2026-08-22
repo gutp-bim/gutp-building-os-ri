@@ -22,27 +22,21 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
 
     private readonly INatsConnection _nats;
     private readonly ILogger<NatsControlResultBus> _logger;
-    private readonly IControlAuditWriter _auditWriter;
     private readonly TimeSpan _retention;
     private readonly ConcurrentDictionary<string, SubscriptionState> _subscriptions = new();
 
-    public NatsControlResultBus(
-        INatsConnection nats,
-        ILogger<NatsControlResultBus> logger,
-        IControlAuditWriter auditWriter)
-        : this(nats, logger, auditWriter, DefaultRetention)
+    public NatsControlResultBus(INatsConnection nats, ILogger<NatsControlResultBus> logger)
+        : this(nats, logger, DefaultRetention)
     {
     }
 
     internal NatsControlResultBus(
         INatsConnection nats,
         ILogger<NatsControlResultBus> logger,
-        IControlAuditWriter auditWriter,
         TimeSpan retention)
     {
         _nats = nats;
         _logger = logger;
-        _auditWriter = auditWriter;
         _retention = retention;
     }
 
@@ -122,13 +116,6 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
                     Response = dto.Response ?? string.Empty,
                 };
                 state.Channel.Writer.TryWrite(evt);
-                // Persist the outcome to point_control_audit (#333). This is the single point where
-                // results from *both* dispatch paths converge (in-process handlers via
-                // NatsPointControlWorker, and real gateways via GatewayBridge), and it runs whether
-                // or not a gRPC client is currently streaming WaitForResult.
-                await _auditWriter
-                    .RecordResultAsync(controlId, dto.Success, dto.Response, state.Cancellation.Token)
-                    .ConfigureAwait(false);
                 break;
             }
         }

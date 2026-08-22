@@ -47,7 +47,7 @@ public class PointControllerTest
         return (controller, publisher);
     }
 
-    private static (PointController controller, Mock<IPointControlCommandPublisher> publisher, Mock<IControlResultBus> resultBus, Mock<IPointControlRepository> auditRepo)
+    private static (PointController controller, Mock<IPointControlCommandPublisher> publisher, Mock<IControlResultBus> resultBus, Mock<IControlAuditWriter> auditWriter)
         BuildControllerWithResultBus(
             PointDetail? detail,
             bool canWrite = true,
@@ -77,6 +77,7 @@ public class PointControllerTest
         var resultBus = new Mock<IControlResultBus>();
         var repository = new Mock<IPointControlRepository>();
 
+        var auditWriter = new Mock<IControlAuditWriter>();
         var controller = new PointController(
             twinView.Object,
             resolver,
@@ -84,13 +85,13 @@ public class PointControllerTest
             resultBus.Object,
             publisher.Object,
             repository.Object,
-            NullLogger<PointController>.Instance);
+            auditWriter.Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContext(AdminAuth()),
         };
 
-        return (controller, publisher, resultBus, repository);
+        return (controller, publisher, resultBus, auditWriter);
     }
 
     /// <summary>
@@ -127,7 +128,7 @@ public class PointControllerTest
             resultBus.Object,
             publisher.Object,
             repo.Object,
-            NullLogger<PointController>.Instance)
+            Mock.Of<IControlAuditWriter>())
         {
             ControllerContext = new ControllerContext { HttpContext = BuildHttpContext(AdminAuth()) },
         };
@@ -161,20 +162,20 @@ public class PointControllerTest
     [Fact]
     public async Task Control_RecordsAuditRow_BeforePublishing()
     {
-        var (controller, publisher, _, auditRepo) = BuildControllerWithResultBus(Detail(MakePoint()));
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(Detail(MakePoint()));
         var publishedBeforeAudit = false;
         var audited = false;
 
-        auditRepo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>()))
-                 .Callback(() => audited = true)
-                 .Returns(Task.CompletedTask);
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                   .Callback(() => audited = true)
+                   .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .Callback(() => publishedBeforeAudit = !audited)
                  .ReturnsAsync(ControlDeliveryStatus.Delivered);
 
         await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
 
-        auditRepo.Verify(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>()), Times.Once);
+        auditWriter.Verify(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Once);
         // The result can be published back within milliseconds; the row must exist first or the
         // result writer's update-by-id finds nothing and the outcome is silently lost.
         Assert.False(publishedBeforeAudit, "the audit row must be created before the command is published");
@@ -183,13 +184,13 @@ public class PointControllerTest
     [Fact]
     public async Task Control_AuditRow_CarriesTheDispatchedCommand()
     {
-        var (controller, publisher, _, auditRepo) = BuildControllerWithResultBus(Detail(MakePoint()));
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(Detail(MakePoint()));
         PointControlInfo? auditedInfo = null;
         PointControlInfo? publishedInfo = null;
 
-        auditRepo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>()))
-                 .Callback<PointControlInfo>(info => auditedInfo = info)
-                 .Returns(Task.CompletedTask);
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                   .Callback<PointControlInfo, CancellationToken>((info, _) => auditedInfo = info)
+                   .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .Callback<PointControlInfo, CancellationToken>((info, _) => publishedInfo = info)
                  .ReturnsAsync(ControlDeliveryStatus.Delivered);
@@ -210,13 +211,16 @@ public class PointControllerTest
     public async Task Control_ClosesAuditRowAsFailed_WhenGatewayOffline()
     {
         var device = new Device { DtId = "d", Id = "D", Name = "g", GatewayId = "gw-sim" };
-        var (controller, publisher, _, auditRepo) = BuildControllerWithResultBus(
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(
             Detail(MakePoint(), device), connectionTypeMap: new() { ["gw-sim"] = "bacnet-sim" });
-        PointControlInfo? completed = null;
+        string? closedControlId = null;
+        bool? closedSuccess = null;
 
-        auditRepo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>()))
-                 .Callback<PointControlInfo>(info => completed = info)
-                 .Returns(Task.CompletedTask);
+        auditWriter.Setup(w => w.RecordResultAsync(
+                       It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .Callback<string, bool, string?, CancellationToken>(
+                       (id, success, _, _) => { closedControlId = id; closedSuccess = success; })
+                   .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.GatewayOffline);
 
@@ -224,24 +228,8 @@ public class PointControllerTest
 
         // Nothing publishes a result for a command that was never delivered, so the row would stay
         // "pending" forever if the 503 path did not close it out.
-        Assert.NotNull(completed);
-        Assert.Equal(PointControlResult.Failed, completed!.Result);
-    }
-
-    [Fact]
-    public async Task Control_StillSucceeds_WhenAuditWriteFails()
-    {
-        var (controller, publisher, _, auditRepo) = BuildControllerWithResultBus(Detail(MakePoint()));
-        auditRepo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>()))
-                 .ThrowsAsync(new InvalidOperationException("audit store is down"));
-        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
-                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
-
-        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
-
-        // Availability over auditability: an audit outage must not take control with it.
-        Assert.IsType<AcceptedResult>(result);
-        publisher.Verify(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.NotNull(closedControlId);
+        Assert.False(closedSuccess);
     }
 
     [Fact]

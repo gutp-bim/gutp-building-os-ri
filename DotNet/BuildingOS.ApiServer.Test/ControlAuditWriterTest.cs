@@ -26,6 +26,33 @@ public class ControlAuditWriterTest
         return (writer, repo);
     }
 
+    [Fact]
+    public async Task RecordRequestAsync_OpensTheAuditRow()
+    {
+        var (writer, repo) = Build();
+        var info = new PointControlInfo { id = Guid.NewGuid(), PointId = "PT001", Type = "BacnetSim", Body = "{}" };
+        PointControlInfo? persisted = null;
+        repo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+            .Callback<PointControlInfo, CancellationToken>((i, _) => persisted = i)
+            .Returns(Task.CompletedTask);
+
+        await writer.RecordRequestAsync(info, CancellationToken.None);
+
+        Assert.Same(info, persisted);
+    }
+
+    [Fact]
+    public async Task RecordRequestAsync_Swallows_PersistenceFailure()
+    {
+        var (writer, repo) = Build();
+        repo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("audit store is down"));
+
+        // Availability over auditability: this runs on the control hot path.
+        await writer.RecordRequestAsync(
+            new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" }, CancellationToken.None);
+    }
+
     [Theory]
     [InlineData(true, PointControlResult.Success)]
     [InlineData(false, PointControlResult.Failed)]
@@ -34,8 +61,8 @@ public class ControlAuditWriterTest
         var (writer, repo) = Build();
         var controlId = Guid.NewGuid();
         PointControlInfo? persisted = null;
-        repo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>()))
-            .Callback<PointControlInfo>(info => persisted = info)
+        repo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+            .Callback<PointControlInfo, CancellationToken>((info, _) => persisted = info)
             .Returns(Task.CompletedTask);
 
         await writer.RecordResultAsync(controlId.ToString(), success, "{\"ok\":true}", CancellationToken.None);
@@ -53,18 +80,18 @@ public class ControlAuditWriterTest
 
         await writer.RecordResultAsync("not-a-guid", true, null, CancellationToken.None);
 
-        repo.Verify(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>()), Times.Never);
+        repo.Verify(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task RecordResultAsync_Swallows_PersistenceFailure()
     {
         var (writer, repo) = Build();
-        repo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>()))
+        repo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("audit store is down"));
 
-        // Must not throw: the caller is the NATS consume loop delivering the result to the waiting
-        // client, and an audit outage must not break result delivery.
+        // Must not throw: the caller is the long-lived result subscriber, and one bad write must not
+        // take the subscription down with it.
         await writer.RecordResultAsync(Guid.NewGuid().ToString(), true, null, CancellationToken.None);
     }
 }
