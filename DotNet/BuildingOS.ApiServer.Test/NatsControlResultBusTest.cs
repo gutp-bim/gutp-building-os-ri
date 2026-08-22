@@ -28,6 +28,7 @@ public class NatsControlResultBusTest
         await using var bus = new NatsControlResultBus(
             nats.Object,
             NullLogger<NatsControlResultBus>.Instance,
+            Mock.Of<IControlAuditWriter>(),
             TimeSpan.FromMinutes(1));
 
         var prepareTask = bus.PrepareAsync("control-1", CancellationToken.None);
@@ -60,6 +61,7 @@ public class NatsControlResultBusTest
         await using var bus = new NatsControlResultBus(
             nats.Object,
             NullLogger<NatsControlResultBus>.Instance,
+            Mock.Of<IControlAuditWriter>(),
             TimeSpan.FromMilliseconds(20));
 
         await bus.PrepareAsync("control-1", CancellationToken.None);

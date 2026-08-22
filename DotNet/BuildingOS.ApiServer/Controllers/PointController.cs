@@ -27,7 +27,8 @@ public class PointController(
     IControlSchemaResolver controlSchemaResolver,
     IControlResultBus controlResultBus,
     IPointControlCommandPublisher commandPublisher,
-    IPointControlRepository pointControlRepository) : ControllerBase
+    IPointControlRepository pointControlRepository,
+    ILogger<PointController> logger) : ControllerBase
 {
     /// <summary>
     /// ポイント情報の一括取得
@@ -118,6 +119,11 @@ public class PointController(
             await controlResultBus.PrepareAsync(controlId, ct).ConfigureAwait(false);
             preparedControlId = controlId;
 
+            // Record the audit row *before* publishing (#333). The result can come back within
+            // milliseconds (the in-process simulated handler does), and the result writer updates an
+            // existing row by id — inserting afterwards would race and silently drop the outcome.
+            await RecordControlRequestedAsync(pointControlInfo).ConfigureAwait(false);
+
             var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
             {
@@ -128,6 +134,11 @@ public class PointController(
                 BuildingOsMetrics.ControlRequests.Add(1,
                     new KeyValuePair<string, object?>("handler", dispatch.ControlType),
                     new KeyValuePair<string, object?>("result", "gateway_offline"));
+                // Close the audit row we just opened: nothing will publish a result for a command
+                // that was never delivered, so it would otherwise stay "pending" forever.
+                await RecordControlCompletedAsync(
+                    pointControlInfo, PointControlResult.Failed, "target gateway is not currently connected")
+                    .ConfigureAwait(false);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
                     error = "target gateway is not currently connected",
@@ -146,8 +157,46 @@ public class PointController(
     }
 
     /// <summary>
-    /// ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。監査データは
-    /// 記録済みだが閲覧画面が無かったギャップを埋める。閲覧にはポイントの**読み取り**権限を要求する
+    /// 制御受付を point_control_audit に記録する（#333）。監査の書き込み失敗で制御そのものを
+    /// 失敗させない（可用性を優先し、代わりに必ずログに残す）。
+    /// </summary>
+    private async Task RecordControlRequestedAsync(PointControlInfo info)
+    {
+        try
+        {
+            await pointControlRepository.CreatePointControlInfoAsync(info).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to record control audit request {ControlId} for point {PointId}",
+                info.id, info.PointId);
+        }
+    }
+
+    /// <summary>
+    /// 制御結果を point_control_audit に反映する（#333）。上と同じ理由でベストエフォート。
+    /// </summary>
+    private async Task RecordControlCompletedAsync(
+        PointControlInfo info, PointControlResult result, string response)
+    {
+        try
+        {
+            info.Result = result;
+            info.Response = response;
+            await pointControlRepository.UpdatePointControlInfoAsync(info).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to record control audit result {ControlId} for point {PointId}",
+                info.id, info.PointId);
+        }
+    }
+
+    /// <summary>
+    /// ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に
+    /// 記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する
     /// （制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。
     /// </summary>
     [HttpGet]

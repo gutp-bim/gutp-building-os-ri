@@ -333,6 +333,8 @@ namespace BuildingOs.ApiServer
             var nats = new NATS.Client.Core.NatsConnection(
                 new NATS.Client.Core.NatsOpts { Url = _envModule.NatsUrl });
             services.AddSingleton<NATS.Client.Core.INatsConnection>(nats);
+            // Audit writer first: the result bus depends on it to persist outcomes (#333).
+            services.AddSingleton<Services.IControlAuditWriter, Services.ControlAuditWriter>();
             services.AddSingleton<Services.IControlResultBus, Services.NatsControlResultBus>();
             services.AddSingleton<BuildingOS.Shared.Infrastructure.PointControl.IPointControlCommandPublisher,
                 Services.NatsPointControlCommandPublisher>();
