@@ -70,7 +70,7 @@
       "native": { "protocol": "bacnet", "deviceId": "BAC-2", "objectType": "multiStateValue", "instanceNo": "3001" },
       "unit": null,
       "writable": true,
-      "controlSchema": { "dataType": "enum", "minValue": null, "maxValue": null, "enumLabels": "Off&&Low&&Medium&&High" },
+      "controlSchema": { "dataType": "enum", "minValue": null, "maxValue": null, "enumLabels": "{\"1\":\"Off\",\"2\":\"Low\",\"3\":\"Medium\",\"4\":\"High\"}" },
       "device": { "dtId": "https://www.sbco.or.jp/ont/resource/DEV-AHU-1", "id": "DEV-AHU-1", "name": "Air Handling Unit 01" }
     },
     {

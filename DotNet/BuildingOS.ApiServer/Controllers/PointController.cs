@@ -27,7 +27,8 @@ public class PointController(
     IControlSchemaResolver controlSchemaResolver,
     IControlResultBus controlResultBus,
     IPointControlCommandPublisher commandPublisher,
-    IPointControlRepository pointControlRepository) : ControllerBase
+    IPointControlRepository pointControlRepository,
+    IControlAuditWriter auditWriter) : ControllerBase
 {
     /// <summary>
     /// ポイント情報の一括取得
@@ -118,6 +119,11 @@ public class PointController(
             await controlResultBus.PrepareAsync(controlId, ct).ConfigureAwait(false);
             preparedControlId = controlId;
 
+            // Record the audit row *before* publishing (#333). The result can come back within
+            // milliseconds (the in-process simulated handler does), and the result writer updates an
+            // existing row by id — inserting afterwards would race and silently drop the outcome.
+            await auditWriter.RecordRequestAsync(pointControlInfo, ct).ConfigureAwait(false);
+
             var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
             {
@@ -128,6 +134,13 @@ public class PointController(
                 BuildingOsMetrics.ControlRequests.Add(1,
                     new KeyValuePair<string, object?>("handler", dispatch.ControlType),
                     new KeyValuePair<string, object?>("result", "gateway_offline"));
+                // Close the audit row we just opened: nothing will publish a result for a command
+                // that was never delivered, so it would otherwise stay "pending" forever.
+                // CancellationToken.None: this is cleanup, not request work. If the caller's token is
+                // what aborted us, passing it here would cancel the very write meant to close the row.
+                await auditWriter.RecordFailureIfPendingAsync(
+                    controlId, "target gateway is not currently connected", CancellationToken.None)
+                    .ConfigureAwait(false);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
                     error = "target gateway is not currently connected",
@@ -140,14 +153,23 @@ public class PointController(
         catch (Exception ex)
         {
             if (preparedControlId is not null)
+            {
                 await controlResultBus.UnsubscribeAsync(preparedControlId).ConfigureAwait(false);
+                // Dispatch failed after the audit row was opened (e.g. NATS is down), so close it out
+                // rather than leave it pending. Only-if-pending: a connection-level failure does not
+                // prove the command was not forwarded, and a real gateway outcome outranks our guess.
+                // CancellationToken.None for the same reason as above — this is cleanup.
+                await auditWriter
+                    .RecordFailureIfPendingAsync(preparedControlId, ex.Message, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
             return BadRequest(new { error = ex.Message });
         }
     }
 
     /// <summary>
-    /// ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。監査データは
-    /// 記録済みだが閲覧画面が無かったギャップを埋める。閲覧にはポイントの**読み取り**権限を要求する
+    /// ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に
+    /// 記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する
     /// （制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。
     /// </summary>
     [HttpGet]
