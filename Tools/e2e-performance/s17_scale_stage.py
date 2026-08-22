@@ -19,6 +19,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).parent))
 import quality_checker  # noqa: E402
 import s10_pointlist_integrity as ingress_support  # noqa: E402
+from twin_hierarchy import TwinHierarchy  # noqa: E402
 
 SBCO = "https://www.sbco.or.jp/ont/"
 
@@ -71,14 +72,29 @@ class RealBoundary:
         response.raise_for_status()
 
     def seed(self, points: list[dict]) -> None:
+        """Seed a per-building spatial hierarchy, then the points hanging off it (#300).
+
+        Previously this emitted `sbco:BuildingExt` — a class that is not in the ontology, so the
+        building never appeared in `ListBuildings` and no error was raised — and never linked it to a
+        Level, leaving every point an orphan by the product's own reachability rules.
+        """
         self._topology = points
         buildings = sorted({point["building_id"] for point in points})
-        building_triples = "\n".join(
-            f'<urn:perf:s17:building:{building}> a <{SBCO}BuildingExt> ; '
-            f'<{SBCO}id> "{building}" ; <{SBCO}name> "{building}" .'
-            for building in buildings
-        )
-        self._sparql(f"INSERT DATA {{\n{building_triples}\n}}")
+        # building_id per hierarchy → a distinct Level name per building. Sharing one would make
+        # the sbco:floor literal join (chain C, and what ListDeviceDetails scopes on) match every
+        # building's devices for any one building — an N× fan-out inside the timed query.
+        hierarchies = {b: TwinHierarchy("perf:s17", building_id=b) for b in buildings}
+
+        spatial: list[str] = []
+        for building in buildings:
+            spatial.extend(hierarchies[building].triples())
+        self._sparql("INSERT DATA {\n" + "\n".join(spatial) + "\n}")
+
+        # One equipment per building carries the spatial anchor; points attach to it via hasPoint.
+        points_by_building: dict[str, list[str]] = {}
+        for point in points:
+            points_by_building.setdefault(point["building_id"], []).append(point["point_id"])
+
         for offset in range(0, len(points), self.args.seed_batch):
             triples = []
             for point in points[offset:offset + self.args.seed_batch]:
@@ -90,6 +106,29 @@ class RealBoundary:
                     f'<{SBCO}writable> false ; <{SBCO}gatewayId> "{gateway}" .'
                 )
             self._sparql("INSERT DATA {\n" + "\n".join(triples) + "\n}")
+
+        # hasPoint links last, batched: a building can hold tens of thousands of points, and one
+        # INSERT per building would exceed what the endpoint accepts at the top of the scale sweep.
+        for building, pids in points_by_building.items():
+            hierarchy = hierarchies[building]
+            dev_uri = f"urn:perf:s17:dev:{building}"
+            dev_props = " ; ".join(
+                [
+                    f'<{SBCO}id> "DEV-{building}"',
+                    f'<{SBCO}name> "Scale Device {building}"',
+                    f'<{SBCO}deviceType> "Sensor"',
+                    *hierarchy.equipment_props(),
+                ]
+            )
+            self._sparql(
+                f"INSERT DATA {{\n  <{dev_uri}> a <{SBCO}EquipmentExt> ; {dev_props} .\n}}"
+            )
+            for offset in range(0, len(pids), self.args.seed_batch):
+                links = "\n".join(
+                    f'  <{dev_uri}> <{SBCO}hasPoint> <urn:perf:s17:point:{pid}> .'
+                    for pid in pids[offset:offset + self.args.seed_batch]
+                )
+                self._sparql("INSERT DATA {\n" + links + "\n}")
 
     def refresh_services(self) -> None:
         env = os.environ.copy()
@@ -155,7 +194,17 @@ class RealBoundary:
     def cleanup(self) -> None:
         if not self._topology:
             return
+        # Devices and the spatial chain are now seeded too, and their subjects survive a
+        # point-only delete: the stale hasPoint edges would otherwise accumulate across the sweep's
+        # stages (the building ids repeat) and outlive the run for whatever measures the stack next.
+        buildings = sorted({point["building_id"] for point in self._topology})
         subjects = [f"<urn:perf:s17:point:{point['point_id']}>" for point in self._topology]
+        subjects += [f"<urn:perf:s17:dev:{building}>" for building in buildings]
+        for building in buildings:
+            subjects += [
+                f"<{uri}>"
+                for uri in TwinHierarchy("perf:s17", building_id=building).uris()
+            ]
         for offset in range(0, len(subjects), self.args.seed_batch):
             values = " ".join(subjects[offset:offset + self.args.seed_batch])
             try:
