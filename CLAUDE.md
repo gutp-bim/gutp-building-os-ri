@@ -148,7 +148,6 @@ web-client/src/
 ├── lib/
 │   ├── auth/                    # Keycloak OIDC config
 │   ├── infra/aspida-client/     # auto-generated Aspida types — do NOT edit manually
-│   ├── infra/zod-api-client/    # Zodios client with runtime Zod validation
 │   ├── infra/grpc-client/       # gRPC-web client for device control streaming
 │   └── gen/                     # auto-generated gRPC TypeScript from proto files
 ├── middleware.ts                # auth middleware
@@ -288,8 +287,7 @@ backstop).
 
 | Client | When to use |
 |--------|-------------|
-| Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) |
-| Zodios client (`src/lib/infra/zod-api-client/`) | REST with runtime Zod validation |
+| Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) — the only generated REST client |
 | gRPC client via `useControlExecution()` (`src/lib/infra/grpc-client/`) | device control streaming (point_control) |
 | bespoke authenticated fetch (`src/lib/admin/http.ts`) | the few endpoints still outside the Aspida schema — resource-metadata writes and telemetry/control-audit reads that need custom response handling |
 | resource/telemetry façade (`src/lib/resources/`, `src/lib/telemetry/`) | resource hierarchy + telemetry reads — **UI calls these, not aspida directly** |

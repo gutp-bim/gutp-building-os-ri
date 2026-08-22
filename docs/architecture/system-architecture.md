@@ -71,7 +71,7 @@ point-control の入口を提供します。
 `web-client` がメイン dashboard で、users / groups / permissions 管理は
 その `(admin)` ワークスペース（`/admin` 配下）です（旧 `admin-console` アプリを統合）。
 Next.js アプリケーションで Keycloak OIDC を使います。Frontend の API 呼び出しは
-生成済み client（Aspida/Zodios/gRPC）または `(admin)` の認証付き bespoke fetch
+生成済み client（Aspida/gRPC）または `(admin)` の認証付き bespoke fetch
 （`src/lib/admin/`）を経由します。
 
 ### Data Services
