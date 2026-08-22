@@ -28,7 +28,7 @@ DotNet/
 ## High-priority rules
 
 ### Frontend API access
-Standard REST goes through the generated Aspida/Zodios clients; gRPC device control uses `useControlExecution()`. The `(admin)` workspace calls the admin endpoints (`/api/Users`, `/api/Groups`, `/api/Permissions`) via the authenticated bespoke fetch helpers in `web-client/src/lib/admin/` (Keycloak bearer from the `oidc.access_token` cookie).
+Standard REST goes through the generated Aspida client (`web-client/src/lib/infra/aspida-client/`) — it is the only generated REST client; gRPC device control uses `useControlExecution()`. The `(admin)` workspace calls the admin endpoints (`/api/Users`, `/api/Groups`, `/api/Permissions`) via the authenticated bespoke fetch helpers in `web-client/src/lib/admin/` (Keycloak bearer from the `oidc.access_token` cookie).
 
 ### Never edit auto-generated files
 - `DotNet/BuildingOS.Shared/Defines/Entities/` — regenerated from JSON Schema via `Tools/generate-dotnet-entities-from-schema.bash`
