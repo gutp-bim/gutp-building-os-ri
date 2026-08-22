@@ -216,10 +216,10 @@ public class PointControllerTest
         string? closedControlId = null;
         bool? closedSuccess = null;
 
-        auditWriter.Setup(w => w.RecordResultAsync(
-                       It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .Callback<string, bool, string?, CancellationToken>(
-                       (id, success, _, _) => { closedControlId = id; closedSuccess = success; })
+        auditWriter.Setup(w => w.RecordFailureIfPendingAsync(
+                       It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .Callback<string, string?, CancellationToken>(
+                       (id, _, _) => { closedControlId = id; closedSuccess = false; })
                    .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync(ControlDeliveryStatus.GatewayOffline);

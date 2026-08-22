@@ -136,8 +136,10 @@ public class PointController(
                     new KeyValuePair<string, object?>("result", "gateway_offline"));
                 // Close the audit row we just opened: nothing will publish a result for a command
                 // that was never delivered, so it would otherwise stay "pending" forever.
-                await auditWriter.RecordResultAsync(
-                    controlId, success: false, response: "target gateway is not currently connected", ct)
+                // CancellationToken.None: this is cleanup, not request work. If the caller's token is
+                // what aborted us, passing it here would cancel the very write meant to close the row.
+                await auditWriter.RecordFailureIfPendingAsync(
+                    controlId, "target gateway is not currently connected", CancellationToken.None)
                     .ConfigureAwait(false);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
@@ -153,10 +155,12 @@ public class PointController(
             if (preparedControlId is not null)
             {
                 await controlResultBus.UnsubscribeAsync(preparedControlId).ConfigureAwait(false);
-                // Dispatch failed after the audit row was opened (e.g. NATS is down): nothing will
-                // ever publish a result for it, so close it here rather than leave it pending.
+                // Dispatch failed after the audit row was opened (e.g. NATS is down), so close it out
+                // rather than leave it pending. Only-if-pending: a connection-level failure does not
+                // prove the command was not forwarded, and a real gateway outcome outranks our guess.
+                // CancellationToken.None for the same reason as above — this is cleanup.
                 await auditWriter
-                    .RecordResultAsync(preparedControlId, success: false, response: ex.Message, ct)
+                    .RecordFailureIfPendingAsync(preparedControlId, ex.Message, CancellationToken.None)
                     .ConfigureAwait(false);
             }
             return BadRequest(new { error = ex.Message });

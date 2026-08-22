@@ -13,7 +13,7 @@ namespace BuildingOs.ApiServer.Services;
 /// (<c>CONTROL_RESULT_TIMEOUT_SEC</c>, 10s by default) or when the browser navigates away. A gateway
 /// that answers a second later would then leave the audit row "pending" forever, which is the same
 /// hole the gateway-offline path was written to avoid. Keeping the audit on its own long-lived
-/// wildcard subscription also keeps a slow database off the gRPC stream's teardown path.
+/// subscription also keeps a slow database off the gRPC stream's teardown path.
 ///
 /// Core NATS (not JetStream), matching the publishers: an outcome that arrives while the API server
 /// is down is not replayed. The row stays "pending" — visibly incomplete rather than silently wrong.
@@ -26,6 +26,14 @@ public sealed class ControlAuditResultSubscriber(
     private const string ResultSubjectPrefix = "building-os.control.result.";
     private const string ResultSubjectWildcard = ResultSubjectPrefix + "*";
 
+    /// <summary>
+    /// One replica persists each result. Without this every replica would write the same row, at N×
+    /// the database cost and with a nondeterministic completed_at.
+    /// </summary>
+    private const string QueueGroup = "control-audit";
+
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -33,24 +41,42 @@ public sealed class ControlAuditResultSubscriber(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Control audit subscriber listening on {Subject}", ResultSubjectWildcard);
-
-        try
+        // Resubscribe rather than exit: a BackgroundService that returns stays dead for the life of
+        // the process, and the host keeps serving traffic — so a single transient NATS error would
+        // silently disable the audit trail until someone noticed and restarted the pod.
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await foreach (var msg in nats
-                .SubscribeAsync<byte[]>(ResultSubjectWildcard, cancellationToken: stoppingToken)
-                .ConfigureAwait(false))
+            try
             {
-                await HandleAsync(msg, stoppingToken).ConfigureAwait(false);
+                logger.LogInformation("Control audit subscriber listening on {Subject}", ResultSubjectWildcard);
+
+                await foreach (var msg in nats
+                    .SubscribeAsync<byte[]>(ResultSubjectWildcard, QueueGroup, cancellationToken: stoppingToken)
+                    .ConfigureAwait(false))
+                {
+                    await HandleAsync(msg, stoppingToken).ConfigureAwait(false);
+                }
             }
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // Normal shutdown.
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Control audit subscriber stopped unexpectedly; results will not be audited");
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break; // Normal shutdown.
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    ex, "Control audit subscription failed; retrying in {Seconds}s", ReconnectDelay.TotalSeconds);
+            }
+
+            if (stoppingToken.IsCancellationRequested) break;
+
+            try
+            {
+                await Task.Delay(ReconnectDelay, stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
     }
 

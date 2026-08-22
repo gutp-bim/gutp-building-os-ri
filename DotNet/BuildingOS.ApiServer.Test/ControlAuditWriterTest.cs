@@ -74,6 +74,44 @@ public class ControlAuditWriterTest
     }
 
     [Fact]
+    public async Task RecordFailureIfPendingAsync_ClosesAPendingRow()
+    {
+        var (writer, repo) = Build();
+        var controlId = Guid.NewGuid();
+        repo.Setup(r => r.GetPointControlInfoAsync(controlId))
+            .ReturnsAsync(new PointControlInfo { id = controlId, Type = "BacnetSim", Body = "{}" });
+        PointControlInfo? persisted = null;
+        repo.Setup(r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+            .Callback<PointControlInfo, CancellationToken>((info, _) => persisted = info)
+            .Returns(Task.CompletedTask);
+
+        await writer.RecordFailureIfPendingAsync(controlId.ToString(), "nats is down", CancellationToken.None);
+
+        Assert.NotNull(persisted);
+        Assert.Equal(PointControlResult.Failed, persisted!.Result);
+    }
+
+    [Fact]
+    public async Task RecordFailureIfPendingAsync_DoesNotOverwriteARealOutcome()
+    {
+        var (writer, repo) = Build();
+        var controlId = Guid.NewGuid();
+        // A dispatch error does not prove the command never reached a gateway; if the gateway did
+        // answer, that outcome is the truth and our local failure must not clobber it.
+        repo.Setup(r => r.GetPointControlInfoAsync(controlId))
+            .ReturnsAsync(new PointControlInfo
+            {
+                id = controlId, Type = "BacnetSim", Body = "{}", Result = PointControlResult.Success,
+            });
+
+        await writer.RecordFailureIfPendingAsync(controlId.ToString(), "nats is down", CancellationToken.None);
+
+        repo.Verify(
+            r => r.UpdatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RecordResultAsync_Ignores_NonGuidControlId()
     {
         var (writer, repo) = Build();
