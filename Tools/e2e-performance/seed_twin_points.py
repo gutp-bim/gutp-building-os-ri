@@ -40,14 +40,14 @@ def point_ids(run_id: str, devices: int, points_per_device: int) -> list[str]:
     ]
 
 
-def build_insert(ids: list[str]) -> str:
+def build_insert(ids: list[str], building_id: str | None = None) -> str:
     """Points, plus the equipment and spatial chain that make them reachable from a Building (#300).
 
     Bare PointExt nodes are orphans by the product's own definition, so a load test against them
     measures a shape the product treats as broken (and that strict ingress, #292, would discard).
     """
-    hierarchy = TwinHierarchy("perf")
-    dev_uri = "urn:perf:dev:points"
+    hierarchy = TwinHierarchy("perf", building_id=building_id)
+    dev_uri = f"urn:perf:dev:{hierarchy.building_id}"
 
     point_props = " ; ".join(hierarchy.point_props())
     triples = [
@@ -58,7 +58,7 @@ def build_insert(ids: list[str]) -> str:
 
     dev_props = " ; ".join(
         [
-            f'<{SBCO}id> "DEV-perf-points"',
+            f'<{SBCO}id> "DEV-{hierarchy.building_id}"',
             f'<{SBCO}name> "Perf Load Device"',
             f'<{SBCO}deviceType> "Sensor"',
             *hierarchy.equipment_props(),
@@ -71,14 +71,14 @@ def build_insert(ids: list[str]) -> str:
     return "INSERT DATA {\n" + "\n".join(triples) + "\n}"
 
 
-def build_control_point_insert(point_id: str, gateway_id: str) -> str:
+def build_control_point_insert(point_id: str, gateway_id: str, building_id: str | None = None) -> str:
     """A writable, controllable point for S6: PointExt(writable, gatewayId) + an EquipmentExt that
     hasPoint it, anchored in a real spatial chain (#300). GetPointDetailByPointId requires the point
     reachable from an EquipmentExt via hasPoint, and the control path needs writable=true + a
     gatewayId (its binding resolves the egress ControlType)."""
     pt = f"urn:perf:ctlpt:{point_id}"
     dev = f"urn:perf:ctldev:{point_id}"
-    hierarchy = TwinHierarchy("perf")
+    hierarchy = TwinHierarchy("perf", building_id=building_id)
     point_props = " ; ".join(hierarchy.point_props())
     dev_anchor = " ; ".join(hierarchy.equipment_props())
     spatial = "\n".join(hierarchy.triples())
@@ -112,13 +112,21 @@ def main() -> None:
     parser.add_argument("--points-per-device", type=int, default=10)
     parser.add_argument("--control-point", help="Seed a single writable/controllable point (S6) with this id")
     parser.add_argument("--gateway", default="GW-PERF", help="gatewayId for the control point (S6)")
+    parser.add_argument(
+        "--building",
+        default=os.environ.get("BUILDING_ID"),
+        help="Building id the seeded points belong to (defaults to $BUILDING_ID). The scale sweep "
+             "runs one building per stage, and the lake partitions by this value — leaving it fixed "
+             "would put every stage's points in one twin building while their telemetry sits under "
+             "different partitions.",
+    )
     parser.add_argument("--oxigraph", default=DEFAULT_OXIGRAPH)
     args = parser.parse_args()
 
     if args.control_point:
         logger.info("Seeding controllable point %s (gateway=%s) into %s",
                     args.control_point, args.gateway, args.oxigraph)
-        post_update(args.oxigraph, build_control_point_insert(args.control_point, args.gateway))
+        post_update(args.oxigraph, build_control_point_insert(args.control_point, args.gateway, args.building))
         print(args.control_point)
         return
 
@@ -127,7 +135,7 @@ def main() -> None:
 
     ids = point_ids(args.run_id, args.devices, args.points_per_device)
     logger.info("Seeding %d PointExt nodes into %s (run8=%s)", len(ids), args.oxigraph, args.run_id[:8])
-    post_update(args.oxigraph, build_insert(ids))
+    post_update(args.oxigraph, build_insert(ids, args.building))
     logger.info("Seeded %d points. Sample: %s", len(ids), ", ".join(ids[:3]))
     # Emit the point ids (comma-separated) to stdout so a runner can pass them to k6 as POINT_IDS.
     print(",".join(ids))

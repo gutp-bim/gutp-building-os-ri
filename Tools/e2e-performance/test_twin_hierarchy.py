@@ -80,9 +80,16 @@ def parse(update: str) -> list[tuple[str, str, str]]:
         elif expect == "predicate":
             predicate = token
             expect = "object"
-        else:
+        elif expect == "object":
             triples.append((subject, predicate, token))
-            expect = "done"  # next token must follow a ';' or '.'
+            expect = "done"
+        else:
+            # Only ';' or '.' may follow an object. Anything else means the seeders started emitting
+            # syntax this reader does not model (a datatyped literal, a ',' list) — and silently
+            # mis-parsing would let assert_no_orphans pass on a shape it never actually read.
+            raise AssertionError(
+                f"unsupported Turtle token {token!r} after an object; extend parse() to cover it"
+            )
     return triples
 
 
@@ -197,3 +204,24 @@ class TestTwinHierarchy:
         b = TwinHierarchy("test", building_id="B2")
         assert a.building_uri != b.building_uri
         assert a.room_uri != b.room_uri
+
+    def test_distinct_buildings_get_distinct_floor_names(self):
+        # ListDeviceDetails scopes a building's devices by joining sbco:floor against the Level's
+        # sbco:name. A name shared across buildings makes every building's listing return every
+        # other's devices — an N× fan-out inside the query the scale sweep is timing.
+        floors = {TwinHierarchy("test", building_id=f"B{i}").floor_id for i in range(3)}
+        assert len(floors) == 3
+
+    def test_distinct_prefixes_get_distinct_building_ids(self):
+        # Two seeders on one stack must not mint two buildings claiming the same sbco:id, nor two
+        # Levels sharing a name (same join as above).
+        a = TwinHierarchy("perf")
+        b = TwinHierarchy("perf:csv")
+        assert a.building_id != b.building_id
+        assert a.floor_id != b.floor_id
+
+    def test_uris_covers_every_node_triples_emits(self):
+        # cleanup paths delete by uris(); anything triples() creates but uris() omits would leak.
+        h = TwinHierarchy("test")
+        emitted = {s for s, _, _ in parse("INSERT DATA {\n" + "\n".join(h.triples()) + "\n}")}
+        assert emitted == set(h.uris())

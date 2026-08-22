@@ -80,6 +80,9 @@ class RealBoundary:
         """
         self._topology = points
         buildings = sorted({point["building_id"] for point in points})
+        # building_id per hierarchy → a distinct Level name per building. Sharing one would make
+        # the sbco:floor literal join (chain C, and what ListDeviceDetails scopes on) match every
+        # building's devices for any one building — an N× fan-out inside the timed query.
         hierarchies = {b: TwinHierarchy("perf:s17", building_id=b) for b in buildings}
 
         spatial: list[str] = []
@@ -191,7 +194,17 @@ class RealBoundary:
     def cleanup(self) -> None:
         if not self._topology:
             return
+        # Devices and the spatial chain are now seeded too, and their subjects survive a
+        # point-only delete: the stale hasPoint edges would otherwise accumulate across the sweep's
+        # stages (the building ids repeat) and outlive the run for whatever measures the stack next.
+        buildings = sorted({point["building_id"] for point in self._topology})
         subjects = [f"<urn:perf:s17:point:{point['point_id']}>" for point in self._topology]
+        subjects += [f"<urn:perf:s17:dev:{building}>" for building in buildings]
+        for building in buildings:
+            subjects += [
+                f"<{uri}>"
+                for uri in TwinHierarchy("perf:s17", building_id=building).uris()
+            ]
         for offset in range(0, len(subjects), self.args.seed_batch):
             values = " ".join(subjects[offset:offset + self.args.seed_batch])
             try:

@@ -136,6 +136,10 @@ def build_delete(point_ids: list[str], device_ids: list[str]) -> str:
         parts.append(f"DELETE WHERE {{ <{PT_URI_FMT.format(pid)}> ?p ?o }}")
     for did in device_ids:
         parts.append(f"DELETE WHERE {{ <{DEV_URI_FMT.format(did)}> ?p ?o }}")
+    # The spatial chain build_insert adds has to go too, or --cleanup leaves a stale "Perf Building"
+    # behind and no longer returns the twin to its prior state.
+    for uri in TwinHierarchy("perf:csv").uris():
+        parts.append(f"DELETE WHERE {{ <{uri}> ?p ?o }}")
     return ";\n".join(parts)
 
 

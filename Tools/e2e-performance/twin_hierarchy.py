@@ -37,14 +37,22 @@ class TwinHierarchy:
     `prefix` namespaces the URIs so concurrent runs (and the sample twin) do not collide.
     """
 
-    def __init__(self, prefix: str, building_id: str = "perf-bldg", floor_id: str = "perf-floor-1"):
-        self.building_id = building_id
-        self.floor_id = floor_id
-        self.room_id = f"{floor_id}-room-1"
-        self.site_uri = f"urn:{prefix}:site:{building_id}"
-        self.building_uri = f"urn:{prefix}:building:{building_id}"
-        self.floor_uri = f"urn:{prefix}:level:{building_id}:{floor_id}"
-        self.room_uri = f"urn:{prefix}:room:{building_id}:{self.room_id}"
+    def __init__(self, prefix: str, building_id: str | None = None, floor_id: str | None = None):
+        # Derive the *ids* from the prefix too, not just the URIs. Two seeders sharing an id would
+        # put two buildings in the twin claiming the same sbco:id, and — worse — two Levels sharing
+        # an sbco:name, which the sbco:floor literal join (chain C, also used by ListDeviceDetails)
+        # matches on: each building's device listing would then include the other's devices.
+        slug = prefix.replace(":", "-")
+        self.building_id = building_id or f"{slug}-bldg"
+        # Likewise per building: a floor name shared across buildings makes that same join fan out
+        # across all of them, which in a scale sweep multiplies every point's solutions by the
+        # building count — inside the very query the harness is timing.
+        self.floor_id = floor_id or f"{self.building_id}-F1"
+        self.room_id = f"{self.floor_id}-room-1"
+        self.site_uri = f"urn:{prefix}:site:{self.building_id}"
+        self.building_uri = f"urn:{prefix}:building:{self.building_id}"
+        self.floor_uri = f"urn:{prefix}:level:{self.building_id}:{self.floor_id}"
+        self.room_uri = f"urn:{prefix}:room:{self.building_id}:{self.room_id}"
 
     def triples(self) -> list[str]:
         """The spatial nodes, as `INSERT DATA` body lines (indented, `.`-terminated)."""
@@ -70,6 +78,10 @@ class TwinHierarchy:
             f"<{SBCO}locatedIn> <{self.room_uri}>",
             f'<{SBCO}floor> "{_esc(self.floor_id)}"',
         ]
+
+    def uris(self) -> list[str]:
+        """Every spatial node this hierarchy owns, for cleanup paths to delete."""
+        return [self.site_uri, self.building_uri, self.floor_uri, self.room_uri]
 
     def point_props(self) -> list[str]:
         """Properties a PointExt needs for the ingress metadata cache to resolve its building.
