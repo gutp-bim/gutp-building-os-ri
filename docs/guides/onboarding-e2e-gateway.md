@@ -908,10 +908,11 @@ go run ./cmd/gateway
 
 - `GATEWAY_ID` は twin に登録した `sbco:gatewayId` と一致させます（例 `GW-SOS-001`）。
 - `BOS_INSECURE=true`（平文 h2c）は **dev/CI 専用**。本番は [Step F](#step-f--証明書と-mtls本番寄り) の mTLS に置き換えます。
-- Point List は Building OS の twin が正本。`PROVISIONING_URL=https://.../provisioning` を
-  与えれば twin から同期（ETag / `If-None-Match`→304 / `?since=` 差分）します。CSV 固定
-  (`PROVISIONING_FILE`) の代わりにこちらを使うと、A-3 で投入した twin の内容が変わるたびに
-  gateway 側が自動で追従します。
+- Point List は Building OS の twin が正本。`PROVISIONING_URL=https://bos.example.com` を
+  与えれば twin から同期（ETag / `If-None-Match`→304 / `?since=` 差分）します。gateway が
+  `/gateways/{gatewayId}/pointlist` を自分で末尾に付けるので、**パスは含めないベース URL**
+  （スキーム+ホスト[:ポート]のみ）を渡してください。CSV 固定 (`PROVISIONING_FILE`) の代わりに
+  こちらを使うと、A-3 で投入した twin の内容が変わるたびに gateway 側が自動で追従します。
 
 #### D-2 補足. ポイントリスト同期を手動で確認する
 
@@ -1129,7 +1130,7 @@ BOS_CA_FILE=/etc/nexus/tls/ca.pem \
 BOS_CERT_FILE=/etc/nexus/tls/gateway.crt \   # CN/SAN が GATEWAY_ID を表す
 BOS_KEY_FILE=/etc/nexus/tls/gateway.key \
 BOS_SERVER_NAME=bos.example.com \            # 任意: SNI/検証名の上書き
-PROVISIONING_URL=https://bos.example.com/provisioning \
+PROVISIONING_URL=https://bos.example.com \
 PROVISIONING_CA_FILE=/etc/nexus/tls/ca.pem \
 PROVISIONING_CERT_FILE=/etc/nexus/tls/gateway.crt \
 PROVISIONING_KEY_FILE=/etc/nexus/tls/gateway.key \
@@ -1212,7 +1213,7 @@ docker run -d --name mtls-demo-edge -p 15443:15443 \
   --add-host=host.docker.internal:host-gateway \
   -v /tmp/mtls-demo:/certs:ro \
   -v /tmp/mtls-demo/nginx.conf:/etc/nginx/nginx.conf:ro \
-  nginx:alpine
+  nginx:1.31.4-alpine   # 検証済みバージョン。$ssl_client_s_dn の書式(RFC2253)自体は 1.19.5+ で共通だが、タグを固定して再現性を確保
 ```
 
 > `--add-host=host.docker.internal:host-gateway` は Linux 向けです（Docker Desktop では既定で解決できます）。
