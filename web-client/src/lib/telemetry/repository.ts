@@ -2,9 +2,16 @@ import { API_BASE_URL, authHeaders } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
 import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointLastSeen } from "./freshness";
 import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "./freshness-threshold";
-import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
-import { toGranularityParam, toSeries, toStateSeries } from "./mapping";
+import type { LatestSample } from "@/lib/infra/aspida-client/generated/@types";
+import {
+  toGranularityParam,
+  toLatestSample,
+  toPointsLastSeen,
+  toSeries,
+  toStateSeries,
+} from "./mapping";
 import type {
+  TelemetryLatestSample,
   TelemetryPoint,
   TelemetryQuery,
   TelemetrySeries,
@@ -122,18 +129,19 @@ export async function latestTelemetry(
 }
 
 /**
- * Latest single raw sample for a point, preserving the discriminated value (#152) so a non-numeric
- * (string/boolean) latest reading survives — unlike {@link latestTelemetry}, which funnels through the
- * numeric-only series mapping and drops non-numeric rows. Returns null when there is no data.
+ * Latest single sample for a point of any value kind (#152), so a non-numeric (string/boolean) latest
+ * reading survives — unlike {@link latestTelemetry}, which funnels through the numeric-only series
+ * mapping and drops non-numeric rows. The wire's discriminated shape is resolved here, so callers get
+ * the domain {@link TelemetryLatestSample}. Returns null when there is no data.
  */
 export async function latestTelemetrySample(
   pointId: string,
   token?: string,
-): Promise<ValidTelemetryData | null> {
+): Promise<TelemetryLatestSample | null> {
   const res = await apiClient(token).telemetries.query.$get({
     query: { pointId, latest: true },
   });
-  return res.at(-1) ?? null;
+  return toLatestSample(res);
 }
 
 /**
@@ -169,11 +177,7 @@ export async function latestTelemetryBatch(
 }
 
 async function fetchLatestBatchChunk(pointIds: string[]): Promise<PointLastSeen[]> {
-  let rows: {
-    pointId?: string;
-    datetime?: string | null;
-    value?: number | null;
-  }[];
+  let rows: LatestSample[];
   try {
     rows = await apiClient().telemetries.query.batch_latest.$post({
       body: { pointIds },
@@ -184,14 +188,10 @@ async function fetchLatestBatchChunk(pointIds: string[]): Promise<PointLastSeen[
       `最新値の一括取得に失敗しました${status !== undefined ? ` (${status})` : ""}`,
     );
   }
-  return rows
-    .filter(
-      (r): r is { pointId: string; datetime?: string | null; value?: number | null } =>
-        typeof r.pointId === "string",
-    )
-    // #158 Phase 2a: keep `value` (the API already returns it) so the alarm evaluator can compare it
-    // against thresholds; freshness only reads `lastSeen`.
-    .map((r) => ({ pointId: r.pointId, lastSeen: r.datetime ?? null, value: r.value ?? null }));
+  // #158 Phase 2a: `value` is kept (numeric-only) so the alarm evaluator can compare it against
+  // thresholds; freshness only reads `lastSeen`. The decode lives in mapping.ts so the discriminated
+  // wire shape is read in exactly one place (`value.ts`).
+  return toPointsLastSeen(rows);
 }
 
 /** Best-effort HTTP status from an Aspida/axios rejection, for a friendlier error message. */

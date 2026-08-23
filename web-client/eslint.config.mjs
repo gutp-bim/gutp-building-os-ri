@@ -25,6 +25,31 @@ const eslintConfig = [
       "react-hooks/rules-of-hooks": "off",
     },
   },
+  // UI consumes the src/lib/telemetry/ façade, not the generated wire types (CLAUDE.md). Keeping the
+  // discriminated shape (`valueType`/`valueText`/`valueBool`) inside the façade is what lets the
+  // eventual union-typed `value` (#344) land in `value.ts` alone.
+  //
+  // Scoped to these two names on purpose: `PointDetail` and the other resource types are imported
+  // from here too and belong to the separate resources-façade cleanup (#350), so a blanket path ban
+  // would misfire. Widen this list when that lands.
+  {
+    files: ["src/app/**", "src/components/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/infra/aspida-client/generated/@types",
+              importNames: ["ValidTelemetryData", "LatestSample"],
+              message:
+                "UI consumes the src/lib/telemetry/ façade (TelemetryPoint / TelemetryLatestSample / TelemetryStatePoint), not the generated wire types.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

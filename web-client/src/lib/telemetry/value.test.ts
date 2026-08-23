@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatResolvedValue,
   formatTelemetryValue,
   isNonNumericValue,
   resolveTelemetryValue,
@@ -50,6 +51,27 @@ describe("resolveTelemetryValue", () => {
   it("returns none when valueType says string but no text is present", () => {
     expect(resolveTelemetryValue({ valueType: "string" })).toEqual({ kind: "none" });
   });
+
+  // Characterization: pins the precedence the doc comment used to contradict. A row reaching the
+  // client with no valueType is a pre-#152 legacy row, and those carry no valueText/valueBool at
+  // all (TelemetryValueKind.Apply always sets ValueType and exactly one payload field). So a
+  // populated text/bool field is the stronger signal when the discriminant is missing.
+  it("prefers a populated valueText/valueBool over a stray numeric value when valueType is absent", () => {
+    expect(resolveTelemetryValue({ value: 42, valueText: "auto" })).toEqual({
+      kind: "string",
+      value: "auto",
+    });
+    expect(resolveTelemetryValue({ value: 1, valueBool: false })).toEqual({
+      kind: "boolean",
+      value: false,
+    });
+  });
+
+  it("trusts an explicit discriminant over a populated field of another kind", () => {
+    expect(
+      resolveTelemetryValue({ value: 42, valueType: "number", valueText: "auto" }),
+    ).toEqual({ kind: "number", value: 42 });
+  });
 });
 
 describe("isNonNumericValue", () => {
@@ -68,5 +90,17 @@ describe("formatTelemetryValue", () => {
     expect(formatTelemetryValue({ valueType: "boolean", valueBool: true })).toBe("ON");
     expect(formatTelemetryValue({ valueType: "boolean", valueBool: false })).toBe("OFF");
     expect(formatTelemetryValue({})).toBeNull();
+  });
+});
+
+describe("formatResolvedValue", () => {
+  // Callers holding an already-resolved value (the TelemetryLatestSample domain type) format it
+  // without re-deriving the discriminant.
+  it("formats an already-resolved value without re-resolving", () => {
+    expect(formatResolvedValue({ kind: "number", value: 0 })).toBe("0");
+    expect(formatResolvedValue({ kind: "string", value: "auto" })).toBe("auto");
+    expect(formatResolvedValue({ kind: "boolean", value: true })).toBe("ON");
+    expect(formatResolvedValue({ kind: "boolean", value: false })).toBe("OFF");
+    expect(formatResolvedValue({ kind: "none" })).toBeNull();
   });
 });

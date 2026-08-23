@@ -1,10 +1,15 @@
-import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
+import type {
+  LatestSample,
+  ValidTelemetryData,
+} from "@/lib/infra/aspida-client/generated/@types";
 import { describe, expect, it } from "vitest";
-import { toGranularityParam, toSeries, toStateSeries } from "./mapping";
-
-// The aspida ValidTelemetryData type does not yet declare the discriminated value fields (#152) —
-// cast literals that carry them; the runtime shape is what the API returns.
-const row = (o: Record<string, unknown>) => o as unknown as ValidTelemetryData;
+import {
+  toGranularityParam,
+  toLatestSample,
+  toPointsLastSeen,
+  toSeries,
+  toStateSeries,
+} from "./mapping";
 
 describe("toSeries", () => {
   it("sorts samples by datetime ascending", () => {
@@ -41,15 +46,63 @@ describe("toSeries", () => {
   it("returns an empty series for empty input", () => {
     expect(toSeries("PT001", []).points).toEqual([]);
   });
+
+  it("keeps a legacy row with no valueType as numeric", () => {
+    const raw: ValidTelemetryData[] = [
+      { datetime: "2026-01-01T01:00:00Z", value: 7 },
+    ];
+    expect(toSeries("PT001", raw).points).toEqual([
+      { t: "2026-01-01T01:00:00Z", v: 7 },
+    ]);
+  });
+
+  it("drops a row whose discriminant says it is not numeric, even when value is populated", () => {
+    const raw: ValidTelemetryData[] = [
+      {
+        datetime: "2026-01-01T01:00:00Z",
+        value: 42,
+        valueType: "string",
+        valueText: "auto",
+      },
+    ];
+    expect(toSeries("PT001", raw).points).toEqual([]);
+  });
+});
+
+describe("toSeries / toStateSeries", () => {
+  it("assigns each row of a mixed point to exactly one of the two series", () => {
+    const raw: ValidTelemetryData[] = [
+      { datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
+      { datetime: "2026-01-01T02:00:00Z", valueType: "string", valueText: "auto" },
+      { datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: false },
+      // A stale numeric `value` alongside a string discriminant must not land in both.
+      {
+        datetime: "2026-01-01T04:00:00Z",
+        value: 42,
+        valueType: "string",
+        valueText: "manual",
+      },
+    ];
+    const numericTimes = toSeries("PT001", raw).points.map((p) => p.t);
+    const stateTimes = toStateSeries("PT001", raw).points.map((p) => p.t);
+
+    expect(numericTimes).toEqual(["2026-01-01T01:00:00Z"]);
+    expect(stateTimes).toEqual([
+      "2026-01-01T02:00:00Z",
+      "2026-01-01T03:00:00Z",
+      "2026-01-01T04:00:00Z",
+    ]);
+    expect(numericTimes.filter((t) => stateTimes.includes(t))).toEqual([]);
+  });
 });
 
 describe("toStateSeries", () => {
   it("keeps only non-numeric rows, ascending, formatted (#152 Phase B)", () => {
     const raw = [
-      row({ datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: true }),
-      row({ datetime: "2026-01-01T01:00:00Z", valueType: "string", valueText: "auto" }),
-      row({ datetime: "2026-01-01T02:00:00Z", value: 42, valueType: "number" }), // dropped (numeric)
-      row({ datetime: null, valueType: "string", valueText: "x" }), // dropped (no datetime)
+      { datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: true },
+      { datetime: "2026-01-01T01:00:00Z", valueType: "string", valueText: "auto" },
+      { datetime: "2026-01-01T02:00:00Z", value: 42, valueType: "number" }, // dropped (numeric)
+      { datetime: null, valueType: "string", valueText: "x" }, // dropped (no datetime)
     ];
     const s = toStateSeries("PT001", raw);
     expect(s.pointId).toBe("PT001");
@@ -60,8 +113,103 @@ describe("toStateSeries", () => {
   });
 
   it("returns an empty series for a purely numeric point", () => {
-    const raw = [row({ datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" })];
+    const raw = [{ datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" }];
     expect(toStateSeries("PT001", raw).points).toEqual([]);
+  });
+});
+
+describe("toLatestSample", () => {
+  it("returns null for an empty result set", () => {
+    expect(toLatestSample([])).toBeNull();
+  });
+
+  it("resolves the last row's discriminated value", () => {
+    expect(
+      toLatestSample([
+        { datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
+        { datetime: "2026-01-01T02:00:00Z", value: 21.5, valueType: "number" },
+      ]),
+    ).toEqual({ t: "2026-01-01T02:00:00Z", value: { kind: "number", value: 21.5 } });
+
+    expect(
+      toLatestSample([
+        { datetime: "2026-01-01T02:00:00Z", valueType: "string", valueText: "auto" },
+      ]),
+    ).toEqual({ t: "2026-01-01T02:00:00Z", value: { kind: "string", value: "auto" } });
+
+    expect(
+      toLatestSample([
+        { datetime: "2026-01-01T02:00:00Z", valueType: "boolean", valueBool: false },
+      ]),
+    ).toEqual({ t: "2026-01-01T02:00:00Z", value: { kind: "boolean", value: false } });
+  });
+
+  it("returns a none value for a row with nothing representable", () => {
+    expect(toLatestSample([{ datetime: "2026-01-01T01:00:00Z" }])).toEqual({
+      t: "2026-01-01T01:00:00Z",
+      value: { kind: "none" },
+    });
+  });
+
+  it("carries a null t when the row has no datetime", () => {
+    expect(toLatestSample([{ value: 1, valueType: "number" }])).toEqual({
+      t: null,
+      value: { kind: "number", value: 1 },
+    });
+  });
+});
+
+describe("toPointsLastSeen", () => {
+  it("maps each row to pointId + lastSeen, dropping rows without a pointId", () => {
+    const rows: LatestSample[] = [
+      { pointId: "PT001", datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
+      { datetime: "2026-01-01T02:00:00Z", value: 2 },
+    ];
+    expect(toPointsLastSeen(rows)).toEqual([
+      { pointId: "PT001", lastSeen: "2026-01-01T01:00:00Z", value: 1 },
+    ]);
+  });
+
+  it("keeps a numeric latest value for the alarm evaluator", () => {
+    const rows: LatestSample[] = [
+      { pointId: "PT001", datetime: "2026-01-01T01:00:00Z", value: 0, valueType: "number" },
+    ];
+    expect(toPointsLastSeen(rows)[0].value).toBe(0);
+  });
+
+  it("projects a string/boolean latest reading to a null value (numeric-only by design)", () => {
+    const rows: LatestSample[] = [
+      { pointId: "PT001", datetime: "2026-01-01T01:00:00Z", valueType: "string", valueText: "auto" },
+      { pointId: "PT002", datetime: "2026-01-01T02:00:00Z", valueType: "boolean", valueBool: true },
+    ];
+    expect(toPointsLastSeen(rows)).toEqual([
+      { pointId: "PT001", lastSeen: "2026-01-01T01:00:00Z", value: null },
+      { pointId: "PT002", lastSeen: "2026-01-01T02:00:00Z", value: null },
+    ]);
+  });
+
+  // The behaviour fix: the raw `value` field must not be trusted when the discriminant contradicts
+  // it — otherwise the alarm evaluator compares a number that is not the reading.
+  it("ignores a stale numeric value when the discriminant says string", () => {
+    const rows: LatestSample[] = [
+      {
+        pointId: "PT001",
+        datetime: "2026-01-01T01:00:00Z",
+        value: 42,
+        valueType: "string",
+        valueText: "auto",
+      },
+    ];
+    expect(toPointsLastSeen(rows)).toEqual([
+      { pointId: "PT001", lastSeen: "2026-01-01T01:00:00Z", value: null },
+    ]);
+  });
+
+  it("carries a null lastSeen for a point with no reading", () => {
+    const rows: LatestSample[] = [{ pointId: "PT001", datetime: null }];
+    expect(toPointsLastSeen(rows)).toEqual([
+      { pointId: "PT001", lastSeen: null, value: null },
+    ]);
   });
 });
 

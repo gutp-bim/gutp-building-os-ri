@@ -1,10 +1,7 @@
 "use client";
 
 import { InlineBanner } from "@/components/ui/inline-banner";
-import {
-  PointDetail,
-  ValidTelemetryData,
-} from "@/lib/infra/aspida-client/generated/@types";
+import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { getPointDetail } from "@/lib/resources/repository";
 import {
   autoGranularityForSpan,
@@ -27,6 +24,8 @@ import {
 } from "@/lib/telemetry/repository";
 import type {
   Granularity,
+  TelemetryLatestSample,
+  TelemetryPoint,
   TelemetryStatePoint,
 } from "@/lib/telemetry/types";
 import { useRouter } from "next/navigation";
@@ -51,8 +50,8 @@ export default function PointDetailPageComponent({
   const [controlAuditReloadKey, setControlAuditReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hotData, setHotData] = useState<ValidTelemetryData | null>(null);
-  const [warmData, setWarmData] = useState<ValidTelemetryData[]>([]);
+  const [hotData, setHotData] = useState<TelemetryLatestSample | null>(null);
+  const [warmData, setWarmData] = useState<TelemetryPoint[]>([]);
   // #152 Phase B: non-numeric (string/boolean) history for the state timeline.
   const [stateData, setStateData] = useState<TelemetryStatePoint[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
@@ -156,7 +155,7 @@ export default function PointDetailPageComponent({
       // A newer period/granularity request has superseded this one — drop its (stale) result so it
       // can't overwrite the current chart or prematurely clear loading.
       if (requestId !== warmRequestId.current) return;
-      setWarmData(series.points.map((p) => ({ datetime: p.t, value: p.v })));
+      setWarmData(series.points);
       setStateData(state.points);
     } catch (e) {
       if (requestId !== warmRequestId.current) return;

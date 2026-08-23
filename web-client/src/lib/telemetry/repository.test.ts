@@ -65,4 +65,23 @@ describe("latestTelemetryBatch", () => {
     expect(await latestTelemetryBatch([])).toEqual([]);
     expect(postMock).not.toHaveBeenCalled();
   });
+
+  it("drops a non-numeric latest reading to a null value, keeping its lastSeen", async () => {
+    postMock.mockResolvedValue([
+      { pointId: "p1", datetime: "2026-01-01T01:00:00Z", value: 21.5, valueType: "number" },
+      // A stale numeric `value` alongside a string discriminant must not reach the alarm evaluator.
+      {
+        pointId: "p2",
+        datetime: "2026-01-01T02:00:00Z",
+        value: 42,
+        valueType: "string",
+        valueText: "auto",
+      },
+    ]);
+
+    expect(await latestTelemetryBatch(["p1", "p2"])).toEqual([
+      { pointId: "p1", lastSeen: "2026-01-01T01:00:00Z", value: 21.5 },
+      { pointId: "p2", lastSeen: "2026-01-01T02:00:00Z", value: null },
+    ]);
+  });
 });
