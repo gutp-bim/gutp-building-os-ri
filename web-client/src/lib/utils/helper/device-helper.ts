@@ -1,9 +1,20 @@
-import { Point } from "@/lib/infra/aspida-client/generated/@types";
-
 export const toDisplayDeviceType = (deviceTypeString: string) => {
   const split = deviceTypeString.split(":");
   if (split.length < 4) return deviceTypeString;
   return split[3].split(";")[0];
+};
+
+/**
+ * Structural parameter, not the aspida `Point` (#350): this predicate needs three fields, and typing
+ * it on just those lets it accept both the generated wire type and the domain `PointResource` while
+ * the UI migrates off aspida. It also keeps this file — which lives in `src/lib` and is therefore
+ * invisible to the ESLint façade guard — from being the one place that quietly re-imports the wire
+ * types after the UI has stopped.
+ */
+type BacnetAddressed = {
+  objectTypeBacnet?: string | null;
+  instanceNoBacnet?: number | null;
+  deviceIdBacnet?: string | null;
 };
 
 /**
@@ -19,7 +30,7 @@ export const toDisplayDeviceType = (deviceTypeString: string) => {
  * 1 条件版と 3 条件版の 2 実装が併存していた。
  */
 export const getCollectionProtocol = (
-  point: Point | undefined,
+  point: BacnetAddressed | undefined,
 ): "BACnet" | null => {
   if (!point) return null;
 
