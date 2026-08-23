@@ -95,7 +95,8 @@ export function toPointDetail(d: PointDetail): PointDetailResource {
     device: d.device ? toDeviceResource(d.device) : null,
     floor: d.floor ? toRef("floor", d.floor) : null,
     space: d.space ? toRef("space", d.space) : null,
-    controlSchema: d.controlSchema ? toControlSchemaResource(d.controlSchema) : null,
+    controlSchema: d.controlSchema
+      ? toControlSchemaResource(d.controlSchema)
+      : null,
   };
 }
-

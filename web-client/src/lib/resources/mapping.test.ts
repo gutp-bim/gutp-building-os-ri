@@ -4,9 +4,7 @@ import type {
   ResourceSearchHit,
 } from "@/lib/infra/aspida-client/generated/@types";
 import { describe, expect, it } from "vitest";
-import { toPointResource, toRef, toSearchHit,
-  toPointDetail,
-} from "./mapping";
+import { toPointDetail, toPointResource, toRef, toSearchHit } from "./mapping";
 
 describe("toRef", () => {
   it("maps a dtId/id/name entity to a typed ResourceRef", () => {
@@ -153,7 +151,9 @@ describe("toPointResource — BACnet addressing and control range (#350 4a)", ()
 
 describe("toPointDetail (#350 4a)", () => {
   it("maps the point and normalizes absent spatial context to null", () => {
-    const d = toPointDetail({ point: { dtId: "urn:pt:1", id: "PT001", name: "室温" } });
+    const d = toPointDetail({
+      point: { dtId: "urn:pt:1", id: "PT001", name: "室温" },
+    });
     expect(d.point.id).toBe("PT001");
     expect(d.device).toBeNull();
     expect(d.floor).toBeNull();
@@ -196,4 +196,3 @@ describe("toPointDetail (#350 4a)", () => {
     });
   });
 });
-

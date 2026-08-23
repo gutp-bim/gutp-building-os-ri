@@ -23,7 +23,17 @@ export type PointResource = ResourceRef & {
   unit: string | null;
   scale: number | null;
   specification: string | null;
-  /** The point's measurement kind (aspida `Point.type`), renamed to avoid clashing with `type`. */
+  /**
+   * The point's measurement kind (aspida `Point.type`), renamed because `type` is already the
+   * resource discriminator on {@link ResourceRef}.
+   *
+   * **Trap when migrating a screen off the wire type (#350 4b/4c):** `point.type` still compiles
+   * against `PointResource` — it just silently becomes the literal `"point"` for every point instead
+   * of the measurement kind. TypeScript cannot catch it (both are non-empty strings), so a row like
+   * 「ポイント種別」 would quietly render "point" everywhere. That is the #294/#298 failure class this
+   * façade exists to prevent. Grep every `\.point\.type` when swapping a prop to
+   * {@link PointDetailResource} and rewrite it to `.point.kind`.
+   */
   kind: string | null;
   /**
    * Expected telemetry interval in seconds (aspida `Point.interval`, sbco:interval). Drives per-point
