@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   formatResolvedValue,
-  formatTelemetryValue,
-  isNonNumericValue,
   resolveStateValue,
   resolveTelemetryValue,
   type TelemetryWireValue,
@@ -108,48 +106,65 @@ describe("resolveTelemetryValue", () => {
 /**
  * What actually breaks when the API server and this client straddle #359.
  *
- * The exposure is **symmetric and narrow**: it is the mixed aggregate bucket, and only that. Every
- * other row shape survives either pairing, because #344 already routed the reading itself through
- * `value` — a raw non-numeric row and a purely non-numeric bucket (whose `Avg` is null) both carry
- * their reading there, in both wire versions.
+ * **The exposure is asymmetric, and the bad direction is a client newer than its server.**
+ * `resolveStateValue` now reads `state` and nothing else, so against a #344 server — which sends no
+ * `state` at all — it returns nothing for *every* row shape. `toStateSeries` then yields `[]`, and
+ * the state timeline is empty at raw, hour and day alike. A point that only ever emits strings
+ * renders neither a chart (`toSeries` drops non-numeric) nor a timeline: a blank screen, no error.
  *
- * The mixed bucket is the exception precisely because it is the row that needed `state` in the first
- * place: `value` is the average, so the state representative rides in a field that changed names.
- * A new client reading an old server misses it; an old client reading a new server misses it too.
- * The symptom either way is an empty state timeline at Hour/Day granularity — the raw view is fine.
+ * The other direction is the narrow one. A #344 client's resolver fell through
+ * `valueText → valueBool → value`, and #344 already routed the reading itself through `value`, so
+ * against a #359 server a raw non-numeric row and a purely non-numeric bucket (whose `Avg` is null,
+ * so `value` carries the representative) both still resolve. Only the mixed aggregate bucket is
+ * lost there — `value` is the average, so its state rode in a field that changed names.
+ *
+ * **So: deploy the API server before the web client.** Both directions are covered below, in that
+ * order.
  *
  * Pinned rather than papered over with a runtime fallback: that fallback chain is exactly what #359
  * deleted, and re-adding it would make the removal pointless. The casts are here because TypeScript
- * already rejects both foreign shapes, which is the real guard.
+ * already rejects the foreign shape, which is the real guard.
  */
 describe("#359 wire-version skew", () => {
-  it("loses a #344-era mixed aggregate bucket's state (the only shape at risk)", () => {
-    const from344Server = {
-      value: 42,
-      valueType: "number",
-      valueText: "auto",
-    } as TelemetryWireValue;
-
-    // The chart half is unaffected — it reads `value`, which did not change.
-    expect(resolveTelemetryValue(from344Server)).toEqual({
-      kind: "number",
-      value: 42,
-    });
-    expect(resolveStateValue(from344Server)).toEqual({ kind: "none" });
+  // ── The bad direction: this client against a #344 server ────────────────
+  //
+  // Every one of these is a shape the state timeline renders today. All of them go dark, which is
+  // why the ordering constraint is one-directional.
+  it.each([
+    ["raw string row", { value: "auto", valueType: "string", valueText: "auto" }],
+    ["raw boolean row", { value: true, valueType: "boolean", valueBool: true }],
+    ["purely non-numeric bucket", { value: "auto", valueType: "string", valueText: "auto" }],
+    ["mixed aggregate bucket", { value: 42, valueType: "number", valueText: "auto" }],
+  ])("loses the state half of a #344-era %s", (_label, row) => {
+    expect(resolveStateValue(row as TelemetryWireValue)).toEqual({ kind: "none" });
   });
 
-  it("still resolves a #344-era raw non-numeric reading, which rides in value", () => {
-    const from344Server = {
-      value: "auto",
-      valueType: "string",
-      valueText: "auto",
-    } as TelemetryWireValue;
+  // The chart half is untouched in that pairing — `value` did not change at #359 — so a numeric
+  // point looks completely healthy while every state point is blank. That is what makes the
+  // failure quiet.
+  it("still resolves the reading itself from a #344 server, so only the state half goes dark", () => {
+    expect(
+      resolveTelemetryValue({
+        value: "auto",
+        valueType: "string",
+        valueText: "auto",
+      } as TelemetryWireValue),
+    ).toEqual({ kind: "string", value: "auto" });
 
-    expect(resolveTelemetryValue(from344Server)).toEqual({
-      kind: "string",
-      value: "auto",
-    });
+    expect(
+      resolveTelemetryValue({
+        value: 42,
+        valueType: "number",
+        valueText: "auto",
+      } as TelemetryWireValue),
+    ).toEqual({ kind: "number", value: 42 });
   });
+
+  // ── The narrow direction: a #344 client against this server ─────────────
+  //
+  // Not reproducible from here (it is the old resolver that matters), so it is recorded rather than
+  // executed: the old fallback ended at `value`, which carries the reading for a raw row and for a
+  // purely non-numeric bucket, but is the average for a mixed one. Mixed buckets only.
 });
 
 describe("resolveStateValue", () => {
@@ -186,53 +201,6 @@ describe("resolveStateValue", () => {
 
   it("has no representative when nothing is present", () => {
     expect(resolveStateValue({})).toEqual({ kind: "none" });
-  });
-});
-
-describe("isNonNumericValue", () => {
-  it("is true only for string/boolean readings", () => {
-    expect(isNonNumericValue({ value: 1, valueType: "number" })).toBe(false);
-    expect(
-      isNonNumericValue({ value: "a", valueType: "string", state: "a" }),
-    ).toBe(true);
-    expect(
-      isNonNumericValue({ value: false, valueType: "boolean", state: false }),
-    ).toBe(true);
-    expect(isNonNumericValue({})).toBe(false);
-  });
-
-  // It reads the state half, so a mixed aggregate bucket counts even though its union value is the
-  // numeric average.
-  it("is true for a mixed aggregate bucket", () => {
-    expect(
-      isNonNumericValue({ value: 42, valueType: "number", state: "auto" }),
-    ).toBe(true);
-  });
-});
-
-describe("formatTelemetryValue", () => {
-  it("formats each kind for display", () => {
-    expect(formatTelemetryValue({ value: 21.5, valueType: "number" })).toBe(
-      "21.5",
-    );
-    expect(
-      formatTelemetryValue({
-        value: "auto",
-        valueType: "string",
-        state: "auto",
-      }),
-    ).toBe("auto");
-    expect(
-      formatTelemetryValue({ value: true, valueType: "boolean", state: true }),
-    ).toBe("ON");
-    expect(
-      formatTelemetryValue({
-        value: false,
-        valueType: "boolean",
-        state: false,
-      }),
-    ).toBe("OFF");
-    expect(formatTelemetryValue({})).toBeNull();
   });
 });
 

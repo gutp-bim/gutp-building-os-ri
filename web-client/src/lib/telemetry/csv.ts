@@ -59,7 +59,8 @@ export function toTelemetryCsv({ series, state }: TelemetryCsvInput): string {
   // State first, numeric second: an aggregate bucket carries a numeric average AND a state
   // representative, so both inputs can hold the same timestamp. Two columns cannot express both, and
   // emitting two rows with one timestamp and contradictory values is worse than picking one — so the
-  // numeric write lands last and wins, matching `resolveTelemetryValue`'s numeric-first precedence.
+  // numeric write lands last and wins. Numeric is the half to keep for the same reason the union
+  // `value` carries it: at Hour/Day granularity the average is the published meaning of a bucket.
   // (The download forces raw, where the two series are true complements, so this is a guard rather
   // than a shape the screen produces.)
   for (const p of state)

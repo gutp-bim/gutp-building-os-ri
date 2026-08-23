@@ -12,12 +12,14 @@ publishes images for (`v*.*.*`).
 
 ### Changed
 
-- **Telemetry read responses now carry one union-typed `value`** (`number | string | boolean | null`)
-  instead of requiring clients to reassemble the storage layer's discriminated split (#344). Affects
-  `GET /telemetries/query`, the per-tier reads, and `POST /telemetries/query/batch-latest`.
-  `valueType` is retained and now describes the `value` actually shipped, so it can no longer
-  contradict its runtime type. The Parquet lake's column model is unchanged — this is an API-boundary
-  change only.
+- **BREAKING: telemetry read responses now carry one union-typed `value`**
+  (`number | string | boolean | null`) instead of requiring clients to reassemble the storage layer's
+  discriminated split (#344). Affects `GET /telemetries/query`, the per-tier reads, and
+  `POST /telemetries/query/batch-latest`. Previously `value` was always a number or null and a
+  non-numeric reading arrived in `valueText`/`valueBool`, so a statically-typed consumer that
+  deserializes `value` as a number now fails on the first string or boolean point. `valueType` is
+  retained and describes the `value` actually shipped, so it can no longer contradict its runtime
+  type. The Parquet lake's column model is unchanged — this is an API-boundary change only.
 
 ### Removed
 
@@ -26,9 +28,12 @@ publishes images for (`v*.*.*`).
   It exists for the aggregate bucket, the only row shape carrying two readings at once: `value` is
   the bucket average, so a mixed hour's last-in-bucket state needs its own carrier. Raw non-numeric
   rows repeat their reading in `state` as well, so clients read it with a single lookup.
-  **Client and server must cross this change together** — a mixed aggregate bucket's state
-  representative is unreadable when either side predates it, which empties the state timeline at
-  Hour/Day granularity (raw reads are unaffected).
+
+  **Upgrade the API server before the web client.** The skew is asymmetric. A client newer than its
+  server sees no `state` at all and loses the *entire* state timeline, at every granularity — a
+  string-only point then renders neither chart nor timeline, with no error. A server newer than its
+  client loses only the mixed aggregate bucket, because the old client's fallback ended at `value`,
+  which still carries the reading for raw rows and for purely non-numeric buckets.
 
 ### Fixed
 

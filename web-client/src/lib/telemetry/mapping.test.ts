@@ -263,9 +263,10 @@ describe("toPointsLastSeen", () => {
     ]);
   });
 
-  // batch-latest only ever returns RAW latest samples (granularity=Raw, latest=true), never
-  // aggregate buckets, so a row here has exactly one reading — no average riding alongside a state.
-  // The alarm evaluator compares numbers, so a `state` beside the value must not leak into it.
+  // A defensive guard, not a shape the server produces: batch-latest only ever returns RAW latest
+  // samples (granularity=Raw, latest=true), never aggregate buckets, so a numeric row here never
+  // carries a state beside it. Pinned anyway because the alarm evaluator compares numbers, and the
+  // cost of this projection ever reading the state half is a threshold fired against a string.
   it("ignores the state half when projecting the numeric value", () => {
     const rows: LatestSample[] = [
       {

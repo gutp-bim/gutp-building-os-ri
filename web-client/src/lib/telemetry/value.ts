@@ -31,9 +31,10 @@ export type TelemetryWireValue = {
    * needs somewhere to live. A raw non-numeric row repeats its reading here, which is what lets
    * {@link resolveStateValue} be a single lookup instead of a fallback chain.
    *
-   * Replaced the pre-#359 `valueText`/`valueBool` pair. A server older than #359 sends those
-   * instead, and its non-numeric readings resolve to nothing here — see the deploy-order note in
-   * `value.test.ts`.
+   * Replaced the pre-#359 `valueText`/`valueBool` pair. A server older than #359 sends no `state`
+   * at all, so against one {@link resolveStateValue} returns nothing for *every* row and the state
+   * timeline goes blank at every granularity — **deploy the API server before this client**. See
+   * the skew tests in `value.test.ts` for both directions.
    */
   state?: string | boolean | null;
 };
@@ -86,27 +87,17 @@ export function resolveStateValue(
 }
 
 /**
- * True when the sample carries a non-numeric state representative. Uses {@link resolveStateValue},
- * so a mixed aggregate bucket counts even though its union `value` is the numeric average.
- */
-export function isNonNumericValue(v: TelemetryWireValue): boolean {
-  const r = resolveStateValue(v);
-  return r.kind === "string" || r.kind === "boolean";
-}
-
-/**
- * Format a resolved value for display: numbers as-is, strings verbatim, booleans as ON/OFF. Returns
- * null when there is no representable value. Numeric callers that need scale/unit/enum-label formatting
- * should branch on {@link resolveTelemetryValue} instead — this is the plain state/text rendering
- * shared by the latest view and the state timeline.
- */
-export function formatTelemetryValue(v: TelemetryWireValue): string | null {
-  return formatResolvedValue(resolveTelemetryValue(v));
-}
-
-/**
- * The same display formatting for a value that is already resolved — used by callers holding a
- * {@link ./types.ts `TelemetryLatestSample`}, so they do not re-derive the discriminant.
+ * Display formatting for a resolved value: numbers as-is, strings verbatim, booleans as ON/OFF.
+ * Returns null when there is no representable value. Numeric callers that need scale/unit/enum-label
+ * formatting should branch on the {@link ResolvedTelemetryValue} themselves — this is the plain
+ * state/text rendering shared by the latest view and the state timeline.
+ *
+ * There is deliberately no wire-shape overload. `isNonNumericValue` and `formatTelemetryValue` used
+ * to take a {@link TelemetryWireValue} and resolve it inline; both were removed in #359 with zero
+ * production callers. Keeping them would have meant maintaining a tested API whose meaning had
+ * quietly shifted under the field rename — `isNonNumericValue` in particular read as "the value is
+ * non-numeric" while it answered "this row has a state half", which is a different question for a
+ * mixed aggregate bucket. Resolve first, then format.
  */
 export function formatResolvedValue(r: ResolvedTelemetryValue): string | null {
   switch (r.kind) {
