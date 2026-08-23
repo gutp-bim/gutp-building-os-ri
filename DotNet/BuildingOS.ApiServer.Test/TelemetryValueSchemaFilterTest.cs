@@ -36,18 +36,23 @@ public class TelemetryValueSchemaFilterTest
         return writer.ToString();
     }
 
+    /// <summary>
+    /// Asserts on the serialized <c>oneOf</c> array specifically. A plain
+    /// <c>Assert.Contains("\"string\"", json)</c> would be vacuous — the same DTO has several
+    /// <c>type: string</c> properties (pointId, datetime, valueType, valueText) and a
+    /// <c>type: boolean</c> one (valueBool), so such a test passes even if only the number branch
+    /// survived.
+    /// </summary>
     [Theory]
     [InlineData(typeof(TelemetryReading))]
     [InlineData(typeof(LatestSample))]
     public void Value_SerializesAsAOneOfUnion(Type dtoType)
     {
-        var json = SerializeSchemaFor(dtoType);
+        var oneOf = OneOfBlockOf(SerializeSchemaFor(dtoType));
 
-        Assert.Contains("oneOf", json);
-        // All three branches must survive serialization with their types intact.
-        Assert.Contains("\"number\"", json);
-        Assert.Contains("\"string\"", json);
-        Assert.Contains("\"boolean\"", json);
+        Assert.Contains("\"number\"", oneOf);
+        Assert.Contains("\"string\"", oneOf);
+        Assert.Contains("\"boolean\"", oneOf);
     }
 
     /// <summary>
@@ -59,10 +64,28 @@ public class TelemetryValueSchemaFilterTest
     [Fact]
     public void Value_MarksExactlyOneBranchNullable()
     {
-        var json = SerializeSchemaFor(typeof(TelemetryReading));
-        var occurrences = json.Split("\"nullable\": true").Length - 1;
+        var oneOf = OneOfBlockOf(SerializeSchemaFor(typeof(TelemetryReading)));
+        var nullableBranches = oneOf.Split("\"nullable\": true").Length - 1;
 
-        Assert.True(occurrences >= 1, $"expected a nullable branch, got none:\n{json}");
+        // Exactly one, not "at least one": marking all three is precisely the regression this test
+        // exists to catch, and >= 1 would wave it through.
+        Assert.Equal(1, nullableBranches);
+    }
+
+    /// <summary>
+    /// Extracts just the <c>value</c> property's <c>oneOf</c> array from the serialized schema, so
+    /// assertions cannot be satisfied by unrelated properties of the same DTO.
+    /// </summary>
+    private static string OneOfBlockOf(string json)
+    {
+        var start = json.IndexOf("\"oneOf\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"no oneOf in the serialized schema:\n{json}");
+
+        var open = json.IndexOf('[', start);
+        var close = json.IndexOf(']', open);
+        Assert.True(open >= 0 && close > open, $"malformed oneOf:\n{json}");
+
+        return json[open..close];
     }
 
     /// <summary>

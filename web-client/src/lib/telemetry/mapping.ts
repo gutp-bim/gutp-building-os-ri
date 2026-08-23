@@ -12,7 +12,7 @@ import type {
   TelemetryStatePoint,
   TelemetryStateSeries,
 } from "./types";
-import { formatResolvedValue, resolveTelemetryValue } from "./value";
+import { formatResolvedValue, resolveStateValue, resolveTelemetryValue } from "./value";
 
 // Backend enum ordinals (BuildingOS.Shared.Infrastructure.Telemetry.TelemetryGranularity):
 // Raw = 0, Hour = 1, Day = 2. OpenAPI/aspida types this as a bare number, so the friendly
@@ -110,7 +110,9 @@ export function toStateSeries(
   const points: TelemetryStatePoint[] = data
     .flatMap((d) => {
       if (typeof d.datetime !== "string") return [];
-      const resolved = resolveTelemetryValue(d);
+      // The state half, not the union: a mixed aggregate bucket's union `value` is the numeric
+      // average, but the bucket still has a state representative that belongs on this timeline.
+      const resolved = resolveStateValue(d);
       if (resolved.kind !== "string" && resolved.kind !== "boolean") return [];
       return [{ t: d.datetime, state: formatResolvedValue(resolved) ?? "" }];
     })

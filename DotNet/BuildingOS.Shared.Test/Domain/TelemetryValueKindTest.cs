@@ -130,32 +130,55 @@ public class TelemetryValueKindTest
         => Assert.Equal(0d, TelemetryValueKind.Resolve(new ValidTelemetryData { Value = 0 }));
 
     /// <summary>
-    /// Discriminant absent but a text/bool payload present: the payload wins. Apply() always sets
-    /// ValueType and exactly one payload field, so an untagged row that nonetheless carries text is
-    /// not something Apply produced — the populated field is the stronger signal. Same precedence as
-    /// resolveTelemetryValue on the client.
+    /// <b>A mixed aggregate bucket carries two values at once</b>, and the numeric one wins the union.
+    /// <c>AggregatingParquetTelemetryStore.ToTelemetry</c> sets <c>Value = Avg</c> unconditionally
+    /// (the Timescale continuous-aggregate contract) while tagging the bucket by its
+    /// <i>last-in-bucket</i> reading — so an hour containing numeric samples whose last reading was a
+    /// string really is <c>{ Value = 42, ValueType = "string", ValueText = "auto" }</c> on the wire.
+    /// <para>
+    /// Collapsing that onto one <c>value</c> is lossy either way, so it resolves to the average:
+    /// <c>value</c> has a published numeric meaning for Hour/Day granularity that charts and external
+    /// consumers already depend on, whereas the state representative remains reachable through
+    /// <c>valueText</c>/<c>valueBool</c>. Returning the string here would silently turn an aggregate
+    /// series into text.
+    /// </para>
     /// </summary>
     [Fact]
-    public void Resolve_UntaggedWithText_PrefersTheTextOverAStrayNumber()
+    public void Resolve_MixedAggregateBucket_YieldsTheNumericAverageNotTheStateRepresentative()
+    {
+        Assert.Equal(42d, TelemetryValueKind.Resolve(new ValidTelemetryData
+        {
+            Value = 42, ValueType = TelemetryValueKind.String, ValueText = "auto",
+        }));
+        Assert.Equal(42d, TelemetryValueKind.Resolve(new ValidTelemetryData
+        {
+            Value = 42, ValueType = TelemetryValueKind.Boolean, ValueBool = true,
+        }));
+    }
+
+    /// <summary>A purely non-numeric bucket has no average, so the representative is the value.</summary>
+    [Fact]
+    public void Resolve_NonNumericAggregateBucket_YieldsTheRepresentative()
+        => Assert.Equal("auto", TelemetryValueKind.Resolve(new ValidTelemetryData
+        {
+            Value = null, ValueType = TelemetryValueKind.String, ValueText = "auto",
+        }));
+
+    [Fact]
+    public void Resolve_UntaggedWithText_AndNoNumber_YieldsTheText()
         => Assert.Equal("auto", TelemetryValueKind.Resolve(
-            new ValidTelemetryData { Value = 42, ValueText = "auto" }));
+            new ValidTelemetryData { ValueText = "auto" }));
 
     [Fact]
-    public void Resolve_UntaggedWithBool_PrefersTheBoolOverAStrayNumber()
+    public void Resolve_UntaggedWithBool_AndNoNumber_YieldsTheBool()
         => Assert.Equal(false, TelemetryValueKind.Resolve(
-            new ValidTelemetryData { Value = 1, ValueBool = false }));
+            new ValidTelemetryData { ValueBool = false }));
 
-    /// <summary>An explicit discriminant is trusted over a populated field of another kind.</summary>
+    /// <summary>Tagged string with neither a number nor text is not representable.</summary>
     [Fact]
-    public void Resolve_ExplicitNumber_IgnoresAStrayText()
-        => Assert.Equal(42d, TelemetryValueKind.Resolve(
-            new ValidTelemetryData { ValueType = TelemetryValueKind.Number, Value = 42, ValueText = "auto" }));
-
-    /// <summary>Tagged string with no text is not representable — null, not a fallback to Value.</summary>
-    [Fact]
-    public void Resolve_TaggedStringWithoutText_YieldsNull()
+    public void Resolve_TaggedStringWithNothingToShow_YieldsNull()
         => Assert.Null(TelemetryValueKind.Resolve(
-            new ValidTelemetryData { ValueType = TelemetryValueKind.String, Value = 42 }));
+            new ValidTelemetryData { ValueType = TelemetryValueKind.String }));
 
     [Fact]
     public void Resolve_NothingRepresentable_YieldsNull()

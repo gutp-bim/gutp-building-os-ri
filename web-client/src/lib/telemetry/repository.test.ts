@@ -69,13 +69,13 @@ describe("latestTelemetryBatch", () => {
   it("drops a non-numeric latest reading to a null value, keeping its lastSeen", async () => {
     postMock.mockResolvedValue([
       { pointId: "p1", datetime: "2026-01-01T01:00:00Z", value: 21.5, valueType: "number" },
-      // A stale numeric `value` alongside a string discriminant must not reach the alarm evaluator.
+      // A non-numeric latest reading must not reach the alarm evaluator as a number (#344: the
+      // reading now rides in `value` itself).
       {
         pointId: "p2",
         datetime: "2026-01-01T02:00:00Z",
-        value: 42,
+        value: "auto",
         valueType: "string",
-        valueText: "auto",
       },
     ]);
 

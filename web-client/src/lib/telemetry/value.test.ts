@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatResolvedValue,
+  resolveStateValue,
   formatTelemetryValue,
   isNonNumericValue,
   resolveTelemetryValue,
@@ -52,21 +53,20 @@ describe("resolveTelemetryValue", () => {
     expect(resolveTelemetryValue({ valueType: "string" })).toEqual({ kind: "none" });
   });
 
-  // Since #344 `value` itself is the union, so its runtime type discriminates and a contradictory
-  // legacy sibling no longer wins. Neither server shape can produce this row (Apply always sets
-  // exactly one payload field, and the union server puts the reading in `value`), so it is garbage
-  // either way — but pinning it keeps the two resolvers from drifting on it.
-  it("lets the union value win over a contradictory legacy sibling", () => {
-    expect(resolveTelemetryValue({ value: 42, valueText: "auto" })).toEqual({
-      kind: "number",
-      value: 42,
-    });
-  });
-
-  it("rejects a value whose runtime type the discriminant denies", () => {
+  // A MIXED AGGREGATE BUCKET carries both an average and a state representative: the store sets
+  // `value = avg` unconditionally while tagging the bucket by its last-in-bucket reading. The union
+  // takes the numeric half — `value` has a published numeric meaning at Hour/Day granularity — and
+  // the state half is read via resolveStateValue instead.
+  it("yields the numeric average for a mixed aggregate bucket, not its state representative", () => {
     expect(
       resolveTelemetryValue({ value: 42, valueType: "string", valueText: "auto" }),
-    ).toEqual({ kind: "none" });
+    ).toEqual({ kind: "number", value: 42 });
+  });
+
+  it("yields the representative for a purely non-numeric bucket (no average)", () => {
+    expect(
+      resolveTelemetryValue({ value: null, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
   });
 
   // ── Backward compatibility with a pre-#344 server (the cases that actually matter) ──
@@ -94,6 +94,28 @@ describe("resolveTelemetryValue", () => {
     expect(
       resolveTelemetryValue({ value: true, valueType: "boolean", valueBool: true }),
     ).toEqual({ kind: "boolean", value: true });
+  });
+});
+
+describe("resolveStateValue", () => {
+  it("reads the state representative of a mixed aggregate bucket, ignoring the average", () => {
+    expect(
+      resolveStateValue({ value: 42, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+    expect(
+      resolveStateValue({ value: 42, valueType: "boolean", valueBool: true }),
+    ).toEqual({ kind: "boolean", value: true });
+  });
+
+  it("reads a post-#344 raw non-numeric reading from the union value", () => {
+    expect(resolveStateValue({ value: "auto", valueType: "string" })).toEqual({
+      kind: "string",
+      value: "auto",
+    });
+  });
+
+  it("has no representative for a purely numeric row", () => {
+    expect(resolveStateValue({ value: 21.5, valueType: "number" })).toEqual({ kind: "none" });
   });
 });
 

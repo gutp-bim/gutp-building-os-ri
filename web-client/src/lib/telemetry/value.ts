@@ -35,49 +35,58 @@ export type ResolvedTelemetryValue =
   | { kind: "none" };
 
 /**
- * Resolve a sample to a single typed variant.
+ * Resolve a sample to the single union-typed value the API returns (#344): the reading itself.
  *
- * Since #344 the wire carries one union-typed `value`, so `typeof value` *is* the discriminant and
- * `valueType` is demoted to a **reject-only** confirmation: it can veto a value whose runtime type
- * contradicts it, but it is never needed to locate one. The backend resolver
- * (`TelemetryValueKind.Resolve`) applies the same precedence — the two must agree, which is why both
- * are pinned by tests.
+ * **Numeric first**, then `valueText`, then `valueBool` — the discriminant does not override it.
+ * An *aggregate* row legitimately carries two values at once: the store sets `value` to the bucket
+ * average (the continuous-aggregate contract) while tagging the bucket by its last-in-bucket
+ * reading, so a mixed hour arrives as `{ value: 42, valueType: "string", valueText: "auto" }`.
+ * Collapsing that onto one value is lossy either way; the numeric half wins here because `value` has
+ * a published numeric meaning at Hour/Day granularity that the chart depends on. The state half is
+ * not lost — {@link resolveStateValue} is how the timeline reads it.
  *
- * The `valueText`/`valueBool` branch is the pre-#344 compatibility path. The API dual-emits this
- * release, so it only fires for a response produced by an older server (or a hand-built fixture);
- * it goes away with those fields in #344 PR B. Returns `{ kind: "none" }` when nothing is
- * representable.
+ * For a *raw* row the question does not arise: the backend populates exactly one payload field, so
+ * numeric-first and discriminant-first agree. `TelemetryValueKind.Resolve` applies the same
+ * precedence; both sides are pinned by tests so they cannot drift.
  */
 export function resolveTelemetryValue(
   v: DiscriminatedTelemetryValue,
 ): ResolvedTelemetryValue {
-  const type = v.valueType ?? null;
-  const value = v.value;
-
-  // The union path: the runtime type decides, unless the discriminant explicitly denies it.
-  if (typeof value === "string") {
-    return type === null || type === "string" ? { kind: "string", value } : { kind: "none" };
-  }
-  if (typeof value === "boolean") {
-    return type === null || type === "boolean" ? { kind: "boolean", value } : { kind: "none" };
-  }
-  if (typeof value === "number") {
-    return type === null || type === "number" ? { kind: "number", value } : { kind: "none" };
-  }
-
-  // Pre-#344 fallback: `value` was numeric-only and non-numeric readings rode in these fields.
-  if (typeof v.valueText === "string" && (type === null || type === "string")) {
-    return { kind: "string", value: v.valueText };
-  }
-  if (typeof v.valueBool === "boolean" && (type === null || type === "boolean")) {
-    return { kind: "boolean", value: v.valueBool };
-  }
+  if (typeof v.value === "number") return { kind: "number", value: v.value };
+  if (typeof v.value === "string") return { kind: "string", value: v.value };
+  if (typeof v.value === "boolean") return { kind: "boolean", value: v.value };
+  // Pre-#344 servers put non-numeric readings here; aggregate rows always do.
+  if (typeof v.valueText === "string") return { kind: "string", value: v.valueText };
+  if (typeof v.valueBool === "boolean") return { kind: "boolean", value: v.valueBool };
   return { kind: "none" };
 }
 
-/** True when the sample carries a non-numeric (string/boolean) first-class value. */
+/**
+ * Resolve a sample's **state representative** — the non-numeric reading a row carries, independent of
+ * any numeric value beside it.
+ *
+ * This is deliberately not {@link resolveTelemetryValue}. A mixed aggregate bucket has both an
+ * average and a state; asking the union resolver would return the average and the state timeline
+ * would silently go empty for exactly those points. `valueText`/`valueBool` are checked first
+ * because that is where both aggregate rows and pre-#344 servers put the representative; a
+ * non-numeric union `value` covers the post-#344 raw row.
+ */
+export function resolveStateValue(
+  v: DiscriminatedTelemetryValue,
+): ResolvedTelemetryValue {
+  if (typeof v.valueText === "string") return { kind: "string", value: v.valueText };
+  if (typeof v.valueBool === "boolean") return { kind: "boolean", value: v.valueBool };
+  if (typeof v.value === "string") return { kind: "string", value: v.value };
+  if (typeof v.value === "boolean") return { kind: "boolean", value: v.value };
+  return { kind: "none" };
+}
+
+/**
+ * True when the sample carries a non-numeric state representative. Uses {@link resolveStateValue},
+ * so a mixed aggregate bucket counts even though its union `value` is the numeric average.
+ */
 export function isNonNumericValue(v: DiscriminatedTelemetryValue): boolean {
-  const r = resolveTelemetryValue(v);
+  const r = resolveStateValue(v);
   return r.kind === "string" || r.kind === "boolean";
 }
 

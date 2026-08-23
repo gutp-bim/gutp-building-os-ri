@@ -54,26 +54,26 @@ public static class TelemetryValueKind
     /// returns (#344): a <see cref="double"/>, <see cref="string"/>, <see cref="bool"/>, or
     /// <c>null</c> when nothing is representable.
     /// <para>
-    /// Precedence mirrors the client resolver (<c>web-client/src/lib/telemetry/value.ts</c>): the
-    /// discriminant is trusted when present; otherwise <c>ValueText</c> → <c>ValueBool</c> → the
-    /// legacy numeric default. Untagged rows only ever come from pre-#152 data, which carries just
-    /// <c>Value</c>, so a populated text/bool on an untagged row is the stronger signal. A tagged
-    /// row whose payload is missing resolves to <c>null</c> rather than falling back to another
-    /// field — reporting a value the discriminant denies is worse than reporting none.
+    /// <b>Precedence is numeric first</b>, then <c>ValueText</c>, then <c>ValueBool</c> — and the
+    /// discriminant does not override it. That is not a stylistic choice: an <i>aggregate</i> row
+    /// legitimately carries two values at once. <c>AggregatingParquetTelemetryStore.ToTelemetry</c>
+    /// sets <c>Value = Avg</c> unconditionally (the Timescale continuous-aggregate contract) while
+    /// <see cref="ResolveLastInBucket"/> tags the bucket by its last-in-bucket reading, so a mixed
+    /// hour is really <c>{ Value = 42, ValueType = "string", ValueText = "auto" }</c> on the wire.
+    /// Collapsing that onto one <c>value</c> is lossy whichever half wins; the numeric one is chosen
+    /// because <c>value</c> already has a published numeric meaning at Hour/Day granularity that
+    /// charts and external consumers depend on, while the state representative stays reachable via
+    /// <c>ValueText</c>/<c>ValueBool</c>.
+    /// </para>
+    /// <para>
+    /// For a <i>raw</i> row the question does not arise: <see cref="Apply"/> populates exactly one
+    /// payload field, so numeric-first and discriminant-first agree. The client resolver
+    /// (<c>web-client/src/lib/telemetry/value.ts</c>) applies the same precedence; both are pinned by
+    /// tests so they cannot drift.
     /// </para>
     /// </summary>
-    public static object? Resolve(ValidTelemetryData? row)
-    {
-        if (row is null) return null;
-
-        return row.ValueType switch
-        {
-            String => row.ValueText,
-            Boolean => row.ValueBool,
-            Number => row.Value,
-            _ => row.ValueText ?? (object?)row.ValueBool ?? row.Value,
-        };
-    }
+    public static object? Resolve(ValidTelemetryData? row) =>
+        row is null ? null : row.Value ?? (object?)row.ValueText ?? row.ValueBool;
 
     /// <summary>
     /// Resolve an aggregated bucket's <b>last-in-bucket</b> discriminant (#152 Phase B, D3) from its
