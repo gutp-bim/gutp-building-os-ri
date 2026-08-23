@@ -270,9 +270,12 @@ public class TelemetryController(
                 .QueryAsync(new TelemetryQueryRequest(pointId, null, null, TelemetryGranularity.Raw, true), ct)
                 .ConfigureAwait(false);
             var latest = result.LastOrDefault();
+            // Same rule as TelemetryReading.From: the discriminant describes the union value we
+            // ship, derived from it rather than copied off the row.
+            var value = TelemetryValueKind.Resolve(latest);
             return new LatestSample(
-                pointId, latest?.Datetime, TelemetryValueKind.Resolve(latest),
-                latest?.ValueType, latest?.ValueText, latest?.ValueBool);
+                pointId, latest?.Datetime, value,
+                TelemetryValueKind.KindOf(value), latest?.ValueText, latest?.ValueBool);
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";

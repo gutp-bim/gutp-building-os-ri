@@ -487,10 +487,16 @@ export type TelemetryGranularity = 0 | 1 | 2
  * model, so it cannot be retyped in place — while the canonical schema
  * (`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic
  * `value`. This DTO restores that shape at the boundary.
- * <b>Dual-emitting for this release.</b>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType/BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText/
- * BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueBool are still populated alongside the union so a client built against the old
- * shape keeps working regardless of deploy order. Dropping them is a follow-up at a release
- * boundary (#344 PR B); doing it now would force a clients-first deploy for no benefit.
+ * <b>Dual-emitting for this release.</b>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText/BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueBool are still
+ * populated alongside the union so a client built against the old shape keeps working regardless of
+ * deploy order. Dropping them is a follow-up at a release boundary (#344 PR B); doing it now would
+ * force a clients-first deploy for no benefit.
+ * <para>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType is <b>not</b> part of that promise: it now describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,
+ * derived from the value actually shipped, rather than being copied from the stored tag. For an
+ * aggregate bucket the stored tag classifies the bucket's last-in-bucket reading, so copying it
+ * made the wire say `{ value: 42, valueType: "string" }`. An old client that branched on the
+ * discriminant to render a mixed aggregate hour therefore sees the average now instead of the
+ * state string — the state itself is unchanged and still in BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText.</para>
  */
 export type TelemetryReading = {
   pointId?: string | null | undefined;

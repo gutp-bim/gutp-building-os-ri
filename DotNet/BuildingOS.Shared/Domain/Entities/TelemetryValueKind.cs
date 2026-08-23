@@ -76,6 +76,37 @@ public static class TelemetryValueKind
         row is null ? null : row.Value ?? (object?)row.ValueText ?? row.ValueBool;
 
     /// <summary>
+    /// The discriminant for a value produced by <see cref="Resolve"/> — i.e. the kind of the single
+    /// union value the API ships, not the kind of whatever else the row carries beside it.
+    /// <para>
+    /// This exists because the stored <c>ValueType</c> cannot serve as the wire discriminant. For an
+    /// aggregate row the store tags the bucket by its <i>last-in-bucket</i> reading while
+    /// <c>Value</c> holds the average, so a mixed hour is stored as
+    /// <c>{ Value = 42, ValueType = "string" }</c> — perfectly coherent for the store (the tag
+    /// describes <c>ValueText</c>), and incoherent the moment it is copied onto a wire whose
+    /// <c>value</c> is the number.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// Numeric types are matched explicitly and anything unrecognized returns <c>null</c> — an
+    /// unknown kind rather than a wrong one. A catch-all <c>_ =&gt; Number</c> would label a
+    /// <see cref="System.Text.Json.JsonElement"/> (what <c>object?</c> deserializes back into, so
+    /// what any re-projection of an already-parsed response would hand this) as <c>"number"</c> for
+    /// every value including strings and booleans — silently reintroducing the very contradiction
+    /// this method exists to remove. Null is returned rather than thrown because this sits on a
+    /// read path: a surprising type should not turn a telemetry query into a 500.
+    /// </remarks>
+    public static string? KindOf(object? value) => value switch
+    {
+        null => null,
+        string => String,
+        bool => Boolean,
+        double or float or decimal or int or long or short or byte
+            or uint or ulong or ushort or sbyte => Number,
+        _ => null,
+    };
+
+    /// <summary>
     /// Resolve an aggregated bucket's <b>last-in-bucket</b> discriminant (#152 Phase B, D3) from its
     /// latest row and whether the bucket contained any numeric value. A non-numeric latest row yields
     /// its string/boolean value; otherwise a bucket with numeric values is tagged <c>"number"</c> and
