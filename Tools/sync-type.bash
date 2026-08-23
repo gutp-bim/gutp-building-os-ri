@@ -1,3 +1,9 @@
+#!/bin/bash
+# set -e: this script is now upstream of a CI gate (#357), and without it a failed `dotnet build`
+# falls through to generate swagger from a stale DLL — the same false-green that bit
+# generate_swagger.bash (#354).
+set -euo pipefail
+
 repository_root=`git rev-parse --show-toplevel`
 
 export ASPNETCORE_ENVIRONMENT=Development
@@ -31,4 +37,7 @@ else
   mkdir -p "$CLIENT_PATH"
 fi
 
-npx openapi2aspida -i=$repository_root/docs/schema/swagger.yaml -o=$CLIENT_PATH
+# Pinned: the #357 drift check regenerates this tree and fails on any difference, so an unpinned
+# generator would make an upstream release break unrelated PRs. Keep in step with
+# OPENAPI2ASPIDA_VERSION in .github/workflows/pr-check.yml.
+npx --yes openapi2aspida@0.24.0 -i=$repository_root/docs/schema/swagger.yaml -o=$CLIENT_PATH
