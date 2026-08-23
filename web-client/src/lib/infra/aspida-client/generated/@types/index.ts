@@ -242,13 +242,35 @@ export type GroupsControllerUpdateGroupRequest = {
  * Response-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input.
  */
 export type LatestSample = {
+  /** The point this sample belongs to. */
   pointId?: string | undefined;
+  /** ISO-8601 timestamp of the reading; `null` when the point has no data. */
   datetime?: string | null | undefined;
 
+  /**
+   * The reading, as a System.Double, System.String, System.Boolean, or `null`.
+   * Widened to `oneOf: [number, string, boolean]` in the OpenAPI document by
+   * `TelemetryValueSchemaFilter`, which is what makes generated clients see a real union rather
+   * than an untyped hole.
+   */
   value?: number | null | string | boolean | undefined;
 
+  /**
+   * `"number"` | `"string"` | `"boolean"` — the kind of Value,
+   *             derived from the value actually shipped rather than copied from the stored tag, so it cannot
+   *             contradict it. A descriptor, not a lookup key.
+   */
   valueType?: string | null | undefined;
 
+  /**
+   * The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or
+   * `null` — independent of any number in Value (#359). Replaced the legacy
+   * `ValueText`/`ValueBool` pair. A non-numeric reading is repeated here rather than left
+   * null, so a client reads the state half with a single lookup instead of falling back to
+   * Value. Batch-latest returns raw samples only, so unlike
+   * BuildingOs.ApiServer.Telemetry.TelemetryReading.State this never carries a state
+   * alongside a numeric average — see that type's docs for why the field exists at all.
+   */
   state?: string | null | boolean | undefined;
 }
 

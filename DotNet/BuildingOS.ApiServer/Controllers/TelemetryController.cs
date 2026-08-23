@@ -308,6 +308,28 @@ public sealed record BatchLatestRequest(string[] PointIds);
 /// Response-only: <c>object?</c> deserializes as a <c>JsonElement</c>, so do not reuse this for input.
 /// </para>
 /// </summary>
+/// <param name="PointId">The point this sample belongs to.</param>
+/// <param name="Datetime">ISO-8601 timestamp of the reading; <c>null</c> when the point has no data.</param>
+/// <param name="Value">
+/// The reading, as a <see cref="double"/>, <see cref="string"/>, <see cref="bool"/>, or <c>null</c>.
+/// Widened to <c>oneOf: [number, string, boolean]</c> in the OpenAPI document by
+/// <c>TelemetryValueSchemaFilter</c>, which is what makes generated clients see a real union rather
+/// than an untyped hole.
+/// </param>
+/// <param name="ValueType">
+/// <c>"number"</c> | <c>"string"</c> | <c>"boolean"</c> — the kind of <paramref name="Value"/>,
+/// derived from the value actually shipped rather than copied from the stored tag, so it cannot
+/// contradict it. A descriptor, not a lookup key.
+/// </param>
+/// <param name="State">
+/// The reading's <b>non-numeric half</b> — a <see cref="string"/>, a <see cref="bool"/>, or
+/// <c>null</c> — independent of any number in <paramref name="Value"/> (#359). Replaced the legacy
+/// <c>ValueText</c>/<c>ValueBool</c> pair. A non-numeric reading is repeated here rather than left
+/// null, so a client reads the state half with a single lookup instead of falling back to
+/// <paramref name="Value"/>. Batch-latest returns raw samples only, so unlike
+/// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading.State"/> this never carries a state
+/// alongside a numeric average — see that type's docs for why the field exists at all.
+/// </param>
 public sealed record LatestSample(
     string PointId, string? Datetime, object? Value,
     string? ValueType = null, object? State = null);
