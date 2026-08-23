@@ -173,23 +173,26 @@ export default function PointDetailPageComponent({
     try {
       setColdLoading(true);
       setColdError(null);
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      // Same granularity rule the chart applies to its own window. Without this the download always
-      // asked for raw: viewing 30 days aggregated by day and pressing download returned every raw
-      // sample instead of the ~30 points on screen.
-      const downloadGranularity =
-        granularity === "auto"
-          ? autoGranularityForSpan(start, end)
-          : granularity;
-      // Both halves of what the trend view renders — the chart's numeric series AND the timeline's
-      // state series. Taking only the numeric half made a non-numeric point download as a bare
-      // header with no error.
+      // Raw, deliberately — do NOT inherit the chart's granularity.
+      //
+      // This modal takes its own start/end and is the cold-data export (hence
+      // ColdDataDownloadModal): it hands over the readings for a chosen range, not a copy of the
+      // chart. Asking for an aggregated granularity breaks that in three ways:
+      //   - OssTelemetryQueryRouter.QueryAggregatedAsync only consults the aggregate and warm
+      //     stores, never the cold one — so with WARM_STORE=timescale a range older than warm
+      //     retention comes back empty, from the button whose whole job is old data.
+      //   - the Timescale aggregate stores select only `value`, so a non-numeric point would once
+      //     again export as a bare header.
+      //   - the modal shows no granularity control, so it would silently inherit whatever the chart
+      //     was left on: an hour-long export with the chart on 「1日」 collapses to a single row.
+      // Aggregated numbers are also the wrong artefact here — a bucket average looks exactly like a
+      // reading, and min/max/count are dropped.
+      //
+      // Both halves of the trend are still exported: the numeric series AND the state series.
       const { series, state } = await queryTelemetryWithState({
         pointId: pointDetail.point.id,
-        start,
-        end,
-        granularity: downloadGranularity,
+        start: new Date(startDate),
+        end: new Date(endDate),
       });
       const csvData = toTelemetryCsv({
         series: series.points,
