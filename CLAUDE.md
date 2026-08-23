@@ -395,7 +395,14 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 > caught: `integration-tests` weekly and `demo-smoke` (#180, full `make demo` bring-up + smoke)
 > monthly; scheduled failures file an issue. **Local verification is the primary gate** (`dotnet test`,
 > `yarn test`/`typecheck`/`lint`, `yarn build`). The release/deploy chain (`harbor-push` →
-> `argocd-image-update`, `generate-swagger`) still runs on `main` merges.
+> `argocd-image-update`) still runs on `main` merges.
+>
+> **`swagger.yaml` は自動生成されない（#354）。** `generate-swagger` ワークフローは「main への push で
+> 再生成して自動コミット」する設計だったが、main へのマージ直後に必ず入る `argocd-image-update` の
+> コミットと push が競合して常に失敗していたため削除した。代わりに `pr-check` の `.NET Build & Test`
+> が **PR 時点で** 再生成し、差分があれば落とす。API を変えたら `./Tools/sync-type.bash` を実行し、
+> `docs/schema/swagger.yaml` と `web-client/src/lib/infra/aspida-client/generated/` を一緒に
+> コミットすること（`generate_swagger.bash` 単体では aspida 側が更新されず、CI もそこは検査しない）。
 
 ## Environment Variables
 

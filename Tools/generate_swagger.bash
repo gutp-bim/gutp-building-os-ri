@@ -1,4 +1,10 @@
 #!/bin/bash
+# set -e: without it a failed `dotnet build` falls through to the DLL lookup below, which happily
+# finds a *stale* DLL from an earlier build and generates swagger from it — yielding "no diff" and a
+# green check for a tree that does not compile. That matters now that pr-check.yml gates on this
+# script (#354).
+set -euo pipefail
+
 repository_root=`git rev-parse --show-toplevel`
 
 export ASPNETCORE_ENVIRONMENT=Development
