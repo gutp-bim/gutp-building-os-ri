@@ -1,4 +1,8 @@
-import type { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import type {
+  ControlSchemaResource,
+  PointDetailResource,
+  PointResource,
+} from "@/lib/resources/types";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,10 +11,52 @@ import {
   resolveControlRange,
 } from "./resolve-control-range";
 
+/**
+ * Builds a detail fixture from the fields a case cares about. #350 4b: this used to take
+ * `Record<string, unknown>` and cast, which meant a misspelled or removed field failed nothing —
+ * the typed base + Partial overlay is what makes tsc enforce the shape.
+ */
+const BASE_POINT: PointResource = {
+  type: "point",
+  dtId: "urn:pt:PT005",
+  id: "PT005",
+  name: "室温設定",
+  kind: null,
+  writable: null,
+  unit: null,
+  scale: null,
+  specification: null,
+  expectedIntervalSeconds: null,
+  alarmHigh: null,
+  alarmLow: null,
+  warnHigh: null,
+  warnLow: null,
+  objectTypeBacnet: null,
+  instanceNoBacnet: null,
+  deviceIdBacnet: null,
+  minPresValue: null,
+  maxPresValue: null,
+};
+
+const BASE_CONTROL_SCHEMA: ControlSchemaResource = {
+  dataType: null,
+  enumLabels: null,
+  minValue: null,
+  maxValue: null,
+};
+
 const detail = (
-  point: Record<string, unknown>,
-  controlSchema?: Record<string, unknown>,
-) => ({ point, controlSchema }) as unknown as PointDetail;
+  point: Partial<PointResource>,
+  controlSchema?: Partial<ControlSchemaResource>,
+): PointDetailResource => ({
+  point: { ...BASE_POINT, ...point },
+  device: null,
+  floor: null,
+  space: null,
+  controlSchema: controlSchema
+    ? { ...BASE_CONTROL_SCHEMA, ...controlSchema }
+    : null,
+});
 
 describe("resolveControlRange (#298)", () => {
   it("prefers the ControlSchema bounds, which are what the server validates against", () => {

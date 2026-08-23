@@ -1,4 +1,4 @@
-import type { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import type { PointDetailResource } from "@/lib/resources/types";
 import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
 
 /**
@@ -11,5 +11,5 @@ import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
  * 制御が可能かどうかはプロトコルではなく `point.writable` が決める点に注意。
  */
 export const getControlProtocol = (
-  pointDetail: PointDetail,
+  pointDetail: PointDetailResource,
 ): "BACnet" | null => getCollectionProtocol(pointDetail.point);
