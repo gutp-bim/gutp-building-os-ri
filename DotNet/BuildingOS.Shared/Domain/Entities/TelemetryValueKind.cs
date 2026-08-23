@@ -50,6 +50,32 @@ public static class TelemetryValueKind
     }
 
     /// <summary>
+    /// Project the stored discriminated fields back onto the single union-typed <c>value</c> the API
+    /// returns (#344): a <see cref="double"/>, <see cref="string"/>, <see cref="bool"/>, or
+    /// <c>null</c> when nothing is representable.
+    /// <para>
+    /// Precedence mirrors the client resolver (<c>web-client/src/lib/telemetry/value.ts</c>): the
+    /// discriminant is trusted when present; otherwise <c>ValueText</c> → <c>ValueBool</c> → the
+    /// legacy numeric default. Untagged rows only ever come from pre-#152 data, which carries just
+    /// <c>Value</c>, so a populated text/bool on an untagged row is the stronger signal. A tagged
+    /// row whose payload is missing resolves to <c>null</c> rather than falling back to another
+    /// field — reporting a value the discriminant denies is worse than reporting none.
+    /// </para>
+    /// </summary>
+    public static object? Resolve(ValidTelemetryData? row)
+    {
+        if (row is null) return null;
+
+        return row.ValueType switch
+        {
+            String => row.ValueText,
+            Boolean => row.ValueBool,
+            Number => row.Value,
+            _ => row.ValueText ?? (object?)row.ValueBool ?? row.Value,
+        };
+    }
+
+    /// <summary>
     /// Resolve an aggregated bucket's <b>last-in-bucket</b> discriminant (#152 Phase B, D3) from its
     /// latest row and whether the bucket contained any numeric value. A non-numeric latest row yields
     /// its string/boolean value; otherwise a bucket with numeric values is tagged <c>"number"</c> and

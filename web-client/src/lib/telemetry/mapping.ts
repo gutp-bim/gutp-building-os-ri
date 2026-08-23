@@ -1,7 +1,7 @@
 import type {
   LatestSample,
   TelemetryGranularity,
-  ValidTelemetryData,
+  TelemetryReading,
 } from "@/lib/infra/aspida-client/generated/@types";
 import type { PointLastSeen } from "./freshness";
 import type {
@@ -30,7 +30,7 @@ const GRANULARITY_ORDINAL: Record<Granularity, TelemetryGranularity> = {
  * still comes back, with `{ kind: "none" }`, because its timestamp is meaningful for freshness).
  */
 export function toLatestSample(
-  data: ValidTelemetryData[],
+  data: TelemetryReading[],
 ): TelemetryLatestSample | null {
   const last = data.at(-1);
   if (last === undefined) return null;
@@ -82,7 +82,7 @@ export function toGranularityParam(
  */
 export function toSeries(
   pointId: string,
-  data: ValidTelemetryData[],
+  data: TelemetryReading[],
 ): TelemetrySeries {
   const points: TelemetryPoint[] = data
     .flatMap((d) => {
@@ -105,7 +105,7 @@ export function toSeries(
  */
 export function toStateSeries(
   pointId: string,
-  data: ValidTelemetryData[],
+  data: TelemetryReading[],
 ): TelemetryStateSeries {
   const points: TelemetryStatePoint[] = data
     .flatMap((d) => {

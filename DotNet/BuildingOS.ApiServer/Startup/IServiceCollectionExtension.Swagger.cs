@@ -19,6 +19,13 @@ public static partial class IServiceCollectionExtension
             });
             var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
             options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
+
+            // Must come AFTER IncludeXmlComments: schema filters run in registration order, and
+            // Swashbuckle's own XML-comment filter would otherwise run last and clobber what this
+            // one writes. It widens the telemetry `value` to oneOf: [number, string, boolean] (#344)
+            // — without it Swashbuckle emits a typeless schema for the `object?` property and
+            // openapi2aspida drops the field from the generated client entirely.
+            options.SchemaFilter<TelemetryValueSchemaFilter>();
         });
         return self;
     }

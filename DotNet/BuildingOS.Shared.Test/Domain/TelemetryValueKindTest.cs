@@ -99,6 +99,71 @@ public class TelemetryValueKindTest
         Assert.Equal(1, populated);
     }
 
+    // ── Resolve (union projection for the API wire, #344) ────────────────────
+
+    /// <summary>
+    /// The API returns a single union-typed <c>value</c> (#344). This projects the stored
+    /// discriminated fields back onto that one value, and must agree with the client-side resolver
+    /// in <c>web-client/src/lib/telemetry/value.ts</c> — two implementations that disagree about a
+    /// row is exactly the failure mode the single-decode-point work (#346) removed.
+    /// </summary>
+    [Fact]
+    public void Resolve_Number_YieldsTheDouble()
+        => Assert.Equal(21.5, TelemetryValueKind.Resolve(
+            new ValidTelemetryData { ValueType = TelemetryValueKind.Number, Value = 21.5 }));
+
+    [Fact]
+    public void Resolve_String_YieldsTheText()
+        => Assert.Equal("auto", TelemetryValueKind.Resolve(
+            new ValidTelemetryData { ValueType = TelemetryValueKind.String, ValueText = "auto" }));
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Resolve_Boolean_YieldsTheBool(bool v)
+        => Assert.Equal(v, TelemetryValueKind.Resolve(
+            new ValidTelemetryData { ValueType = TelemetryValueKind.Boolean, ValueBool = v }));
+
+    /// <summary>A legacy row (pre-#152) carries only Value and no discriminant.</summary>
+    [Fact]
+    public void Resolve_LegacyNumericWithoutDiscriminant_YieldsTheDouble()
+        => Assert.Equal(0d, TelemetryValueKind.Resolve(new ValidTelemetryData { Value = 0 }));
+
+    /// <summary>
+    /// Discriminant absent but a text/bool payload present: the payload wins. Apply() always sets
+    /// ValueType and exactly one payload field, so an untagged row that nonetheless carries text is
+    /// not something Apply produced — the populated field is the stronger signal. Same precedence as
+    /// resolveTelemetryValue on the client.
+    /// </summary>
+    [Fact]
+    public void Resolve_UntaggedWithText_PrefersTheTextOverAStrayNumber()
+        => Assert.Equal("auto", TelemetryValueKind.Resolve(
+            new ValidTelemetryData { Value = 42, ValueText = "auto" }));
+
+    [Fact]
+    public void Resolve_UntaggedWithBool_PrefersTheBoolOverAStrayNumber()
+        => Assert.Equal(false, TelemetryValueKind.Resolve(
+            new ValidTelemetryData { Value = 1, ValueBool = false }));
+
+    /// <summary>An explicit discriminant is trusted over a populated field of another kind.</summary>
+    [Fact]
+    public void Resolve_ExplicitNumber_IgnoresAStrayText()
+        => Assert.Equal(42d, TelemetryValueKind.Resolve(
+            new ValidTelemetryData { ValueType = TelemetryValueKind.Number, Value = 42, ValueText = "auto" }));
+
+    /// <summary>Tagged string with no text is not representable — null, not a fallback to Value.</summary>
+    [Fact]
+    public void Resolve_TaggedStringWithoutText_YieldsNull()
+        => Assert.Null(TelemetryValueKind.Resolve(
+            new ValidTelemetryData { ValueType = TelemetryValueKind.String, Value = 42 }));
+
+    [Fact]
+    public void Resolve_NothingRepresentable_YieldsNull()
+    {
+        Assert.Null(TelemetryValueKind.Resolve(new ValidTelemetryData()));
+        Assert.Null(TelemetryValueKind.Resolve(null));
+    }
+
     // ── ResolveLastInBucket ──────────────────────────────────────────────────
 
     [Fact]

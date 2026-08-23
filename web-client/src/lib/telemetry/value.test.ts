@@ -52,25 +52,48 @@ describe("resolveTelemetryValue", () => {
     expect(resolveTelemetryValue({ valueType: "string" })).toEqual({ kind: "none" });
   });
 
-  // Characterization: pins the precedence the doc comment used to contradict. A row reaching the
-  // client with no valueType is a pre-#152 legacy row, and those carry no valueText/valueBool at
-  // all (TelemetryValueKind.Apply always sets ValueType and exactly one payload field). So a
-  // populated text/bool field is the stronger signal when the discriminant is missing.
-  it("prefers a populated valueText/valueBool over a stray numeric value when valueType is absent", () => {
+  // Since #344 `value` itself is the union, so its runtime type discriminates and a contradictory
+  // legacy sibling no longer wins. Neither server shape can produce this row (Apply always sets
+  // exactly one payload field, and the union server puts the reading in `value`), so it is garbage
+  // either way — but pinning it keeps the two resolvers from drifting on it.
+  it("lets the union value win over a contradictory legacy sibling", () => {
     expect(resolveTelemetryValue({ value: 42, valueText: "auto" })).toEqual({
-      kind: "string",
-      value: "auto",
-    });
-    expect(resolveTelemetryValue({ value: 1, valueBool: false })).toEqual({
-      kind: "boolean",
-      value: false,
+      kind: "number",
+      value: 42,
     });
   });
 
-  it("trusts an explicit discriminant over a populated field of another kind", () => {
+  it("rejects a value whose runtime type the discriminant denies", () => {
     expect(
-      resolveTelemetryValue({ value: 42, valueType: "number", valueText: "auto" }),
-    ).toEqual({ kind: "number", value: 42 });
+      resolveTelemetryValue({ value: 42, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "none" });
+  });
+
+  // ── Backward compatibility with a pre-#344 server (the cases that actually matter) ──
+  //
+  // The API dual-emits this release, so an old client sees the shape it expects. The reverse — a new
+  // client against an older server, which sends `value: null` for a non-numeric point — has no
+  // compile signal, so it is pinned here.
+  it("still resolves a pre-#344 server's string reading (value null, payload in valueText)", () => {
+    expect(
+      resolveTelemetryValue({ value: null, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+  });
+
+  it("still resolves a pre-#344 server's boolean reading (value null, payload in valueBool)", () => {
+    expect(
+      resolveTelemetryValue({ value: null, valueType: "boolean", valueBool: false }),
+    ).toEqual({ kind: "boolean", value: false });
+  });
+
+  it("resolves a dual-emitted row identically whichever half it reads", () => {
+    // What the server actually sends this release: the union AND the legacy trio, agreeing.
+    expect(
+      resolveTelemetryValue({ value: "auto", valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+    expect(
+      resolveTelemetryValue({ value: true, valueType: "boolean", valueBool: true }),
+    ).toEqual({ kind: "boolean", value: true });
   });
 });
 

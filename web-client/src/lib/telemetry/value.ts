@@ -8,15 +8,23 @@
  * `lib/telemetry/` and every component consumes {@link ResolvedTelemetryValue} instead — so when the
  * API eventually returns a union-typed `value` (#344), this file is the only one that changes.
  *
- * The aspida-generated `ValidTelemetryData`/`LatestSample` both structurally satisfy
- * {@link DiscriminatedTelemetryValue} (they carry all four fields since `1e755b9`), so they can be
- * passed here directly — no cast needed.
+ * The aspida-generated `TelemetryReading`/`LatestSample` both structurally satisfy
+ * {@link DiscriminatedTelemetryValue}, so they can be passed here directly — no cast needed.
  */
 export type DiscriminatedTelemetryValue = {
-  value?: number | null;
-  /** "number" | "string" | "boolean"; absent/null → numeric (legacy data, #152 D2). */
+  /**
+   * The reading itself (#344): the API now returns one union-typed `value`, matching the canonical
+   * schema and the NATS bus. `null` when the point has no representable reading.
+   */
+  value?: number | string | boolean | null;
+  /**
+   * "number" | "string" | "boolean". Retained for provenance and for rows produced before #344; it
+   * is no longer needed to *find* the value, only to reject one whose type contradicts it.
+   */
   valueType?: string | null;
+  /** @deprecated Pre-#344 wire shape; still emitted this release, removed in #344 PR B. */
   valueText?: string | null;
+  /** @deprecated Pre-#344 wire shape; still emitted this release, removed in #344 PR B. */
   valueBool?: boolean | null;
 };
 
@@ -27,34 +35,44 @@ export type ResolvedTelemetryValue =
   | { kind: "none" };
 
 /**
- * Resolve a sample's discriminated value to a single typed variant. The discriminant is trusted when
- * present; otherwise precedence is `valueText` → `valueBool` → the legacy numeric default.
+ * Resolve a sample to a single typed variant.
  *
- * That order is deliberate: `TelemetryValueKind.Apply` (backend) always sets `ValueType` and exactly
- * one payload field, so the only rows arriving without a discriminant are pre-#152 legacy ones — and
- * those carry no `valueText`/`valueBool` at all. A populated text/bool field is therefore the
- * stronger signal, and "absent valueType → number" only ever meant "absent valueType with just
- * `value` populated". Returns `{ kind: "none" }` when nothing is representable.
+ * Since #344 the wire carries one union-typed `value`, so `typeof value` *is* the discriminant and
+ * `valueType` is demoted to a **reject-only** confirmation: it can veto a value whose runtime type
+ * contradicts it, but it is never needed to locate one. The backend resolver
+ * (`TelemetryValueKind.Resolve`) applies the same precedence — the two must agree, which is why both
+ * are pinned by tests.
+ *
+ * The `valueText`/`valueBool` branch is the pre-#344 compatibility path. The API dual-emits this
+ * release, so it only fires for a response produced by an older server (or a hand-built fixture);
+ * it goes away with those fields in #344 PR B. Returns `{ kind: "none" }` when nothing is
+ * representable.
  */
 export function resolveTelemetryValue(
   v: DiscriminatedTelemetryValue,
 ): ResolvedTelemetryValue {
   const type = v.valueType ?? null;
+  const value = v.value;
 
-  if (type === "string" || (type === null && typeof v.valueText === "string")) {
-    return typeof v.valueText === "string"
-      ? { kind: "string", value: v.valueText }
-      : { kind: "none" };
+  // The union path: the runtime type decides, unless the discriminant explicitly denies it.
+  if (typeof value === "string") {
+    return type === null || type === "string" ? { kind: "string", value } : { kind: "none" };
   }
-  if (type === "boolean" || (type === null && typeof v.valueBool === "boolean")) {
-    return typeof v.valueBool === "boolean"
-      ? { kind: "boolean", value: v.valueBool }
-      : { kind: "none" };
+  if (typeof value === "boolean") {
+    return type === null || type === "boolean" ? { kind: "boolean", value } : { kind: "none" };
   }
-  // Numeric (explicit "number" or the legacy default).
-  return typeof v.value === "number"
-    ? { kind: "number", value: v.value }
-    : { kind: "none" };
+  if (typeof value === "number") {
+    return type === null || type === "number" ? { kind: "number", value } : { kind: "none" };
+  }
+
+  // Pre-#344 fallback: `value` was numeric-only and non-numeric readings rode in these fields.
+  if (typeof v.valueText === "string" && (type === null || type === "string")) {
+    return { kind: "string", value: v.valueText };
+  }
+  if (typeof v.valueBool === "boolean" && (type === null || type === "boolean")) {
+    return { kind: "boolean", value: v.valueBool };
+  }
+  return { kind: "none" };
 }
 
 /** True when the sample carries a non-numeric (string/boolean) first-class value. */

@@ -1,6 +1,6 @@
 import type {
   LatestSample,
-  ValidTelemetryData,
+  TelemetryReading,
 } from "@/lib/infra/aspida-client/generated/@types";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,7 +13,7 @@ import {
 
 describe("toSeries", () => {
   it("sorts samples by datetime ascending", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T03:00:00Z", value: 3 },
       { datetime: "2026-01-01T01:00:00Z", value: 1 },
       { datetime: "2026-01-01T02:00:00Z", value: 2 },
@@ -24,7 +24,7 @@ describe("toSeries", () => {
   });
 
   it("drops samples missing a datetime or value", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 1 },
       { datetime: null, value: 9 },
       { datetime: "2026-01-01T02:00:00Z", value: null },
@@ -35,7 +35,7 @@ describe("toSeries", () => {
   });
 
   it("treats a zero value as present, not missing", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 0 },
     ];
     expect(toSeries("PT001", raw).points).toEqual([
@@ -48,7 +48,7 @@ describe("toSeries", () => {
   });
 
   it("keeps a legacy row with no valueType as numeric", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 7 },
     ];
     expect(toSeries("PT001", raw).points).toEqual([
@@ -57,13 +57,15 @@ describe("toSeries", () => {
   });
 
   it("drops a row whose discriminant says it is not numeric, even when value is populated", () => {
-    const raw: ValidTelemetryData[] = [
-      {
-        datetime: "2026-01-01T01:00:00Z",
-        value: 42,
-        valueType: "string",
-        valueText: "auto",
-      },
+    const raw: TelemetryReading[] = [
+      { datetime: "2026-01-01T01:00:00Z", value: 42, valueType: "string" },
+    ];
+    expect(toSeries("PT001", raw).points).toEqual([]);
+  });
+
+  it("drops a non-numeric union reading from the numeric series", () => {
+    const raw: TelemetryReading[] = [
+      { datetime: "2026-01-01T01:00:00Z", value: "auto", valueType: "string" },
     ];
     expect(toSeries("PT001", raw).points).toEqual([]);
   });
@@ -71,17 +73,12 @@ describe("toSeries", () => {
 
 describe("toSeries / toStateSeries", () => {
   it("assigns each row of a mixed point to exactly one of the two series", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
       { datetime: "2026-01-01T02:00:00Z", valueType: "string", valueText: "auto" },
       { datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: false },
-      // A stale numeric `value` alongside a string discriminant must not land in both.
-      {
-        datetime: "2026-01-01T04:00:00Z",
-        value: 42,
-        valueType: "string",
-        valueText: "manual",
-      },
+      // #344: the reading rides in `value` itself.
+      { datetime: "2026-01-01T04:00:00Z", value: "manual", valueType: "string" },
     ];
     const numericTimes = toSeries("PT001", raw).points.map((p) => p.t);
     const stateTimes = toStateSeries("PT001", raw).points.map((p) => p.t);
