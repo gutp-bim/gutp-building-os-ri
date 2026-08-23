@@ -233,20 +233,45 @@ export type GroupsControllerUpdateGroupRequest = {
  * One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).
  * 
  * `Value` is the union-typed reading (#344) — a number, string, or boolean — described in the
- * OpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. The discriminated trio
- * (`ValueType`/`ValueText`/`ValueBool`, #152) is still emitted alongside it so a
- * client built against the old shape keeps working; it goes away at a release boundary (#344 PR B).
+ * OpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. `State` carries the
+ * reading's non-numeric half, and `ValueType` describes `Value`; the legacy
+ * `ValueText`/`ValueBool` pair left the wire in #359. Kept in step with
+ * BuildingOs.ApiServer.Telemetry.TelemetryReading, whose docs carry the full rationale
+ * — the client's value decoder is satisfied structurally by both, so a divergence here surfaces only
+ * as a type error in the generated client.
  * Response-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input.
  */
 export type LatestSample = {
+  /** The point this sample belongs to. */
   pointId?: string | undefined;
+  /** ISO-8601 timestamp of the reading; `null` when the point has no data. */
   datetime?: string | null | undefined;
 
+  /**
+   * The reading, as a System.Double, System.String, System.Boolean, or `null`.
+   * Widened to `oneOf: [number, string, boolean]` in the OpenAPI document by
+   * `TelemetryValueSchemaFilter`, which is what makes generated clients see a real union rather
+   * than an untyped hole.
+   */
   value?: number | null | string | boolean | undefined;
 
+  /**
+   * `"number"` | `"string"` | `"boolean"` — the kind of Value,
+   *             derived from the value actually shipped rather than copied from the stored tag, so it cannot
+   *             contradict it. A descriptor, not a lookup key.
+   */
   valueType?: string | null | undefined;
-  valueText?: string | null | undefined;
-  valueBool?: boolean | null | undefined;
+
+  /**
+   * The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or
+   * `null` — independent of any number in Value (#359). Replaced the legacy
+   * `ValueText`/`ValueBool` pair. A non-numeric reading is repeated here rather than left
+   * null, so a client reads the state half with a single lookup instead of falling back to
+   * Value. Batch-latest returns raw samples only, so unlike
+   * BuildingOs.ApiServer.Telemetry.TelemetryReading.State this never carries a state
+   * alongside a numeric average — see that type's docs for why the field exists at all.
+   */
+  state?: string | null | boolean | undefined;
 }
 
 export type MyResourcesResponse = {
@@ -487,16 +512,12 @@ export type TelemetryGranularity = 0 | 1 | 2
  * model, so it cannot be retyped in place — while the canonical schema
  * (`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic
  * `value`. This DTO restores that shape at the boundary.
- * <b>Dual-emitting for this release.</b>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText/BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueBool are still
- * populated alongside the union so a client built against the old shape keeps working regardless of
- * deploy order. Dropping them is a follow-up at a release boundary (#344 PR B); doing it now would
- * force a clients-first deploy for no benefit.
- * <para>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType is <b>not</b> part of that promise: it now describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,
- * derived from the value actually shipped, rather than being copied from the stored tag. For an
- * aggregate bucket the stored tag classifies the bucket's last-in-bucket reading, so copying it
- * made the wire say `{ value: 42, valueType: "string" }`. An old client that branched on the
- * discriminant to render a mixed aggregate hour therefore sees the average now instead of the
- * state string — the state itself is unchanged and still in BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText.</para>
+ * <b>#359 removed the legacy payload fields.</b>`valueText`/`valueBool` are gone; the
+ * non-numeric half of a reading now travels in BuildingOs.ApiServer.Telemetry.TelemetryReading.State. BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType stays,
+ * because it never duplicated the payload the way those two did — it describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,
+ * derived from the value actually shipped rather than copied from the stored tag. (Copying the
+ * stored tag is what made the wire say `{ value: 42, valueType: "string" }` for a mixed
+ * aggregate bucket, where the stored tag classifies the bucket's last-in-bucket reading.)
  */
 export type TelemetryReading = {
   pointId?: string | null | undefined;
@@ -520,8 +541,22 @@ export type TelemetryReading = {
   data?: string | null | undefined;
   id?: string | null | undefined;
   valueType?: string | null | undefined;
-  valueText?: string | null | undefined;
-  valueBool?: boolean | null | undefined;
+
+  /**
+   * The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or
+   * `null` — independent of any number in Value (#359).
+   * 
+   * It exists for the one row shape that carries two readings at once: an aggregate bucket sets
+   * Value to the average unconditionally (the continuous-aggregate contract), so a
+   * mixed hour ships the number while its last-in-bucket state has nowhere else to live. That is what
+   * the state timeline reads at Hour/Day granularity.
+   * A raw non-numeric row <b>repeats</b> its reading here rather than leaving this null. The
+   * duplication is deliberate: it makes this field mean one thing unconditionally, so a client reads
+   * it with a single lookup instead of falling back to Value — the fallback chain
+   * #359 exists to delete. Widened to `oneOf: [string, boolean]` by
+   * `TelemetryValueSchemaFilter`, for the same reason Value is.
+   */
+  state?: string | null | boolean | undefined;
 }
 
 export type TelemetryThresholds = {

@@ -34,6 +34,9 @@ public class TelemetryReadingSerializationTest
     private static string ValueOf(string json) =>
         JsonDocument.Parse(json).RootElement.GetProperty("value").GetRawText();
 
+    private static string StateOf(string json) =>
+        JsonDocument.Parse(json).RootElement.GetProperty("state").GetRawText();
+
     private static ValidTelemetryData Row(
         double? value = null, string? valueType = null, string? valueText = null, bool? valueBool = null) =>
         new()
@@ -96,39 +99,96 @@ public class TelemetryReadingSerializationTest
         Assert.Equal("null", ValueOf(json));
     }
 
+    // ── `state`: the non-numeric half, carried on its own (#359) ────────────
+
     /// <summary>
-    /// An aggregate bucket carries both an average and a state representative; the union takes the
-    /// numeric half (see <c>TelemetryValueKind.Resolve</c>). Pinned on the wire because getting this
-    /// backwards would silently turn a Hour/Day series into text for any mixed point.
+    /// The reason <c>state</c> exists at all, and the reason the union takes the numeric half.
+    /// <para>
+    /// A mixed aggregate bucket is the one row shape carrying two readings at once — the average in
+    /// <c>value</c> (see <c>TelemetryValueKind.Resolve</c>) and a last-in-bucket state representative
+    /// beside it. Getting the union backwards would silently turn a Hour/Day series into text;
+    /// dropping <c>valueText</c>/<c>valueBool</c> without a replacement carrier would leave the
+    /// representative nowhere to live and empty the state timeline at that granularity.
+    /// </para>
     /// </summary>
     [Fact]
-    public void MixedAggregateBucket_SerializesTheAverage_NotTheStateRepresentative()
+    public void MixedAggregateBucket_SerializesTheAverageAndCarriesTheStateSeparately()
     {
         var json = JsonSerializer.Serialize(
             TelemetryReading.From(Row(value: 42, valueType: TelemetryValueKind.String, valueText: "auto")),
             Options);
 
         Assert.Equal("42", ValueOf(json));
-        // The state half stays reachable — that is what the timeline reads.
-        Assert.Equal("\"auto\"", JsonDocument.Parse(json).RootElement.GetProperty("valueText").GetRawText());
+        Assert.Equal("\"auto\"", StateOf(json));
+    }
+
+    [Fact]
+    public void MixedAggregateBucket_CarriesABooleanStateRepresentative()
+    {
+        var json = JsonSerializer.Serialize(
+            TelemetryReading.From(Row(value: 42, valueType: TelemetryValueKind.Boolean, valueBool: true)),
+            Options);
+
+        Assert.Equal("42", ValueOf(json));
+        Assert.Equal("true", StateOf(json));
     }
 
     /// <summary>
-    /// Dual-emit (#344 PR A): the legacy trio ships alongside the union so a client built against
-    /// the old shape keeps working regardless of deploy order. #344 PR B removes these — this test
-    /// is the thing that should fail then, deliberately.
+    /// A raw non-numeric row repeats its reading in <c>state</c> rather than leaving it null.
+    /// <para>
+    /// The duplication is deliberate. It makes <c>state</c> mean one thing unconditionally — "the
+    /// non-numeric reading this row carries, if any" — so the client's state resolver is a single
+    /// lookup with no fallback. The alternative (populate <c>state</c> only when it differs from
+    /// <c>value</c>) saves a few bytes and rebuilds the very fallback chain #359 exists to delete.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(TelemetryValueKind.String, "occupied", null, "\"occupied\"")]
+    [InlineData(TelemetryValueKind.Boolean, null, false, "false")]
+    public void RawNonNumericReading_RepeatsItsReadingInState(
+        string kind, string? text, bool? boolean, string expected)
+    {
+        var json = JsonSerializer.Serialize(
+            TelemetryReading.From(Row(valueType: kind, valueText: text, valueBool: boolean)), Options);
+
+        Assert.Equal(expected, ValueOf(json));
+        Assert.Equal(expected, StateOf(json));
+    }
+
+    /// <summary>A purely numeric row has no state half — the timeline must not invent one.</summary>
+    [Fact]
+    public void NumericReading_HasNoState()
+    {
+        var json = JsonSerializer.Serialize(
+            TelemetryReading.From(Row(value: 21.5, valueType: TelemetryValueKind.Number)), Options);
+
+        Assert.Equal("null", StateOf(json));
+    }
+
+    [Fact]
+    public void NoReading_HasNoState()
+    {
+        Assert.Equal("null", StateOf(JsonSerializer.Serialize(TelemetryReading.From(Row()), Options)));
+    }
+
+    /// <summary>
+    /// #359: <c>valueText</c>/<c>valueBool</c> are gone from the wire, replaced by <c>state</c>.
+    /// <para>
+    /// <c>valueType</c> deliberately stays. It does not duplicate the payload the way the other two
+    /// did — it describes <c>value</c>, and is derived from the value actually shipped.
+    /// </para>
     /// </summary>
     [Fact]
-    public void LegacyDiscriminatedFields_AreStillEmittedAlongsideTheUnion()
+    public void LegacyPayloadFields_AreGoneFromTheWire()
     {
         var json = JsonSerializer.Serialize(
             TelemetryReading.From(Row(valueType: TelemetryValueKind.String, valueText: "occupied")), Options);
         var root = JsonDocument.Parse(json).RootElement;
 
+        Assert.False(root.TryGetProperty("valueText", out _));
+        Assert.False(root.TryGetProperty("valueBool", out _));
         Assert.Equal("\"occupied\"", root.GetProperty("value").GetRawText());
         Assert.Equal("\"string\"", root.GetProperty("valueType").GetRawText());
-        Assert.Equal("\"occupied\"", root.GetProperty("valueText").GetRawText());
-        Assert.True(root.TryGetProperty("valueBool", out _));
     }
 
     [Fact]
@@ -160,6 +220,32 @@ public class TelemetryReadingSerializationTest
             new LatestSample("PT001", "2026-01-01T00:00:00Z", value, kind), Options);
 
         Assert.Equal(expected, ValueOf(json));
+    }
+
+    /// <summary>
+    /// <c>LatestSample</c> carries <c>state</c> too, so the two telemetry wire DTOs stay the same
+    /// shape — <c>TelemetryWireValue</c> on the client is structurally satisfied by both, and a
+    /// divergence here would only surface as a type error in the generated client.
+    /// </summary>
+    [Fact]
+    public void LatestSample_CarriesTheStateHalfAsWell()
+    {
+        var json = JsonSerializer.Serialize(
+            new LatestSample("PT001", "2026-01-01T00:00:00Z", "occupied",
+                TelemetryValueKind.String, "occupied"),
+            Options);
+
+        Assert.Equal("\"occupied\"", StateOf(json));
+    }
+
+    [Fact]
+    public void LatestSample_DropsTheLegacyPayloadFields()
+    {
+        var root = JsonDocument.Parse(JsonSerializer.Serialize(
+            new LatestSample("PT001", null, null), Options)).RootElement;
+
+        Assert.False(root.TryGetProperty("valueText", out _));
+        Assert.False(root.TryGetProperty("valueBool", out _));
     }
 
     [Fact]
@@ -195,7 +281,7 @@ public class TelemetryReadingSerializationTest
         Assert.Equal("42", root.GetProperty("value").GetRawText());
         Assert.Equal("\"number\"", root.GetProperty("valueType").GetRawText());
         // The state representative is still reachable — the timeline reads it.
-        Assert.Equal("\"auto\"", root.GetProperty("valueText").GetRawText());
+        Assert.Equal("\"auto\"", root.GetProperty("state").GetRawText());
     }
 
     [Theory]

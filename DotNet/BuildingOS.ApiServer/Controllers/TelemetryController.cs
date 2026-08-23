@@ -275,7 +275,7 @@ public class TelemetryController(
             var value = TelemetryValueKind.Resolve(latest);
             return new LatestSample(
                 pointId, latest?.Datetime, value,
-                TelemetryValueKind.KindOf(value), latest?.ValueText, latest?.ValueBool);
+                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest));
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
@@ -299,12 +299,37 @@ public sealed record BatchLatestRequest(string[] PointIds);
 /// One point's latest sample; <c>Datetime</c>/<c>Value</c> are null when it has no data (#182).
 /// <para>
 /// <c>Value</c> is the union-typed reading (#344) — a number, string, or boolean — described in the
-/// OpenAPI document as <c>oneOf</c> by <c>TelemetryValueSchemaFilter</c>. The discriminated trio
-/// (<c>ValueType</c>/<c>ValueText</c>/<c>ValueBool</c>, #152) is still emitted alongside it so a
-/// client built against the old shape keeps working; it goes away at a release boundary (#344 PR B).
+/// OpenAPI document as <c>oneOf</c> by <c>TelemetryValueSchemaFilter</c>. <c>State</c> carries the
+/// reading's non-numeric half, and <c>ValueType</c> describes <c>Value</c>; the legacy
+/// <c>ValueText</c>/<c>ValueBool</c> pair left the wire in #359. Kept in step with
+/// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading"/>, whose docs carry the full rationale
+/// — the client's value decoder is satisfied structurally by both, so a divergence here surfaces only
+/// as a type error in the generated client.
 /// Response-only: <c>object?</c> deserializes as a <c>JsonElement</c>, so do not reuse this for input.
 /// </para>
 /// </summary>
+/// <param name="PointId">The point this sample belongs to.</param>
+/// <param name="Datetime">ISO-8601 timestamp of the reading; <c>null</c> when the point has no data.</param>
+/// <param name="Value">
+/// The reading, as a <see cref="double"/>, <see cref="string"/>, <see cref="bool"/>, or <c>null</c>.
+/// Widened to <c>oneOf: [number, string, boolean]</c> in the OpenAPI document by
+/// <c>TelemetryValueSchemaFilter</c>, which is what makes generated clients see a real union rather
+/// than an untyped hole.
+/// </param>
+/// <param name="ValueType">
+/// <c>"number"</c> | <c>"string"</c> | <c>"boolean"</c> — the kind of <paramref name="Value"/>,
+/// derived from the value actually shipped rather than copied from the stored tag, so it cannot
+/// contradict it. A descriptor, not a lookup key.
+/// </param>
+/// <param name="State">
+/// The reading's <b>non-numeric half</b> — a <see cref="string"/>, a <see cref="bool"/>, or
+/// <c>null</c> — independent of any number in <paramref name="Value"/> (#359). Replaced the legacy
+/// <c>ValueText</c>/<c>ValueBool</c> pair. A non-numeric reading is repeated here rather than left
+/// null, so a client reads the state half with a single lookup instead of falling back to
+/// <paramref name="Value"/>. Batch-latest returns raw samples only, so unlike
+/// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading.State"/> this never carries a state
+/// alongside a numeric average — see that type's docs for why the field exists at all.
+/// </param>
 public sealed record LatestSample(
     string PointId, string? Datetime, object? Value,
-    string? ValueType = null, string? ValueText = null, bool? ValueBool = null);
+    string? ValueType = null, object? State = null);

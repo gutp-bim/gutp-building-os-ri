@@ -33,38 +33,59 @@ public sealed class TelemetryValueSchemaFilter : ISchemaFilter
         // swagger-generation time — i.e. it breaks Tools/sync-type.bash and the #354 CI step, not a
         // unit test — so fail soft.
         if (schema is not OpenApiSchema target) return;
-        if (!IsTelemetryValueProperty(context)) return;
+
+        var branches = BranchesFor(context);
+        if (branches is null) return;
 
         // Exactly one branch carries null. Putting `nullable: true` on the parent is invalid in 3.0
-        // without a sibling `type` (redocly flags nullable-type-sibling), and marking all three
-        // nullable would make `null` match every branch — `oneOf` means *exactly one*, so a strict
-        // validator would then reject `"value": null`, which this API genuinely returns for a point
-        // with no reading. One nullable branch is both spec-clean and semantically exact.
+        // without a sibling `type` (redocly flags nullable-type-sibling), and marking every branch
+        // nullable would make `null` match all of them — `oneOf` means *exactly one*, so a strict
+        // validator would then reject the `null` this API genuinely returns for a point with no
+        // reading. One nullable branch is both spec-clean and semantically exact.
         //
         // Never express this as a multi-flag JsonSchemaType (Number|String|Boolean): the 3.0
         // serializer silently degrades that to `{"nullable": true}`, losing every type, while all
         // in-memory assertions still pass.
         target.Type = null;
         target.Format = null;
-        target.OneOf =
-        [
-            new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "double" },
-            new OpenApiSchema { Type = JsonSchemaType.String },
-            new OpenApiSchema { Type = JsonSchemaType.Boolean },
-        ];
+        target.OneOf = branches;
     }
 
     /// <summary>
-    /// Matches only the two telemetry wire DTOs' <c>Value</c> property.
+    /// The <c>oneOf</c> branches for a telemetry wire DTO's union-typed property, or <c>null</c> if
+    /// the property is not one of them.
     /// <para>
-    /// Deliberately not <c>context.Type == typeof(object)</c>: that would rewrite every
-    /// <c>object?</c> property in the document. There are none today, so such a filter would be
-    /// untestable and would silently start mangling the first one someone adds.
+    /// Deliberately keyed on the declaring type and property name rather than
+    /// <c>context.Type == typeof(object)</c>: the latter would rewrite every <c>object?</c> property
+    /// in the document — untestable today, and it would silently start mangling the first unrelated
+    /// one someone adds.
+    /// </para>
+    /// <para>
+    /// The two properties do <b>not</b> share a branch set. <c>value</c> is the reading itself and
+    /// can be a number; <c>state</c> is only ever the non-numeric half (#359), so admitting a number
+    /// there would advertise a shape the server never produces.
     /// </para>
     /// </summary>
-    private static bool IsTelemetryValueProperty(SchemaFilterContext context) =>
-        context.MemberInfo is PropertyInfo property
-        && property.Name == nameof(TelemetryReading.Value)
-        && (property.DeclaringType == typeof(TelemetryReading)
-            || property.DeclaringType == typeof(LatestSample));
+    private static List<IOpenApiSchema>? BranchesFor(SchemaFilterContext context)
+    {
+        if (context.MemberInfo is not PropertyInfo property) return null;
+        if (property.DeclaringType != typeof(TelemetryReading)
+            && property.DeclaringType != typeof(LatestSample)) return null;
+
+        return property.Name switch
+        {
+            nameof(TelemetryReading.Value) =>
+            [
+                new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null, Format = "double" },
+                new OpenApiSchema { Type = JsonSchemaType.String },
+                new OpenApiSchema { Type = JsonSchemaType.Boolean },
+            ],
+            nameof(TelemetryReading.State) =>
+            [
+                new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null },
+                new OpenApiSchema { Type = JsonSchemaType.Boolean },
+            ],
+            _ => null,
+        };
+    }
 }

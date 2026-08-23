@@ -107,8 +107,8 @@ describe("toTelemetryCsv", () => {
 
   // An aggregate bucket carries a numeric average AND a state representative, so the same timestamp
   // can appear in both inputs. A two-column CSV cannot express both; emitting two rows with the same
-  // timestamp and contradictory values is worse than picking one. Numeric wins, matching
-  // `resolveTelemetryValue`'s numeric-first precedence.
+  // timestamp and contradictory values is worse than picking one. Numeric wins, for the same reason
+  // the union `value` carries the average: at Hour/Day it is the published meaning of a bucket.
   //
   // The download forces raw, where the two series are true complements, so this is a guard on the
   // pure function rather than a shape the screen produces today.

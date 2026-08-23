@@ -44,9 +44,9 @@ export function toLatestSample(
  *
  * `value` stays **numeric-only** by design: it feeds the threshold comparison in
  * {@link ./alarm.ts `classifyPointAlarms`}, which has no meaning for a string/boolean reading (see
- * `PointLastSeen.value`). But the discriminant decides which readings qualify — a row tagged
- * string/boolean yields `null` even when a stale numeric `value` rides along, so the evaluator never
- * compares a number that is not the reading.
+ * `PointLastSeen.value`). So the reading is resolved first and kept only when it is a number — a
+ * string/boolean latest reading yields `null` rather than being coerced, and a `state` riding
+ * alongside is ignored, so the evaluator never compares something that is not the numeric reading.
  */
 export function toPointsLastSeen(rows: LatestSample[]): PointLastSeen[] {
   return rows.flatMap((r) => {
@@ -75,10 +75,10 @@ export function toGranularityParam(
  * datetime, and rows whose resolved value is not numeric, are dropped; a zero value is kept (it is a
  * real reading, not "missing").
  *
- * The value goes through {@link ./value.ts `resolveTelemetryValue`} rather than a bare
- * `typeof d.value === "number"`, so the discriminant decides: a row tagged string/boolean is dropped
- * even if a stale numeric `value` rides along. That makes this the exact complement of
- * {@link toStateSeries} — every row lands in one series or neither, never both.
+ * This is **not** the strict complement of {@link toStateSeries}. A raw row lands in one series or
+ * neither, but a mixed aggregate bucket belongs to both: `value` is the bucket average (this series)
+ * and `state` is its last-in-bucket representative (that one). Treating the two as complements is
+ * what would drop one of the halves.
  */
 export function toSeries(
   pointId: string,

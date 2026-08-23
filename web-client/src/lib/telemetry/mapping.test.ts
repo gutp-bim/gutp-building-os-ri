@@ -68,10 +68,25 @@ describe("toSeries / toStateSeries", () => {
   it("assigns each row of a mixed point to exactly one of the two series", () => {
     const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
-      { datetime: "2026-01-01T02:00:00Z", valueType: "string", valueText: "auto" },
-      { datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: false },
-      // #344: the reading rides in `value` itself.
-      { datetime: "2026-01-01T04:00:00Z", value: "manual", valueType: "string" },
+      // #344/#359: the reading rides in `value`, and a raw non-numeric row repeats it in `state`.
+      {
+        datetime: "2026-01-01T02:00:00Z",
+        value: "auto",
+        valueType: "string",
+        state: "auto",
+      },
+      {
+        datetime: "2026-01-01T03:00:00Z",
+        value: false,
+        valueType: "boolean",
+        state: false,
+      },
+      {
+        datetime: "2026-01-01T04:00:00Z",
+        value: "manual",
+        valueType: "string",
+        state: "manual",
+      },
     ];
     const numericTimes = toSeries("PT001", raw).points.map((p) => p.t);
     const stateTimes = toStateSeries("PT001", raw).points.map((p) => p.t);
@@ -88,14 +103,15 @@ describe("toSeries / toStateSeries", () => {
   // The one row that legitimately belongs to BOTH: a mixed aggregate bucket has a numeric average
   // (the chart's) and a state representative (the timeline's). Treating the two series as strict
   // complements would silently drop one of them — the chart lost the average before this was
-  // separated out, and the timeline would have lost the state after #344.
+  // separated out, and the timeline would have lost the state after #344. `state` (#359) is the
+  // field that keeps the second half reachable now that valueText/valueBool are off the wire.
   it("keeps a mixed aggregate bucket in both series — it carries an average and a state", () => {
     const raw: TelemetryReading[] = [
       {
         datetime: "2026-01-01T01:00:00Z",
         value: 42,
-        valueType: "string",
-        valueText: "auto",
+        valueType: "number",
+        state: "auto",
       },
     ];
     expect(toSeries("PT001", raw).points).toEqual([
@@ -110,10 +126,20 @@ describe("toSeries / toStateSeries", () => {
 describe("toStateSeries", () => {
   it("keeps only non-numeric rows, ascending, formatted (#152 Phase B)", () => {
     const raw = [
-      { datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: true },
-      { datetime: "2026-01-01T01:00:00Z", valueType: "string", valueText: "auto" },
+      {
+        datetime: "2026-01-01T03:00:00Z",
+        value: true,
+        valueType: "boolean",
+        state: true,
+      },
+      {
+        datetime: "2026-01-01T01:00:00Z",
+        value: "auto",
+        valueType: "string",
+        state: "auto",
+      },
       { datetime: "2026-01-01T02:00:00Z", value: 42, valueType: "number" }, // dropped (numeric)
-      { datetime: null, valueType: "string", valueText: "x" }, // dropped (no datetime)
+      { datetime: null, value: "x", valueType: "string", state: "x" }, // dropped (no datetime)
     ];
     const s = toStateSeries("PT001", raw);
     expect(s.pointId).toBe("PT001");
@@ -144,15 +170,31 @@ describe("toLatestSample", () => {
 
     expect(
       toLatestSample([
-        { datetime: "2026-01-01T02:00:00Z", valueType: "string", valueText: "auto" },
+        {
+          datetime: "2026-01-01T02:00:00Z",
+          value: "auto",
+          valueType: "string",
+          state: "auto",
+        },
       ]),
-    ).toEqual({ t: "2026-01-01T02:00:00Z", value: { kind: "string", value: "auto" } });
+    ).toEqual({
+      t: "2026-01-01T02:00:00Z",
+      value: { kind: "string", value: "auto" },
+    });
 
     expect(
       toLatestSample([
-        { datetime: "2026-01-01T02:00:00Z", valueType: "boolean", valueBool: false },
+        {
+          datetime: "2026-01-01T02:00:00Z",
+          value: false,
+          valueType: "boolean",
+          state: false,
+        },
       ]),
-    ).toEqual({ t: "2026-01-01T02:00:00Z", value: { kind: "boolean", value: false } });
+    ).toEqual({
+      t: "2026-01-01T02:00:00Z",
+      value: { kind: "boolean", value: false },
+    });
   });
 
   it("returns a none value for a row with nothing representable", () => {
@@ -173,7 +215,12 @@ describe("toLatestSample", () => {
 describe("toPointsLastSeen", () => {
   it("maps each row to pointId + lastSeen, dropping rows without a pointId", () => {
     const rows: LatestSample[] = [
-      { pointId: "PT001", datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
+      {
+        pointId: "PT001",
+        datetime: "2026-01-01T01:00:00Z",
+        value: 1,
+        valueType: "number",
+      },
       { datetime: "2026-01-01T02:00:00Z", value: 2 },
     ];
     expect(toPointsLastSeen(rows)).toEqual([
@@ -183,15 +230,32 @@ describe("toPointsLastSeen", () => {
 
   it("keeps a numeric latest value for the alarm evaluator", () => {
     const rows: LatestSample[] = [
-      { pointId: "PT001", datetime: "2026-01-01T01:00:00Z", value: 0, valueType: "number" },
+      {
+        pointId: "PT001",
+        datetime: "2026-01-01T01:00:00Z",
+        value: 0,
+        valueType: "number",
+      },
     ];
     expect(toPointsLastSeen(rows)[0].value).toBe(0);
   });
 
   it("projects a string/boolean latest reading to a null value (numeric-only by design)", () => {
     const rows: LatestSample[] = [
-      { pointId: "PT001", datetime: "2026-01-01T01:00:00Z", valueType: "string", valueText: "auto" },
-      { pointId: "PT002", datetime: "2026-01-01T02:00:00Z", valueType: "boolean", valueBool: true },
+      {
+        pointId: "PT001",
+        datetime: "2026-01-01T01:00:00Z",
+        value: "auto",
+        valueType: "string",
+        state: "auto",
+      },
+      {
+        pointId: "PT002",
+        datetime: "2026-01-01T02:00:00Z",
+        value: true,
+        valueType: "boolean",
+        state: true,
+      },
     ];
     expect(toPointsLastSeen(rows)).toEqual([
       { pointId: "PT001", lastSeen: "2026-01-01T01:00:00Z", value: null },
@@ -199,21 +263,22 @@ describe("toPointsLastSeen", () => {
     ]);
   });
 
-  // batch-latest only ever returns RAW latest samples (granularity=Raw, latest=true), never
-  // aggregate buckets, so a row here has exactly one payload — no average riding alongside a state.
-  // Both wire shapes must project to a null numeric value for a string point.
-  it("projects a pre-#344 server's string reading to a null value", () => {
+  // A defensive guard, not a shape the server produces: batch-latest only ever returns RAW latest
+  // samples (granularity=Raw, latest=true), never aggregate buckets, so a numeric row here never
+  // carries a state beside it. Pinned anyway because the alarm evaluator compares numbers, and the
+  // cost of this projection ever reading the state half is a threshold fired against a string.
+  it("ignores the state half when projecting the numeric value", () => {
     const rows: LatestSample[] = [
       {
         pointId: "PT001",
         datetime: "2026-01-01T01:00:00Z",
-        value: null,
-        valueType: "string",
-        valueText: "auto",
+        value: 21.5,
+        valueType: "number",
+        state: "auto",
       },
     ];
     expect(toPointsLastSeen(rows)).toEqual([
-      { pointId: "PT001", lastSeen: "2026-01-01T01:00:00Z", value: null },
+      { pointId: "PT001", lastSeen: "2026-01-01T01:00:00Z", value: 21.5 },
     ]);
   });
 

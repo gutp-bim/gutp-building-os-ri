@@ -150,9 +150,9 @@ public class TelemetryControllerTest
     public async Task BatchLatest_CarriesDiscriminatedValue_ForNonNumericPoints()
     {
         // #344: `Value` is now the union — a string point returns the string, a boolean point the
-        // boolean. The #152 trio (ValueType/ValueText/ValueBool) is still emitted alongside it
-        // (dual-emit) so a client built against the old shape keeps working regardless of deploy
-        // order; PR B removes it at a release boundary.
+        // boolean. #359 then dropped the legacy ValueText/ValueBool pair; the non-numeric half of a
+        // reading rides in `State` instead, and `ValueType` still describes `Value`. A raw row
+        // repeats its reading in both, which is what the string/boolean cases below pin.
         var (controller, router, _) = Build();
         router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "pStr" && q.Latest), It.IsAny<CancellationToken>()))
               .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "pStr", Datetime = "2026-07-15T00:00:00Z", ValueType = "string", ValueText = "auto" } });
@@ -166,18 +166,18 @@ public class TelemetryControllerTest
         var body = Body(result);
         var str = Assert.Single(body, s => s.PointId == "pStr");
         Assert.Equal("string", str.ValueType);
-        Assert.Equal("auto", str.ValueText);
         Assert.Equal("auto", str.Value);
+        Assert.Equal("auto", str.State);
 
         var boolean = Assert.Single(body, s => s.PointId == "pBool");
         Assert.Equal("boolean", boolean.ValueType);
-        Assert.True(boolean.ValueBool);
         Assert.Equal(true, boolean.Value);
+        Assert.Equal(true, boolean.State);
 
         var num = Assert.Single(body, s => s.PointId == "pNum");
         Assert.Equal("number", num.ValueType);
         Assert.Equal(21.5, num.Value);
-        Assert.Null(num.ValueText);
+        Assert.Null(num.State);
     }
 
     [Fact]

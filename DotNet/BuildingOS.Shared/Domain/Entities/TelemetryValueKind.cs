@@ -59,21 +59,44 @@ public static class TelemetryValueKind
     /// legitimately carries two values at once. <c>AggregatingParquetTelemetryStore.ToTelemetry</c>
     /// sets <c>Value = Avg</c> unconditionally (the Timescale continuous-aggregate contract) while
     /// <see cref="ResolveLastInBucket"/> tags the bucket by its last-in-bucket reading, so a mixed
-    /// hour is really <c>{ Value = 42, ValueType = "string", ValueText = "auto" }</c> on the wire.
+    /// hour is stored as <c>{ Value = 42, ValueType = "string", ValueText = "auto" }</c>.
     /// Collapsing that onto one <c>value</c> is lossy whichever half wins; the numeric one is chosen
     /// because <c>value</c> already has a published numeric meaning at Hour/Day granularity that
     /// charts and external consumers depend on, while the state representative stays reachable via
-    /// <c>ValueText</c>/<c>ValueBool</c>.
+    /// <see cref="ResolveState"/>.
     /// </para>
     /// <para>
     /// For a <i>raw</i> row the question does not arise: <see cref="Apply"/> populates exactly one
-    /// payload field, so numeric-first and discriminant-first agree. The client resolver
-    /// (<c>web-client/src/lib/telemetry/value.ts</c>) applies the same precedence; both are pinned by
-    /// tests so they cannot drift.
+    /// payload field.
+    /// </para>
+    /// <para>
+    /// <b>This precedence is a storage-side concern only.</b> Since #359 the wire ships the two
+    /// halves in separate fields (<c>value</c> here, <c>state</c> from <see cref="ResolveState"/>),
+    /// so the client resolver has no precedence left to mirror — it reads one field each. The mixed
+    /// hour above reaches a client as <c>{ value: 42, valueType: "number", state: "auto" }</c>.
     /// </para>
     /// </summary>
     public static object? Resolve(ValidTelemetryData? row) =>
         row is null ? null : row.Value ?? (object?)row.ValueText ?? row.ValueBool;
+
+    /// <summary>
+    /// The row's <b>state representative</b> — its non-numeric reading, independent of any numeric
+    /// value beside it. A <see cref="string"/>, a <see cref="bool"/>, or <c>null</c>.
+    /// <para>
+    /// This is the carrier the wire's <c>state</c> field (#359) is built from, and it exists because
+    /// <see cref="Resolve"/> cannot answer the question for an aggregate bucket: such a bucket sets
+    /// <c>Value</c> to the average unconditionally, so a mixed hour resolves to the number while its
+    /// last-in-bucket state sits in <c>ValueText</c>/<c>ValueBool</c> with nowhere else to go. Those
+    /// two fields left the wire in #359; this is what replaced them.
+    /// </para>
+    /// <para>
+    /// For a raw row it returns the same value <see cref="Resolve"/> does, because <see cref="Apply"/>
+    /// populates exactly one payload field. That overlap is intentional: it makes <c>state</c> mean
+    /// one thing unconditionally, so the client reads it without a fallback chain.
+    /// </para>
+    /// </summary>
+    public static object? ResolveState(ValidTelemetryData? row) =>
+        row is null ? null : (object?)row.ValueText ?? row.ValueBool;
 
     /// <summary>
     /// The discriminant for a value produced by <see cref="Resolve"/> — i.e. the kind of the single
