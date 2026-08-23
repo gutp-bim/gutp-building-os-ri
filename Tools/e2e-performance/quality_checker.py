@@ -106,10 +106,20 @@ def check_lake_parquet(
             params,
         ).fetchone()[0]
 
+        # Discriminated value (#152/ADR-0006 Phase A): numeric rows populate `value` (double),
+        # string rows populate `value_text`, boolean rows populate `value_bool` (`value_type`
+        # says which). A schema-valid row needs point_id/time non-null plus at least one of the
+        # three value columns — a string/boolean row legitimately has value IS NULL.
+        # union_by_name=1 above means pre-#152 part-files without these columns just read back
+        # NULL for them, so this is safe on any lake. NOTE: do NOT port this to check_db() —
+        # TimescaleDB's `telemetry` table still has only `value DOUBLE PRECISION` (ADR-0006
+        # defers Timescale discriminated-value support to Phase B).
         validity = con.execute(
             f"SELECT "
-            f"  count(*) FILTER (WHERE point_id IS NOT NULL AND time IS NOT NULL AND value IS NOT NULL),"
-            f"  count(*) FILTER (WHERE point_id IS NULL OR time IS NULL OR value IS NULL) "
+            f"  count(*) FILTER (WHERE point_id IS NOT NULL AND time IS NOT NULL "
+            f"    AND (value IS NOT NULL OR value_text IS NOT NULL OR value_bool IS NOT NULL)),"
+            f"  count(*) FILTER (WHERE point_id IS NULL OR time IS NULL "
+            f"    OR (value IS NULL AND value_text IS NULL AND value_bool IS NULL)) "
             f"FROM {src}",
             params,
         ).fetchone()
@@ -186,27 +196,25 @@ def check_db(run_id: str, dsn: str) -> dict:
 
 
 def check_api(run_id: str, api_base: str) -> int:
-    """Fetch row count from API server for the given test_run_id. Returns -1 on failure."""
-    url = f"{api_base}/api/telemetry/search"
-    params = {"test_run_id": run_id, "limit": 1}
+    """Probe API Server reachability via GET /health. Returns 1 if reachable (200), -1 otherwise.
+
+    #342: this previously queried `/api/telemetry/search?test_run_id=...`, a route that has never
+    existed in TelemetryController. The only real telemetry read endpoint, GET /telemetries/query,
+    requires a single required pointId, sits behind [AuthorizeFilter], and needs OxiGraph
+    twin-seeding (seed_twin_points.py) that only the dedicated s5_api_read.sh performs — wiring
+    that into every quality_checker.py caller is out of scope here (evaluate() doesn't gate
+    `passed` on this value; it's diagnostic-only). This is now a lightweight liveness probe.
+    `run_id` is accepted but unused, kept for call-site stability.
+    """
+    url = f"{api_base}/health"
     try:
-        resp = requests.get(url, params=params, timeout=30)
+        resp = requests.get(url, timeout=30)
         if resp.status_code == 200:
-            body = resp.json()
-            # Try common response shapes
-            if isinstance(body, list):
-                return len(body)
-            if isinstance(body, dict):
-                if "total" in body:
-                    return int(body["total"])
-                if "count" in body:
-                    return int(body["count"])
-                if "items" in body and isinstance(body["items"], list):
-                    return len(body["items"])
-        logger.warning("API returned status %d for test_run_id=%s", resp.status_code, run_id)
+            return 1
+        logger.warning("API health check returned status %d (url=%s)", resp.status_code, url)
         return -1
     except requests.RequestException as exc:
-        logger.warning("API check failed: %s", exc)
+        logger.warning("API health check failed: %s", exc)
         return -1
 
 
@@ -272,9 +280,9 @@ def main() -> None:
         db_metrics = check_db(args.run_id, args.dsn)
     logger.info("Storage metrics (%s): %s", args.mode, db_metrics)
 
-    logger.info("Checking API for run_id=%s", args.run_id)
+    logger.info("Checking API Server health for run_id=%s", args.run_id)
     api_row_count = check_api(args.run_id, args.api_base)
-    logger.info("API row count: %d", api_row_count)
+    logger.info("API reachability: %s", "reachable" if api_row_count >= 0 else "unreachable")
 
     result = evaluate(args.run_id, args.expected, db_metrics, api_row_count)
     result["mode"] = args.mode
@@ -287,10 +295,10 @@ def main() -> None:
 
     status = "PASSED" if result["passed"] else "FAILED"
     logger.info(
-        "Quality check %s — db=%d api=%d loss=%.4f%% dups=%d schema_invalid=%d",
+        "Quality check %s — db=%d api=%s loss=%.4f%% dups=%d schema_invalid=%d",
         status,
         result["db_row_count"],
-        result["api_row_count"],
+        "up" if result["api_row_count"] >= 0 else "down",
         result["loss_rate"] * 100,
         result["duplicate_count"],
         result["schema_invalid_count"],
