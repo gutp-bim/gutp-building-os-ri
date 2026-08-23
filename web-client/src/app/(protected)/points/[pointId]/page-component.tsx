@@ -3,6 +3,7 @@
 import { InlineBanner } from "@/components/ui/inline-banner";
 import { getPointDetail } from "@/lib/resources/repository";
 import type { PointDetailResource } from "@/lib/resources/types";
+import { toTelemetryCsv } from "@/lib/telemetry/csv";
 import {
   autoGranularityForSpan,
   dateRangeError,
@@ -18,7 +19,6 @@ import {
 import {
   getTelemetryConfig,
   latestTelemetrySample,
-  queryTelemetry,
   queryTelemetryWithState,
   type TelemetryConfig,
 } from "@/lib/telemetry/repository";
@@ -173,18 +173,29 @@ export default function PointDetailPageComponent({
     try {
       setColdLoading(true);
       setColdError(null);
-      const series = await queryTelemetry({
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      // Same granularity rule the chart applies to its own window. Without this the download always
+      // asked for raw: viewing 30 days aggregated by day and pressing download returned every raw
+      // sample instead of the ~30 points on screen.
+      const downloadGranularity =
+        granularity === "auto"
+          ? autoGranularityForSpan(start, end)
+          : granularity;
+      // Both halves of what the trend view renders — the chart's numeric series AND the timeline's
+      // state series. Taking only the numeric half made a non-numeric point download as a bare
+      // header with no error.
+      const { series, state } = await queryTelemetryWithState({
         pointId: pointDetail.point.id,
-        start: new Date(startDate),
-        end: new Date(endDate),
+        start,
+        end,
+        granularity: downloadGranularity,
       });
-      const csvData = [
-        "日時,値",
-        ...series.points.map(
-          (p) => `${new Date(p.t).toLocaleString("ja-JP")},${p.v}`,
-        ),
-      ].join("\n");
-      const blob = new Blob([csvData], { type: "text/csv" });
+      const csvData = toTelemetryCsv({
+        series: series.points,
+        state: state.points,
+      });
+      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
