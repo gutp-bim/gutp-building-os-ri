@@ -99,34 +99,20 @@ public class TelemetryReadingSerializationTest
         Assert.Equal("null", ValueOf(json));
     }
 
-    /// <summary>
-    /// An aggregate bucket carries both an average and a state representative; the union takes the
-    /// numeric half (see <c>TelemetryValueKind.Resolve</c>). Pinned on the wire because getting this
-    /// backwards would silently turn a Hour/Day series into text for any mixed point.
-    /// </summary>
-    [Fact]
-    public void MixedAggregateBucket_SerializesTheAverage_NotTheStateRepresentative()
-    {
-        var json = JsonSerializer.Serialize(
-            TelemetryReading.From(Row(value: 42, valueType: TelemetryValueKind.String, valueText: "auto")),
-            Options);
-
-        Assert.Equal("42", ValueOf(json));
-        // The state half stays reachable — that is what the timeline reads.
-        Assert.Equal("\"auto\"", StateOf(json));
-    }
-
     // ── `state`: the non-numeric half, carried on its own (#359) ────────────
 
     /// <summary>
-    /// The reason <c>state</c> exists at all. A mixed aggregate bucket is the one row shape that
-    /// carries two readings at once — the numeric average in <c>value</c> and a last-in-bucket state
-    /// representative beside it. Dropping <c>valueText</c>/<c>valueBool</c> without a replacement
-    /// carrier would leave that representative nowhere to live, and the state timeline would go empty
-    /// at Hour/Day granularity for exactly the points that have one.
+    /// The reason <c>state</c> exists at all, and the reason the union takes the numeric half.
+    /// <para>
+    /// A mixed aggregate bucket is the one row shape carrying two readings at once — the average in
+    /// <c>value</c> (see <c>TelemetryValueKind.Resolve</c>) and a last-in-bucket state representative
+    /// beside it. Getting the union backwards would silently turn a Hour/Day series into text;
+    /// dropping <c>valueText</c>/<c>valueBool</c> without a replacement carrier would leave the
+    /// representative nowhere to live and empty the state timeline at that granularity.
+    /// </para>
     /// </summary>
     [Fact]
-    public void MixedAggregateBucket_CarriesTheStateRepresentativeInState()
+    public void MixedAggregateBucket_SerializesTheAverageAndCarriesTheStateSeparately()
     {
         var json = JsonSerializer.Serialize(
             TelemetryReading.From(Row(value: 42, valueType: TelemetryValueKind.String, valueText: "auto")),
@@ -238,8 +224,8 @@ public class TelemetryReadingSerializationTest
 
     /// <summary>
     /// <c>LatestSample</c> carries <c>state</c> too, so the two telemetry wire DTOs stay the same
-    /// shape — <c>DiscriminatedTelemetryValue</c> on the client is structurally satisfied by both,
-    /// and a divergence here would only surface as a type error in the generated client.
+    /// shape — <c>TelemetryWireValue</c> on the client is structurally satisfied by both, and a
+    /// divergence here would only surface as a type error in the generated client.
     /// </summary>
     [Fact]
     public void LatestSample_CarriesTheStateHalfAsWell()

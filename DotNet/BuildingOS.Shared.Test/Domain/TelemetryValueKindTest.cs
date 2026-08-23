@@ -206,6 +206,10 @@ public class TelemetryValueKindTest
         var text = new ValidTelemetryData { ValueType = TelemetryValueKind.String, ValueText = "occupied" };
         var boolean = new ValidTelemetryData { ValueType = TelemetryValueKind.Boolean, ValueBool = false };
 
+        // Asserted against literals, not against Resolve: pinning only the relationship would let a
+        // change that moved both in the same direction through untouched.
+        Assert.Equal("occupied", TelemetryValueKind.ResolveState(text));
+        Assert.Equal(false, TelemetryValueKind.ResolveState(boolean));
         Assert.Equal(TelemetryValueKind.Resolve(text), TelemetryValueKind.ResolveState(text));
         Assert.Equal(TelemetryValueKind.Resolve(boolean), TelemetryValueKind.ResolveState(boolean));
     }

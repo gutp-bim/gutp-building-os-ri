@@ -10,6 +10,26 @@ publishes images for (`v*.*.*`).
 
 ## [Unreleased]
 
+### Changed
+
+- **Telemetry read responses now carry one union-typed `value`** (`number | string | boolean | null`)
+  instead of requiring clients to reassemble the storage layer's discriminated split (#344). Affects
+  `GET /telemetries/query`, the per-tier reads, and `POST /telemetries/query/batch-latest`.
+  `valueType` is retained and now describes the `value` actually shipped, so it can no longer
+  contradict its runtime type. The Parquet lake's column model is unchanged — this is an API-boundary
+  change only.
+
+### Removed
+
+- **BREAKING:** `valueText` and `valueBool` are gone from the telemetry read responses (#359).
+  A reading's non-numeric half now travels in the new **`state`** field (`string | boolean | null`).
+  It exists for the aggregate bucket, the only row shape carrying two readings at once: `value` is
+  the bucket average, so a mixed hour's last-in-bucket state needs its own carrier. Raw non-numeric
+  rows repeat their reading in `state` as well, so clients read it with a single lookup.
+  **Client and server must cross this change together** — a mixed aggregate bucket's state
+  representative is unreadable when either side predates it, which empties the state timeline at
+  Hour/Day granularity (raw reads are unaffected).
+
 ### Fixed
 
 - Updated the demo and performance gRPC telemetry feeders for the discriminated

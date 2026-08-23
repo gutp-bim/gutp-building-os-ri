@@ -92,24 +92,31 @@ public class TelemetryValueSchemaFilterTest
     }
 
     /// <summary>
-    /// Extracts one named property's <c>oneOf</c> array from the serialized schema, so assertions
-    /// cannot be satisfied by another property of the same DTO — two of them are unions now, and
-    /// taking "the first <c>oneOf</c> in the document" would silently assert about <c>value</c> in
-    /// every <c>state</c> test.
+    /// Extracts one named property's <c>oneOf</c> array from the serialized schema.
+    /// <para>
+    /// Navigated structurally rather than by scanning for the next <c>"oneOf"</c> after the property
+    /// name. Two properties are unions now, and a scan anchored on the name drifts into the *next*
+    /// property's block the moment the named one stops being widened: delete the <c>Value</c> case
+    /// from the filter and a text scan for <c>"value"</c> sails past the un-widened property and
+    /// lands on <c>state</c>'s array, so a nullable-branch assertion passes green while <c>value</c>
+    /// has silently degraded to the typeless hole openapi2aspida drops.
+    /// </para>
     /// </summary>
     private static string OneOfBlockOf(string json, string propertyName)
     {
-        var property = json.IndexOf($"\"{propertyName}\":", StringComparison.Ordinal);
-        Assert.True(property >= 0, $"no \"{propertyName}\" property in the serialized schema:\n{json}");
+        var root = System.Text.Json.JsonDocument.Parse(json).RootElement;
 
-        var start = json.IndexOf("\"oneOf\"", property, StringComparison.Ordinal);
-        Assert.True(start >= 0, $"no oneOf after \"{propertyName}\" in the schema:\n{json}");
+        Assert.True(
+            root.TryGetProperty("properties", out var properties)
+            && properties.TryGetProperty(propertyName, out _),
+            $"no \"{propertyName}\" property in the serialized schema:\n{json}");
 
-        var open = json.IndexOf('[', start);
-        var close = json.IndexOf(']', open);
-        Assert.True(open >= 0 && close > open, $"malformed oneOf:\n{json}");
+        var property = properties.GetProperty(propertyName);
+        Assert.True(
+            property.TryGetProperty("oneOf", out var oneOf),
+            $"\"{propertyName}\" has no oneOf — it was not widened:\n{property}");
 
-        return json[open..close];
+        return oneOf.GetRawText();
     }
 
     /// <summary>

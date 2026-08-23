@@ -25,9 +25,9 @@ const eslintConfig = [
       "react-hooks/rules-of-hooks": "off",
     },
   },
-  // UI consumes the src/lib/telemetry/ façade, not the generated wire types (CLAUDE.md). Keeping the
-  // discriminated shape (`valueType`/`valueText`/`valueBool`) inside the façade is what lets the
-  // eventual union-typed `value` (#344) land in `value.ts` alone.
+  // UI consumes the src/lib/telemetry/ façade, not the generated wire types (CLAUDE.md). Confining
+  // the wire's value fields to the façade is what let #344 (union-typed `value`) and #359
+  // (`valueText`/`valueBool` → `state`) each land in `value.ts` alone.
   //
   // Now a blanket ban on the module: #350 moved every UI consumer onto the domain types, so nothing
   // under src/app or src/components has a legitimate reason to name a generated wire type. Scoping

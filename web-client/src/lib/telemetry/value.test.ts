@@ -86,24 +86,69 @@ describe("resolveTelemetryValue", () => {
   });
 
   /**
-   * #359 removed `valueText`/`valueBool` from the wire, so this client requires a server that sends
-   * `value`/`state`. Against a pre-#359 server a non-numeric reading arrives with `value: null` and
-   * the payload in a field this client no longer reads — and resolves to nothing.
+   * The #152 wire, before #344 made `value` a union: a non-numeric reading arrived with
+   * `value: null` and the payload in a field this client no longer reads. It resolves to nothing.
    *
-   * Pinned deliberately rather than papered over with a runtime fallback: the fallback chain is
-   * exactly what #359 deleted, and re-adding it would make the removal pointless. What this test
-   * records is the resulting constraint — the API server must not be OLDER than the web client.
-   * Both ship from this repo through the same ArgoCD rollout, so the pairing is controllable; the
-   * cast is here because TypeScript already rejects the old shape, which is the intended guard.
+   * Two servers back, not one — worth stating because it is easy to mistake this for the pre-#359
+   * shape. The #344 dual-emit server already put the reading in `value` (`Resolve` is
+   * `Value ?? ValueText ?? ValueBool`, and a raw non-numeric row has a null `Value`), so it sent
+   * `{ value: "auto", valueText: "auto" }` — never this.
    */
-  it("does not resolve a pre-#359 server's non-numeric reading (server must not lag the client)", () => {
-    const preRemoval = {
+  it("does not resolve a pre-#344 server's non-numeric reading (value was still null then)", () => {
+    const pre344 = {
       value: null,
       valueType: "string",
       valueText: "auto",
     } as TelemetryWireValue;
 
-    expect(resolveTelemetryValue(preRemoval)).toEqual({ kind: "none" });
+    expect(resolveTelemetryValue(pre344)).toEqual({ kind: "none" });
+  });
+});
+
+/**
+ * What actually breaks when the API server and this client straddle #359.
+ *
+ * The exposure is **symmetric and narrow**: it is the mixed aggregate bucket, and only that. Every
+ * other row shape survives either pairing, because #344 already routed the reading itself through
+ * `value` — a raw non-numeric row and a purely non-numeric bucket (whose `Avg` is null) both carry
+ * their reading there, in both wire versions.
+ *
+ * The mixed bucket is the exception precisely because it is the row that needed `state` in the first
+ * place: `value` is the average, so the state representative rides in a field that changed names.
+ * A new client reading an old server misses it; an old client reading a new server misses it too.
+ * The symptom either way is an empty state timeline at Hour/Day granularity — the raw view is fine.
+ *
+ * Pinned rather than papered over with a runtime fallback: that fallback chain is exactly what #359
+ * deleted, and re-adding it would make the removal pointless. The casts are here because TypeScript
+ * already rejects both foreign shapes, which is the real guard.
+ */
+describe("#359 wire-version skew", () => {
+  it("loses a #344-era mixed aggregate bucket's state (the only shape at risk)", () => {
+    const from344Server = {
+      value: 42,
+      valueType: "number",
+      valueText: "auto",
+    } as TelemetryWireValue;
+
+    // The chart half is unaffected — it reads `value`, which did not change.
+    expect(resolveTelemetryValue(from344Server)).toEqual({
+      kind: "number",
+      value: 42,
+    });
+    expect(resolveStateValue(from344Server)).toEqual({ kind: "none" });
+  });
+
+  it("still resolves a #344-era raw non-numeric reading, which rides in value", () => {
+    const from344Server = {
+      value: "auto",
+      valueType: "string",
+      valueText: "auto",
+    } as TelemetryWireValue;
+
+    expect(resolveTelemetryValue(from344Server)).toEqual({
+      kind: "string",
+      value: "auto",
+    });
   });
 });
 
