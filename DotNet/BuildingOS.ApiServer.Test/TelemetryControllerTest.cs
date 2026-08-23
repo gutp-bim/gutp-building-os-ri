@@ -1,4 +1,4 @@
-﻿using BuildingOS.Shared;
+using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.Grouping.Entities;
