@@ -13,10 +13,6 @@ concurrency:
 
 env:
   DOTNET_VERSION: "8.0.x"
-  # Pinned deliberately: the aspida drift check below regenerates the committed client and fails on
-  # any difference, so an unpinned generator would turn an upstream release into a spurious red on
-  # unrelated PRs. Must stay in step with Tools/sync-type.bash, which pins the same version.
-  OPENAPI2ASPIDA_VERSION: "0.24.0"
 
 jobs:
   # ── Detect changed areas ──────────────────────────────────────
@@ -47,6 +43,10 @@ jobs:
               # Same reasoning as swagger.yaml: the aspida drift check lives in dotnet-check, so a
               # hand-edit of the committed client must still run it.
               - 'web-client/src/lib/infra/aspida-client/generated/**'
+              # dotnet-check is the only job that executes these scripts, and both are now CI gates.
+              # Without this a PR editing only generate_swagger.bash / sync-type.bash merges with no
+              # run at all — the same hole the two entries above close for their artefacts.
+              - 'Tools/**'
               - '.github/workflows/pr-check.yml'
             frontend:
               - 'web-client/**'
@@ -149,9 +149,19 @@ jobs:
       - name: Aspida client is up to date
         working-directory: ${{ github.workspace }}
         run: |
+          # Single source of truth for the pin: Tools/sync-type.bash. Repeating the literal here
+          # would let the two drift apart, and the resulting red tells you to "regenerate with
+          # Tools/sync-type.bash" — advice that cannot work when the script pins a different version.
+          VERSION="$(sed -n 's/^OPENAPI2ASPIDA_VERSION="\(.*\)"$/\1/p' Tools/sync-type.bash)"
+          if [ -z "$VERSION" ]; then
+            echo "::error file=Tools/sync-type.bash::could not read OPENAPI2ASPIDA_VERSION — this step reads the pin from that file, so the assignment must stay a plain OPENAPI2ASPIDA_VERSION=\"x.y.z\" line."
+            exit 1
+          fi
+          echo "openapi2aspida@$VERSION (pinned in Tools/sync-type.bash)"
+
           CLIENT_PATH="web-client/src/lib/infra/aspida-client/generated"
           rm -rf "${CLIENT_PATH:?}"/*
-          npx --yes "openapi2aspida@${OPENAPI2ASPIDA_VERSION}" \
+          npx --yes "openapi2aspida@${VERSION}" \
             -i="$PWD/docs/schema/swagger.yaml" -o="$PWD/$CLIENT_PATH"
           if [ -n "$(git status --porcelain -- "$CLIENT_PATH")" ]; then
             git status --porcelain -- "$CLIENT_PATH"

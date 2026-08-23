@@ -1,34 +1,24 @@
 #!/bin/bash
-# set -e: this script is now upstream of a CI gate (#357), and without it a failed `dotnet build`
-# falls through to generate swagger from a stale DLL — the same false-green that bit
-# generate_swagger.bash (#354).
+# set -e: this script is upstream of a CI gate (#357), and without it a failed generation step falls
+# through to the aspida regeneration below, which would then rebuild the client from a stale
+# swagger.yaml — the same false-green that bit generate_swagger.bash (#354).
 set -euo pipefail
 
-repository_root=`git rev-parse --show-toplevel`
+repository_root=$(git rev-parse --show-toplevel)
 
-export ASPNETCORE_ENVIRONMENT=Development
-export TZ=Asia/Tokyo
-export PORT=8081
-export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5433;Database=buildingos;Username=buildingos;Password=buildingos"
+# The single pinned version of the aspida generator. `.github/workflows/pr-check.yml` reads it from
+# THIS line rather than repeating the literal: the CI drift check regenerates the committed client
+# and fails on any difference, so two sites drifting apart would produce a red whose own error
+# message ("regenerate with Tools/sync-type.bash") could not fix it.
+OPENAPI2ASPIDA_VERSION="0.24.0"
 
-cd $repository_root/DotNet
-dotnet build BuildingOS.ApiServer/BuildingOS.ApiServer.csproj -c Release
+# Delegate rather than duplicate: lines 7-27 of this script used to be a verbatim copy of
+# generate_swagger.bash, and CI gates *that* script. A new export or DLL-path branch added there
+# would have left this copy behind, so developers would regenerate a different swagger.yaml locally
+# than CI does. One implementation, gated in one place.
+bash "$repository_root/Tools/generate_swagger.bash"
 
-# GitHub ActionsとローカルでDLLの出力先が異なるため、両方をチェック
-if [ -f "$repository_root/DotNet/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll" ]; then
-    DLL_PATH="$repository_root/DotNet/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll"
-elif [ -f "$repository_root/out/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll" ]; then
-    DLL_PATH="$repository_root/out/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll"
-else
-    echo "Error: BuildingOS.ApiServer.dll not found"
-    exit 1
-fi
-
-dotnet swagger tofile --yaml --output $repository_root/docs/schema/swagger.yaml $DLL_PATH building-os
-
-cd $repository_root/web-client
-
-CLIENT_PATH=$repository_root/web-client/src/lib/infra/aspida-client/generated
+CLIENT_PATH="$repository_root/web-client/src/lib/infra/aspida-client/generated"
 
 if [ -d "$CLIENT_PATH" ]; then
   # ${VAR:?} so an empty CLIENT_PATH aborts instead of expanding to `rm -rf /*`
@@ -37,7 +27,6 @@ else
   mkdir -p "$CLIENT_PATH"
 fi
 
-# Pinned: the #357 drift check regenerates this tree and fails on any difference, so an unpinned
-# generator would make an upstream release break unrelated PRs. Keep in step with
-# OPENAPI2ASPIDA_VERSION in .github/workflows/pr-check.yml.
-npx --yes openapi2aspida@0.24.0 -i=$repository_root/docs/schema/swagger.yaml -o=$CLIENT_PATH
+cd "$repository_root/web-client"
+npx --yes "openapi2aspida@${OPENAPI2ASPIDA_VERSION}" \
+  -i="$repository_root/docs/schema/swagger.yaml" -o="$CLIENT_PATH"
