@@ -1,8 +1,8 @@
 "use client";
 
 import { InlineBanner } from "@/components/ui/inline-banner";
-import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { getPointDetail } from "@/lib/resources/repository";
+import type { PointDetailResource } from "@/lib/resources/types";
 import {
   autoGranularityForSpan,
   dateRangeError,
@@ -45,7 +45,9 @@ export default function PointDetailPageComponent({
   pointId: string;
 }) {
   const router = useRouter();
-  const [pointDetail, setPointDetail] = useState<PointDetail | null>(null);
+  const [pointDetail, setPointDetail] = useState<PointDetailResource | null>(
+    null,
+  );
   // Bumped when a control settles, so 制御履歴 refetches and shows the command just issued (#162).
   const [controlAuditReloadKey, setControlAuditReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -274,7 +276,9 @@ export default function PointDetailPageComponent({
             }}
             scale={pointDetail.point.scale ?? undefined}
             unit={pointDetail.point.unit ?? undefined}
-            expectedIntervalSeconds={pointDetail.point.interval ?? undefined}
+            expectedIntervalSeconds={
+              pointDetail.point.expectedIntervalSeconds ?? undefined
+            }
             staleThresholdSeconds={telemetryConfig?.staleThresholdSeconds}
             staleIntervalMultiplier={telemetryConfig?.staleIntervalMultiplier}
           />

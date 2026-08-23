@@ -1,8 +1,9 @@
 import { API_BASE_URL, authHeaders, mutationError } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
-import { toPointResource, toRef, toSearchHit } from "./mapping";
+import { toPointDetail, toPointResource, toRef, toSearchHit } from "./mapping";
 import { normalizeSearchParams } from "./search";
 import type {
+  PointDetailResource,
   PointResource,
   ResourceMetadata,
   ResourceMetadataPatch,
@@ -76,8 +77,13 @@ export async function listChildren(
   }
 }
 
-export async function getPointDetail(pointId: string, token?: string) {
-  return apiClient(token).point_details._pointId(enc(pointId)).$get();
+export async function getPointDetail(
+  pointId: string,
+  token?: string,
+): Promise<PointDetailResource> {
+  return toPointDetail(
+    await apiClient(token).point_details._pointId(enc(pointId)).$get(),
+  );
 }
 
 /**

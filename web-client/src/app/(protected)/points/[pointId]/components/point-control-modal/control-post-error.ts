@@ -13,9 +13,7 @@ import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-
  * ここ（POST の catch）でしか観測されない。
  */
 export type ControlPostErrorStatus =
-  | "permission_denied"
-  | "gateway_offline"
-  | "failed";
+  "permission_denied" | "gateway_offline" | "failed";
 
 // `ControlExecutionState["status"]` の部分集合であることを型で担保する（外れると setDirectResult
 // 呼び出し側でコンパイルエラーになる）。
@@ -38,8 +36,7 @@ function httpStatusOf(error: unknown): number | undefined {
  */
 function controlSchemaViolationOf(error: unknown): string | undefined {
   const data = (error as { response?: { data?: unknown } })?.response?.data as
-    | { error?: unknown; dataType?: unknown }
-    | undefined;
+    { error?: unknown; dataType?: unknown } | undefined;
   // `dataType` is what distinguishes a schema violation from the other 400s PointController returns
   // ("value is required", an unsupported gateway binding, or a dispatch exception such as NATS being
   // down). Without it, telling the operator to fix their value would send them after the wrong thing.

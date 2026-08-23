@@ -1,5 +1,5 @@
+import type { PointDetailResource } from "@/lib/resources/types";
 import { Dialog } from "@headlessui/react";
-import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import { useState } from "react";
 import {
   controlRangeLabel,
@@ -16,7 +16,7 @@ export function AnalogOutputControlModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  pointDetail: PointDetail;
+  pointDetail: PointDetailResource;
   onControl: (value: number) => Promise<void>;
   isLoading: boolean;
 }) {
@@ -54,7 +54,10 @@ export function AnalogOutputControlModal({
               className="w-full border rounded-md px-3 py-2"
             />
             {rangeLabel === null && (
-              <p className="mt-1 text-xs text-gray-500" data-testid="range-unknown">
+              <p
+                className="mt-1 text-xs text-gray-500"
+                data-testid="range-unknown"
+              >
                 この点には制御範囲が登録されていません。
               </p>
             )}

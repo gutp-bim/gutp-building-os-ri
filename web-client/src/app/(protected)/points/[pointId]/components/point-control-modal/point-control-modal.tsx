@@ -1,9 +1,9 @@
 import { apiClient } from "@/lib/infra/aspida-client";
-import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 import {
   useControlExecution,
   type ControlExecutionState,
 } from "@/lib/infra/grpc-client/use-control-execution";
+import type { PointDetailResource } from "@/lib/resources/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
@@ -18,7 +18,7 @@ export function PointControlModal({
   pointDetail,
   onControlSettled,
 }: {
-  pointDetail: PointDetail;
+  pointDetail: PointDetailResource;
   /**
    * Called once per control that reached the server, when it settles. The point detail page uses it
    * to refresh 制御履歴 so the command the operator just ran is visible without a reload (#162).

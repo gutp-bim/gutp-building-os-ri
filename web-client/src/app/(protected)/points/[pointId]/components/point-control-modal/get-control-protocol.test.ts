@@ -1,11 +1,11 @@
+import { aPointDetail } from "@/lib/resources/test-fixtures";
+import type { PointResource } from "@/lib/resources/types";
 import { describe, expect, it } from "vitest";
 import { getControlProtocol } from "./get-control-protocol";
-import type { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
 
-const detail = (point: Partial<PointDetail["point"]>): PointDetail =>
-  ({
-    point: { dtId: "pt", id: "pt", name: "pt", ...point },
-  }) as PointDetail;
+// Typed base, no cast: the previous `as PointDetailResource` over a partial literal meant tsc said
+// nothing if this predicate later consulted a field the fixture omits.
+const detail = (point: Partial<PointResource>) => aPointDetail({ point });
 
 describe("getControlProtocol", () => {
   it("returns BACnet when objectTypeBacnet is set", () => {
@@ -15,9 +15,7 @@ describe("getControlProtocol", () => {
   });
 
   it("returns BACnet when instanceNoBacnet is 0 (a valid BACnet instance number)", () => {
-    expect(getControlProtocol(detail({ instanceNoBacnet: 0 }))).toBe(
-      "BACnet",
-    );
+    expect(getControlProtocol(detail({ instanceNoBacnet: 0 }))).toBe("BACnet");
   });
 
   it("returns BACnet when deviceIdBacnet is set", () => {
