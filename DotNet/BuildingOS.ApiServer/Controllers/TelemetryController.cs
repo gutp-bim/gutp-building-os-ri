@@ -275,7 +275,7 @@ public class TelemetryController(
             var value = TelemetryValueKind.Resolve(latest);
             return new LatestSample(
                 pointId, latest?.Datetime, value,
-                TelemetryValueKind.KindOf(value), latest?.ValueText, latest?.ValueBool);
+                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest));
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
@@ -299,12 +299,15 @@ public sealed record BatchLatestRequest(string[] PointIds);
 /// One point's latest sample; <c>Datetime</c>/<c>Value</c> are null when it has no data (#182).
 /// <para>
 /// <c>Value</c> is the union-typed reading (#344) — a number, string, or boolean — described in the
-/// OpenAPI document as <c>oneOf</c> by <c>TelemetryValueSchemaFilter</c>. The discriminated trio
-/// (<c>ValueType</c>/<c>ValueText</c>/<c>ValueBool</c>, #152) is still emitted alongside it so a
-/// client built against the old shape keeps working; it goes away at a release boundary (#344 PR B).
+/// OpenAPI document as <c>oneOf</c> by <c>TelemetryValueSchemaFilter</c>. <c>State</c> carries the
+/// reading's non-numeric half, and <c>ValueType</c> describes <c>Value</c>; the legacy
+/// <c>ValueText</c>/<c>ValueBool</c> pair left the wire in #359. Kept in step with
+/// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading"/>, whose docs carry the full rationale
+/// — the client's value decoder is satisfied structurally by both, so a divergence here surfaces only
+/// as a type error in the generated client.
 /// Response-only: <c>object?</c> deserializes as a <c>JsonElement</c>, so do not reuse this for input.
 /// </para>
 /// </summary>
 public sealed record LatestSample(
     string PointId, string? Datetime, object? Value,
-    string? ValueType = null, string? ValueText = null, bool? ValueBool = null);
+    string? ValueType = null, object? State = null);

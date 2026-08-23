@@ -14,6 +14,15 @@
 - **関連**: #189（現行の数値単一型 + EnumLabels/`data` 回避策を明文化した設計判断）、#216/ADR-0002（Parquet lake
   warm store）、#224（point list / ControlSchema）、#158 Phase 2a（アラームは numeric 前提）
 
+> **API のワイヤ形状はその後 #344 / #359 で変わった。** 本 ADR の Phase A は API DTO を
+> 「`value`(number) + `valueType` + `valueText` + `valueBool`」としたが、これは永続化層の判別分割が
+> HTTP 契約に漏れたものだった。#344 で `value` を真の union（number|string|boolean|null）に戻し、
+> #359 で `valueText`/`valueBool` を削除、非数値の代表値は **`state`（string|boolean|null）** 1 本に
+> 集約した。`state` が別途必要なのは、集計バケットだけが「数値平均」と「last-in-bucket 状態代表値」を
+> 同時に持つため（`value` は平均を運ぶ契約なので状態の置き場が無くなる）。
+> **保存層（Parquet の `value`/`value_type`/`value_text`/`value_bool` 4 列）は本 ADR のまま変更なし** —
+> #348 のスパイクでテキスト単一列化を計測のうえ棄却済み。現行の正本は `docs/schema/swagger.yaml`。
+
 ## Context
 
 正規化済みテレメトリの `value` は **数値単一型**に固定されており、状態系ポイント（運転モード・列挙・ON/OFF・

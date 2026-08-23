@@ -3564,14 +3564,13 @@ components:
         valueType:
           type: string
           nullable: true
-        valueText:
-          type: string
-          nullable: true
-        valueBool:
-          type: boolean
-          nullable: true
+        state:
+          oneOf:
+            - type: string
+              nullable: true
+            - type: boolean
       additionalProperties: false
-      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. The discriminated trio\n(`ValueType`/`ValueText`/`ValueBool`, #152) is still emitted alongside it so a\nclient built against the old shape keeps working; it goes away at a release boundary (#344 PR B).\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
+      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. `State` carries the\nreading's non-numeric half, and `ValueType` describes `Value`; the legacy\n`ValueText`/`ValueBool` pair left the wire in #359. Kept in step with\nBuildingOs.ApiServer.Telemetry.TelemetryReading, whose docs carry the full rationale\n— the client's value decoder is satisfied structurally by both, so a divergence here surfaces only\nas a type error in the generated client.\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
     MyResourcesResponse:
       type: object
       properties:
@@ -4079,14 +4078,14 @@ components:
         valueType:
           type: string
           nullable: true
-        valueText:
-          type: string
-          nullable: true
-        valueBool:
-          type: boolean
-          nullable: true
+        state:
+          oneOf:
+            - type: string
+              nullable: true
+            - type: boolean
+          description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359).\n\nIt exists for the one row shape that carries two readings at once: an aggregate bucket sets\nValue to the average unconditionally (the continuous-aggregate contract), so a\nmixed hour ships the number while its last-in-bucket state has nowhere else to live. That is what\nthe state timeline reads at Hour/Day granularity.\nA raw non-numeric row <b>repeats</b> its reading here rather than leaving this null. The\nduplication is deliberate: it makes this field mean one thing unconditionally, so a client reads\nit with a single lookup instead of falling back to Value — the fallback chain\n#359 exists to delete. Widened to `oneOf: [string, boolean]` by\n`TelemetryValueSchemaFilter`, for the same reason Value is."
       additionalProperties: false
-      description: "Response-only wire DTO for telemetry reads (#344).\n            \n\nUntil now the controllers returned BuildingOS.Shared.ValidTelemetryData directly, so the storage\nlayer's discriminated split (`value`/`valueType`/`valueText`/`valueBool`,\n#152) leaked into the HTTP contract and every API consumer had to reassemble it. That split is a\nParquet/EF concern — BuildingOS.Shared.ValidTelemetryData is an EF entity and binds the lake's column\nmodel, so it cannot be retyped in place — while the canonical schema\n(`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic\n`value`. This DTO restores that shape at the boundary.\n<b>Dual-emitting for this release.</b>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText/BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueBool are still\npopulated alongside the union so a client built against the old shape keeps working regardless of\ndeploy order. Dropping them is a follow-up at a release boundary (#344 PR B); doing it now would\nforce a clients-first deploy for no benefit.\n<para>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType is <b>not</b> part of that promise: it now describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,\nderived from the value actually shipped, rather than being copied from the stored tag. For an\naggregate bucket the stored tag classifies the bucket's last-in-bucket reading, so copying it\nmade the wire say `{ value: 42, valueType: \"string\" }`. An old client that branched on the\ndiscriminant to render a mixed aggregate hour therefore sees the average now instead of the\nstate string — the state itself is unchanged and still in BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText.</para>"
+      description: "Response-only wire DTO for telemetry reads (#344).\n            \n\nUntil now the controllers returned BuildingOS.Shared.ValidTelemetryData directly, so the storage\nlayer's discriminated split (`value`/`valueType`/`valueText`/`valueBool`,\n#152) leaked into the HTTP contract and every API consumer had to reassemble it. That split is a\nParquet/EF concern — BuildingOS.Shared.ValidTelemetryData is an EF entity and binds the lake's column\nmodel, so it cannot be retyped in place — while the canonical schema\n(`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic\n`value`. This DTO restores that shape at the boundary.\n<b>#359 removed the legacy payload fields.</b>`valueText`/`valueBool` are gone; the\nnon-numeric half of a reading now travels in BuildingOs.ApiServer.Telemetry.TelemetryReading.State. BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType stays,\nbecause it never duplicated the payload the way those two did — it describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,\nderived from the value actually shipped rather than copied from the stored tag. (Copying the\nstored tag is what made the wire say `{ value: 42, valueType: \"string\" }` for a mixed\naggregate bucket, where the stored tag classifies the bucket's last-in-bucket reading.)"
     TelemetryThresholds:
       type: object
       properties:

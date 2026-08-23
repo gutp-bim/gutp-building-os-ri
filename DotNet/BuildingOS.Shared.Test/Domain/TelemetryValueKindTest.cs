@@ -139,8 +139,8 @@ public class TelemetryValueKindTest
     /// Collapsing that onto one <c>value</c> is lossy either way, so it resolves to the average:
     /// <c>value</c> has a published numeric meaning for Hour/Day granularity that charts and external
     /// consumers already depend on, whereas the state representative remains reachable through
-    /// <c>valueText</c>/<c>valueBool</c>. Returning the string here would silently turn an aggregate
-    /// series into text.
+    /// <see cref="TelemetryValueKind.ResolveState"/>. Returning the string here would silently turn
+    /// an aggregate series into text.
     /// </para>
     /// </summary>
     [Fact]
@@ -172,6 +172,60 @@ public class TelemetryValueKindTest
     [Fact]
     public void Resolve_UntaggedWithBool_AndNoNumber_YieldsTheBool()
         => Assert.Equal(false, TelemetryValueKind.Resolve(
+            new ValidTelemetryData { ValueBool = false }));
+
+    // ── ResolveState (the wire's `state`, #359) ──────────────────────────────
+
+    /// <summary>
+    /// The case <c>state</c> exists for. A mixed aggregate bucket sets <c>Value</c> to the average
+    /// unconditionally, so <see cref="TelemetryValueKind.Resolve"/> returns the number and the
+    /// bucket's last-in-bucket state has nowhere else to go. Getting this wrong empties the state
+    /// timeline at Hour/Day granularity for exactly the points that have one.
+    /// </summary>
+    [Fact]
+    public void ResolveState_MixedAggregateBucket_YieldsTheStateNotTheAverage()
+    {
+        Assert.Equal("auto", TelemetryValueKind.ResolveState(new ValidTelemetryData
+        {
+            Value = 42, ValueType = TelemetryValueKind.String, ValueText = "auto",
+        }));
+        Assert.Equal(true, TelemetryValueKind.ResolveState(new ValidTelemetryData
+        {
+            Value = 42, ValueType = TelemetryValueKind.Boolean, ValueBool = true,
+        }));
+    }
+
+    /// <summary>
+    /// A raw non-numeric row repeats its reading in <c>state</c>. Deliberate: it makes the field mean
+    /// one thing unconditionally, so the client reads it with a single lookup rather than falling
+    /// back to <c>value</c>.
+    /// </summary>
+    [Fact]
+    public void ResolveState_RawNonNumericRow_RepeatsWhatResolveReturns()
+    {
+        var text = new ValidTelemetryData { ValueType = TelemetryValueKind.String, ValueText = "occupied" };
+        var boolean = new ValidTelemetryData { ValueType = TelemetryValueKind.Boolean, ValueBool = false };
+
+        Assert.Equal(TelemetryValueKind.Resolve(text), TelemetryValueKind.ResolveState(text));
+        Assert.Equal(TelemetryValueKind.Resolve(boolean), TelemetryValueKind.ResolveState(boolean));
+    }
+
+    /// <summary>A purely numeric row has no state half — the timeline must not invent one.</summary>
+    [Fact]
+    public void ResolveState_NumericRow_YieldsNull()
+        => Assert.Null(TelemetryValueKind.ResolveState(new ValidTelemetryData
+        {
+            Value = 21.5, ValueType = TelemetryValueKind.Number,
+        }));
+
+    [Fact]
+    public void ResolveState_NullRow_YieldsNull()
+        => Assert.Null(TelemetryValueKind.ResolveState(null));
+
+    /// <summary><c>false</c> is a reading, not "absent" — it must survive the null-coalescing.</summary>
+    [Fact]
+    public void ResolveState_FalseBool_IsNotCollapsedToNull()
+        => Assert.Equal(false, TelemetryValueKind.ResolveState(
             new ValidTelemetryData { ValueBool = false }));
 
     /// <summary>Tagged string with neither a number nor text is not representable.</summary>

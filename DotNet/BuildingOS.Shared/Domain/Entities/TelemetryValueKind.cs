@@ -76,6 +76,25 @@ public static class TelemetryValueKind
         row is null ? null : row.Value ?? (object?)row.ValueText ?? row.ValueBool;
 
     /// <summary>
+    /// The row's <b>state representative</b> — its non-numeric reading, independent of any numeric
+    /// value beside it. A <see cref="string"/>, a <see cref="bool"/>, or <c>null</c>.
+    /// <para>
+    /// This is the carrier the wire's <c>state</c> field (#359) is built from, and it exists because
+    /// <see cref="Resolve"/> cannot answer the question for an aggregate bucket: such a bucket sets
+    /// <c>Value</c> to the average unconditionally, so a mixed hour resolves to the number while its
+    /// last-in-bucket state sits in <c>ValueText</c>/<c>ValueBool</c> with nowhere else to go. Those
+    /// two fields left the wire in #359; this is what replaced them.
+    /// </para>
+    /// <para>
+    /// For a raw row it returns the same value <see cref="Resolve"/> does, because <see cref="Apply"/>
+    /// populates exactly one payload field. That overlap is intentional: it makes <c>state</c> mean
+    /// one thing unconditionally, so the client reads it without a fallback chain.
+    /// </para>
+    /// </summary>
+    public static object? ResolveState(ValidTelemetryData? row) =>
+        row is null ? null : (object?)row.ValueText ?? row.ValueBool;
+
+    /// <summary>
     /// The discriminant for a value produced by <see cref="Resolve"/> — i.e. the kind of the single
     /// union value the API ships, not the kind of whatever else the row carries beside it.
     /// <para>

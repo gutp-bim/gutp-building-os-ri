@@ -28,8 +28,8 @@ export type TelemetryStateSeries = {
 };
 
 /**
- * A point's latest reading, of any value kind (#152). The wire's discriminated shape is decoded once
- * in `mapping.ts` (via `value.ts`), so components never see `valueType`/`valueText`/`valueBool`.
+ * A point's latest reading, of any value kind (#152). The wire's value fields are decoded once in
+ * `mapping.ts` (via `value.ts`), so components never see `value`/`valueType`/`state`.
  */
 export type TelemetryLatestSample = {
   /** ISO-8601 timestamp; null when the backend omitted it. */

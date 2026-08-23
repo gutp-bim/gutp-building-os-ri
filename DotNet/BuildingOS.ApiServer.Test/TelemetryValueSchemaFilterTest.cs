@@ -39,16 +39,15 @@ public class TelemetryValueSchemaFilterTest
     /// <summary>
     /// Asserts on the serialized <c>oneOf</c> array specifically. A plain
     /// <c>Assert.Contains("\"string\"", json)</c> would be vacuous — the same DTO has several
-    /// <c>type: string</c> properties (pointId, datetime, valueType, valueText) and a
-    /// <c>type: boolean</c> one (valueBool), so such a test passes even if only the number branch
-    /// survived.
+    /// <c>type: string</c> properties (pointId, datetime, valueType), so such a test passes even if
+    /// only the number branch survived.
     /// </summary>
     [Theory]
     [InlineData(typeof(TelemetryReading))]
     [InlineData(typeof(LatestSample))]
     public void Value_SerializesAsAOneOfUnion(Type dtoType)
     {
-        var oneOf = OneOfBlockOf(SerializeSchemaFor(dtoType));
+        var oneOf = OneOfBlockOf(SerializeSchemaFor(dtoType), "value");
 
         Assert.Contains("\"number\"", oneOf);
         Assert.Contains("\"string\"", oneOf);
@@ -56,30 +55,55 @@ public class TelemetryValueSchemaFilterTest
     }
 
     /// <summary>
-    /// Exactly one branch carries null. On the parent it would be invalid 3.0 (no sibling type); on
-    /// all three it would make <c>null</c> match every branch, and <c>oneOf</c> means exactly one —
-    /// a strict validator would then reject the <c>"value": null</c> this API returns for a point
-    /// with no reading.
+    /// <c>state</c> is a union too (#359), but a <b>narrower</b> one: it only ever carries the
+    /// non-numeric half of a reading, so admitting <c>number</c> would advertise a shape the server
+    /// never produces. Pinned because the two properties share one filter and it would be easy to
+    /// give them the same branch set.
     /// </summary>
-    [Fact]
-    public void Value_MarksExactlyOneBranchNullable()
+    [Theory]
+    [InlineData(typeof(TelemetryReading))]
+    [InlineData(typeof(LatestSample))]
+    public void State_SerializesAsAStringOrBooleanUnion_WithoutANumberBranch(Type dtoType)
     {
-        var oneOf = OneOfBlockOf(SerializeSchemaFor(typeof(TelemetryReading)));
+        var oneOf = OneOfBlockOf(SerializeSchemaFor(dtoType), "state");
+
+        Assert.Contains("\"string\"", oneOf);
+        Assert.Contains("\"boolean\"", oneOf);
+        Assert.DoesNotContain("\"number\"", oneOf);
+    }
+
+    /// <summary>
+    /// Exactly one branch carries null. On the parent it would be invalid 3.0 (no sibling type); on
+    /// every branch it would make <c>null</c> match all of them, and <c>oneOf</c> means exactly one —
+    /// a strict validator would then reject the <c>null</c> this API returns for a point with no
+    /// reading.
+    /// </summary>
+    [Theory]
+    [InlineData("value")]
+    [InlineData("state")]
+    public void UnionProperty_MarksExactlyOneBranchNullable(string property)
+    {
+        var oneOf = OneOfBlockOf(SerializeSchemaFor(typeof(TelemetryReading)), property);
         var nullableBranches = oneOf.Split("\"nullable\": true").Length - 1;
 
-        // Exactly one, not "at least one": marking all three is precisely the regression this test
-        // exists to catch, and >= 1 would wave it through.
+        // Exactly one, not "at least one": marking every branch is precisely the regression this
+        // test exists to catch, and >= 1 would wave it through.
         Assert.Equal(1, nullableBranches);
     }
 
     /// <summary>
-    /// Extracts just the <c>value</c> property's <c>oneOf</c> array from the serialized schema, so
-    /// assertions cannot be satisfied by unrelated properties of the same DTO.
+    /// Extracts one named property's <c>oneOf</c> array from the serialized schema, so assertions
+    /// cannot be satisfied by another property of the same DTO — two of them are unions now, and
+    /// taking "the first <c>oneOf</c> in the document" would silently assert about <c>value</c> in
+    /// every <c>state</c> test.
     /// </summary>
-    private static string OneOfBlockOf(string json)
+    private static string OneOfBlockOf(string json, string propertyName)
     {
-        var start = json.IndexOf("\"oneOf\"", StringComparison.Ordinal);
-        Assert.True(start >= 0, $"no oneOf in the serialized schema:\n{json}");
+        var property = json.IndexOf($"\"{propertyName}\":", StringComparison.Ordinal);
+        Assert.True(property >= 0, $"no \"{propertyName}\" property in the serialized schema:\n{json}");
+
+        var start = json.IndexOf("\"oneOf\"", property, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"no oneOf after \"{propertyName}\" in the schema:\n{json}");
 
         var open = json.IndexOf('[', start);
         var close = json.IndexOf(']', open);

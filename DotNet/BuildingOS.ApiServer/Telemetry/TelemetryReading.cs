@@ -16,18 +16,12 @@ namespace BuildingOs.ApiServer.Telemetry;
 /// </para>
 ///
 /// <para>
-/// <b>Dual-emitting for this release.</b> <see cref="ValueText"/>/<see cref="ValueBool"/> are still
-/// populated alongside the union so a client built against the old shape keeps working regardless of
-/// deploy order. Dropping them is a follow-up at a release boundary (#344 PR B); doing it now would
-/// force a clients-first deploy for no benefit.
-/// <para>
-/// <see cref="ValueType"/> is <b>not</b> part of that promise: it now describes <see cref="Value"/>,
-/// derived from the value actually shipped, rather than being copied from the stored tag. For an
-/// aggregate bucket the stored tag classifies the bucket's last-in-bucket reading, so copying it
-/// made the wire say <c>{ value: 42, valueType: "string" }</c>. An old client that branched on the
-/// discriminant to render a mixed aggregate hour therefore sees the average now instead of the
-/// state string — the state itself is unchanged and still in <see cref="ValueText"/>.
-/// </para>
+/// <b>#359 removed the legacy payload fields.</b> <c>valueText</c>/<c>valueBool</c> are gone; the
+/// non-numeric half of a reading now travels in <see cref="State"/>. <see cref="ValueType"/> stays,
+/// because it never duplicated the payload the way those two did — it describes <see cref="Value"/>,
+/// derived from the value actually shipped rather than copied from the stored tag. (Copying the
+/// stored tag is what made the wire say <c>{ value: 42, valueType: "string" }</c> for a mixed
+/// aggregate bucket, where the stored tag classifies the bucket's last-in-bucket reading.)
 /// </para>
 /// </summary>
 /// <param name="Value">
@@ -41,6 +35,23 @@ namespace BuildingOs.ApiServer.Telemetry;
 /// a NATS payload without adding a converter.
 /// </para>
 /// </param>
+/// <param name="State">
+/// The reading's <b>non-numeric half</b> — a <see cref="string"/>, a <see cref="bool"/>, or
+/// <c>null</c> — independent of any number in <paramref name="Value"/> (#359).
+/// <para>
+/// It exists for the one row shape that carries two readings at once: an aggregate bucket sets
+/// <paramref name="Value"/> to the average unconditionally (the continuous-aggregate contract), so a
+/// mixed hour ships the number while its last-in-bucket state has nowhere else to live. That is what
+/// the state timeline reads at Hour/Day granularity.
+/// </para>
+/// <para>
+/// A raw non-numeric row <b>repeats</b> its reading here rather than leaving this null. The
+/// duplication is deliberate: it makes this field mean one thing unconditionally, so a client reads
+/// it with a single lookup instead of falling back to <paramref name="Value"/> — the fallback chain
+/// #359 exists to delete. Widened to <c>oneOf: [string, boolean]</c> by
+/// <c>TelemetryValueSchemaFilter</c>, for the same reason <paramref name="Value"/> is.
+/// </para>
+/// </param>
 public sealed record TelemetryReading(
     string? PointId,
     string? Datetime,
@@ -51,8 +62,7 @@ public sealed record TelemetryReading(
     string? Data = null,
     string? Id = null,
     string? ValueType = null,
-    string? ValueText = null,
-    bool? ValueBool = null)
+    object? State = null)
 {
     /// <summary>Projects a stored row onto the wire shape. Null in, null out.</summary>
     public static TelemetryReading? From(ValidTelemetryData? row)
@@ -73,8 +83,7 @@ public sealed record TelemetryReading(
             // tags an aggregate bucket by its last-in-bucket reading, so passing it through made the
             // wire say `{ value: 42, valueType: "string" }`.
             TelemetryValueKind.KindOf(value),
-            row.ValueText,
-            row.ValueBool);
+            TelemetryValueKind.ResolveState(row));
     }
 
     /// <summary>Projects a result set, preserving order. Null rows are dropped.</summary>
