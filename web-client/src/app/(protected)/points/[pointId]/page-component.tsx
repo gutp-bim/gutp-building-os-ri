@@ -3,6 +3,7 @@
 import { InlineBanner } from "@/components/ui/inline-banner";
 import { getPointDetail } from "@/lib/resources/repository";
 import type { PointDetailResource } from "@/lib/resources/types";
+import { toTelemetryCsv } from "@/lib/telemetry/csv";
 import {
   autoGranularityForSpan,
   dateRangeError,
@@ -18,7 +19,6 @@ import {
 import {
   getTelemetryConfig,
   latestTelemetrySample,
-  queryTelemetry,
   queryTelemetryWithState,
   type TelemetryConfig,
 } from "@/lib/telemetry/repository";
@@ -173,18 +173,32 @@ export default function PointDetailPageComponent({
     try {
       setColdLoading(true);
       setColdError(null);
-      const series = await queryTelemetry({
+      // Raw, deliberately — do NOT inherit the chart's granularity.
+      //
+      // This modal takes its own start/end and is the cold-data export (hence
+      // ColdDataDownloadModal): it hands over the readings for a chosen range, not a copy of the
+      // chart. Asking for an aggregated granularity breaks that in three ways:
+      //   - OssTelemetryQueryRouter.QueryAggregatedAsync only consults the aggregate and warm
+      //     stores, never the cold one — so with WARM_STORE=timescale a range older than warm
+      //     retention comes back empty, from the button whose whole job is old data.
+      //   - the Timescale aggregate stores select only `value`, so a non-numeric point would once
+      //     again export as a bare header.
+      //   - the modal shows no granularity control, so it would silently inherit whatever the chart
+      //     was left on: an hour-long export with the chart on 「1日」 collapses to a single row.
+      // Aggregated numbers are also the wrong artefact here — a bucket average looks exactly like a
+      // reading, and min/max/count are dropped.
+      //
+      // Both halves of the trend are still exported: the numeric series AND the state series.
+      const { series, state } = await queryTelemetryWithState({
         pointId: pointDetail.point.id,
         start: new Date(startDate),
         end: new Date(endDate),
       });
-      const csvData = [
-        "日時,値",
-        ...series.points.map(
-          (p) => `${new Date(p.t).toLocaleString("ja-JP")},${p.v}`,
-        ),
-      ].join("\n");
-      const blob = new Blob([csvData], { type: "text/csv" });
+      const csvData = toTelemetryCsv({
+        series: series.points,
+        state: state.points,
+      });
+      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
