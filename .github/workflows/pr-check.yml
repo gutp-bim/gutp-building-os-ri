@@ -40,6 +40,13 @@ jobs:
               # schema (with no .NET change) must still run it — otherwise the one way to desync
               # swagger.yaml from the source is the one way that skips the check (#354).
               - 'docs/schema/swagger.yaml'
+              # Same reasoning as swagger.yaml: the aspida drift check lives in dotnet-check, so a
+              # hand-edit of the committed client must still run it.
+              - 'web-client/src/lib/infra/aspida-client/generated/**'
+              # dotnet-check is the only job that executes these scripts, and both are now CI gates.
+              # Without this a PR editing only generate_swagger.bash / sync-type.bash merges with no
+              # run at all — the same hole the two entries above close for their artefacts.
+              - 'Tools/**'
               - '.github/workflows/pr-check.yml'
             frontend:
               - 'web-client/**'
@@ -111,18 +118,55 @@ jobs:
       # adds an eager DB/OxiGraph/NATS call to Startup.ConfigureServices this step starts failing
       # with a confusing connection error; that is the thing to look at first.
       #
-      # SCOPE: this verifies swagger.yaml against the source ONLY. It does NOT verify that the
-      # committed aspida client (web-client/src/lib/infra/aspida-client/generated/) matches
-      # swagger.yaml — that needs `npx openapi2aspida`, which this job has no Node for. So running
-      # generate_swagger.bash alone and committing just swagger.yaml passes here while leaving the
-      # frontend types stale. Always use Tools/sync-type.bash, which does both.
-      # oss-ci.yml's swagger-drift-check covers both halves but is workflow_dispatch-only.
+      # This verifies swagger.yaml against the source. The committed aspida client is verified by
+      # the step after it, so the two halves of Tools/sync-type.bash are both gated here (#357).
       - name: Swagger is up to date
         working-directory: ${{ github.workspace }}
         run: |
           bash Tools/generate_swagger.bash
           if ! git diff --exit-code -- docs/schema/swagger.yaml; then
             echo "::error file=docs/schema/swagger.yaml::swagger.yaml is stale. Regenerate with Tools/sync-type.bash (NOT generate_swagger.bash alone — that skips the aspida client) and commit swagger.yaml together with web-client/src/lib/infra/aspida-client/generated/. XML doc comments feed the schema, so editing a /// comment changes it too."
+            exit 1
+          fi
+
+      # The other half of the drift (#357): swagger.yaml can be regenerated and committed while the
+      # aspida client that is generated FROM it goes stale — running Tools/generate_swagger.bash
+      # alone (documented standalone in CLAUDE.md) does exactly that, and nothing notices because
+      # stale-but-self-consistent types still typecheck.
+      #
+      # git status --porcelain, not git diff --exit-code: a regeneration can add whole new untracked
+      # directories (one per new endpoint), and porcelain reports those too. In practice a new
+      # endpoint also rewrites the tracked $api.ts so git diff would catch it as well, but porcelain
+      # is strictly safer for the same cost.
+      #
+      # No `cache: yarn` on setup-node: this job never runs `yarn install`, so there is no lockfile
+      # install to cache and enabling it only adds a restore/save round trip.
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.x"
+
+      - name: Aspida client is up to date
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Single source of truth for the pin: Tools/sync-type.bash. Repeating the literal here
+          # would let the two drift apart, and the resulting red tells you to "regenerate with
+          # Tools/sync-type.bash" — advice that cannot work when the script pins a different version.
+          VERSION="$(sed -n 's/^OPENAPI2ASPIDA_VERSION="\(.*\)"$/\1/p' Tools/sync-type.bash)"
+          if [ -z "$VERSION" ]; then
+            echo "::error file=Tools/sync-type.bash::could not read OPENAPI2ASPIDA_VERSION — this step reads the pin from that file, so the assignment must stay a plain OPENAPI2ASPIDA_VERSION=\"x.y.z\" line."
+            exit 1
+          fi
+          echo "openapi2aspida@$VERSION (pinned in Tools/sync-type.bash)"
+
+          CLIENT_PATH="web-client/src/lib/infra/aspida-client/generated"
+          rm -rf "${CLIENT_PATH:?}"/*
+          npx --yes "openapi2aspida@${VERSION}" \
+            -i="$PWD/docs/schema/swagger.yaml" -o="$PWD/$CLIENT_PATH"
+          if [ -n "$(git status --porcelain -- "$CLIENT_PATH")" ]; then
+            git status --porcelain -- "$CLIENT_PATH"
+            git diff -- "$CLIENT_PATH" | head -100
+            echo "::error file=web-client/src/lib/infra/aspida-client/generated::the generated aspida client does not match docs/schema/swagger.yaml. Regenerate with Tools/sync-type.bash and commit BOTH swagger.yaml and the generated client."
             exit 1
           fi
 

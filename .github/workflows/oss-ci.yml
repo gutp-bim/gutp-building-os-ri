@@ -241,7 +241,12 @@ jobs:
           CLIENT_PATH="$(pwd)/src/lib/infra/aspida-client/generated"
           # ${VAR:?} so an empty CLIENT_PATH aborts instead of expanding to `rm -rf /*`
           rm -rf "${CLIENT_PATH:?}"/*
-          npx openapi2aspida -i="$(pwd)/../docs/schema/swagger.yaml" -o="$CLIENT_PATH"
+          # Same pin as Tools/sync-type.bash and pr-check.yml. Left unpinned, this job would
+          # regenerate with a newer generator and fail on a tree that the other two accept — a red
+          # nobody can clear without unpinning them. (This job is slated for deletion once the
+          # pr-check gate has proven itself; until then it must agree.)
+          VERSION="$(sed -n 's/^OPENAPI2ASPIDA_VERSION="\(.*\)"$/\1/p' ../Tools/sync-type.bash)"
+          npx --yes "openapi2aspida@${VERSION}" -i="$(pwd)/../docs/schema/swagger.yaml" -o="$CLIENT_PATH"
 
       - name: Fail if the Aspida client drifted
         run: |

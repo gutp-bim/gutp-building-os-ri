@@ -402,7 +402,10 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 > コミットと push が競合して常に失敗していたため削除した。代わりに `pr-check` の `.NET Build & Test`
 > が **PR 時点で** 再生成し、差分があれば落とす。API を変えたら `./Tools/sync-type.bash` を実行し、
 > `docs/schema/swagger.yaml` と `web-client/src/lib/infra/aspida-client/generated/` を一緒に
-> コミットすること（`generate_swagger.bash` 単体では aspida 側が更新されず、CI もそこは検査しない）。
+> コミットすること。**CI は両方を検査する**（#354 で swagger、#357 で aspida 生成物）。
+> `generate_swagger.bash` 単体は aspida 側を更新しないため、これだけを実行して swagger.yaml だけを
+> コミットすると aspida 側の検査が落ちる。`sync-type.bash` は `generate_swagger.bash` に委譲した
+> うえで aspida も再生成するので、常にこちらを使うこと。
 
 ## Environment Variables
 
