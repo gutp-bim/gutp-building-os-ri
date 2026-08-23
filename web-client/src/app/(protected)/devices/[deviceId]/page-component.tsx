@@ -180,7 +180,7 @@ function PointTableContent({ points }: { points: PointResource[] }) {
       case "dataSpecification":
         return point.specification ?? "";
       case "dataType":
-        return point.type ?? "";
+        return point.kind ?? "";
       case "writable":
         return point.writable ? "可" : "不可";
       case "targetArea":
@@ -270,7 +270,7 @@ function PointTableContent({ points }: { points: PointResource[] }) {
                 <td className="px-6 py-4 whitespace-nowrap">
                   {point.specification}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">{point.type}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{point.kind}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {point.writable ? "可" : "不可"}
                 </td>

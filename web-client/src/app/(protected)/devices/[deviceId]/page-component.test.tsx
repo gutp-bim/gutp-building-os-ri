@@ -129,4 +129,19 @@ describe("DeviceDetailPageComponent (#195)", () => {
       "デバイス情報の取得に失敗しました。",
     );
   });
+
+  // The データ型 cell reads the point's measurement kind. On the domain type `type` is the resource
+  // discriminator (always "point"), so a migration that leaves `.point.type` in place still compiles
+  // and renders "point" in every row — the trap documented on `PointResource.kind`. No assertion
+  // covered this cell before, which is exactly why it slipped through.
+  it("renders the measurement kind in データ型, not the resource discriminator", async () => {
+    deviceGet.mockResolvedValueOnce(device);
+    pointsGet.mockResolvedValueOnce([
+      { id: "point:1", name: "室温", type: "float", targetArea: "R1" },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("float")).toBeInTheDocument();
+    expect(screen.queryByText("point")).not.toBeInTheDocument();
+  });
 });

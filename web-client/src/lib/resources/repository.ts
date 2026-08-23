@@ -99,15 +99,15 @@ export async function getPointDetail(
 }
 
 /**
- * Hydrate a single resource ref from its type + id (dtId for non-points, business id for points).
- * Used to restore the right pane from a `?sel=` deep link. Returns null when not found/forbidden.
- */
-/**
  * Single-resource reads (#350 4c). The detail pages used to call `apiClient()` themselves, which is
  * how the wire types reached `src/app` in the first place — moving the fetch here is what lets those
  * pages consume domain types.
  *
  * Ids are digital-twin ids and are encoded here, once, rather than at each call site.
+ *
+ * These **throw** on 404/403, unlike {@link resolveRef}, which returns null — the detail pages want
+ * an error banner for a resource that does not exist, not a silently empty screen. Callers need a
+ * try/catch.
  */
 export async function getDevice(
   deviceDtId: string,
@@ -138,6 +138,10 @@ export async function getSpaceRef(
   );
 }
 
+/**
+ * Hydrate a single resource ref from its type + id (dtId for non-points, business id for points).
+ * Used to restore the right pane from a `?sel=` deep link. Returns null when not found/forbidden.
+ */
 export async function resolveRef(
   type: ResourceRef["type"],
   idOrDtId: string,
