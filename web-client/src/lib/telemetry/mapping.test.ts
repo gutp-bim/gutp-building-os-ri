@@ -1,6 +1,6 @@
 import type {
   LatestSample,
-  ValidTelemetryData,
+  TelemetryReading,
 } from "@/lib/infra/aspida-client/generated/@types";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,7 +13,7 @@ import {
 
 describe("toSeries", () => {
   it("sorts samples by datetime ascending", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T03:00:00Z", value: 3 },
       { datetime: "2026-01-01T01:00:00Z", value: 1 },
       { datetime: "2026-01-01T02:00:00Z", value: 2 },
@@ -24,7 +24,7 @@ describe("toSeries", () => {
   });
 
   it("drops samples missing a datetime or value", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 1 },
       { datetime: null, value: 9 },
       { datetime: "2026-01-01T02:00:00Z", value: null },
@@ -35,7 +35,7 @@ describe("toSeries", () => {
   });
 
   it("treats a zero value as present, not missing", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 0 },
     ];
     expect(toSeries("PT001", raw).points).toEqual([
@@ -48,7 +48,7 @@ describe("toSeries", () => {
   });
 
   it("keeps a legacy row with no valueType as numeric", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 7 },
     ];
     expect(toSeries("PT001", raw).points).toEqual([
@@ -56,14 +56,9 @@ describe("toSeries", () => {
     ]);
   });
 
-  it("drops a row whose discriminant says it is not numeric, even when value is populated", () => {
-    const raw: ValidTelemetryData[] = [
-      {
-        datetime: "2026-01-01T01:00:00Z",
-        value: 42,
-        valueType: "string",
-        valueText: "auto",
-      },
+  it("drops a non-numeric union reading from the numeric series", () => {
+    const raw: TelemetryReading[] = [
+      { datetime: "2026-01-01T01:00:00Z", value: "auto", valueType: "string" },
     ];
     expect(toSeries("PT001", raw).points).toEqual([]);
   });
@@ -71,17 +66,12 @@ describe("toSeries", () => {
 
 describe("toSeries / toStateSeries", () => {
   it("assigns each row of a mixed point to exactly one of the two series", () => {
-    const raw: ValidTelemetryData[] = [
+    const raw: TelemetryReading[] = [
       { datetime: "2026-01-01T01:00:00Z", value: 1, valueType: "number" },
       { datetime: "2026-01-01T02:00:00Z", valueType: "string", valueText: "auto" },
       { datetime: "2026-01-01T03:00:00Z", valueType: "boolean", valueBool: false },
-      // A stale numeric `value` alongside a string discriminant must not land in both.
-      {
-        datetime: "2026-01-01T04:00:00Z",
-        value: 42,
-        valueType: "string",
-        valueText: "manual",
-      },
+      // #344: the reading rides in `value` itself.
+      { datetime: "2026-01-01T04:00:00Z", value: "manual", valueType: "string" },
     ];
     const numericTimes = toSeries("PT001", raw).points.map((p) => p.t);
     const stateTimes = toStateSeries("PT001", raw).points.map((p) => p.t);
@@ -93,6 +83,27 @@ describe("toSeries / toStateSeries", () => {
       "2026-01-01T04:00:00Z",
     ]);
     expect(numericTimes.filter((t) => stateTimes.includes(t))).toEqual([]);
+  });
+
+  // The one row that legitimately belongs to BOTH: a mixed aggregate bucket has a numeric average
+  // (the chart's) and a state representative (the timeline's). Treating the two series as strict
+  // complements would silently drop one of them — the chart lost the average before this was
+  // separated out, and the timeline would have lost the state after #344.
+  it("keeps a mixed aggregate bucket in both series — it carries an average and a state", () => {
+    const raw: TelemetryReading[] = [
+      {
+        datetime: "2026-01-01T01:00:00Z",
+        value: 42,
+        valueType: "string",
+        valueText: "auto",
+      },
+    ];
+    expect(toSeries("PT001", raw).points).toEqual([
+      { t: "2026-01-01T01:00:00Z", v: 42 },
+    ]);
+    expect(toStateSeries("PT001", raw).points).toEqual([
+      { t: "2026-01-01T01:00:00Z", state: "auto" },
+    ]);
   });
 });
 
@@ -188,14 +199,15 @@ describe("toPointsLastSeen", () => {
     ]);
   });
 
-  // The behaviour fix: the raw `value` field must not be trusted when the discriminant contradicts
-  // it — otherwise the alarm evaluator compares a number that is not the reading.
-  it("ignores a stale numeric value when the discriminant says string", () => {
+  // batch-latest only ever returns RAW latest samples (granularity=Raw, latest=true), never
+  // aggregate buckets, so a row here has exactly one payload — no average riding alongside a state.
+  // Both wire shapes must project to a null numeric value for a string point.
+  it("projects a pre-#344 server's string reading to a null value", () => {
     const rows: LatestSample[] = [
       {
         pointId: "PT001",
         datetime: "2026-01-01T01:00:00Z",
-        value: 42,
+        value: null,
         valueType: "string",
         valueText: "auto",
       },

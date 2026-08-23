@@ -2089,19 +2089,13 @@ paths:
           content:
             text/plain:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2179,17 +2173,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2267,17 +2261,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2359,21 +2353,21 @@ paths:
                 additionalProperties:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ValidTelemetryData'
+                    $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ValidTelemetryData'
+                    $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: object
                 additionalProperties:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ValidTelemetryData'
+                    $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2453,17 +2447,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -3561,9 +3555,12 @@ components:
           type: string
           nullable: true
         value:
-          type: number
-          format: double
-          nullable: true
+          oneOf:
+            - type: number
+              format: double
+              nullable: true
+            - type: string
+            - type: boolean
         valueType:
           type: string
           nullable: true
@@ -3574,7 +3571,7 @@ components:
           type: boolean
           nullable: true
       additionalProperties: false
-      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\nThe discriminated value fields (#152) carry non-numeric latest readings: `ValueType` is\n`\"number\"`/`\"string\"`/`\"boolean\"` (null → numeric for legacy data), with the payload in\n`Value` (numeric), `ValueText` (string), or `ValueBool` (boolean)."
+      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. The discriminated trio\n(`ValueType`/`ValueText`/`ValueBool`, #152) is still emitted alongside it so a\nclient built against the old shape keeps working; it goes away at a release boundary (#344 PR B).\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
     MyResourcesResponse:
       type: object
       properties:
@@ -4047,6 +4044,49 @@ components:
         - 2
       type: integer
       format: int32
+    TelemetryReading:
+      type: object
+      properties:
+        pointId:
+          type: string
+          nullable: true
+        datetime:
+          type: string
+          nullable: true
+        value:
+          oneOf:
+            - type: number
+              format: double
+              nullable: true
+            - type: string
+            - type: boolean
+          description: "The reading, as a System.Double, System.String, System.Boolean, or `null`.\nDeclared `object?` so System.Text.Json writes it by its runtime type; the OpenAPI schema is\nwidened to `oneOf: [number, string, boolean]` by `TelemetryValueSchemaFilter`, which is\nwhat makes the generated clients see a real union rather than an untyped hole.\n\n<b>Response-only.</b> Round-tripping this record through a request body would deserialize\n`Value` as a `JsonElement`, not the original primitive. Do not reuse it for input or as\na NATS payload without adding a converter."
+        building:
+          type: string
+          nullable: true
+        deviceId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        data:
+          type: string
+          nullable: true
+        id:
+          type: string
+          nullable: true
+        valueType:
+          type: string
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        valueBool:
+          type: boolean
+          nullable: true
+      additionalProperties: false
+      description: "Response-only wire DTO for telemetry reads (#344).\n            \n\nUntil now the controllers returned BuildingOS.Shared.ValidTelemetryData directly, so the storage\nlayer's discriminated split (`value`/`valueType`/`valueText`/`valueBool`,\n#152) leaked into the HTTP contract and every API consumer had to reassemble it. That split is a\nParquet/EF concern — BuildingOS.Shared.ValidTelemetryData is an EF entity and binds the lake's column\nmodel, so it cannot be retyped in place — while the canonical schema\n(`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic\n`value`. This DTO restores that shape at the boundary.\n<b>Dual-emitting for this release.</b>BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType/BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueText/\nBuildingOs.ApiServer.Telemetry.TelemetryReading.ValueBool are still populated alongside the union so a client built against the old\nshape keeps working regardless of deploy order. Dropping them is a follow-up at a release\nboundary (#344 PR B); doing it now would force a clients-first deploy for no benefit."
     TelemetryThresholds:
       type: object
       properties:
@@ -4170,44 +4210,6 @@ components:
             type: string
         enabled:
           type: boolean
-      additionalProperties: false
-    ValidTelemetryData:
-      type: object
-      properties:
-        building:
-          type: string
-          nullable: true
-        data:
-          type: string
-          nullable: true
-        datetime:
-          type: string
-          nullable: true
-        deviceId:
-          type: string
-          nullable: true
-        id:
-          type: string
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        pointId:
-          type: string
-          nullable: true
-        value:
-          type: number
-          format: double
-          nullable: true
-        valueType:
-          type: string
-          nullable: true
-        valueText:
-          type: string
-          nullable: true
-        valueBool:
-          type: boolean
-          nullable: true
       additionalProperties: false
 tags:
   - name: AdminAudit

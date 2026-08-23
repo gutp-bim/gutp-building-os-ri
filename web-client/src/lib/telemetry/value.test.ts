@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatResolvedValue,
+  resolveStateValue,
   formatTelemetryValue,
   isNonNumericValue,
   resolveTelemetryValue,
@@ -52,25 +53,69 @@ describe("resolveTelemetryValue", () => {
     expect(resolveTelemetryValue({ valueType: "string" })).toEqual({ kind: "none" });
   });
 
-  // Characterization: pins the precedence the doc comment used to contradict. A row reaching the
-  // client with no valueType is a pre-#152 legacy row, and those carry no valueText/valueBool at
-  // all (TelemetryValueKind.Apply always sets ValueType and exactly one payload field). So a
-  // populated text/bool field is the stronger signal when the discriminant is missing.
-  it("prefers a populated valueText/valueBool over a stray numeric value when valueType is absent", () => {
-    expect(resolveTelemetryValue({ value: 42, valueText: "auto" })).toEqual({
+  // A MIXED AGGREGATE BUCKET carries both an average and a state representative: the store sets
+  // `value = avg` unconditionally while tagging the bucket by its last-in-bucket reading. The union
+  // takes the numeric half — `value` has a published numeric meaning at Hour/Day granularity — and
+  // the state half is read via resolveStateValue instead.
+  it("yields the numeric average for a mixed aggregate bucket, not its state representative", () => {
+    expect(
+      resolveTelemetryValue({ value: 42, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "number", value: 42 });
+  });
+
+  it("yields the representative for a purely non-numeric bucket (no average)", () => {
+    expect(
+      resolveTelemetryValue({ value: null, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+  });
+
+  // ── Backward compatibility with a pre-#344 server (the cases that actually matter) ──
+  //
+  // The API dual-emits this release, so an old client sees the shape it expects. The reverse — a new
+  // client against an older server, which sends `value: null` for a non-numeric point — has no
+  // compile signal, so it is pinned here.
+  it("still resolves a pre-#344 server's string reading (value null, payload in valueText)", () => {
+    expect(
+      resolveTelemetryValue({ value: null, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+  });
+
+  it("still resolves a pre-#344 server's boolean reading (value null, payload in valueBool)", () => {
+    expect(
+      resolveTelemetryValue({ value: null, valueType: "boolean", valueBool: false }),
+    ).toEqual({ kind: "boolean", value: false });
+  });
+
+  it("resolves a dual-emitted row identically whichever half it reads", () => {
+    // What the server actually sends this release: the union AND the legacy trio, agreeing.
+    expect(
+      resolveTelemetryValue({ value: "auto", valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+    expect(
+      resolveTelemetryValue({ value: true, valueType: "boolean", valueBool: true }),
+    ).toEqual({ kind: "boolean", value: true });
+  });
+});
+
+describe("resolveStateValue", () => {
+  it("reads the state representative of a mixed aggregate bucket, ignoring the average", () => {
+    expect(
+      resolveStateValue({ value: 42, valueType: "string", valueText: "auto" }),
+    ).toEqual({ kind: "string", value: "auto" });
+    expect(
+      resolveStateValue({ value: 42, valueType: "boolean", valueBool: true }),
+    ).toEqual({ kind: "boolean", value: true });
+  });
+
+  it("reads a post-#344 raw non-numeric reading from the union value", () => {
+    expect(resolveStateValue({ value: "auto", valueType: "string" })).toEqual({
       kind: "string",
       value: "auto",
     });
-    expect(resolveTelemetryValue({ value: 1, valueBool: false })).toEqual({
-      kind: "boolean",
-      value: false,
-    });
   });
 
-  it("trusts an explicit discriminant over a populated field of another kind", () => {
-    expect(
-      resolveTelemetryValue({ value: 42, valueType: "number", valueText: "auto" }),
-    ).toEqual({ kind: "number", value: 42 });
+  it("has no representative for a purely numeric row", () => {
+    expect(resolveStateValue({ value: 21.5, valueType: "number" })).toEqual({ kind: "none" });
   });
 });
 

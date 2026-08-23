@@ -50,6 +50,32 @@ public static class TelemetryValueKind
     }
 
     /// <summary>
+    /// Project the stored discriminated fields back onto the single union-typed <c>value</c> the API
+    /// returns (#344): a <see cref="double"/>, <see cref="string"/>, <see cref="bool"/>, or
+    /// <c>null</c> when nothing is representable.
+    /// <para>
+    /// <b>Precedence is numeric first</b>, then <c>ValueText</c>, then <c>ValueBool</c> — and the
+    /// discriminant does not override it. That is not a stylistic choice: an <i>aggregate</i> row
+    /// legitimately carries two values at once. <c>AggregatingParquetTelemetryStore.ToTelemetry</c>
+    /// sets <c>Value = Avg</c> unconditionally (the Timescale continuous-aggregate contract) while
+    /// <see cref="ResolveLastInBucket"/> tags the bucket by its last-in-bucket reading, so a mixed
+    /// hour is really <c>{ Value = 42, ValueType = "string", ValueText = "auto" }</c> on the wire.
+    /// Collapsing that onto one <c>value</c> is lossy whichever half wins; the numeric one is chosen
+    /// because <c>value</c> already has a published numeric meaning at Hour/Day granularity that
+    /// charts and external consumers depend on, while the state representative stays reachable via
+    /// <c>ValueText</c>/<c>ValueBool</c>.
+    /// </para>
+    /// <para>
+    /// For a <i>raw</i> row the question does not arise: <see cref="Apply"/> populates exactly one
+    /// payload field, so numeric-first and discriminant-first agree. The client resolver
+    /// (<c>web-client/src/lib/telemetry/value.ts</c>) applies the same precedence; both are pinned by
+    /// tests so they cannot drift.
+    /// </para>
+    /// </summary>
+    public static object? Resolve(ValidTelemetryData? row) =>
+        row is null ? null : row.Value ?? (object?)row.ValueText ?? row.ValueBool;
+
+    /// <summary>
     /// Resolve an aggregated bucket's <b>last-in-bucket</b> discriminant (#152 Phase B, D3) from its
     /// latest row and whether the bucket contained any numeric value. A non-numeric latest row yields
     /// its string/boolean value; otherwise a bucket with numeric values is tagged <c>"number"</c> and

@@ -8,15 +8,23 @@
  * `lib/telemetry/` and every component consumes {@link ResolvedTelemetryValue} instead — so when the
  * API eventually returns a union-typed `value` (#344), this file is the only one that changes.
  *
- * The aspida-generated `ValidTelemetryData`/`LatestSample` both structurally satisfy
- * {@link DiscriminatedTelemetryValue} (they carry all four fields since `1e755b9`), so they can be
- * passed here directly — no cast needed.
+ * The aspida-generated `TelemetryReading`/`LatestSample` both structurally satisfy
+ * {@link DiscriminatedTelemetryValue}, so they can be passed here directly — no cast needed.
  */
 export type DiscriminatedTelemetryValue = {
-  value?: number | null;
-  /** "number" | "string" | "boolean"; absent/null → numeric (legacy data, #152 D2). */
+  /**
+   * The reading itself (#344): the API now returns one union-typed `value`, matching the canonical
+   * schema and the NATS bus. `null` when the point has no representable reading.
+   */
+  value?: number | string | boolean | null;
+  /**
+   * "number" | "string" | "boolean". Retained for provenance and for rows produced before #344; it
+   * is no longer needed to *find* the value, only to reject one whose type contradicts it.
+   */
   valueType?: string | null;
+  /** @deprecated Pre-#344 wire shape; still emitted this release, removed in #344 PR B. */
   valueText?: string | null;
+  /** @deprecated Pre-#344 wire shape; still emitted this release, removed in #344 PR B. */
   valueBool?: boolean | null;
 };
 
@@ -27,39 +35,58 @@ export type ResolvedTelemetryValue =
   | { kind: "none" };
 
 /**
- * Resolve a sample's discriminated value to a single typed variant. The discriminant is trusted when
- * present; otherwise precedence is `valueText` → `valueBool` → the legacy numeric default.
+ * Resolve a sample to the single union-typed value the API returns (#344): the reading itself.
  *
- * That order is deliberate: `TelemetryValueKind.Apply` (backend) always sets `ValueType` and exactly
- * one payload field, so the only rows arriving without a discriminant are pre-#152 legacy ones — and
- * those carry no `valueText`/`valueBool` at all. A populated text/bool field is therefore the
- * stronger signal, and "absent valueType → number" only ever meant "absent valueType with just
- * `value` populated". Returns `{ kind: "none" }` when nothing is representable.
+ * **Numeric first**, then `valueText`, then `valueBool` — the discriminant does not override it.
+ * An *aggregate* row legitimately carries two values at once: the store sets `value` to the bucket
+ * average (the continuous-aggregate contract) while tagging the bucket by its last-in-bucket
+ * reading, so a mixed hour arrives as `{ value: 42, valueType: "string", valueText: "auto" }`.
+ * Collapsing that onto one value is lossy either way; the numeric half wins here because `value` has
+ * a published numeric meaning at Hour/Day granularity that the chart depends on. The state half is
+ * not lost — {@link resolveStateValue} is how the timeline reads it.
+ *
+ * For a *raw* row the question does not arise: the backend populates exactly one payload field, so
+ * numeric-first and discriminant-first agree. `TelemetryValueKind.Resolve` applies the same
+ * precedence; both sides are pinned by tests so they cannot drift.
  */
 export function resolveTelemetryValue(
   v: DiscriminatedTelemetryValue,
 ): ResolvedTelemetryValue {
-  const type = v.valueType ?? null;
-
-  if (type === "string" || (type === null && typeof v.valueText === "string")) {
-    return typeof v.valueText === "string"
-      ? { kind: "string", value: v.valueText }
-      : { kind: "none" };
-  }
-  if (type === "boolean" || (type === null && typeof v.valueBool === "boolean")) {
-    return typeof v.valueBool === "boolean"
-      ? { kind: "boolean", value: v.valueBool }
-      : { kind: "none" };
-  }
-  // Numeric (explicit "number" or the legacy default).
-  return typeof v.value === "number"
-    ? { kind: "number", value: v.value }
-    : { kind: "none" };
+  if (typeof v.value === "number") return { kind: "number", value: v.value };
+  if (typeof v.value === "string") return { kind: "string", value: v.value };
+  if (typeof v.value === "boolean") return { kind: "boolean", value: v.value };
+  // Pre-#344 servers put non-numeric readings here; aggregate rows always do.
+  if (typeof v.valueText === "string") return { kind: "string", value: v.valueText };
+  if (typeof v.valueBool === "boolean") return { kind: "boolean", value: v.valueBool };
+  return { kind: "none" };
 }
 
-/** True when the sample carries a non-numeric (string/boolean) first-class value. */
+/**
+ * Resolve a sample's **state representative** — the non-numeric reading a row carries, independent of
+ * any numeric value beside it.
+ *
+ * This is deliberately not {@link resolveTelemetryValue}. A mixed aggregate bucket has both an
+ * average and a state; asking the union resolver would return the average and the state timeline
+ * would silently go empty for exactly those points. `valueText`/`valueBool` are checked first
+ * because that is where both aggregate rows and pre-#344 servers put the representative; a
+ * non-numeric union `value` covers the post-#344 raw row.
+ */
+export function resolveStateValue(
+  v: DiscriminatedTelemetryValue,
+): ResolvedTelemetryValue {
+  if (typeof v.valueText === "string") return { kind: "string", value: v.valueText };
+  if (typeof v.valueBool === "boolean") return { kind: "boolean", value: v.valueBool };
+  if (typeof v.value === "string") return { kind: "string", value: v.value };
+  if (typeof v.value === "boolean") return { kind: "boolean", value: v.value };
+  return { kind: "none" };
+}
+
+/**
+ * True when the sample carries a non-numeric state representative. Uses {@link resolveStateValue},
+ * so a mixed aggregate bucket counts even though its union `value` is the numeric average.
+ */
 export function isNonNumericValue(v: DiscriminatedTelemetryValue): boolean {
-  const r = resolveTelemetryValue(v);
+  const r = resolveStateValue(v);
   return r.kind === "string" || r.kind === "boolean";
 }
 

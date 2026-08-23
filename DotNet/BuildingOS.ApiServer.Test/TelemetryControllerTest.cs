@@ -5,6 +5,7 @@ using BuildingOS.Shared.Domain.Grouping.Entities;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.Telemetry;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -77,19 +78,31 @@ public class TelemetryControllerTest
     }
 
     /// <summary>
-    /// #347: <c>GetWarm</c> was declared <c>ActionResult&lt;ValidTelemetryData&gt;</c> (singular) while
-    /// <c>ITelemetryDatabase.GetWarmTelemetries</c> returns an array — so the generated OpenAPI
-    /// documented an object while the wire shipped a list. The defect lives in the declared type
-    /// (that is what Swashbuckle reads), not in the runtime body, so this asserts the signature.
+    /// #347: <c>GetWarm</c> was declared singular while the store returns an array, so the generated
+    /// OpenAPI documented an object while the wire shipped a list. The defect lives in the declared
+    /// type (that is what Swashbuckle reads), not the runtime body, so this asserts the signature.
+    /// #344 additionally moved it onto the wire DTO.
     /// </summary>
     [Fact]
     public void GetWarm_DeclaresAnArrayReturnType_MatchingWhatTheStoreReturns()
     {
         var action = typeof(TelemetryController).GetMethod(nameof(TelemetryController.GetWarm));
         Assert.NotNull(action);
-        Assert.Equal(
-            typeof(Task<ActionResult<ValidTelemetryData[]>>),
-            action!.ReturnType);
+        Assert.Equal(typeof(Task<ActionResult<TelemetryReading[]>>), action!.ReturnType);
+    }
+
+    /// <summary>
+    /// The mirror-image defect, found while introducing the wire DTO (#344): <c>GetHot</c> was
+    /// declared <c>ActionResult&lt;ValidTelemetryData[]&gt;</c> while
+    /// <c>ITelemetryDatabase.GetHotTelemetry</c> returns a single nullable row — the document
+    /// promised an array where the wire ships one object (or null).
+    /// </summary>
+    [Fact]
+    public void GetHot_DeclaresASingleReading_MatchingWhatTheStoreReturns()
+    {
+        var action = typeof(TelemetryController).GetMethod(nameof(TelemetryController.GetHot));
+        Assert.NotNull(action);
+        Assert.Equal(typeof(Task<ActionResult<TelemetryReading>>), action!.ReturnType);
     }
 
     /// <summary>The runtime body has always been the array; this pins it alongside the signature.</summary>
@@ -106,7 +119,7 @@ public class TelemetryControllerTest
             "p1", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), CancellationToken.None);
 
-        var body = Assert.IsType<ValidTelemetryData[]>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var body = Assert.IsType<TelemetryReading[]>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal("p1", Assert.Single(body).PointId);
     }
 
@@ -136,8 +149,10 @@ public class TelemetryControllerTest
     [Fact]
     public async Task BatchLatest_CarriesDiscriminatedValue_ForNonNumericPoints()
     {
-        // #152: a string/boolean latest sample surfaces via ValueType + ValueText/ValueBool while the
-        // numeric Value stays null; a numeric point keeps Value with ValueType "number".
+        // #344: `Value` is now the union — a string point returns the string, a boolean point the
+        // boolean. The #152 trio (ValueType/ValueText/ValueBool) is still emitted alongside it
+        // (dual-emit) so a client built against the old shape keeps working regardless of deploy
+        // order; PR B removes it at a release boundary.
         var (controller, router, _) = Build();
         router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "pStr" && q.Latest), It.IsAny<CancellationToken>()))
               .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "pStr", Datetime = "2026-07-15T00:00:00Z", ValueType = "string", ValueText = "auto" } });
@@ -152,12 +167,12 @@ public class TelemetryControllerTest
         var str = Assert.Single(body, s => s.PointId == "pStr");
         Assert.Equal("string", str.ValueType);
         Assert.Equal("auto", str.ValueText);
-        Assert.Null(str.Value);
+        Assert.Equal("auto", str.Value);
 
         var boolean = Assert.Single(body, s => s.PointId == "pBool");
         Assert.Equal("boolean", boolean.ValueType);
         Assert.True(boolean.ValueBool);
-        Assert.Null(boolean.Value);
+        Assert.Equal(true, boolean.Value);
 
         var num = Assert.Single(body, s => s.PointId == "pNum");
         Assert.Equal("number", num.ValueType);
