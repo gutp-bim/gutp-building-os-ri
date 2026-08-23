@@ -2,8 +2,8 @@
 
 import { ResourceNavCard } from "@/components/resources/resource-nav-card";
 import { InlineBanner } from "@/components/ui/inline-banner";
-import { apiClient } from "@/lib/infra/aspida-client";
-import { Floor, Space } from "@/lib/infra/aspida-client/generated/@types";
+import { getFloorRef, listSpaces } from "@/lib/resources/repository";
+import type { ResourceRef } from "@/lib/resources/types";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -13,8 +13,8 @@ export default function FloorDetailPageComponent({
   floorId: string;
 }) {
   const router = useRouter();
-  const [floor, setFloor] = useState<Floor | null>(null);
-  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [floor, setFloor] = useState<ResourceRef | null>(null);
+  const [spaces, setSpaces] = useState<ResourceRef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,8 +24,8 @@ export default function FloorDetailPageComponent({
         setLoading(true);
         const decodedFloorId = decodeURIComponent(floorId);
         const [floorResult, spacesResult] = await Promise.all([
-          apiClient().floors._floorDtId(encodeURIComponent(decodedFloorId)).$get(),
-          apiClient().spaces.$get({ query: { floorDtId: decodedFloorId } }),
+          getFloorRef(decodedFloorId),
+          listSpaces(decodedFloorId),
         ]);
         setFloor(floorResult);
         setSpaces(spacesResult);

@@ -33,7 +33,13 @@ import DeviceDetailPageComponent from "./page-component";
 function renderPage() {
   return render(
     <TableProvider
-      fields={["name", "dataSpecification", "dataType", "writable", "targetArea"]}
+      fields={[
+        "name",
+        "dataSpecification",
+        "dataType",
+        "writable",
+        "targetArea",
+      ]}
     >
       <DeviceDetailPageComponent deviceId="urn:dev:1" />
     </TableProvider>,
@@ -71,7 +77,14 @@ describe("DeviceDetailPageComponent (#195)", () => {
   it("shows a text loading state, then the device info and keyboard-accessible point links", async () => {
     deviceGet.mockResolvedValueOnce(device);
     pointsGet.mockResolvedValueOnce([
-      { id: "point:1", name: "室温", specification: "spec", type: "float", writable: false, targetArea: "R1" },
+      {
+        id: "point:1",
+        name: "室温",
+        specification: "spec",
+        type: "float",
+        writable: false,
+        targetArea: "R1",
+      },
     ]);
     renderPage();
 
@@ -89,7 +102,9 @@ describe("DeviceDetailPageComponent (#195)", () => {
     pointsGet.mockResolvedValueOnce([]);
     renderPage();
 
-    expect(await screen.findByText("Owner : Building Management")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Owner : Building Management"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Site : site-1")).toBeInTheDocument();
     expect(screen.getByText("Supplier : VendorA")).toBeInTheDocument();
     expect(screen.getByText("Device Type : Sensor")).toBeInTheDocument();

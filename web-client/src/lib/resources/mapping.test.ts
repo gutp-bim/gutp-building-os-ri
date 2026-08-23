@@ -41,6 +41,7 @@ describe("toPointResource", () => {
       deviceIdBacnet: null,
       minPresValue: null,
       maxPresValue: null,
+      targetArea: null,
     });
   });
 

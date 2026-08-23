@@ -38,6 +38,7 @@ export function aPoint(overrides: Partial<PointResource> = {}): PointResource {
     deviceIdBacnet: null,
     minPresValue: null,
     maxPresValue: null,
+    targetArea: null,
     ...overrides,
   };
 }

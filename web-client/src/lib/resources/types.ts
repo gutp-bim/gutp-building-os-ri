@@ -65,6 +65,8 @@ export type PointResource = ResourceRef & {
    */
   minPresValue: number | null;
   maxPresValue: number | null;
+  /** `sbco:targetArea` — the area the point measures/controls; rendered by the device point table. */
+  targetArea: string | null;
 };
 
 /**
