@@ -17,17 +17,18 @@ namespace BuildingOS.ApiServer.Test;
 /// </para>
 ///
 /// <para>
-/// <see cref="Options"/> is <see cref="JsonSerializerDefaults.Web"/> because that is exactly what
-/// this API serializes with: <c>Startup.cs</c> calls <c>.AddControllers()</c> with no
-/// <c>.AddJsonOptions(...)</c> anywhere in the project, so MVC uses the stock Web defaults
-/// (camelCase, nulls emitted). If someone later adds custom JSON options, this test keeps passing
-/// while the real responses change — so pin the options here to the same thing MVC resolves, and
-/// treat a divergence as a reason to revisit this file.
+/// <see cref="Options"/> is taken from <see cref="Microsoft.AspNetCore.Mvc.JsonOptions"/> rather
+/// than being re-declared as <c>JsonSerializerDefaults.Web</c>. Re-declaring would defeat the
+/// point: someone adding <c>.AddJsonOptions(o =&gt; o.JsonSerializerOptions.DefaultIgnoreCondition
+/// = WhenWritingNull)</c> would make real responses omit <c>value</c> for a point with no reading
+/// — contradicting what these tests pin — while every test here stayed green. Binding to MVC's own
+/// options type means the defaults tracked here move when MVC's do.
 /// </para>
 /// </summary>
 public class TelemetryReadingSerializationTest
 {
-    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions Options =
+        new Microsoft.AspNetCore.Mvc.JsonOptions().JsonSerializerOptions;
 
     private static string ValueOf(string json) =>
         JsonDocument.Parse(json).RootElement.GetProperty("value").GetRawText();
@@ -77,8 +78,14 @@ public class TelemetryReadingSerializationTest
 
     /// <summary>
     /// A point with no representable reading ships an explicit <c>null</c>, not an omitted property.
-    /// The frontend's freshness logic distinguishes "no reading" from "field absent", and the
-    /// document's oneOf marks exactly one branch nullable to describe this.
+    /// <para>
+    /// The reason is the published contract, not the frontend: <c>TelemetryValueSchemaFilter</c>
+    /// marks one <c>oneOf</c> branch nullable, so the document promises <c>null</c> is a value this
+    /// field takes. Omitting the property instead would contradict that for any consumer validating
+    /// against the schema. (The web client itself cannot tell the two apart —
+    /// <c>resolveTelemetryValue</c> branches on <c>typeof</c>, so an absent property and an explicit
+    /// null both resolve to <c>{ kind: "none" }</c> — so do not justify this by the frontend.)
+    /// </para>
     /// </summary>
     [Fact]
     public void NoReading_SerializesAsAnExplicitNull()
