@@ -43,6 +43,7 @@ export function toPointResource(p: Point): PointResource {
     deviceIdBacnet: p.deviceIdBacnet ?? null,
     minPresValue: p.minPresValue ?? null,
     maxPresValue: p.maxPresValue ?? null,
+    targetArea: p.targetArea ?? null,
   };
 }
 

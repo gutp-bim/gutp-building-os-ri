@@ -2,8 +2,8 @@
 
 import { ResourceNavCard } from "@/components/resources/resource-nav-card";
 import { InlineBanner } from "@/components/ui/inline-banner";
-import { apiClient } from "@/lib/infra/aspida-client";
-import { Floor } from "@/lib/infra/aspida-client/generated/@types";
+import { listFloors } from "@/lib/resources/repository";
+import type { ResourceRef } from "@/lib/resources/types";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -13,7 +13,7 @@ export default function BuildingDetailPageComponent({
   buildingId: string;
 }) {
   const router = useRouter();
-  const [floors, setFloors] = useState<Floor[]>([]);
+  const [floors, setFloors] = useState<ResourceRef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,10 +22,7 @@ export default function BuildingDetailPageComponent({
       try {
         setLoading(true);
         const decodedBuildingId = decodeURIComponent(buildingId);
-        const result = await apiClient().floors.$get({
-          query: { buildingDtId: decodedBuildingId },
-        });
-        setFloors(result);
+        setFloors(await listFloors(decodedBuildingId));
       } catch {
         setError("フロア情報の取得に失敗しました。");
       } finally {

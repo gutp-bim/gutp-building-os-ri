@@ -29,21 +29,24 @@ const eslintConfig = [
   // discriminated shape (`valueType`/`valueText`/`valueBool`) inside the façade is what lets the
   // eventual union-typed `value` (#344) land in `value.ts` alone.
   //
-  // Scoped to these two names on purpose: `PointDetail` and the other resource types are imported
-  // from here too and belong to the separate resources-façade cleanup (#350), so a blanket path ban
-  // would misfire. Widen this list when that lands.
+  // Now a blanket ban on the module: #350 moved every UI consumer onto the domain types, so nothing
+  // under src/app or src/components has a legitimate reason to name a generated wire type. Scoping
+  // it to individual names was only ever a transition measure.
+  //
+  // `paths` matches the exact specifier, so `.../generated/@types/index` would evade it; the
+  // patterns entry closes that. It deliberately does NOT ban `@/lib/infra/aspida-client` itself —
+  // one control POST still calls apiClient() directly, and moving it is a separate change.
   {
     files: ["src/app/**", "src/components/**"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          paths: [
+          patterns: [
             {
-              name: "@/lib/infra/aspida-client/generated/@types",
-              importNames: ["ValidTelemetryData", "LatestSample"],
+              group: ["@/lib/infra/aspida-client/generated/**"],
               message:
-                "UI consumes the src/lib/telemetry/ façade (TelemetryPoint / TelemetryLatestSample / TelemetryStatePoint), not the generated wire types.",
+                "UI consumes the domain façades (src/lib/telemetry/, src/lib/resources/), not the generated wire types. Add the field to the domain type and map it in the façade instead of reaching for the wire shape.",
             },
           ],
         },

@@ -5,8 +5,8 @@ import { Pagination } from "@/components/table/Pagination";
 import { TableHeader } from "@/components/table/TableHeader";
 import { InlineBanner } from "@/components/ui/inline-banner";
 import { useTable } from "@/contexts/TableContext";
-import { apiClient } from "@/lib/infra/aspida-client";
-import { Device, Point } from "@/lib/infra/aspida-client/generated/@types";
+import { getDevice, listPoints } from "@/lib/resources/repository";
+import type { DeviceResource, PointResource } from "@/lib/resources/types";
 import { toDisplayDeviceType } from "@/lib/utils/helper/device-helper";
 import { PointTableField, PointTableHeader } from "@/types/point-table";
 import Link from "next/link";
@@ -22,8 +22,8 @@ export default function DeviceDetailPageComponent({
   deviceId: string;
 }) {
   const router = useRouter();
-  const [device, setDevice] = useState<Device | null>(null);
-  const [points, setPoints] = useState<Point[]>([]);
+  const [device, setDevice] = useState<DeviceResource | null>(null);
+  const [points, setPoints] = useState<PointResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,14 +31,13 @@ export default function DeviceDetailPageComponent({
     const fetchData = async () => {
       try {
         setLoading(true);
-        const enc = encodeURIComponent;
         // params.deviceId from Next.js 15 App Router may still be percent-encoded
         // (e.g. "urn%3Anext%3A...") when the URL segment itself was encoded.
         // Decode before API calls so Aspida/Axios does not double-encode the value.
         const decodedDeviceId = decodeURIComponent(deviceId);
         const [deviceResult, pointsResult] = await Promise.all([
-          apiClient().devices._deviceDtId(enc(decodedDeviceId)).$get(),
-          apiClient().points.$get({ query: { deviceDtId: decodedDeviceId } }),
+          getDevice(decodedDeviceId),
+          listPoints(decodedDeviceId),
         ]);
         setDevice(deviceResult);
         setPoints(pointsResult);
@@ -84,7 +83,9 @@ export default function DeviceDetailPageComponent({
               <div>
                 Device Type :{" "}
                 {orUnset(
-                  device.deviceType ? toDisplayDeviceType(device.deviceType) : null,
+                  device.deviceType
+                    ? toDisplayDeviceType(device.deviceType)
+                    : null,
                 )}
               </div>
             </div>
@@ -97,7 +98,7 @@ export default function DeviceDetailPageComponent({
   );
 }
 
-function PointTableContent({ points }: { points: Point[] }) {
+function PointTableContent({ points }: { points: PointResource[] }) {
   const { state, dispatch } = useTable<PointTableField>();
   const filterButtonRefs = useRef<{
     [key in PointTableField]: HTMLButtonElement | null;
@@ -169,14 +170,17 @@ function PointTableContent({ points }: { points: Point[] }) {
     return Array.from(items).sort();
   };
 
-  const getSortValue = (point: Point, field: PointTableField): string => {
+  const getSortValue = (
+    point: PointResource,
+    field: PointTableField,
+  ): string => {
     switch (field) {
       case "name":
         return point.name;
       case "dataSpecification":
         return point.specification ?? "";
       case "dataType":
-        return point.type ?? "";
+        return point.kind ?? "";
       case "writable":
         return point.writable ? "可" : "不可";
       case "targetArea":
@@ -248,7 +252,11 @@ function PointTableContent({ points }: { points: Point[] }) {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {paginatedPoints.map((point) => (
-              <tr key={point.id} data-testid="device-point-row" className="hover:bg-gray-50">
+              <tr
+                key={point.id}
+                data-testid="device-point-row"
+                className="hover:bg-gray-50"
+              >
                 {/* Keyboard-accessible: the point name is a real link (Tab-focusable, Enter/⌘-click),
                     replacing the old mouse-only `<tr onClick>` (#195). */}
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -262,7 +270,7 @@ function PointTableContent({ points }: { points: Point[] }) {
                 <td className="px-6 py-4 whitespace-nowrap">
                   {point.specification}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">{point.type}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{point.kind}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {point.writable ? "可" : "不可"}
                 </td>
