@@ -1,5 +1,4 @@
 import { InlineBanner } from "@/components/ui/inline-banner";
-import { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
 import {
   GRANULARITY_OPTIONS,
   PERIOD_OPTIONS,
@@ -7,6 +6,7 @@ import {
   type GranularityOption,
   type PeriodValue,
 } from "@/lib/telemetry/range";
+import type { TelemetryPoint } from "@/lib/telemetry/types";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import {
   CartesianGrid,
@@ -67,7 +67,7 @@ export function TelemetryWarmData({
   rangeError,
   multiDay: multiDayProp,
 }: {
-  warmData: ValidTelemetryData[];
+  warmData: TelemetryPoint[];
   warmLoading: boolean;
   onRefresh: () => void;
   period: PeriodValue;
@@ -88,18 +88,15 @@ export function TelemetryWarmData({
   const nowMax = new Date().toISOString().slice(0, 16);
   const multiDay =
     multiDayProp ?? (period !== "custom" ? spansMultipleDays(period) : false);
+  // The façade already delivered a datetime-ascending domain series (`toSeries`), so `t` is always a
+  // real ISO string — no `|| ""` fallbacks needed. Re-sorted defensively since this component does
+  // not own the ordering contract.
   const chartData = [...warmData]
-    .sort(
-      (a, b) =>
-        new Date(a.datetime || "").getTime() -
-        new Date(b.datetime || "").getTime(),
-    )
-    .map((data) => ({
-      time: data.datetime ? formatAxis(data.datetime, multiDay) : "",
-      value: data.value,
-      fullDatetime: data.datetime
-        ? new Date(data.datetime).toLocaleString("ja-JP")
-        : "",
+    .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
+    .map((point) => ({
+      time: formatAxis(point.t, multiDay),
+      value: point.v,
+      fullDatetime: new Date(point.t).toLocaleString("ja-JP"),
     }));
 
   return (

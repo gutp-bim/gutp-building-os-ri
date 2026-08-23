@@ -91,3 +91,17 @@ describe("TelemetryWarmData (#197)", () => {
     );
   });
 });
+
+describe("TelemetryWarmData domain series (#346)", () => {
+  it("plots the domain points it is given", () => {
+    // Asserts on the empty-state branch rather than SVG geometry: recharts' ResponsiveContainer
+    // measures to 0 in jsdom, so the chart itself renders nothing measurable.
+    setup({ warmData: [{ t: "2026-07-17T00:00:00Z", v: 1 }] });
+    expect(screen.queryByText("データがありません")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state when there are no points", () => {
+    setup({ warmData: [] });
+    expect(screen.getByText("データがありません")).toBeInTheDocument();
+  });
+});

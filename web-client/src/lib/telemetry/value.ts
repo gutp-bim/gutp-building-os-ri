@@ -4,10 +4,13 @@
  * {@link ./mapping.ts `toSeries`}); these helpers are for the single-latest surfaces that must show a
  * non-numeric reading as text.
  *
- * The aspida-generated `ValidTelemetryData`/`LatestSample` do not yet carry `valueType`/`valueText`/
- * `valueBool` — regenerating them needs `./sync-type.bash` against a freshly-generated Swagger, a
- * follow-up. Until then this type bridges the gap (a structural mirror of the backend records), the
- * same pattern used for the #158 alarm thresholds.
+ * This module is the single place that decodes the wire's discriminated shape. Everything else in
+ * `lib/telemetry/` and every component consumes {@link ResolvedTelemetryValue} instead — so when the
+ * API eventually returns a union-typed `value` (#344), this file is the only one that changes.
+ *
+ * The aspida-generated `ValidTelemetryData`/`LatestSample` both structurally satisfy
+ * {@link DiscriminatedTelemetryValue} (they carry all four fields since `1e755b9`), so they can be
+ * passed here directly — no cast needed.
  */
 export type DiscriminatedTelemetryValue = {
   value?: number | null;
@@ -25,8 +28,13 @@ export type ResolvedTelemetryValue =
 
 /**
  * Resolve a sample's discriminated value to a single typed variant. The discriminant is trusted when
- * present; otherwise it is inferred from whichever field is populated (numeric first, matching the
- * legacy "absent valueType → number" default). Returns `{ kind: "none" }` when nothing is representable.
+ * present; otherwise precedence is `valueText` → `valueBool` → the legacy numeric default.
+ *
+ * That order is deliberate: `TelemetryValueKind.Apply` (backend) always sets `ValueType` and exactly
+ * one payload field, so the only rows arriving without a discriminant are pre-#152 legacy ones — and
+ * those carry no `valueText`/`valueBool` at all. A populated text/bool field is therefore the
+ * stronger signal, and "absent valueType → number" only ever meant "absent valueType with just
+ * `value` populated". Returns `{ kind: "none" }` when nothing is representable.
  */
 export function resolveTelemetryValue(
   v: DiscriminatedTelemetryValue,
@@ -62,7 +70,14 @@ export function isNonNumericValue(v: DiscriminatedTelemetryValue): boolean {
  * shared by the latest view and the state timeline.
  */
 export function formatTelemetryValue(v: DiscriminatedTelemetryValue): string | null {
-  const r = resolveTelemetryValue(v);
+  return formatResolvedValue(resolveTelemetryValue(v));
+}
+
+/**
+ * The same display formatting for a value that is already resolved — used by callers holding a
+ * {@link ./types.ts `TelemetryLatestSample`}, so they do not re-derive the discriminant.
+ */
+export function formatResolvedValue(r: ResolvedTelemetryValue): string | null {
   switch (r.kind) {
     case "number":
       return String(r.value);

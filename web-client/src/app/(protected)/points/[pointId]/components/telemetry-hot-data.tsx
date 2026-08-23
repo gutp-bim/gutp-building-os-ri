@@ -1,15 +1,12 @@
 import { FreshnessBadge } from "@/components/telemetry/freshness-badge";
 import { Button } from "@/components/ui/button";
-import { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
 import {
   DEFAULT_STALE_THRESHOLD_SECONDS,
   classifyPointFreshness,
 } from "@/lib/telemetry/freshness";
 import { resolveStaleThresholdSeconds } from "@/lib/telemetry/freshness-threshold";
-import {
-  formatTelemetryValue,
-  resolveTelemetryValue,
-} from "@/lib/telemetry/value";
+import type { TelemetryLatestSample } from "@/lib/telemetry/types";
+import { formatResolvedValue } from "@/lib/telemetry/value";
 import { unitLabelMap } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
@@ -25,7 +22,7 @@ export function TelemetryHotData({
   staleThresholdSeconds = DEFAULT_STALE_THRESHOLD_SECONDS,
   staleIntervalMultiplier,
 }: {
-  hotData: ValidTelemetryData | null;
+  hotData: TelemetryLatestSample | null;
   hotLoading: boolean;
   onRefresh: () => void;
   onDownloadClick: () => void;
@@ -41,10 +38,11 @@ export function TelemetryHotData({
     if (!hotData) return "-";
 
     // #152: a string/boolean latest reading is shown as text (charts stay numeric-only). Scale, unit
-    // and the enum-label mapping apply only to the numeric path.
-    const resolved = resolveTelemetryValue(hotData);
+    // and the enum-label mapping apply only to the numeric path. The value arrives already resolved
+    // (the façade decodes the wire's discriminated shape), so there is nothing to re-derive here.
+    const resolved = hotData.value;
     if (resolved.kind === "string" || resolved.kind === "boolean")
-      return formatTelemetryValue(hotData) ?? "-";
+      return formatResolvedValue(resolved) ?? "-";
     if (resolved.kind === "none") return "-";
 
     return `${resolved.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
@@ -61,9 +59,9 @@ export function TelemetryHotData({
     multiplier: staleIntervalMultiplier,
     systemDefaultThresholdSeconds: staleThresholdSeconds,
   });
-  const freshness = hotData?.datetime
+  const freshness = hotData?.t
     ? classifyPointFreshness(
-        [{ pointId: "", lastSeen: hotData.datetime }],
+        [{ pointId: "", lastSeen: hotData.t }],
         new Date(),
         thresholdSeconds,
       )[0]
@@ -87,8 +85,7 @@ export function TelemetryHotData({
           <div className="text-center">
             <div className="text-4xl font-bold mb-2">{displayHotData}</div>
             <div className="text-gray-600">
-              {hotData?.datetime &&
-                new Date(hotData.datetime).toLocaleString("ja-JP")}
+              {hotData?.t && new Date(hotData.t).toLocaleString("ja-JP")}
             </div>
             {freshness && (
               <div className="mt-2 flex justify-center">

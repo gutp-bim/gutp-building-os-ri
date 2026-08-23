@@ -1,10 +1,11 @@
-import type { ValidTelemetryData } from "@/lib/infra/aspida-client/generated/@types";
+import type { TelemetryLatestSample } from "@/lib/telemetry/types";
+import type { ResolvedTelemetryValue } from "@/lib/telemetry/value";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TelemetryHotData } from "./telemetry-hot-data";
 
 function renderHot(
-  hotData: ValidTelemetryData | null,
+  hotData: TelemetryLatestSample | null,
   expectedIntervalSeconds?: number | null,
 ) {
   return render(
@@ -24,14 +25,22 @@ function renderHot(
 const iso = (secondsAgo: number) =>
   new Date(Date.now() - secondsAgo * 1000).toISOString();
 
+const sample = (
+  value: ResolvedTelemetryValue,
+  secondsAgo = 10,
+): TelemetryLatestSample => ({ t: iso(secondsAgo), value });
+
+const numeric = (v: number, secondsAgo = 10) =>
+  sample({ kind: "number", value: v }, secondsAgo);
+
 describe("TelemetryHotData freshness badge (#158)", () => {
   it("shows a fresh badge for a just-received sample", () => {
-    renderHot({ datetime: iso(10), value: 21.5 });
+    renderHot(numeric(21.5));
     expect(screen.getByTestId("freshness-fresh")).toBeInTheDocument();
   });
 
   it("shows a stale badge for an old sample", () => {
-    renderHot({ datetime: iso(100_000), value: 21.5 });
+    renderHot(numeric(21.5, 100_000));
     expect(screen.getByTestId("freshness-stale")).toBeInTheDocument();
   });
 
@@ -43,36 +52,43 @@ describe("TelemetryHotData freshness badge (#158)", () => {
   it("uses the point's expected interval to bucket freshness (#183)", () => {
     // A fast point (expected 5s → threshold 15s) is stale at 60s old, even though the 300s default
     // would still call it fresh.
-    renderHot({ datetime: iso(60), value: 21.5 }, 5);
+    renderHot(numeric(21.5, 60), 5);
     expect(screen.getByTestId("freshness-stale")).toBeInTheDocument();
   });
 
   it("keeps a slow point fresh past the 300s default when its interval is long (#183)", () => {
     // Expected daily (86400s → threshold 259200s): a 100000s-old sample is stale by the default but
     // fresh once the point's own interval is honored.
-    renderHot({ datetime: iso(100_000), value: 21.5 }, 86_400);
+    renderHot(numeric(21.5, 100_000), 86_400);
     expect(screen.getByTestId("freshness-fresh")).toBeInTheDocument();
   });
 });
 
 describe("TelemetryHotData non-numeric value display (#152)", () => {
-  // The aspida ValidTelemetryData type does not yet carry the discriminated value fields (regen is a
-  // follow-up), so cast the literal — the runtime shape is what the API returns.
-  const withValue = (v: Record<string, unknown>) =>
-    ({ datetime: iso(10), ...v }) as unknown as ValidTelemetryData;
-
   it("shows a numeric value with unit unchanged", () => {
-    renderHot({ datetime: iso(10), value: 21.5 });
+    renderHot(numeric(21.5));
     expect(screen.getByText(/21\.5/)).toBeInTheDocument();
   });
 
   it("shows a string reading as text", () => {
-    renderHot(withValue({ valueType: "string", valueText: "auto" }));
+    renderHot(sample({ kind: "string", value: "auto" }));
     expect(screen.getByText("auto")).toBeInTheDocument();
   });
 
   it("shows a boolean reading as ON/OFF", () => {
-    renderHot(withValue({ valueType: "boolean", valueBool: true }));
+    renderHot(sample({ kind: "boolean", value: true }));
     expect(screen.getByText("ON")).toBeInTheDocument();
+  });
+
+  it("shows a dash when the resolved value is none", () => {
+    renderHot(sample({ kind: "none" }));
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("applies scale and unit only to the numeric reading", () => {
+    // A string reading must not gain the unit suffix the numeric path appends.
+    renderHot(sample({ kind: "string", value: "auto" }));
+    expect(screen.getByText("auto")).toBeInTheDocument();
+    expect(screen.queryByText(/auto\s*℃/)).not.toBeInTheDocument();
   });
 });
