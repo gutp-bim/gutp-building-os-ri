@@ -87,12 +87,23 @@ public static class TelemetryValueKind
     /// <c>value</c> is the number.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// Numeric types are matched explicitly and anything unrecognized returns <c>null</c> — an
+    /// unknown kind rather than a wrong one. A catch-all <c>_ =&gt; Number</c> would label a
+    /// <see cref="System.Text.Json.JsonElement"/> (what <c>object?</c> deserializes back into, so
+    /// what any re-projection of an already-parsed response would hand this) as <c>"number"</c> for
+    /// every value including strings and booleans — silently reintroducing the very contradiction
+    /// this method exists to remove. Null is returned rather than thrown because this sits on a
+    /// read path: a surprising type should not turn a telemetry query into a 500.
+    /// </remarks>
     public static string? KindOf(object? value) => value switch
     {
         null => null,
         string => String,
         bool => Boolean,
-        _ => Number,
+        double or float or decimal or int or long or short or byte
+            or uint or ulong or ushort or sbyte => Number,
+        _ => null,
     };
 
     /// <summary>

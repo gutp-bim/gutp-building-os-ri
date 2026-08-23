@@ -16,10 +16,18 @@ namespace BuildingOs.ApiServer.Telemetry;
 /// </para>
 ///
 /// <para>
-/// <b>Dual-emitting for this release.</b> <see cref="ValueType"/>/<see cref="ValueText"/>/
-/// <see cref="ValueBool"/> are still populated alongside the union so a client built against the old
-/// shape keeps working regardless of deploy order. Dropping them is a follow-up at a release
-/// boundary (#344 PR B); doing it now would force a clients-first deploy for no benefit.
+/// <b>Dual-emitting for this release.</b> <see cref="ValueText"/>/<see cref="ValueBool"/> are still
+/// populated alongside the union so a client built against the old shape keeps working regardless of
+/// deploy order. Dropping them is a follow-up at a release boundary (#344 PR B); doing it now would
+/// force a clients-first deploy for no benefit.
+/// <para>
+/// <see cref="ValueType"/> is <b>not</b> part of that promise: it now describes <see cref="Value"/>,
+/// derived from the value actually shipped, rather than being copied from the stored tag. For an
+/// aggregate bucket the stored tag classifies the bucket's last-in-bucket reading, so copying it
+/// made the wire say <c>{ value: 42, valueType: "string" }</c>. An old client that branched on the
+/// discriminant to render a mixed aggregate hour therefore sees the average now instead of the
+/// state string — the state itself is unchanged and still in <see cref="ValueText"/>.
+/// </para>
 /// </para>
 /// </summary>
 /// <param name="Value">

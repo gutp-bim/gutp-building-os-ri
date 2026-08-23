@@ -1,6 +1,7 @@
 using BuildingOS.Shared;
 using BuildingOs.ApiServer.Controllers;
 using BuildingOs.ApiServer.Telemetry;
+using System.Globalization;
 using System.Text.Json;
 
 namespace BuildingOS.ApiServer.Test;
@@ -205,7 +206,7 @@ public class TelemetryReadingSerializationTest
         string? numeric, string? text, bool? boolean, string expected)
     {
         var row = Row(
-            value: numeric is null ? null : double.Parse(numeric),
+            value: numeric is null ? null : double.Parse(numeric, CultureInfo.InvariantCulture),
             valueText: text,
             valueBool: boolean);
 

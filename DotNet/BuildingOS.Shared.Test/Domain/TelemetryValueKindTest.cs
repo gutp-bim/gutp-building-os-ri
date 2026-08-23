@@ -187,6 +187,45 @@ public class TelemetryValueKindTest
         Assert.Null(TelemetryValueKind.Resolve(null));
     }
 
+    // ── KindOf (the wire discriminant, #359) ─────────────────────────────────
+
+    [Fact]
+    public void KindOf_MatchesTheRuntimeTypeOfAResolvedValue()
+    {
+        Assert.Equal(TelemetryValueKind.Number, TelemetryValueKind.KindOf(21.5));
+        Assert.Equal(TelemetryValueKind.String, TelemetryValueKind.KindOf("auto"));
+        Assert.Equal(TelemetryValueKind.Boolean, TelemetryValueKind.KindOf(true));
+        Assert.Null(TelemetryValueKind.KindOf(null));
+    }
+
+    /// <summary>
+    /// An unrecognized type yields <c>null</c> — an unknown kind, not a wrong one. A catch-all
+    /// <c>_ =&gt; Number</c> would label a <see cref="JsonElement"/> (what <c>object?</c> deserializes
+    /// back into, so what any re-projection of an already-parsed response hands this) as
+    /// <c>"number"</c> even when it holds a string — silently reintroducing the contradiction #359
+    /// removed.
+    /// </summary>
+    [Fact]
+    public void KindOf_UnrecognizedType_YieldsNullRatherThanGuessingNumber()
+    {
+        Assert.Null(TelemetryValueKind.KindOf(Json("\"auto\"")));
+        Assert.Null(TelemetryValueKind.KindOf(Json("true")));
+        Assert.Null(TelemetryValueKind.KindOf(new object()));
+    }
+
+    /// <summary>Round-trip with <see cref="Resolve"/>: the pair must never disagree.</summary>
+    [Theory]
+    [InlineData(21.5, null, null, TelemetryValueKind.Number)]
+    [InlineData(null, "auto", null, TelemetryValueKind.String)]
+    [InlineData(null, null, true, TelemetryValueKind.Boolean)]
+    [InlineData(null, null, null, null)]
+    public void KindOf_AgreesWithResolve(double? value, string? text, bool? boolean, string? expected)
+    {
+        var row = new ValidTelemetryData { Value = value, ValueText = text, ValueBool = boolean };
+
+        Assert.Equal(expected, TelemetryValueKind.KindOf(TelemetryValueKind.Resolve(row)));
+    }
+
     // ── ResolveLastInBucket ──────────────────────────────────────────────────
 
     [Fact]
