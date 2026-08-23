@@ -1,4 +1,4 @@
-import type { PointDetailResource } from "@/lib/resources/types";
+import { aDevice, aPointDetail } from "@/lib/resources/test-fixtures";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -10,9 +10,8 @@ import { PointInfo } from "./point-info";
 //
 // #350 4b: `as unknown as` キャストを外し素の domain 型にした。キャストがある間は
 // フィールドの綴り違いや欠落を型チェッカーが握り潰していた。
-const unresolvedPointDetail: PointDetailResource = {
+const unresolvedPointDetail = aPointDetail({
   point: {
-    type: "point",
     dtId: "urn:pt:172_31_105_17-3002",
     id: "172_31_105_17-3002",
     name: "On/Off Status",
@@ -20,37 +19,13 @@ const unresolvedPointDetail: PointDetailResource = {
     kind: null,
     specification: null,
     writable: null,
-    unit: null,
-    scale: null,
-    expectedIntervalSeconds: null,
-    alarmHigh: null,
-    alarmLow: null,
-    warnHigh: null,
-    warnLow: null,
     // BACnet アドレッシングはあるが deviceIdBacnet は無い。旧 getControlType は
     // deviceIdBacnet だけを見ていたので、この点は「BACnet ではない」と判定されていた
     objectTypeBacnet: "3",
     instanceNoBacnet: 0,
-    deviceIdBacnet: null,
-    minPresValue: null,
-    maxPresValue: null,
   },
-  device: {
-    type: "device",
-    dtId: "urn:dev:1",
-    id: "DEV1",
-    name: "",
-    deviceType: null,
-    supplier: null,
-    owner: null,
-    site: null,
-    buildingName: null,
-    gatewayId: null,
-  },
-  floor: null,
-  space: null,
-  controlSchema: null,
-};
+  device: aDevice({ name: "", buildingName: null }),
+});
 
 describe("PointInfo missing metadata (#294)", () => {
   it("labels an unresolved hierarchy as 未割当 rather than -", () => {
@@ -69,12 +44,10 @@ describe("PointInfo missing metadata (#294)", () => {
   it("renders writable=false as 読み取り専用", () => {
     render(
       <PointInfo
-        pointDetail={
-          {
-            ...unresolvedPointDetail,
-            point: { ...unresolvedPointDetail.point, writable: false },
-          } satisfies PointDetailResource
-        }
+        pointDetail={{
+          ...unresolvedPointDetail,
+          point: { ...unresolvedPointDetail.point, writable: false },
+        }}
       />,
     );
     expect(screen.getByText("不可（読み取り専用）")).toBeInTheDocument();

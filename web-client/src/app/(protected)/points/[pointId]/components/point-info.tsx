@@ -101,7 +101,7 @@ export function PointInfo({
               <div className="font-semibold text-blue-700">
                 Instance No Bacnet
               </div>
-              <div className="text-blue-900">
+              <div className="text-blue-900" data-testid="instance-no-bacnet">
                 {pointDetail.point.instanceNoBacnet ?? "-"}
               </div>
             </div>
