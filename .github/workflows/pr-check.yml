@@ -36,6 +36,10 @@ jobs:
             dotnet:
               - 'DotNet/**'
               - 'proto/**'
+              # The swagger freshness check lives in dotnet-check, so a hand-edit of the committed
+              # schema (with no .NET change) must still run it — otherwise the one way to desync
+              # swagger.yaml from the source is the one way that skips the check (#354).
+              - 'docs/schema/swagger.yaml'
               - '.github/workflows/pr-check.yml'
             frontend:
               - 'web-client/**'
@@ -101,6 +105,26 @@ jobs:
             --filter "FullyQualifiedName!~IntegrationTest&FullyQualifiedName!~DuckDbSpike" \
             --logger "trx;LogFileName=pr-test-results.trx" \
             --results-directory TestResults
+
+      # docs/schema/swagger.yaml is committed and feeds the generated aspida client, but nothing
+      # verified it still matched the source — so drift accumulated silently (#354; a stale
+      # control-audit summary survived from dff86a6 until 0ff5d6e). This regenerates it and fails on
+      # any diff. It reuses the Release build above, so it costs seconds.
+      #
+      # The tool is already pinned in DotNet/.config/dotnet-tools.json (swashbuckle.aspnetcore.cli
+      # 10.2.3, matching the project's Swashbuckle) and restored by "Restore tools" above.
+      # generate_swagger.bash exports its own env (including a bogus POSTGRES_CONNECTION_STRING),
+      # and swagger generation only *reads* that value — no database is contacted. If anyone later
+      # adds an eager DB/OxiGraph/NATS call to Startup.ConfigureServices this step starts failing
+      # with a confusing connection error; that is the thing to look at first.
+      - name: Swagger is up to date
+        working-directory: ${{ github.workspace }}
+        run: |
+          bash Tools/generate_swagger.bash
+          if ! git diff --exit-code -- docs/schema/swagger.yaml; then
+            echo "::error file=docs/schema/swagger.yaml::swagger.yaml is stale. Regenerate with Tools/sync-type.bash and commit swagger.yaml AND the aspida client. Note XML doc comments feed the schema, so editing a /// comment changes it too."
+            exit 1
+          fi
 
       - name: Publish Test Results
         uses: dorny/test-reporter@v3
