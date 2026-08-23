@@ -1260,7 +1260,7 @@ paths:
     get:
       tags:
         - Point
-      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。監査データは\n記録済みだが閲覧画面が無かったギャップを埋める。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。"
+      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に\n記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。"
       parameters:
         - name: pointId
           in: path
@@ -2177,13 +2177,19 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/ValidTelemetryData'
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidTelemetryData'
             application/json:
               schema:
-                $ref: '#/components/schemas/ValidTelemetryData'
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidTelemetryData'
             text/json:
               schema:
-                $ref: '#/components/schemas/ValidTelemetryData'
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidTelemetryData'
         '401':
           description: Unauthorized
           content:

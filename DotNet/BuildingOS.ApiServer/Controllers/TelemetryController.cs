@@ -60,7 +60,7 @@ public class TelemetryController(
     [HttpGet("warm")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ValidTelemetryData>> GetWarm(
+    public async Task<ActionResult<ValidTelemetryData[]>> GetWarm(
         [FromQuery] string pointId,
         [FromQuery] DateTime startTime,
         [FromQuery] DateTime endTime,
