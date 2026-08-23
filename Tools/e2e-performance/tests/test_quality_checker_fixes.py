@@ -34,6 +34,12 @@ def load_quality_checker():
     return mod
 
 
+def quality_checker_source() -> str:
+    # Explicit UTF-8: quality_checker.py contains non-ASCII (em dashes) in its docstrings, and
+    # read_text() would otherwise decode with the platform default (cp1252 on Windows).
+    return (E2E_DIR / "quality_checker.py").read_text(encoding="utf-8")
+
+
 def _function_source_slice(source: str, start_marker: str, end_marker: str) -> str:
     start = source.index(start_marker)
     end = source.index(end_marker, start)
@@ -43,7 +49,7 @@ def _function_source_slice(source: str, start_marker: str, end_marker: str) -> s
 # ── #343: check_lake_parquet() validity predicate ──────────────────────────
 
 def test_check_lake_parquet_validity_checks_value_text():
-    source = (E2E_DIR / "quality_checker.py").read_text()
+    source = quality_checker_source()
     fn_source = _function_source_slice(source, "def check_lake_parquet", "def check_db")
     assert "value_text" in fn_source, (
         "check_lake_parquet()'s validity check must treat a non-null value_text as schema-valid "
@@ -52,7 +58,7 @@ def test_check_lake_parquet_validity_checks_value_text():
 
 
 def test_check_lake_parquet_validity_checks_value_bool():
-    source = (E2E_DIR / "quality_checker.py").read_text()
+    source = quality_checker_source()
     fn_source = _function_source_slice(source, "def check_lake_parquet", "def check_db")
     assert "value_bool" in fn_source, (
         "check_lake_parquet()'s validity check must treat a non-null value_bool as schema-valid "
@@ -61,7 +67,7 @@ def test_check_lake_parquet_validity_checks_value_bool():
 
 
 def test_check_lake_parquet_no_longer_uses_narrow_numeric_only_predicate():
-    source = (E2E_DIR / "quality_checker.py").read_text()
+    source = quality_checker_source()
     fn_source = _function_source_slice(source, "def check_lake_parquet", "def check_db")
     assert "AND value IS NOT NULL)" not in fn_source, (
         "the old numeric-only validity predicate must be gone — it false-flags string/boolean rows"
@@ -69,7 +75,7 @@ def test_check_lake_parquet_no_longer_uses_narrow_numeric_only_predicate():
 
 
 def test_check_lake_parquet_references_adr_0006():
-    source = (E2E_DIR / "quality_checker.py").read_text()
+    source = quality_checker_source()
     fn_source = _function_source_slice(source, "def check_lake_parquet", "def check_db")
     assert "152" in fn_source or "ADR-0006" in fn_source, (
         "the validity predicate should document why it checks value_text/value_bool (#152/ADR-0006), "
@@ -80,7 +86,7 @@ def test_check_lake_parquet_references_adr_0006():
 def test_check_db_unchanged_no_discriminated_columns():
     """TimescaleDB's `telemetry` table has no value_text/value_bool columns (ADR-0006 defers this
     to Phase B) — check_db() must not reference them or it will error against a real table."""
-    source = (E2E_DIR / "quality_checker.py").read_text()
+    source = quality_checker_source()
     fn_source = _function_source_slice(source, "def check_db", "def check_api")
     assert "value_text" not in fn_source
     assert "value_bool" not in fn_source
@@ -100,7 +106,7 @@ def test_check_api_calls_health_endpoint():
 def test_check_api_no_longer_constructs_dead_endpoint_url():
     """The docstring may still mention the old route as historical context (#342), but the code
     must no longer build a URL from it."""
-    source = (E2E_DIR / "quality_checker.py").read_text()
+    source = quality_checker_source()
     assert 'f"{api_base}/api/telemetry/search"' not in source, (
         "check_api() must not construct the nonexistent /api/telemetry/search URL"
     )
