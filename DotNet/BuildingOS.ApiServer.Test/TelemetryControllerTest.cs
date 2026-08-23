@@ -22,6 +22,35 @@ public class TelemetryControllerTest
     private static ValidTelemetryData Sample(string pointId, string datetime, double value) =>
         new() { PointId = pointId, Datetime = datetime, Value = value };
 
+    /// <summary>
+    /// Like <see cref="Build"/> but also hands back the twin and per-tier store mocks, which the
+    /// deprecated per-tier actions (<c>/warm</c>, <c>/cold</c>) go through instead of the router.
+    /// </summary>
+    private static (TelemetryController controller, Mock<ITelemetryQueryRouter> router,
+        Mock<IAuthorizationService> authz, Mock<ITelemetryDatabase> telemetryDb, Mock<IDigitalTwinDatabase> twin)
+        BuildWithStores(string role = "admin")
+    {
+        var twin = new Mock<IDigitalTwinDatabase>();
+        var telemetryDb = new Mock<ITelemetryDatabase>();
+        var router = new Mock<ITelemetryQueryRouter>();
+        var authz = new Mock<IAuthorizationService>();
+
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(Array.Empty<ValidTelemetryData>());
+
+        var controller = new TelemetryController(twin.Object, telemetryDb.Object, router.Object, authz.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = "u1", Role = role, Permissions = [] } },
+                },
+            },
+        };
+        return (controller, router, authz, telemetryDb, twin);
+    }
+
     private static (TelemetryController controller, Mock<ITelemetryQueryRouter> router, Mock<IAuthorizationService> authz)
         Build(string role = "admin")
     {
@@ -45,6 +74,40 @@ public class TelemetryControllerTest
             },
         };
         return (controller, router, authz);
+    }
+
+    /// <summary>
+    /// #347: <c>GetWarm</c> was declared <c>ActionResult&lt;ValidTelemetryData&gt;</c> (singular) while
+    /// <c>ITelemetryDatabase.GetWarmTelemetries</c> returns an array — so the generated OpenAPI
+    /// documented an object while the wire shipped a list. The defect lives in the declared type
+    /// (that is what Swashbuckle reads), not in the runtime body, so this asserts the signature.
+    /// </summary>
+    [Fact]
+    public void GetWarm_DeclaresAnArrayReturnType_MatchingWhatTheStoreReturns()
+    {
+        var action = typeof(TelemetryController).GetMethod(nameof(TelemetryController.GetWarm));
+        Assert.NotNull(action);
+        Assert.Equal(
+            typeof(Task<ActionResult<ValidTelemetryData[]>>),
+            action!.ReturnType);
+    }
+
+    /// <summary>The runtime body has always been the array; this pins it alongside the signature.</summary>
+    [Fact]
+    public async Task GetWarm_ReturnsTheWarmRowsAsAnArray()
+    {
+        var (controller, _, _, telemetryDb, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+        telemetryDb
+            .Setup(d => d.GetWarmTelemetries("p1", It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync([Sample("p1", "2026-01-01T00:00:00Z", 1)]);
+
+        var result = await controller.GetWarm(
+            "p1", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), CancellationToken.None);
+
+        var body = Assert.IsType<ValidTelemetryData[]>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal("p1", Assert.Single(body).PointId);
     }
 
     private static LatestSample[] Body(ActionResult<LatestSample[]> result) =>
