@@ -76,6 +76,26 @@ public static class TelemetryValueKind
         row is null ? null : row.Value ?? (object?)row.ValueText ?? row.ValueBool;
 
     /// <summary>
+    /// The discriminant for a value produced by <see cref="Resolve"/> — i.e. the kind of the single
+    /// union value the API ships, not the kind of whatever else the row carries beside it.
+    /// <para>
+    /// This exists because the stored <c>ValueType</c> cannot serve as the wire discriminant. For an
+    /// aggregate row the store tags the bucket by its <i>last-in-bucket</i> reading while
+    /// <c>Value</c> holds the average, so a mixed hour is stored as
+    /// <c>{ Value = 42, ValueType = "string" }</c> — perfectly coherent for the store (the tag
+    /// describes <c>ValueText</c>), and incoherent the moment it is copied onto a wire whose
+    /// <c>value</c> is the number.
+    /// </para>
+    /// </summary>
+    public static string? KindOf(object? value) => value switch
+    {
+        null => null,
+        string => String,
+        bool => Boolean,
+        _ => Number,
+    };
+
+    /// <summary>
     /// Resolve an aggregated bucket's <b>last-in-bucket</b> discriminant (#152 Phase B, D3) from its
     /// latest row and whether the bucket contained any numeric value. A non-numeric latest row yields
     /// its string/boolean value; otherwise a bucket with numeric values is tagged <c>"number"</c> and

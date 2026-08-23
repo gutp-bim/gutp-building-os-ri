@@ -170,4 +170,55 @@ public class TelemetryReadingSerializationTest
         Assert.Equal("null", root.GetProperty("datetime").GetRawText());
         Assert.Equal("null", root.GetProperty("value").GetRawText());
     }
+
+    // ── valueType describes `value`, not something beside it ────────────────
+
+    /// <summary>
+    /// The wire's <c>valueType</c> must describe the <c>value</c> it ships with.
+    /// <para>
+    /// It did not for a mixed aggregate bucket: the store tags the bucket by its <i>last-in-bucket</i>
+    /// reading, so a mixed hour arrived as <c>{ value: 42, valueType: "string", valueText: "auto" }</c>
+    /// — the discriminant describing <c>valueText</c> while <c>value</c> is a number. Harmless only
+    /// because neither resolver consults it (both are numeric-first); a consumer that trusted the
+    /// discriminant would mis-read the field.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void MixedAggregateBucket_TagsTheDiscriminantForTheNumericValue()
+    {
+        var json = JsonSerializer.Serialize(
+            TelemetryReading.From(Row(value: 42, valueType: TelemetryValueKind.String, valueText: "auto")),
+            Options);
+        var root = JsonDocument.Parse(json).RootElement;
+
+        Assert.Equal("42", root.GetProperty("value").GetRawText());
+        Assert.Equal("\"number\"", root.GetProperty("valueType").GetRawText());
+        // The state representative is still reachable — the timeline reads it.
+        Assert.Equal("\"auto\"", root.GetProperty("valueText").GetRawText());
+    }
+
+    [Theory]
+    [InlineData("21.5", null, null, "\"number\"")]
+    [InlineData(null, "occupied", null, "\"string\"")]
+    [InlineData(null, null, true, "\"boolean\"")]
+    public void ValueType_AlwaysMatchesTheRuntimeTypeOfValue(
+        string? numeric, string? text, bool? boolean, string expected)
+    {
+        var row = Row(
+            value: numeric is null ? null : double.Parse(numeric),
+            valueText: text,
+            valueBool: boolean);
+
+        var json = JsonSerializer.Serialize(TelemetryReading.From(row), Options);
+
+        Assert.Equal(expected, JsonDocument.Parse(json).RootElement.GetProperty("valueType").GetRawText());
+    }
+
+    [Fact]
+    public void NoReading_LeavesTheDiscriminantNull()
+    {
+        var json = JsonSerializer.Serialize(TelemetryReading.From(Row()), Options);
+
+        Assert.Equal("null", JsonDocument.Parse(json).RootElement.GetProperty("valueType").GetRawText());
+    }
 }

@@ -47,21 +47,27 @@ public sealed record TelemetryReading(
     bool? ValueBool = null)
 {
     /// <summary>Projects a stored row onto the wire shape. Null in, null out.</summary>
-    public static TelemetryReading? From(ValidTelemetryData? row) =>
-        row is null
-            ? null
-            : new TelemetryReading(
-                row.PointId,
-                row.Datetime,
-                TelemetryValueKind.Resolve(row),
-                row.Building,
-                row.DeviceId,
-                row.Name,
-                row.Data,
-                row.Id,
-                row.ValueType,
-                row.ValueText,
-                row.ValueBool);
+    public static TelemetryReading? From(ValidTelemetryData? row)
+    {
+        if (row is null) return null;
+
+        var value = TelemetryValueKind.Resolve(row);
+        return new TelemetryReading(
+            row.PointId,
+            row.Datetime,
+            value,
+            row.Building,
+            row.DeviceId,
+            row.Name,
+            row.Data,
+            row.Id,
+            // Derived from the value actually shipped, NOT copied from the row: the stored ValueType
+            // tags an aggregate bucket by its last-in-bucket reading, so passing it through made the
+            // wire say `{ value: 42, valueType: "string" }`.
+            TelemetryValueKind.KindOf(value),
+            row.ValueText,
+            row.ValueBool);
+    }
 
     /// <summary>Projects a result set, preserving order. Null rows are dropped.</summary>
     public static TelemetryReading[] From(IEnumerable<ValidTelemetryData>? rows) =>

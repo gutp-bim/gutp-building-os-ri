@@ -18,8 +18,10 @@ export type DiscriminatedTelemetryValue = {
    */
   value?: number | string | boolean | null;
   /**
-   * "number" | "string" | "boolean". Retained for provenance and for rows produced before #344; it
-   * is no longer needed to *find* the value, only to reject one whose type contradicts it.
+   * "number" | "string" | "boolean" — the kind of `value` itself. The server derives it from the
+   * value it ships rather than copying the stored tag, so it can no longer contradict `typeof value`
+   * (it did for aggregate buckets, where the stored tag describes `valueText`). Kept for provenance
+   * and for rows produced before #344; it is not needed to *find* the value.
    */
   valueType?: string | null;
   /** @deprecated Pre-#344 wire shape; still emitted this release, removed in #344 PR B. */
@@ -40,10 +42,10 @@ export type ResolvedTelemetryValue =
  * **Numeric first**, then `valueText`, then `valueBool` — the discriminant does not override it.
  * An *aggregate* row legitimately carries two values at once: the store sets `value` to the bucket
  * average (the continuous-aggregate contract) while tagging the bucket by its last-in-bucket
- * reading, so a mixed hour arrives as `{ value: 42, valueType: "string", valueText: "auto" }`.
- * Collapsing that onto one value is lossy either way; the numeric half wins here because `value` has
- * a published numeric meaning at Hour/Day granularity that the chart depends on. The state half is
- * not lost — {@link resolveStateValue} is how the timeline reads it.
+ * reading, so a mixed hour arrives as `{ value: 42, valueText: "auto" }` with `valueType: "number"`
+ * describing the average. Collapsing that onto one value is lossy either way; the numeric half wins
+ * here because `value` has a published numeric meaning at Hour/Day granularity that the chart
+ * depends on. The state half is not lost — {@link resolveStateValue} is how the timeline reads it.
  *
  * For a *raw* row the question does not arise: the backend populates exactly one payload field, so
  * numeric-first and discriminant-first agree. `TelemetryValueKind.Resolve` applies the same
@@ -56,8 +58,10 @@ export function resolveTelemetryValue(
   if (typeof v.value === "string") return { kind: "string", value: v.value };
   if (typeof v.value === "boolean") return { kind: "boolean", value: v.value };
   // Pre-#344 servers put non-numeric readings here; aggregate rows always do.
-  if (typeof v.valueText === "string") return { kind: "string", value: v.valueText };
-  if (typeof v.valueBool === "boolean") return { kind: "boolean", value: v.valueBool };
+  if (typeof v.valueText === "string")
+    return { kind: "string", value: v.valueText };
+  if (typeof v.valueBool === "boolean")
+    return { kind: "boolean", value: v.valueBool };
   return { kind: "none" };
 }
 
@@ -74,8 +78,10 @@ export function resolveTelemetryValue(
 export function resolveStateValue(
   v: DiscriminatedTelemetryValue,
 ): ResolvedTelemetryValue {
-  if (typeof v.valueText === "string") return { kind: "string", value: v.valueText };
-  if (typeof v.valueBool === "boolean") return { kind: "boolean", value: v.valueBool };
+  if (typeof v.valueText === "string")
+    return { kind: "string", value: v.valueText };
+  if (typeof v.valueBool === "boolean")
+    return { kind: "boolean", value: v.valueBool };
   if (typeof v.value === "string") return { kind: "string", value: v.value };
   if (typeof v.value === "boolean") return { kind: "boolean", value: v.value };
   return { kind: "none" };
@@ -96,7 +102,9 @@ export function isNonNumericValue(v: DiscriminatedTelemetryValue): boolean {
  * should branch on {@link resolveTelemetryValue} instead — this is the plain state/text rendering
  * shared by the latest view and the state timeline.
  */
-export function formatTelemetryValue(v: DiscriminatedTelemetryValue): string | null {
+export function formatTelemetryValue(
+  v: DiscriminatedTelemetryValue,
+): string | null {
   return formatResolvedValue(resolveTelemetryValue(v));
 }
 
