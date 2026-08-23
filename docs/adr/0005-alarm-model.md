@@ -42,7 +42,7 @@
 | 案 | 内容 | 評価 |
 |----|------|------|
 | **A. SettingsRegistry 拡張** | 既存 registry に閾値キーを足す | ❌ スカラー・グローバルのみ。per-point 不可。**単独では不採用**（全体既定の受け皿としてのみ有効） |
-| **B. Twin（OxiGraph）per-point**（推奨） | `bos:alarmHigh`/`bos:alarmLow`（任意で `bos:warnHigh`/`warnLow`）を point に追加し、ControlSchema と同様に `PointDetail` へ projection | ✅ 「twin が point メタデータの正本」という既存方針に整合。per-point/per-device が自然。twin admin（#322）で編集可。seed で配布可 |
+| **B. Twin（OxiGraph）per-point**（推奨） | `bos:alarmHigh`/`bos:alarmLow`（任意で `bos:warnHigh`/`warnLow`）を point に追加し、ControlSchema と同様に `PointDetail` へ projection | ✅ 「twin が point メタデータの正本」という既存方針に整合。per-point/per-device が自然。seed で配布可 |
 | **C. 新リレーショナルテーブル `alarm_rule`** | per-point / per-unit ルールを EF + CRUD API で | ✅ 柔軟（unit テンプレート・有効無効・hysteresis）だが、テーブル+migration+CRUD UI が要り重い。twin 再seed 不要で運用者編集したい時に価値 |
 
 **推奨: B（twin per-point 閾値）を Phase 2a の受け皿**にする。全体/unit 既定は SettingsRegistry の
@@ -69,6 +69,12 @@
 - **hysteresis/deadband は Phase 2a では不要**（derived-on-read はスナップショット判定なので発振しない）。
   Phase 2b の常駐評価器で raise/clear を持つ時に導入。
 - 閾値未設定 point は **`unknown`（評価対象外）**として静かに除外（鮮度の `missing` とは別軸）。
+
+> **閾値を設定する手段は現状 twin の seed / インポートのみ。** アプリ側に編集 UI は無く、
+> `bos:alarmHigh` 等は読み取り専用として `PointDetail` に projection されるだけである。
+> 上表 B 案の記述にはかつて「twin admin（#322）で編集可」とあったが、**#322 は OxiGraph の
+> 起動リトライの Issue で閾値編集とは無関係**であり、該当する Issue も存在しないため削除した。
+> 編集 UI は上記 Status のとおり Phase 2c（per-unit ルール編集 UI）の範囲で、**着手予定は未定**。
 
 ### D4. UI
 
