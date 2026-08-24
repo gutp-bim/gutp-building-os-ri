@@ -163,7 +163,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
             sp.GetRequiredService<IHotTelemetryStore>(),
             sp.GetRequiredService<ILogger<NatsIngressTelemetryBus>>()));
         builder.Services.AddSingleton<IPointMetadataDataSource>(sp =>
-            new OxiGraphPointMetadataDataSource(sp.GetRequiredService<OxiGraphClient>()));
+            new OxiGraphPointMetadataDataSource(
+                sp.GetRequiredService<OxiGraphClient>(),
+                sp.GetRequiredService<ILogger<OxiGraphPointMetadataDataSource>>()));
         builder.Services.AddSingleton<IPointMetadataCache>(sp =>
             new PointMetadataCache(
                 sp.GetRequiredService<IPointMetadataDataSource>(),

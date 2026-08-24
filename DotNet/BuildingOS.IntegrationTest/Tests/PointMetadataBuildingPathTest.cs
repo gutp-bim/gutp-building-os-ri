@@ -142,4 +142,82 @@ public class PointMetadataBuildingPathTest(OxiGraphFixture oxiGraph)
         var meta = Assert.Single(all, m => m.PointId == "PT001");
         Assert.True(meta.HasBuildingPath);
     }
+
+    // A node that is NOT a PointExt, carrying the same sbco:id as a real (orphan) point, reached by a
+    // PLACED equipment. This is the shape #371's three-query split can get wrong and the old single
+    // query could not: that query bound ONE ?point, typed `a sbco:PointExt`, and joined both the
+    // device link and the hierarchy to it by NODE IDENTITY. Three separate queries cannot share a
+    // variable, so they re-join on the sbco:id LITERAL — and unless each re-asserts the type
+    // constraint, the ghost's device id and the ghost's placement are both credited to the real point.
+    //
+    // That would be a fail-OPEN of the #292 gate (a point the twin places nowhere gets accepted at
+    // strict ingress) and would contradict #291, whose OxiGraphTwinAdminService.OrphanPattern anchors
+    // on `?pt a sbco:PointExt` by node and still calls PT-COLLIDE an orphan. Colliding ids are not
+    // hypothetical here: point IRIs are minted under at least three different schemes for the same
+    // ids, and Tools/e2e-performance/seed_from_csv.py carries a build_delete_conflicts step precisely
+    // to remove same-id PointExt nodes regardless of URI.
+    //
+    // A string assertion on the SPARQL (see OxiGraphPointMetadataDataSourceTest) cannot prove this;
+    // only a real graph can.
+    [Fact]
+    public async Task IdCollidingNonPointNode_ConfersNeitherDeviceNorBuildingPath()
+    {
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bldg-1> a sbco:Building ; sbco:id "bldg-1" ; sbco:name "Building 1" ;
+              sbco:hasPart <urn:test:floor-1> .
+            <urn:test:floor-1> a sbco:Level ; sbco:id "floor-1" ; sbco:name "floor-1" ;
+              sbco:hasPart <urn:test:room-1> .
+            <urn:test:room-1> a sbco:Room ; sbco:id "room-1" ; sbco:name "Room 1" .
+
+            # The real point: no owning equipment, placed nowhere. An orphan by #291's definition.
+            <urn:test:pt-real> a sbco:PointExt ; sbco:id "PT-COLLIDE" ; sbco:name "Real Point" .
+
+            # A non-point node sharing that id, hung off an equipment that IS placed under the building.
+            <urn:test:ghost> a sbco:Thing ; sbco:id "PT-COLLIDE" .
+            <urn:test:dev-ghost> a sbco:EquipmentExt ; sbco:id "DEV-GHOST" ; sbco:name "Ghost Host" ;
+              sbco:locatedIn <urn:test:room-1> ;
+              sbco:hasPoint <urn:test:ghost> .
+            """;
+
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+        var all = await new OxiGraphPointMetadataDataSource(oxiGraph.Client).GetAllAsync();
+
+        var meta = Assert.Single(all, m => m.PointId == "PT-COLLIDE");
+        Assert.False(meta.HasBuildingPath);
+        Assert.Equal(string.Empty, meta.DeviceId);
+    }
+
+    // The same leak on the device-link side alone, and the likelier half of it: EquipmentExt also
+    // carries sbco:id, so a single `E1 sbco:hasPoint E2` edge between two equipment is enough to put a
+    // DEVICE id into the point-id keyspace. Without the type constraint on the sbco:hasPoint object,
+    // a real point whose id collides with that equipment inherits DEV-OUTER as its DeviceId — the
+    // value enriched onto every telemetry frame for the point and written into the Parquet lake.
+    [Fact]
+    public async Task IdCollidingEquipmentNode_DoesNotLeakItsOwnerAsThePointsDevice()
+    {
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bldg-1> a sbco:Building ; sbco:id "bldg-1" ; sbco:name "Building 1" ;
+              sbco:hasPart <urn:test:floor-1> .
+            <urn:test:floor-1> a sbco:Level ; sbco:id "floor-1" ; sbco:name "floor-1" ;
+              sbco:hasPart <urn:test:room-1> .
+            <urn:test:room-1> a sbco:Room ; sbco:id "room-1" ; sbco:name "Room 1" .
+
+            <urn:test:dev-outer> a sbco:EquipmentExt ; sbco:id "DEV-OUTER" ; sbco:name "Outer" ;
+              sbco:locatedIn <urn:test:room-1> ;
+              sbco:hasPoint <urn:test:dev-inner> .
+            <urn:test:dev-inner> a sbco:EquipmentExt ; sbco:id "SUB-EQUIP" ; sbco:name "Inner" .
+
+            # A real, unowned point whose id collides with the inner EQUIPMENT's id.
+            <urn:test:pt-real> a sbco:PointExt ; sbco:id "SUB-EQUIP" ; sbco:name "Real Point" .
+            """;
+
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+        var all = await new OxiGraphPointMetadataDataSource(oxiGraph.Client).GetAllAsync();
+
+        var meta = Assert.Single(all, m => m.PointId == "SUB-EQUIP");
+        Assert.Equal(string.Empty, meta.DeviceId);
+        Assert.False(meta.HasBuildingPath);
+    }
 }
