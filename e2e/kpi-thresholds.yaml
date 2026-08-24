@@ -70,6 +70,30 @@ axes:
     connector_worker_rss_max_mib:             { op: report, unit: MiB }
     nats_rss_growth_mib_per_hour:             { op: report, unit: "MiB/h" }
     nats_rss_max_mib:                         { op: report, unit: MiB }
+    # #370 A/B の独立変数の**実測値**。chunk_seconds: 0（単一ストリーム指定）でも途中で失敗すれば
+    # 張り直しているので、設定値ではなく実際に張った本数を見る。
+    chunk_count:                              { op: report, unit: count, note: "実際に張った gRPC ストリーム本数" }
+    # #370: RSS の内訳分離。s19 に --prometheus を渡した run だけが値を出す（未指定なら metric 自体
+    # が存在せず gate は「—」を表示する）。閾値は置かない — 安全域を決めるための調査そのものなので、
+    # ここに数字を書くと #370 の結論を先取りしてしまう。
+    connector_worker_gc_heap_size_mib_growth_per_hour:        { op: report, unit: "MiB/h", note: "GC heap（全世代 + LOH/POH）の後半スロープ" }
+    connector_worker_gc_committed_mib_growth_per_hour:        { op: report, unit: "MiB/h", note: "GC が commit している総量（= 直近 GC 時点の値）の後半スロープ" }
+    connector_worker_gc_heap_loh_mib_growth_per_hour:         { op: report, unit: "MiB/h", note: "LOH のみ（#297 の名指し調査項目）" }
+    connector_worker_gc_collections_growth_per_hour:          { op: report, unit: "count/h", note: "GC 発生頻度。gc_committed の鮮度＝判別指標の品質を示す（低いほど subtrahend が古い）" }
+    # 注: 取れるのは thread pool のスレッド数のみ。専用スレッド（native リソースが張るもの）は
+    # この系列に含まれないので、横ばい＝「スレッドは増えていない」とは読めない。
+    connector_worker_thread_pool_thread_count_growth_per_hour: { op: report, unit: "count/h", note: "thread pool スレッド数の後半スロープ（専用スレッドは含まない）" }
+    # 判別指標: RSS − GC committed。RSS が伸びてこれが横ばい = managed heap の伸び、
+    # これも伸びる = native / page cache / GC が OS に返していない領域。
+    connector_worker_rss_minus_gc_committed_mib_start:        { op: report, unit: MiB }
+    connector_worker_rss_minus_gc_committed_mib_end:          { op: report, unit: MiB }
+    connector_worker_rss_minus_gc_committed_growth_mib_per_hour: { op: report, unit: "MiB/h" }
+    # カバレッジ。判別指標は「RSS スロープ」と「差分スロープ」の比較で読むが、Prometheus の
+    # カバレッジが部分的だと両者が違う時間帯を指す。_samples と _paired（差分と同じ tick 集合だけで
+    # 測った RSS スロープ）を併せて見て、比較の両辺が同じ窓かを確認すること。
+    connector_worker_rss_minus_gc_committed_samples:          { op: report, unit: count, note: "差分を計算できた tick 数（RSS と GC committed が揃った tick）" }
+    connector_worker_rss_samples:                             { op: report, unit: count, note: "RSS サンプル総数。上の値との差がそのまま Prometheus 側の欠測" }
+    connector_worker_rss_growth_mib_per_hour_paired:          { op: report, unit: "MiB/h", note: "差分と同一 tick 集合で測った RSS スロープ（比較の両辺を揃えるため）" }
 
   # E9: 運用者ユーザビリティ（#159）。web-client の Playwright(route-mock)ハーネスが計測して
   # {axis:E9_operator_usability, metrics} を run ディレクトリに出力し、この gate が採点する。
