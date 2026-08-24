@@ -41,7 +41,7 @@ plan.md が ingest 評価の第一経路と定めているのが gRPC のため�
 
 ## 手順
 1. `docker compose -f docker-compose.oss.yaml up -d`（GRPC_INGRESS_PORT は compose 既定で 5051 有効）。
-2. `DURATION_HOURS=4 RATE=6 POINTS=1865 bash Tools/e2e-performance/s19_endurance_soak.sh <out-dir>`
+2. `DURATION_HOURS=4 RATE=6.2167 POINTS=1865 bash Tools/e2e-performance/s19_endurance_soak.sh <out-dir>`
    （内部で `s19_endurance_soak.py` が下記を並行実行）:
    - gRPC ストリームで持続負荷を送信し続ける（chunk 毎に sent/accepted を記録）。
    - 60 秒毎に `docker stats` で対象コンテナ（connector-worker/nats/oxigraph/minio。API Server は

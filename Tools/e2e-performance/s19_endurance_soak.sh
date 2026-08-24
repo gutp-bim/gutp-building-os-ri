@@ -34,11 +34,11 @@ GRPC_INGRESS_PORT="$GRPC_INGRESS_PORT" docker compose -f "$COMPOSE_FILE" up -d \
 sleep 15
 
 echo "[s19] soak: ${DURATION_HOURS}h @ ${RATE}/s, ${POINTS} points -> $OUT"
+rc=0
 "$PYTHON_VENV" "$PERF/s19_endurance_soak.py" \
   --out "$OUT" --duration-hours "$DURATION_HOURS" --rate "$RATE" --points "$POINTS" \
   --ingress "localhost:${GRPC_INGRESS_PORT}" \
   --oxigraph "${OXIGRAPH_URL:-http://localhost:7878}" \
-  --minio-endpoint "${MINIO_ENDPOINT_HOST:-localhost:9000}"
-rc=$?
+  --minio-endpoint "${MINIO_ENDPOINT_HOST:-localhost:9000}" || rc=$?
 echo "[s19] E10 soak done → $OUT (rc=$rc)"
 exit $rc

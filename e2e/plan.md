@@ -125,7 +125,7 @@ ONLY=E3,E4 bash e2e/runner/run-all.sh      # 軸を限定
 bash e2e/runner/run-axis.sh E1 --scale medium
 
 # 4) 長時間ソーク（E10）。数時間かかるため run-all.sh の既定 ONLY には含まれない — 個別実行のみ。
-DURATION_HOURS=4 RATE=6 POINTS=1865 bash e2e/runner/run-axis.sh E10 --out e2e/results/<run-id>
+DURATION_HOURS=4 RATE=6.2167 POINTS=1865 bash e2e/runner/run-axis.sh E10 --out e2e/results/<run-id>
 ```
 
 結果は `e2e/results/<run-id>/` に JSON + サマリで集約し、[`results/report-template.md`](results/report-template.md)

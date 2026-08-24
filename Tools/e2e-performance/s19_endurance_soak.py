@@ -309,6 +309,11 @@ def summarize_resources(samples: list[dict], containers: list[str],
         metrics["consumer_pending_last"] = pend[-1]
         metrics["consumer_pending_slope_per_sec"] = round(slope, 4)
         metrics["pending_stable"] = int(slope <= 1.0)
+    else:
+        # No valid NATS pending sample the whole run (monitoring unreachable throughout) — emit an
+        # explicit failing 0 rather than leaving pending_stable absent, so gate.py FAILs the KPI
+        # instead of SKIPping it (missing data must not look like a passing run).
+        metrics["pending_stable"] = 0
     metrics["resource_samples"] = len(samples)
     return metrics
 
@@ -368,6 +373,17 @@ async def run(args) -> int:
         await loop.run_in_executor(None, resource_proc.wait)
         resource_metrics = summarize_resources(read_resource_samples(args.out), containers,
                                                 baseline_restarts)
+        resource_metrics["resource_sampler_exit_code"] = resource_proc.returncode
+        if resource_proc.returncode != 0:
+            # Child crashed (or never wrote a full run's worth of samples) — an empty/partial
+            # timeseries would otherwise summarize as restart_count_total=0 / health checks absent,
+            # which reads as a clean pass. Force the two data-availability-dependent KPIs to an
+            # explicit failing value rather than let missing data look like success.
+            print(f"[s19] WARNING: resource sampler exited {resource_proc.returncode} — "
+                  f"forcing health/pending KPIs to fail (data for this run window is unreliable)",
+                  file=sys.stderr)
+            resource_metrics["health_probe_success_rate"] = 0.0
+            resource_metrics["pending_stable"] = 0
 
         print(f"[s19] ingest done: sent={ingest_result['sent']} "
               f"accepted={ingest_result['accepted']} chunk_errors={ingest_result['chunk_errors']}; "
@@ -381,10 +397,18 @@ async def run(args) -> int:
         # out under sustained chunked load). Using `accepted` here would understate `expected` and
         # let loss_rate mask real gaps once db_count exceeds it (evaluate() clips loss at 0).
         qc = run_quality_checker(run_id, building, ingest_result["sent"], args.minio_endpoint)
-        loss = float(qc.get("loss_rate", 0.0)) if qc else None
-        dup = float(qc.get("duplicate_rate", 0.0)) if qc else None
-        invalid = int(qc.get("schema_invalid_count", 0)) if qc else None
-        rows = int(qc.get("db_row_count", 0)) if qc else None
+        if qc is None:
+            # Match s15_ingest_throughput.py's behavior: a missing quality-check-result.json means
+            # we cannot vouch for data integrity at all. Leaving loss/dup/rows as None here would
+            # make gate.py SKIP those KPIs (absent metric), not FAIL — letting a broken
+            # reconciliation step look like a passing run. Report an explicit worst case instead.
+            print("[s19] quality_checker produced no result — treating as 100% loss", file=sys.stderr)
+            loss, dup, invalid, rows = 1.0, 0.0, 0, 0
+        else:
+            loss = float(qc.get("loss_rate", 0.0))
+            dup = float(qc.get("duplicate_rate", 0.0))
+            invalid = int(qc.get("schema_invalid_count", 0))
+            rows = int(qc.get("db_row_count", 0))
 
         metrics = {
             **resource_metrics,
@@ -392,8 +416,8 @@ async def run(args) -> int:
             "accepted_total": ingest_result["accepted"],
             "chunk_errors": ingest_result["chunk_errors"],
             "lake_rows": rows,
-            "data_loss_ratio": round(loss, 6) if loss is not None else None,
-            "duplicate_rate": round(dup, 6) if dup is not None else None,
+            "data_loss_ratio": round(loss, 6),
+            "duplicate_rate": round(dup, 6),
             "schema_invalid_count": invalid,
         }
         result = {
@@ -413,7 +437,8 @@ async def run(args) -> int:
         hard_fail = (
             metrics.get("restart_count_total", 0) > 0
             or metrics.get("oom_count_total", 0) > 0
-            or (loss is not None and loss > 0.01)
+            or loss > 0.01
+            or resource_proc.returncode != 0
         )
         return 1 if hard_fail else 0
     finally:

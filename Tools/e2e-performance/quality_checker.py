@@ -60,14 +60,14 @@ def check_lake_parquet(
     import duckdb  # imported lazily so the timescale path needs no duckdb install
 
     # Hive layout: building_id={b}/year=/month=/day=/hour=/part-*.parquet (+ compact-*.parquet).
-    # Scoped to the building_id= tree only — a sibling top-level agg_hourly/building_id={b}/...
-    # tree holds hourly rollups (avg/min_value/max_value/count, no value/value_text/value_bool by
-    # design) that a run long enough to trigger compaction+rollup generation will also have. An
-    # unscoped `**/*.parquet` glob pulls those in too and union_by_name=1 then makes every rollup
-    # row look "schema invalid" (no value/value_text/value_bool) and can also skew the duplicate
-    # (point_id, time) count — invisible on short runs since rollups need LAKE_COMPACTION_INTERVAL
-    # + settle time to exist, but real on a multi-hour soak (see e2e/scenarios/E10-endurance-soak.md).
-    glob = f"s3://{bucket}/building_id=*/**/*.parquet"
+    # Both branches below are scoped to the building_id= tree — a sibling top-level
+    # agg_hourly/building_id={b}/... tree holds hourly rollups (avg/min_value/max_value/count, no
+    # value/value_text/value_bool by design) that a run long enough to trigger compaction+rollup
+    # generation will also have. An unscoped `**/*.parquet` glob pulls those in too and
+    # union_by_name=1 then makes every rollup row look "schema invalid" (no
+    # value/value_text/value_bool) and can also skew the duplicate (point_id, time) count —
+    # invisible on short runs since rollups need LAKE_COMPACTION_INTERVAL + settle time to exist,
+    # but real on a multi-hour soak (see e2e/scenarios/E10-endurance-soak.md).
 
     con = duckdb.connect()
     try:
@@ -81,11 +81,16 @@ def check_lake_parquet(
         con.execute(f"SET s3_secret_access_key='{secret_key}';")
 
         if building:
-            # Exact, unique per-run match (runner sets BUILDING_ID=run_id) + partition pruning.
+            # Exact, unique per-run match (runner sets BUILDING_ID=run_id): glob straight into that
+            # partition's directory for real partition pruning (not just a post-scan SQL filter),
+            # which matters once a lake accumulates many buildings.
+            glob = f"s3://{bucket}/building_id={building}/**/*.parquet"
             src = "read_parquet(?, hive_partitioning=1, union_by_name=1) WHERE building = ?"
             params = [glob, building]
         else:
             # Fallback: run_id[:8] prefix embedded in device_id/point_id (not collision-proof).
+            # Building is unknown here, so scan every building_id= partition (still agg_hourly-free).
+            glob = f"s3://{bucket}/building_id=*/**/*.parquet"
             like = f"%{run_id[:8]}%"
             src = (
                 "read_parquet(?, hive_partitioning=1, union_by_name=1) "
