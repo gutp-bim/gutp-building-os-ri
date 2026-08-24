@@ -60,7 +60,14 @@ def check_lake_parquet(
     import duckdb  # imported lazily so the timescale path needs no duckdb install
 
     # Hive layout: building_id={b}/year=/month=/day=/hour=/part-*.parquet (+ compact-*.parquet).
-    glob = f"s3://{bucket}/**/*.parquet"
+    # Scoped to the building_id= tree only — a sibling top-level agg_hourly/building_id={b}/...
+    # tree holds hourly rollups (avg/min_value/max_value/count, no value/value_text/value_bool by
+    # design) that a run long enough to trigger compaction+rollup generation will also have. An
+    # unscoped `**/*.parquet` glob pulls those in too and union_by_name=1 then makes every rollup
+    # row look "schema invalid" (no value/value_text/value_bool) and can also skew the duplicate
+    # (point_id, time) count — invisible on short runs since rollups need LAKE_COMPACTION_INTERVAL
+    # + settle time to exist, but real on a multi-hour soak (see e2e/scenarios/E10-endurance-soak.md).
+    glob = f"s3://{bucket}/building_id=*/**/*.parquet"
 
     con = duckdb.connect()
     try:

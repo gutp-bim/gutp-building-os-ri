@@ -99,6 +99,11 @@ case "$AXIS" in
   E8) command -v docker >/dev/null || gap "docker 未導入（障害注入できない）"
       # Primary: connector 停止→再起動の RTO + 復旧後データ損失（#246）。{axis:E8, metrics} を直接出力。
       PHASE2="${PHASE2:-2000}" bash "$PERF/s16_resilience_rto.sh" "$OUT/E8-resilience" || true ;;
+  E10) command -v docker >/dev/null || gap "docker 未導入（gRPC ingress を起動できない）"
+      # 長時間ソーク（#297 follow-up, #263 関連）: 既定 4h。フル run-all.sh には含めない — 個別実行
+      # （bash e2e/runner/run-axis.sh E10 --out ...）または s19_endurance_soak.sh を直接使う。
+      DURATION_HOURS="${DURATION_HOURS:-4}" RATE="${RATE:-6}" POINTS="${POINTS:-1865}" \
+        bash "$PERF/s19_endurance_soak.sh" "$OUT/E10-soak" || true ;;
   E9) command -v yarn >/dev/null || gap "yarn 未導入（web-client Playwright を実行できない）"
       # 運用者ユーザビリティ（#159）: web-client の Playwright(route-mock) が axe/鮮度表示時間などを
       # 計測して {axis:E9_operator_usability, metrics} を $OUT/E9.json に出力（docker 不要）。

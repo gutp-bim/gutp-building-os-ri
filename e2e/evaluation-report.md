@@ -156,6 +156,68 @@ POINT_IDS=... DURATION=20s VUS=5 ONLY=E2,E3,E4,E5,E6,E7 SCALE=small \
   bash e2e/runner/run-all.sh                                          # → e2e/results/<run-id>/kpi-report.md
 ```
 
+## E10 — 長時間ソーク（endurance soak, #297 follow-up）✅
+
+[#297](https://github.com/gutp-bim/gutp-building-os-ri/issues/297) の 24h/MQTT ソーク（2026-08-07〜08）以降の
+改修（テレメトリ value union 型化 #358/#359/#364/#366/#369、性能試験ツール修正 #338/#342/#343/#345 など）を
+踏まえて計画を見直し、e2e/ 評価軸に統合した反復可能な短時間版（[`scenarios/E10-endurance-soak.md`](scenarios/E10-endurance-soak.md)）
+を新規実装し、5 時間実施（`e2e/results/e10-soak-20260823T223416Z/`、gitignore）。
+
+| 項目 | 値 |
+|---|---|
+| run id | `soak-20260823223433`（gRPC GatewayIngress 経路） |
+| 期間 | 2026-08-23 22:34 UTC 〜 2026-08-24 03:37 UTC（5.0h） |
+| 負荷 | 1,865 点 / 約 6.22 pt/s（#297 の THX スケール踏襲）、flush/compaction はアプリ既定値のまま |
+| API Server | 経路外のため未起動（gRPC ingress は connector-worker → NATS → Parquet writer で完結し、
+  API Server を経由しない。ローカルの macOS AirPlay Receiver がポート 5000 を占有していたため実務上も好都合） |
+
+### 結果（`E10_endurance_soak`, gate PASS 6/6）
+
+| 指標 | 実測 | 閾値 | 判定 |
+|---|--:|--:|---|
+| restart_count_total | 0 | == 0 | ✅ |
+| oom_count_total | 0 | == 0 | ✅ |
+| data_loss_ratio | 0.44% | ≤ 1% | ✅ |
+| duplicate_rate | 0.0% | ≤ 0.5% | ✅ |
+| health_probe_success_rate | 100%（292/292 サンプル） | ≥ 99.9% | ✅ |
+| pending_stable（NATS consumer pending 後半スロープ） | 常時 0（滞留なし） | 発散しない | ✅ |
+| connector_worker RSS | 132.0 → 544.4 MiB（最大値）、後半スロープ **46.78 MiB/h** | report | ℹ️ |
+| NATS RSS | 15.2 → 82.0 MiB（最大値）、後半スロープ **3.67 MiB/h** | report | ℹ️ |
+| OxiGraph / MinIO RSS | ほぼ横ばい（+2.3 MiB / +2.5 MiB） | report | ℹ️ |
+
+sent_total=104,695 に対し lake_rows=104,234（重複 0、schema_invalid 0）— 送受信の残差 461 件（0.44%）は
+チャンク境界での client 側 Ack タイムアウト（下記）に起因する実損失で、E1 スタイルの 1% ゲートに収まる。
+
+### 発見事項
+
+- **Connector Worker RSS の増加率が #297（MQTT 経路, 24h）より速い**: #297 は 281.6→497.5 MiB
+  （+216 MiB / 24h、後半 12h33m で 461.5→497.6 MiB）だったのに対し、本 run（gRPC 経路, 5h）は
+  132.0→544.4 MiB（+412 MiB / 5h）で、5 時間で #297 の 24 時間分を超える増加を記録した。ただし後半のみの
+  回帰スロープは 46.78 MiB/h で、5h 全体の平均増加率（約 82 MiB/h）より鈍化しており、まだ定常化したとは
+  判断できない。gRPC 経路（300 秒毎のストリーム再接続を含む）と MQTT 経路のメモリ特性の違いか、単なる
+  ウォームアップ域かは本 run だけでは切り分けられない — #297 の ≥72h 版で継続確認が必要。
+- **gRPC ストリームの client 側 Ack タイムアウトが持続的に発生**（46 チャンク中 21 回、以後の run でも同程度）。
+  `connector-worker` の `PointMetadataCache` が OxiGraph 問い合わせで `TaskCanceledException` を間欠的に
+  出しており、これに伴う処理遅延が client 側の 330 秒タイムアウトを超えたと推測される。**データそのものは
+  ほぼ全件到達**（NATS validated ストリームは終始単調増加、consumer pending は常時 0）しており、サーバ側の
+  実害ではなく client 側 Ack 待ちの余裕不足が主因。s19 はチャンク単位で自己回復する設計のため run 自体は
+  完走したが、恒久対応（タイムアウト値の見直し／`PointMetadataCache` のキャンセル要因調査）は follow-up。
+- **`quality_checker.py` のバグを本 run で発見・修正**: (1) glob `s3://{bucket}/**/*.parquet` が
+  `agg_hourly/` ロールアップ（`value`/`value_text`/`value_bool` を持たない設計）まで拾い、
+  `union_by_name=1` により全ロールアップ行が「schema invalid」判定され、`(point_id, time)` の重複判定にも
+  混入していた（`building_id=*/**/*.parquet` に glob を限定して修正）。(2) `s19_endurance_soak.py` が
+  `--expected` にチャンクタイムアウトで 0 加算される `accepted_total` を渡していたため `evaluate()` の
+  `loss_rate` がクリップされ常に 0 を報告していた（`sent_total` を渡すよう修正）。**いずれも compaction/
+  rollup が育つほど長い run で初めて顕在化する** — 従来の短時間 harness run（E1/E2/E5/E8, 30 秒〜数分）では
+  検出されなかった潜在バグで、本ソークが本来の目的（#297 follow-up）とは別に harness 自体の正確性ギャップを
+  見つけた形になる。修正後に本 run のデータを再計算した値が上表。
+
+### 既知の限界（本 run）
+- 5h では #297 が要求する **≥72h**・確定閾値版の代替にはならない。次段は #297 の acceptance criteria
+  （最低 72h、Connector Worker の managed heap/GC heap/LOH/thread 数の分離、24h retention 到達後の定常化
+  確認）に沿った長時間版を専用ベンチ機で実施する。
+- ローカル単一ホスト・単一建物、API Server 除外（このソークの経路には無関係）。
+
 ## 既知の限界 / follow-up
 - **E1–E8 全軸が gate 化済み**（finalgate-20260616 で実測 20 PASS / 1 FAIL / 8 SKIP）。SKIP は E6 の
   offline_503 / success_rate / duplicate_write（局所再現不可・要接続 GW・connector 側冪等性。unit test + #186 担保）
@@ -165,6 +227,8 @@ POINT_IDS=... DURATION=20s VUS=5 ONLY=E2,E3,E4,E5,E6,E7 SCALE=small \
 - ローカルは**単一建物**。point→building 枝刈り（#273）の多棟効果は本 run では非顕在。
 - 集計コールド 30日日次（~10s）は rollup 事前生成（compaction）の進行度に依存。
 - 論文用の確定値は large スケール・専用ベンチ機での再計測を推奨。
+- **E10（長時間ソーク）は 5h 版のみ完了**（gate PASS 6/6）。#297 が求める ≥72h・メモリ安全域確定版は
+  専用ベンチ機での follow-up が必要 — 詳細は上記 E10 節。
 
 参照: 各軸の詳細手順は [`scenarios/`](scenarios/)、KPI は [`kpi-thresholds.yaml`](kpi-thresholds.yaml)、
 計画は [`plan.md`](plan.md)。
