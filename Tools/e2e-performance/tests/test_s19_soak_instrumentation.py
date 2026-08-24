@@ -941,3 +941,75 @@ def test_kpi_thresholds_name_the_thread_series_for_the_population_it_measures():
     e10 = data["axes"]["E10_endurance_soak"]
     assert "connector_worker_thread_pool_thread_count_growth_per_hour" in e10
     assert "connector_worker_thread_count_growth_per_hour" not in e10
+
+
+# ── seed 可視化待ち（E10 スケール） ────────────────────────────────────────────────────────────
+# `s10.wait_visible` は 45s 予算 + 1 試行 60s の裸の gRPC deadline で、E5 の数点規模向け。
+# E10 の既定 1,865 点では cold な PointMetadataCache のロード（点数に対して二次: 実測 1,865 点で
+# 23.3s、3,000 点で 56.6s）に対して余裕がなく、超えると DEADLINE_EXCEEDED が例外として伝播して
+# 数時間の soak が seed 直後に落ちる。
+
+
+def test_wait_visible_at_scale_returns_true_as_soon_as_the_point_resolves():
+    s19 = load_s19()
+    calls = []
+
+    def fake_stream_frames(pb2, pb2g, target, frames):
+        calls.append(frames)
+        return 0 if len(calls) < 3 else 1
+
+    with mock.patch.object(s19.s10, "stream_frames", fake_stream_frames), \
+         mock.patch.object(s19.time, "sleep"):
+        assert s19.wait_visible_at_scale(None, None, "t", "GW", "P1", timeout_s=600) is True
+    assert len(calls) == 3
+
+
+def test_wait_visible_at_scale_treats_a_probe_rpc_error_as_not_yet_visible():
+    """s10 の probe は `StreamTelemetry(..., timeout=60)` を裸で呼ぶので、cold load が 60s を
+    超えると例外が上がる。それは「見えない」であって「run を落とす理由」ではない。"""
+    s19 = load_s19()
+    attempts = []
+
+    def fake_stream_frames(pb2, pb2g, target, frames):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise RuntimeError("DEADLINE_EXCEEDED")
+        return 1
+
+    with mock.patch.object(s19.s10, "stream_frames", fake_stream_frames), \
+         mock.patch.object(s19.time, "sleep"):
+        assert s19.wait_visible_at_scale(None, None, "t", "GW", "P1", timeout_s=600) is True
+    assert len(attempts) == 3
+
+
+def test_wait_visible_at_scale_gives_up_only_after_the_budget_is_spent():
+    s19 = load_s19()
+    clock = {"t": 0.0}
+
+    def now():
+        return clock["t"]
+
+    def advance(_):
+        clock["t"] += 5.0
+
+    with mock.patch.object(s19.s10, "stream_frames", return_value=0), \
+         mock.patch.object(s19.time, "sleep", advance):
+        assert s19.wait_visible_at_scale(
+            None, None, "t", "GW", "P1", timeout_s=60, poll_interval_s=5.0, now=now) is False
+    # 予算 60s を 5s 刻みで使い切るまで諦めない（45s の s10 既定では 1,865 点に届かない）。
+    assert clock["t"] >= 60.0
+
+
+def test_seed_visible_timeout_is_a_cli_option_with_a_scale_appropriate_default():
+    s19 = load_s19()
+    src = s19_source()
+    assert "--seed-visible-timeout" in src
+    # 1,865 点で 23.3s、3,000 点で 56.6s（実測）。秒単位の既定では足りない。
+    assert s19.DEFAULT_SEED_VISIBLE_TIMEOUT_S >= 300
+
+
+def test_run_uses_the_scale_aware_probe_not_the_small_axis_one():
+    s19 = load_s19()
+    body = s19_source().split("async def run(args)")[1]
+    assert "wait_visible_at_scale(" in body
+    assert "s10.wait_visible(" not in body

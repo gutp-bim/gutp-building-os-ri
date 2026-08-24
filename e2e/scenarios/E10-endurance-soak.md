@@ -39,6 +39,31 @@ plan.md が ingest 評価の第一経路と定めているのが gRPC のため�
 | gRPC ストリーム再接続間隔 | 300s 毎（#297 は単一 24h ストリーム。本版は connector-worker が
   試験中に再起動しても継続測定できるよう小分けにする）。`CHUNK_SECONDS=0` で単一ストリームに切替可 |
 | .NET runtime メトリクス | 既定 OFF。`PROMETHEUS_URL` 指定時のみ（[#370 の調査](#370-rss-の内訳を分離する)） |
+| seed 可視化待ちの上限 | 600s（`--seed-visible-timeout`）。下記の通り点数を増やすならここも上げる |
+
+### seed 直後の cold load が支配的なコストである（点数を変えるとき必読）
+
+`IPointMetadataCache` の cold load は OxiGraph へのポイント一括 SPARQL 1 本で、これは**点数に対して
+二次で効く**。同一ホスト・アイドル状態での実測:
+
+| 点数 | 一括ロード SPARQL |
+|---|---|
+| 100 | 0.25s |
+| 500 | 2.15s |
+| 1,000 | 7.62s |
+| 1,865（既定） | **23.3s** |
+| 3,000 | **56.6s** |
+
+seed 直後で OxiGraph がまだ落ち着いていない状態や CPU 競合下ではさらに伸び、.NET の既定
+`HttpClient.Timeout`（100s）に届くこともある。この軸が seed 後すぐ 1 フレーム流して可視化を確認する
+のはそのロードを 1 回踏むということなので、小規模軸（E5 など）向けの `s10.wait_visible`（45s 予算・
+1 試行 60s の gRPC deadline を裸で投げる）では既定の 1,865 点にすら足りず、超過時は
+DEADLINE_EXCEEDED が例外として伝播して数時間の soak が seed 直後に落ちる。E10 は
+`wait_visible_at_scale`（予算 `--seed-visible-timeout`、RPC 例外は「まだ見えない」として再試行）を
+使う。`--points` を既定より大きくするなら、上表の二次カーブに沿って予算も上げること。
+
+> この二次コストは harness 側の都合ではなく、実運用の cold start / TTL リフレッシュでも同じだけ
+> かかる。[#371](https://github.com/gutp-bim/gutp-building-os-ri/issues/371) の直接原因はここにある。
 
 ## 手順
 1. `docker compose -f docker-compose.oss.yaml up -d`（GRPC_INGRESS_PORT は compose 既定で 5051 有効）。

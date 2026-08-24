@@ -453,6 +453,41 @@ def probe_health(probes: dict[str, str]) -> dict[str, bool]:
     return out
 
 
+DEFAULT_SEED_VISIBLE_TIMEOUT_S = 600
+
+
+def wait_visible_at_scale(pb2, pb2g, target: str, gw: str, pid: str,
+                           timeout_s: float = DEFAULT_SEED_VISIBLE_TIMEOUT_S,
+                           poll_interval_s: float = 5.0, now=time.monotonic) -> bool:
+    """seed 済みポイントが ingress から見えるようになるまで待つ（E10 スケール版）。
+
+    `s10.wait_visible` をそのまま使えない理由が 2 つある。どちらも「小規模軸では踏まないが
+    E10 では必ず踏む」たぐいのもの:
+
+    1. **予算が足りない。** s10 の既定は 45s。これは数点〜数十点を seed する E5 向けの値で、
+       E10 の既定 1,865 点には全く足りない。`IPointMetadataCache` の cold load は OxiGraph の
+       ポイント一括 SPARQL 1 本で、これは点数に対して**二次**で効く（実測: 100→0.25s /
+       500→2.15s / 1,000→7.62s / 1,865→23.3s / 3,000→56.6s。アイドル時の値なので、seed 直後の
+       OxiGraph がまだ落ち着いていない状態や CPU 競合下ではさらに伸びる）。
+    2. **1 回の失敗で run ごと落ちる。** s10 の probe は `stub.StreamTelemetry(..., timeout=60)` を
+       裸で呼ぶので、cold load が 60s を超えた瞬間 DEADLINE_EXCEEDED が例外として伝播し、
+       数時間の soak が seed 直後に落ちる（そして worker 側では、その頃には .NET の既定
+       `HttpClient.Timeout` 100s も絡んでくる）。ここでは RPC 例外を「まだ見えない」として
+       扱い、予算が尽きるまで再試行する。
+
+    予算を使い切ったかどうかだけを見るので、`now` はテスト用の注入点。"""
+    deadline = now() + timeout_s
+    while True:
+        try:
+            if s10.stream_frames(pb2, pb2g, target, [(gw, pid)]) == 1:
+                return True
+        except Exception as e:  # noqa: BLE001 — DEADLINE_EXCEEDED 等は「まだ見えない」と同義
+            print(f"[s19] seed visibility probe not ready yet ({type(e).__name__})", file=sys.stderr)
+        if now() >= deadline:
+            return False
+        time.sleep(poll_interval_s)
+
+
 def chunk_length_seconds(configured: int, remaining_s: float) -> int:
     """次に張るストリームの長さ[s]。
 
@@ -896,8 +931,9 @@ async def run(args) -> int:
         for p in points:
             s10.insert_point(args.oxigraph, p, gw, building)
             seeded.append(p)
-        if not s10.wait_visible(pb2, pb2g, args.ingress, gw, points[0]):
-            print("seeded points not visible — aborting", file=sys.stderr)
+        if not wait_visible_at_scale(pb2, pb2g, args.ingress, gw, points[0], args.seed_visible_timeout):
+            print(f"[s19] seeded points not visible within {args.seed_visible_timeout}s — aborting",
+                  file=sys.stderr)
             return 2
 
         if args.prometheus and args.runtime_container not in containers:
@@ -1048,6 +1084,10 @@ def main() -> int:
     ap.add_argument("--oxigraph", default=os.environ.get("OXIGRAPH_URL", "http://localhost:7878"))
     ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
     ap.add_argument("--flush-wait", type=int, default=90)
+    ap.add_argument("--seed-visible-timeout", type=float, default=DEFAULT_SEED_VISIBLE_TIMEOUT_S,
+                     help="seed したポイントが ingress から見えるまで待つ上限[s]。cold な "
+                          "PointMetadataCache のロードは点数に対して二次で効くので、--points を "
+                          "既定より大きくするならここも上げる（wait_visible_at_scale の docstring）")
     ap.add_argument("--containers", default=",".join(DEFAULT_CONTAINERS))
     args = ap.parse_args()
     if args.role == "resource":
