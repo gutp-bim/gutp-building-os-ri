@@ -5,16 +5,20 @@ export const toDisplayDeviceType = (deviceTypeString: string) => {
 };
 
 /**
- * Structural parameter, not the aspida `Point` (#350): this predicate needs three fields, and typing
+ * Structural parameter, not the aspida `Point` (#350): these helpers need only a handful of fields, and typing
  * it on just those lets it accept both the generated wire type and the domain `PointResource` while
  * the UI migrates off aspida. It also keeps this file — which lives in `src/lib` and is therefore
  * invisible to the ESLint façade guard — from being the one place that quietly re-imports the wire
  * types after the UI has stopped.
  */
-type BacnetAddressed = {
+type PointAddressing = {
   objectTypeBacnet?: string | null;
   instanceNoBacnet?: number | null;
   deviceIdBacnet?: string | null;
+  /** twin の `bos:protocol`。明示されていればアドレッシングの形より優先する。 */
+  protocol?: string | null;
+  /** twin の `sbco:localId`（BACnet の ObjectID / MQTT の TOPIC / OPC-UA の nodeId）。 */
+  localId?: string | null;
 };
 
 /**
@@ -30,9 +34,17 @@ type BacnetAddressed = {
  * 1 条件版と 3 条件版の 2 実装が併存していた。
  */
 export const getCollectionProtocol = (
-  point: BacnetAddressed | undefined,
-): "BACnet" | null => {
+  point: PointAddressing | undefined,
+): string | null => {
   if (!point) return null;
+
+  if (point.protocol) {
+    const normalized = point.protocol.toLowerCase();
+    if (normalized === "mqtt") return "MQTT";
+    if (normalized === "opcua" || normalized === "opc-ua") return "OPC-UA";
+    if (normalized === "bacnet") return "BACnet";
+    return point.protocol;
+  }
 
   if (
     point.objectTypeBacnet != null ||
@@ -44,3 +56,7 @@ export const getCollectionProtocol = (
 
   return null;
 };
+
+export const getPointLocalId = (
+  point: PointAddressing | undefined,
+): string | null => point?.localId || null;

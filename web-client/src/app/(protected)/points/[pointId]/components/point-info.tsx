@@ -1,5 +1,8 @@
 import type { PointDetailResource } from "@/lib/resources/types";
-import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
+import {
+  getCollectionProtocol,
+  getPointLocalId,
+} from "@/lib/utils/helper/device-helper";
 
 const BACNET_OBJECT_TYPE_MAP: Record<string, string> = {
   0: "AnalogInput",
@@ -22,6 +25,7 @@ export function PointInfo({
   // 収集プロトコル（アドレッシング）と書き込み可否（制御できるか）は別の問い。以前は
   // 「制御タイプ」1 行に畳んでいたため、read-only な BACnet ポイントは収集経路も空欄になった (#294)。
   const collectionProtocol = getCollectionProtocol(pointDetail.point);
+  const localId = getPointLocalId(pointDetail.point);
   // 階層が欠けているのは「値が無い」ではなく「まだ割り当てられていない」状態。"-" だと
   // データ不足と表示不具合の区別がつかない (#294)。
   const unassigned = "未割当";
@@ -47,6 +51,10 @@ export function PointInfo({
         <div className="grid grid-cols-2 gap-y-2 text-sm">
           <div className="font-semibold">Point ID</div>
           <div>{pointDetail.point.id}</div>
+          <div className="font-semibold">Local ID / Topic</div>
+          <div className="break-all font-mono text-xs">
+            {localId || unassigned}
+          </div>
           <div className="font-semibold">ポイント種別</div>
           <div>{pointDetail.point.kind || "-"}</div>
           <div className="font-semibold">ポイント区分</div>
@@ -70,6 +78,14 @@ export function PointInfo({
             ) : (
               "-"
             )}
+          </div>
+          <div className="font-semibold">Unit</div>
+          <div>{pointDetail.point.unit || unassigned}</div>
+          <div className="font-semibold">Interval</div>
+          <div>
+            {pointDetail.point.expectedIntervalSeconds == null
+              ? unassigned
+              : `${pointDetail.point.expectedIntervalSeconds} s`}
           </div>
         </div>
       </div>

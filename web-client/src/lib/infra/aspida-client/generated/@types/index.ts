@@ -349,6 +349,8 @@ export type Point = {
   installationArea?: string | null | undefined;
   unit?: string | null | undefined;
   interval?: number | null | undefined;
+  localId?: string | null | undefined;
+  protocol?: string | null | undefined;
   alarmHigh?: number | null | undefined;
   alarmLow?: number | null | undefined;
   warnHigh?: number | null | undefined;

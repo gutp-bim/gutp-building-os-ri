@@ -59,6 +59,18 @@ export type PointResource = ResourceRef & {
   instanceNoBacnet: number | null;
   deviceIdBacnet: string | null;
   /**
+   * Protocol-native point address (`sbco:localId`): the BACnet ObjectID, the MQTT topic, or the
+   * OPC-UA nodeId. Lets an operator trace a reading back to its concrete source (#320).
+   */
+  localId: string | null;
+  /**
+   * Collection protocol resolved server-side by `GatewayPointProtocolResolver` (`bos:protocol`
+   * first, then BACnet native fields, then the local-id shape) — the *same* resolver the gateway
+   * point-list uses, so the two views cannot disagree (#294/#298 class). Addressing, not
+   * writability: {@link PointResource.writable} decides whether a point can be controlled.
+   */
+  protocol: string | null;
+  /**
    * The BACnet raw span (`sbco:minPresValue`/`maxPresValue`). **Display-only fallback** — the
    * authority for a control write range is the ControlSchema's `bos:minValue`/`maxValue`
    * (ADR-0005 §2.5, `resolve-control-range.ts`).

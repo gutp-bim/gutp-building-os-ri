@@ -134,12 +134,13 @@ public class OxiGraphDigitalTwinDatabaseTest
     // surviving `?siteOwn` / `?siteRaw` even when the triple pattern is gone — the exact deletion
     // these tests exist to catch. Assert on the full predicate IRI as it is written into the query.
     private const string SbcoNs = "https://www.sbco.or.jp/ont/";
+    private const string BosNs = "http://buildingos.gutp.jp/ontology#";
 
     /// <summary>Point predicates every point read path is required to SELECT.</summary>
     private static readonly string[] WiredPointPredicates =
     {
         SbcoNs + "writable", SbcoNs + "pointSpecification", SbcoNs + "pointType",
-        SbcoNs + "gatewayId", SbcoNs + "interval",
+        SbcoNs + "gatewayId", SbcoNs + "interval", SbcoNs + "localId", BosNs + "protocol",
         SbcoNs + "deviceIdBacnet", SbcoNs + "objectTypeBacnet", SbcoNs + "instanceNoBacnet",
         // #298: present in the seeds all along, but no query asked for them.
         SbcoNs + "unit", SbcoNs + "scale", SbcoNs + "targetArea", SbcoNs + "installationArea",

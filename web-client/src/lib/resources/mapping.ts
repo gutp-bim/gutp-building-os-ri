@@ -41,6 +41,8 @@ export function toPointResource(p: Point): PointResource {
     objectTypeBacnet: p.objectTypeBacnet ?? null,
     instanceNoBacnet: p.instanceNoBacnet ?? null,
     deviceIdBacnet: p.deviceIdBacnet ?? null,
+    localId: p.localId ?? null,
+    protocol: p.protocol ?? null,
     minPresValue: p.minPresValue ?? null,
     maxPresValue: p.maxPresValue ?? null,
     targetArea: p.targetArea ?? null,

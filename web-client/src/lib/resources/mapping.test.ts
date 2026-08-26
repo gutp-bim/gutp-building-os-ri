@@ -39,6 +39,8 @@ describe("toPointResource", () => {
       objectTypeBacnet: null,
       instanceNoBacnet: null,
       deviceIdBacnet: null,
+      localId: null,
+      protocol: null,
       minPresValue: null,
       maxPresValue: null,
       targetArea: null,

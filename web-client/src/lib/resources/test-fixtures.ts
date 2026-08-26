@@ -36,6 +36,8 @@ export function aPoint(overrides: Partial<PointResource> = {}): PointResource {
     objectTypeBacnet: null,
     instanceNoBacnet: null,
     deviceIdBacnet: null,
+    localId: null,
+    protocol: null,
     minPresValue: null,
     maxPresValue: null,
     targetArea: null,

@@ -12,4 +12,7 @@ import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
  */
 export const getControlProtocol = (
   pointDetail: PointDetailResource,
-): "BACnet" | null => getCollectionProtocol(pointDetail.point);
+): "BACnet" | null =>
+  // getCollectionProtocol は #320 以降 MQTT / OPC-UA も返す。ここは BACnet 制御フローの
+  // 入口なので、BACnet 以外は null に潰して「制御できない」に倒す。
+  getCollectionProtocol(pointDetail.point) === "BACnet" ? "BACnet" : null;
