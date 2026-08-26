@@ -33,7 +33,7 @@ plan.md が ingest 評価の第一経路と定めているのが gRPC のため�
 |---|---|
 | 点数 | 1,865（#297 の THX スケールを踏襲） |
 | 周期換算レート | 約 6/s（1,865 点 ÷ 300 秒 ≈ 6.2/s） |
-| 継続時間 | 4–6h（この worktree での実施値。#297 の確定版は ≥72h） |
+| 継続時間 | 4–6h（反復用の既定）。#370/#371 の判定は **24h × 2 本**で実施済み（下記「実施記録: 24h A/B」）。#297 の確定版は ≥72h |
 | flush/compaction 間隔 | アプリ既定値のまま（意図的に速めない — 実運用の鋸歯パターンを観測するため） |
 | リソースサンプリング間隔 | 60s |
 | gRPC ストリーム再接続間隔 | 300s 毎（#297 は単一 24h ストリーム。本版は connector-worker が
@@ -211,6 +211,13 @@ DURATION_HOURS=6 PROMETHEUS_URL=$PROM CHUNK_SECONDS=0 \
    起きていない区間では、RSS だけが動いて差分が伸び「native が増えた」ように見える。
    `connector_worker_gc_collections_growth_per_hour` が十分大きいことを確認すること。
 
+3. **`gc_heap_size` の start/end を判定に使わないこと。** この系列は GC 間のアロケーションを
+   スクレイプ時点で切り取るので**ノコギリ波**であり、24h run の実測で 29〜360 MiB の幅で振れる。
+   2 点比較は符号すら安定しない。判定は必ず**世代別の内訳**（`gen2` / `loh` / `poh` — これらは
+   滞留量なので安定している）と**回帰スロープ**で行う。同じ理由で、**run 途中の 2 時点を比べて
+   トレンドを語ってはいけない** — 24h A/B の実施中、6h・12h・18h の各時点で中間比較から出した
+   仮説 (a) の判定が毎回ひっくり返り、全区間の回帰でしか決まらなかった（下記「実施記録」）。
+
 補助指標: `connector_worker_gc_allocated_total_mib_growth_per_hour`（アロケーション圧。
 両 run でほぼ同じなら経路の負荷条件は揃っている）、
 `connector_worker_thread_pool_thread_count_growth_per_hour`（スレッド増殖もリークの一形態。
@@ -231,10 +238,90 @@ pending_stable = 1。RSS 増加量そのものは report（安全域は #297 の
 しまう。`--prometheus` 無しの run ではこれらの metric は出力されず、gate 表には「—」が並ぶ
 （`op: report` は常に INFO なので run を落とすことはない）。
 
+## 実施記録: 24h A/B（2026-08-25〜2026-08-27、#370/#371 の結論）
+
+`e2e/results/e10-24h-chunk300`（A, `chunk_seconds=300`）と `e2e/results/e10-24h-single`
+（B, `chunk_seconds=0`）を**同一構成・逐次**で実施。両方とも `PROMETHEUS_URL` 有り、加えて
+API Server（点リスト/制御 API 用）と実ゲートウェイ **nexus-gateway** を併走させた（下記）。
+gate は両 run とも PASS。
+
+| gate | A (chunk300) | B (single) |
+|---|---:|---:|
+| sent / accepted | 532,221 / 532,221 | 537,117 / 537,117 |
+| data_loss / duplicate | 0.0% / 0.0% | 0.0% / 0.0%（※） |
+| chunk_errors | 0 | 0 |
+| chunk_count | 286 | **1** |
+| 再起動 / OOM / health / pending_stable | 0 / 0 / 1.0 / 1 | 0 / 0 / 1.0 / 1 |
+
+※ B の `E10-soak.json` は `data_loss_ratio: 0.002301` を記録したが、これは**実損失ではない**。
+`--flush-wait`（既定 90 秒）が `ParquetLakeWriterWorker` の flush 間隔（既定 5 分）より短いため、
+最後の最大 5 分ぶん（約 1,860 行）がレイクに落ちる前に突合している。同じ `quality_checker.py` を
+数分後に再実行すると `db_row_count: 537118 / loss_rate: 0.0` になる。gate 閾値は 1% なので今回は
+通ったが、**タイミング次第で偽陽性の gate 失敗を起こしうる**（#383）。
+
+### 後半回帰スロープ（両 run とも 24.00h / 約 1,394 ティック）
+
+| 系列 | A (chunk300) | B (single) |
+|---|---:|---:|
+| RSS | +3.89 | +7.93 |
+| **RSS − GC committed** | **−0.17** | **+0.97** |
+| GC committed | +4.06 | +6.96 |
+| **gen0** | **+4.67** | **+8.48** |
+| **gen2** | **+0.01** | **−0.06** |
+| LOH | −0.31 | −0.40 |
+| thread pool | 0.00 | +0.01 |
+| アロケーション | 660.7 | 658.9 MiB/h |
+| GC 回数 | 4.78 | 5.42 /h |
+
+RSS の 1 時間平均は A が 312.7 → 595.0、B が 290.3 → 591.8 MiB。**到達点がほぼ一致**する。
+
+### 結論
+
+- **仮説 (a)（300 秒毎の再接続が寄与）は棄却。** 単一ストリームの対照はスロープが小さくならず、
+  むしろ大きい（+7.93 対 +3.89）。両者の差はこの系列の振れ幅の範囲内。
+- **仮説 (c)（リーク）は棄却。** gen2 は 24h・53 万フレームで 3 MiB 前後のまま平坦、LOH は微減、
+  POH とスレッド数も平坦、`RSS − GC committed` はほぼゼロ（native 増加なし）。
+- **仮説 (b) が機序つきで確定。** 伸びているのは **gen0 と GC committed だけ**。アロケーション圧が
+  両 run で 0.3% 差なので負荷条件は揃っている。**Server GC が nursery（gen0）を広げて回収頻度を
+  下げ、RSS がその commit に追従している**という挙動で、再接続の有無に依存しない。
+- ただし **24h では収束していない**（両 run とも 82〜118 MiB から約 592 MiB）。#297 が acceptance
+  criteria に ≥72h を置いた判断は妥当だった。定常化の確認は #297 に残る。
+
+### nexus-gateway 併走（連携検証）
+
+`../nexus-gateway` を `docker-compose.yml + soak.yml + live-bos.yml` + override で併走させ、
+`GATEWAY_ID=GW-SOS-001` / `PROVISIONING_URL`（twin が正本）/ `DEV_SIM=true` /
+`CONNECTOR_MAP=sim:sim-01,bacnet:bacnet-01` とした。48 時間で再起動・OOM ゼロ、gateway RSS は
+13.3 → 14.9（A）/ 11.6 → 13.0 MiB（B）で、24h あたり +1.4〜1.6 MiB と両 run で一致。
+Docker VM の空きメモリは常時 4.65 GiB 以上あり、**ホスト逼迫による交絡は成立していない**
+（nexus-gateway#121 が指摘した交絡の除外）。
+
+併走にあたって必要だった構成上の注意:
+
+- **API Server を起動する場合、起動時 twin シードを無効化すること。**
+  `OxiGraphIngestMaterializer.MaterializeAsync` は `DROP DEFAULT` の**全置換**なので、soak 中に
+  API が再起動すると s19 が INSERT した 1,865 点が消え、以降のフレームは `unknown_point` で全損する
+  （stale-while-revalidate のため即死せず、次の TTL リフレッシュ後に静かに始まる）。
+  シェルで `OXIGRAPH_SEED_TTL_PATH=` としても**効かない** — compose は
+  `${OXIGRAPH_SEED_TTL_PATH:-/fixtures/e2e/twin.ttl}` と書いており `:-` は空文字でも既定値に
+  フォールバックする。override ファイル側で `OXIGRAPH_SEED_TTL_PATH: ""` を明示すること。
+- **DEV_SIM の点を twin に用意すること。** sim connector の local_id は
+  `sim://ahu-01/supply_air_temp` / `sim://ahu-01/fan_run` にハードコードされている
+  （nexus-gateway `cmd/gateway/main.go`）。twin 側に受け皿が無いと全フレームが `unknown_point`。
+  併せて `bos:protocol` を明示すること — 省略すると localId の形から `mqtt` と推論され、
+  ゲートウェイの HTTP provisioning は `connectorMap[protocol]` にエントリが無い protocol に対し
+  **connector id を空のままにする**ため、resolver の鍵 `(connector_id, local_id)` が一致しなくなる。
+
+この連携検証で、ソーク自体とは別系統の不具合を 3 件起票した: #381（ゲートウェイ offline 時の
+503 fast-fail が JetStream の subject 束縛により発火しない）、#382（connector-worker が起動時に
+JetStream API の応答を待てず crash-loop する）、#383（上記の flush 待ち）。
+
 ## 既知の限界・#297 との差分
 - 4–6h では #297 が懸念した「24h retention 到達後の定常化」やそれ以降の長期トレンドは観測できない
   （NATS `BUILDING_OS_VALIDATED` の MaxAge は 24h — `DotNet/BuildingOS.Shared/Infrastructure/Telemetry/
   ParquetLake/ParquetLakeWriterWorker.cs`）。より長い run で再実行することが前提。
+  **2026-08-25〜27 に 24h × 2 本を実施済み**（上記「実施記録」）。24h でも RSS は定常化しておらず、
+  #297 の ≥72h はそのまま残る。
 - managed heap / GC heap / LOH / thread 数の分離（#297 の調査項目）は **#370 で対応済み** —
   `PROMETHEUS_URL` 指定時のみ Prometheus 経由でサンプリングする（上記 [#370 の節](#370-rss-の内訳を分離する)）。
   ただし取得は Prometheus のスクレイプ間隔（`oss-stack/prometheus/prometheus.yml`: 30s）と
