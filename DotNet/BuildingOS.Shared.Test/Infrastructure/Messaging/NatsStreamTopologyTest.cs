@@ -26,6 +26,28 @@ public class NatsStreamTopologyTest
         Assert.Contains("building-os.raw.>", subjects);
     }
 
+    /// <summary>
+    /// #381: the control stream must bind ONLY the durable generic request subject. Binding
+    /// <c>building-os.control.&gt;</c> makes JetStream register interest on the per-gateway egress
+    /// subject and answer a NATS request with a PubAck, which permanently disables the
+    /// no-responders check that <c>NatsPointControlCommandPublisher</c> uses to return 503 for an
+    /// offline gateway (#186). The 503 branch becomes unreachable and the caller waits out the
+    /// result timeout instead.
+    /// </summary>
+    [Theory]
+    [InlineData("building-os.control.request.gw.GW-SOS-001")] // per-gateway egress (core NATS request)
+    [InlineData("building-os.control.result.abc-123")]        // WaitForResult reply (core NATS)
+    public void Resolve_ControlSubject_DoesNotCaptureCoreNatsRequestReplySubjects(string coreNatsSubject)
+    {
+        var (streamName, subjects) = NatsStreamTopology.Resolve("building-os.control.request");
+
+        Assert.Equal("BUILDING_OS_CONTROL", streamName);
+        Assert.Equal(["building-os.control.request"], subjects);
+        // A literal subject matches token-for-token, so neither of these is captured.
+        Assert.DoesNotContain(coreNatsSubject, subjects);
+        Assert.DoesNotContain("building-os.control.>", subjects);
+    }
+
     [Fact]
     public void Resolve_UnknownSubject_UsesFallback()
     {
