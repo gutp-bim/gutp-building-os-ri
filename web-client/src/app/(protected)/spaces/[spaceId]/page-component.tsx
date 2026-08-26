@@ -2,8 +2,8 @@
 
 import { ResourceNavCard } from "@/components/resources/resource-nav-card";
 import { InlineBanner } from "@/components/ui/inline-banner";
-import { apiClient } from "@/lib/infra/aspida-client";
-import { Device, Space } from "@/lib/infra/aspida-client/generated/@types";
+import { getSpaceRef, listDevices } from "@/lib/resources/repository";
+import type { DeviceResource, ResourceRef } from "@/lib/resources/types";
 import { toDisplayDeviceType } from "@/lib/utils/helper/device-helper";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,8 +14,8 @@ export default function SpaceDetailPageComponent({
   spaceId: string;
 }) {
   const router = useRouter();
-  const [space, setSpace] = useState<Space | null>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [space, setSpace] = useState<ResourceRef | null>(null);
+  const [devices, setDevices] = useState<DeviceResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,8 +25,8 @@ export default function SpaceDetailPageComponent({
         setLoading(true);
         const decodedSpaceId = decodeURIComponent(spaceId);
         const [spaceResult, devicesResult] = await Promise.all([
-          apiClient().spaces._spaceDtId(encodeURIComponent(decodedSpaceId)).$get(),
-          apiClient().devices.$get({ query: { spaceDtId: decodedSpaceId } }),
+          getSpaceRef(decodedSpaceId),
+          listDevices(decodedSpaceId),
         ]);
         setSpace(spaceResult);
         setDevices(devicesResult);

@@ -1,13 +1,21 @@
 import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-execution";
+import { CONTROL_AUDIT_ANCHOR_ID } from "../control-audit-anchor";
 
 export function ControlStatusBar({
   state,
   onCancel,
   onDismiss,
+  showAuditLink = false,
 }: {
   state: ControlExecutionState;
   onCancel: () => void;
   onDismiss: () => void;
+  /**
+   * Whether this result left a row in 制御履歴. Decided by the caller (`leavesAuditTrail`), which is
+   * the only place that knows whether the POST was actually dispatched — linking otherwise would
+   * send the operator to a list that gained nothing.
+   */
+  showAuditLink?: boolean;
 }) {
   if (state.status === "idle") return null;
 
@@ -22,9 +30,7 @@ export function ControlStatusBar({
         {state.status === "executing" && (
           <>
             <Spinner />
-            <span>
-              制御実行中... ({state.elapsedSeconds}秒)
-            </span>
+            <span>制御実行中... ({state.elapsedSeconds}秒)</span>
           </>
         )}
         {state.status === "success" && (
@@ -87,6 +93,17 @@ export function ControlStatusBar({
         )}
       </div>
 
+      {/* 結果 → 監査履歴への導線（#162）。行が残る結果のときだけ出す。 */}
+      {showAuditLink && (
+        <a
+          href={`#${CONTROL_AUDIT_ANCHOR_ID}`}
+          data-testid="control-audit-link"
+          className="flex-shrink-0 ml-3 self-center text-sm text-blue-600 underline hover:text-blue-800 whitespace-nowrap"
+        >
+          制御履歴を見る
+        </a>
+      )}
+
       <div className="flex-shrink-0 ml-3">
         {state.status === "executing" ? (
           <button
@@ -101,8 +118,18 @@ export function ControlStatusBar({
             className="text-gray-400 hover:text-gray-600 cursor-pointer"
             aria-label="閉じる"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         )}
@@ -150,15 +177,32 @@ function Spinner() {
       fill="none"
       viewBox="0 0 24 24"
     >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }
 
 function CheckIcon() {
   return (
-    <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="h-4 w-4 flex-shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   );
@@ -166,24 +210,54 @@ function CheckIcon() {
 
 function CrossIcon() {
   return (
-    <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    <svg
+      className="h-4 w-4 flex-shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18L18 6M6 6l12 12"
+      />
     </svg>
   );
 }
 
 function LockIcon() {
   return (
-    <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    <svg
+      className="h-4 w-4 flex-shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+      />
     </svg>
   );
 }
 
 function WarningIcon() {
   return (
-    <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    <svg
+      className="h-4 w-4 flex-shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+      />
     </svg>
   );
 }

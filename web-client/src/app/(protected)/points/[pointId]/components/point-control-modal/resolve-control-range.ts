@@ -1,4 +1,4 @@
-import type { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import type { PointDetailResource } from "@/lib/resources/types";
 
 /** アナログ制御の入力範囲。境界が不明なときは `undefined`（＝制限なし）。 */
 export type ControlRange = { min?: number; max?: number };
@@ -19,7 +19,7 @@ export type ControlRange = { min?: number; max?: number };
  * twin に正しい範囲があっても・無くても常に 0〜100 と表示して送信していた (#298)。
  */
 export const resolveControlRange = (
-  pointDetail: PointDetail,
+  pointDetail: PointDetailResource,
 ): ControlRange => ({
   min:
     pointDetail.controlSchema?.minValue ??

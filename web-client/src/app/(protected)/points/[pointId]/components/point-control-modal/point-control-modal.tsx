@@ -1,19 +1,29 @@
 import { apiClient } from "@/lib/infra/aspida-client";
-import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
-import { useControlExecution } from "@/lib/infra/grpc-client/use-control-execution";
-import { useCallback, useMemo, useState } from "react";
+import {
+  useControlExecution,
+  type ControlExecutionState,
+} from "@/lib/infra/grpc-client/use-control-execution";
+import type { PointDetailResource } from "@/lib/resources/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
 import { controlPostErrorResult } from "./control-post-error";
 import { ControlStatusBar } from "./control-status-bar";
 import { getControlProtocol } from "./get-control-protocol";
+import { leavesAuditTrail } from "./leaves-audit-trail";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
 import { toControlValue } from "./to-control-value";
 
 export function PointControlModal({
   pointDetail,
+  onControlSettled,
 }: {
-  pointDetail: PointDetail;
+  pointDetail: PointDetailResource;
+  /**
+   * Called once per control that reached the server, when it settles. The point detail page uses it
+   * to refresh 制御履歴 so the command the operator just ran is visible without a reload (#162).
+   */
+  onControlSettled?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,6 +36,24 @@ export function PointControlModal({
     setDirectResult,
     isExecuting,
   } = useControlExecution();
+
+  // Whether the last attempt got far enough for the server to open an audit row. A 403 (and any
+  // other outright POST rejection) never does; a 503 does, because the server closes the row it
+  // opened (#333). Only the modal sees how the result was reached, so the flag lives here.
+  const [dispatched, setDispatched] = useState(false);
+
+  // Fire onControlSettled once per *result*, not once per status: two consecutive controls can
+  // settle in the same status (retry after a failure, or a second success inside the auto-dismiss
+  // window), and comparing statuses would swallow the second one — leaving 制御履歴 stale, which is
+  // the bug this exists to prevent. useControlExecution allocates a new state object per result, so
+  // reference identity is exactly "this is a new result".
+  const settledRef = useRef<ControlExecutionState | null>(null);
+  useEffect(() => {
+    if (!leavesAuditTrail(executionState, dispatched)) return;
+    if (settledRef.current === executionState) return;
+    settledRef.current = executionState;
+    onControlSettled?.();
+  }, [executionState, dispatched, onControlSettled]);
 
   const controlProtocol = getControlProtocol(pointDetail);
   const controlSchema = pointDetail.controlSchema;
@@ -53,6 +81,7 @@ export function PointControlModal({
       // モーダルを閉じて gRPC ストリームで結果を待機
       setIsOpen(false);
       setIsLoading(false);
+      setDispatched(true);
       startExecution(controlId);
     } catch (error) {
       setIsLoading(false);
@@ -61,6 +90,10 @@ export function PointControlModal({
         error,
         pointDetail.point.id,
       );
+      // A rejected POST leaves no audit row — except 503, where the server opened one and closed it
+      // out as failed. leavesAuditTrail reads gateway_offline directly, so this only has to say that
+      // nothing else here was dispatched.
+      setDispatched(false);
       setDirectResult(status, message);
     }
   };
@@ -77,6 +110,7 @@ export function PointControlModal({
         state={executionState}
         onCancel={cancel}
         onDismiss={dismiss}
+        showAuditLink={leavesAuditTrail(executionState, dispatched)}
       />
 
       {/* 制御ボタン: executing 中は非表示 */}

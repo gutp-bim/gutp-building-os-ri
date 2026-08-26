@@ -19,7 +19,12 @@ export type FreshnessStatus = "fresh" | "stale" | "missing";
 export type PointLastSeen = {
   pointId: string;
   lastSeen: string | null;
-  /** The most recent numeric value (#158 Phase 2a alarm evaluation); null when none/non-numeric. */
+  /**
+   * The most recent numeric value (#158 Phase 2a alarm evaluation); null when none/non-numeric.
+   * The discriminant decides (see `mapping.ts` `toPointsLastSeen`): a reading tagged string/boolean
+   * is null here even if a numeric `value` rides along on the wire, so the threshold comparison in
+   * `alarm.ts` never sees a number that is not the reading.
+   */
   value?: number | null;
   /**
    * Per-point stale threshold in seconds (#183). When set, it overrides the `thresholdSeconds`

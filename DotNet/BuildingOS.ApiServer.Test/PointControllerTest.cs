@@ -10,6 +10,7 @@ using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.PointControl;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Text.Json;
 
@@ -40,13 +41,13 @@ public class PointControllerTest
             string connectionTypeDefault = "hono",
             ControlSchema? schema = null)
     {
-        var (controller, publisher, _) = BuildControllerWithResultBus(
+        var (controller, publisher, _, _) = BuildControllerWithResultBus(
             detail, canWrite, connectionTypeMap, connectionTypeDefault, schema);
 
         return (controller, publisher);
     }
 
-    private static (PointController controller, Mock<IPointControlCommandPublisher> publisher, Mock<IControlResultBus> resultBus)
+    private static (PointController controller, Mock<IPointControlCommandPublisher> publisher, Mock<IControlResultBus> resultBus, Mock<IControlAuditWriter> auditWriter)
         BuildControllerWithResultBus(
             PointDetail? detail,
             bool canWrite = true,
@@ -76,19 +77,21 @@ public class PointControllerTest
         var resultBus = new Mock<IControlResultBus>();
         var repository = new Mock<IPointControlRepository>();
 
+        var auditWriter = new Mock<IControlAuditWriter>();
         var controller = new PointController(
             twinView.Object,
             resolver,
             schemaResolver.Object,
             resultBus.Object,
             publisher.Object,
-            repository.Object);
+            repository.Object,
+            auditWriter.Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContext(AdminAuth()),
         };
 
-        return (controller, publisher, resultBus);
+        return (controller, publisher, resultBus, auditWriter);
     }
 
     /// <summary>
@@ -124,7 +127,8 @@ public class PointControllerTest
             schemaResolver.Object,
             resultBus.Object,
             publisher.Object,
-            repo.Object)
+            repo.Object,
+            Mock.Of<IControlAuditWriter>())
         {
             ControllerContext = new ControllerContext { HttpContext = BuildHttpContext(AdminAuth()) },
         };
@@ -150,6 +154,84 @@ public class PointControllerTest
 
     // ── Tests ──────────────────────────────────────────────────────────────
 
+    // ── #333: the audit trail is actually written ─────────────────────────────
+    // These guard the defect where IPointControlRepository.Create/UpdatePointControlInfoAsync were
+    // implemented but never called from anywhere, so point_control_audit stayed empty forever and
+    // the shipped 制御履歴 UI showed "制御履歴はありません。" on every point.
+
+    [Fact]
+    public async Task Control_RecordsAuditRow_BeforePublishing()
+    {
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(Detail(MakePoint()));
+        var publishedBeforeAudit = false;
+        var audited = false;
+
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                   .Callback(() => audited = true)
+                   .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .Callback(() => publishedBeforeAudit = !audited)
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
+
+        auditWriter.Verify(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Once);
+        // The result can be published back within milliseconds; the row must exist first or the
+        // result writer's update-by-id finds nothing and the outcome is silently lost.
+        Assert.False(publishedBeforeAudit, "the audit row must be created before the command is published");
+    }
+
+    [Fact]
+    public async Task Control_AuditRow_CarriesTheDispatchedCommand()
+    {
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(Detail(MakePoint()));
+        PointControlInfo? auditedInfo = null;
+        PointControlInfo? publishedInfo = null;
+
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                   .Callback<PointControlInfo, CancellationToken>((info, _) => auditedInfo = info)
+                   .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .Callback<PointControlInfo, CancellationToken>((info, _) => publishedInfo = info)
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
+
+        var accepted = Assert.IsType<AcceptedResult>(result);
+        var body = Assert.IsType<PointController.ControlAcceptedResponse>(accepted.Value);
+        Assert.NotNull(auditedInfo);
+        // Same id the caller is handed and the same command that went on the wire — otherwise the
+        // audit row cannot be correlated with the control the operator actually issued.
+        Assert.Equal(body.ControlId, auditedInfo!.id);
+        Assert.Equal(publishedInfo!.id, auditedInfo.id);
+        Assert.Equal("PT001", auditedInfo.PointId);
+    }
+
+    [Fact]
+    public async Task Control_ClosesAuditRowAsFailed_WhenGatewayOffline()
+    {
+        var device = new Device { DtId = "d", Id = "D", Name = "g", GatewayId = "gw-sim" };
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(
+            Detail(MakePoint(), device), connectionTypeMap: new() { ["gw-sim"] = "bacnet-sim" });
+        string? closedControlId = null;
+        bool? closedSuccess = null;
+
+        auditWriter.Setup(w => w.RecordFailureIfPendingAsync(
+                       It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .Callback<string, string?, CancellationToken>(
+                       (id, _, _) => { closedControlId = id; closedSuccess = false; })
+                   .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.GatewayOffline);
+
+        await controller.Control("PT001", new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None);
+
+        // Nothing publishes a result for a command that was never delivered, so the row would stay
+        // "pending" forever if the 503 path did not close it out.
+        Assert.NotNull(closedControlId);
+        Assert.False(closedSuccess);
+    }
+
     [Fact]
     public async Task Control_Returns202_WithControlId_WhenPointIsWritable()
     {
@@ -171,7 +253,7 @@ public class PointControllerTest
     [Fact]
     public async Task Control_WaitsForResultSubscription_BeforePublishing()
     {
-        var (controller, publisher, resultBus) = BuildControllerWithResultBus(Detail(MakePoint()));
+        var (controller, publisher, resultBus, _) = BuildControllerWithResultBus(Detail(MakePoint()));
         var prepareStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var subscriptionReady = new TaskCompletionSource(
@@ -211,7 +293,7 @@ public class PointControllerTest
     public async Task Control_UnsubscribesPreparedResult_WhenGatewayOffline()
     {
         var device = new Device { DtId = "d", Id = "D", Name = "g", GatewayId = "gw-sim" };
-        var (controller, publisher, resultBus) = BuildControllerWithResultBus(
+        var (controller, publisher, resultBus, _) = BuildControllerWithResultBus(
             Detail(MakePoint(), device), connectionTypeMap: new() { ["gw-sim"] = "bacnet-sim" });
         string? preparedControlId = null;
 
@@ -231,7 +313,7 @@ public class PointControllerTest
     [Fact]
     public async Task Control_UnsubscribesPreparedResult_WhenPublishingFails()
     {
-        var (controller, publisher, resultBus) = BuildControllerWithResultBus(Detail(MakePoint()));
+        var (controller, publisher, resultBus, _) = BuildControllerWithResultBus(Detail(MakePoint()));
         string? preparedControlId = null;
 
         resultBus.Setup(b => b.PrepareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))

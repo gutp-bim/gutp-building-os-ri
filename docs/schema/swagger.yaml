@@ -1260,7 +1260,7 @@ paths:
     get:
       tags:
         - Point
-      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。監査データは\n記録済みだが閲覧画面が無かったギャップを埋める。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。"
+      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に\n記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。"
       parameters:
         - name: pointId
           in: path
@@ -2089,19 +2089,13 @@ paths:
           content:
             text/plain:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2177,13 +2171,19 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: '#/components/schemas/ValidTelemetryData'
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
-                $ref: '#/components/schemas/ValidTelemetryData'
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
-                $ref: '#/components/schemas/ValidTelemetryData'
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2261,17 +2261,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2353,21 +2353,21 @@ paths:
                 additionalProperties:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ValidTelemetryData'
+                    $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ValidTelemetryData'
+                    $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: object
                 additionalProperties:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ValidTelemetryData'
+                    $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -2447,17 +2447,17 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
             text/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ValidTelemetryData'
+                  $ref: '#/components/schemas/TelemetryReading'
         '401':
           description: Unauthorized
           content:
@@ -3551,24 +3551,31 @@ components:
       properties:
         pointId:
           type: string
+          description: The point this sample belongs to.
         datetime:
           type: string
+          description: ISO-8601 timestamp of the reading; `null` when the point has no data.
           nullable: true
         value:
-          type: number
-          format: double
-          nullable: true
+          oneOf:
+            - type: number
+              format: double
+              nullable: true
+            - type: string
+            - type: boolean
+          description: "The reading, as a System.Double, System.String, System.Boolean, or `null`.\nWidened to `oneOf: [number, string, boolean]` in the OpenAPI document by\n`TelemetryValueSchemaFilter`, which is what makes generated clients see a real union rather\nthan an untyped hole."
         valueType:
           type: string
+          description: "`\"number\"` | `\"string\"` | `\"boolean\"` — the kind of Value,\n            derived from the value actually shipped rather than copied from the stored tag, so it cannot\n            contradict it. A descriptor, not a lookup key."
           nullable: true
-        valueText:
-          type: string
-          nullable: true
-        valueBool:
-          type: boolean
-          nullable: true
+        state:
+          oneOf:
+            - type: string
+              nullable: true
+            - type: boolean
+          description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359). Replaced the legacy\n`ValueText`/`ValueBool` pair. A non-numeric reading is repeated here rather than left\nnull, so a client reads the state half with a single lookup instead of falling back to\nValue. Batch-latest returns raw samples only, so unlike\nBuildingOs.ApiServer.Telemetry.TelemetryReading.State this never carries a state\nalongside a numeric average — see that type's docs for why the field exists at all."
       additionalProperties: false
-      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\nThe discriminated value fields (#152) carry non-numeric latest readings: `ValueType` is\n`\"number\"`/`\"string\"`/`\"boolean\"` (null → numeric for legacy data), with the payload in\n`Value` (numeric), `ValueText` (string), or `ValueBool` (boolean)."
+      description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. `State` carries the\nreading's non-numeric half, and `ValueType` describes `Value`; the legacy\n`ValueText`/`ValueBool` pair left the wire in #359. Kept in step with\nBuildingOs.ApiServer.Telemetry.TelemetryReading, whose docs carry the full rationale\n— the client's value decoder is satisfied structurally by both, so a divergence here surfaces only\nas a type error in the generated client.\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
     MyResourcesResponse:
       type: object
       properties:
@@ -3733,6 +3740,12 @@ components:
         interval:
           type: number
           format: float
+          nullable: true
+        localId:
+          type: string
+          nullable: true
+        protocol:
+          type: string
           nullable: true
         alarmHigh:
           type: number
@@ -4041,6 +4054,49 @@ components:
         - 2
       type: integer
       format: int32
+    TelemetryReading:
+      type: object
+      properties:
+        pointId:
+          type: string
+          nullable: true
+        datetime:
+          type: string
+          nullable: true
+        value:
+          oneOf:
+            - type: number
+              format: double
+              nullable: true
+            - type: string
+            - type: boolean
+          description: "The reading, as a System.Double, System.String, System.Boolean, or `null`.\nDeclared `object?` so System.Text.Json writes it by its runtime type; the OpenAPI schema is\nwidened to `oneOf: [number, string, boolean]` by `TelemetryValueSchemaFilter`, which is\nwhat makes the generated clients see a real union rather than an untyped hole.\n\n<b>Response-only.</b> Round-tripping this record through a request body would deserialize\n`Value` as a `JsonElement`, not the original primitive. Do not reuse it for input or as\na NATS payload without adding a converter."
+        building:
+          type: string
+          nullable: true
+        deviceId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        data:
+          type: string
+          nullable: true
+        id:
+          type: string
+          nullable: true
+        valueType:
+          type: string
+          nullable: true
+        state:
+          oneOf:
+            - type: string
+              nullable: true
+            - type: boolean
+          description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359).\n\nIt exists for the one row shape that carries two readings at once: an aggregate bucket sets\nValue to the average unconditionally (the continuous-aggregate contract), so a\nmixed hour ships the number while its last-in-bucket state has nowhere else to live. That is what\nthe state timeline reads at Hour/Day granularity.\nA raw non-numeric row <b>repeats</b> its reading here rather than leaving this null. The\nduplication is deliberate: it makes this field mean one thing unconditionally, so a client reads\nit with a single lookup instead of falling back to Value — the fallback chain\n#359 exists to delete. Widened to `oneOf: [string, boolean]` by\n`TelemetryValueSchemaFilter`, for the same reason Value is."
+      additionalProperties: false
+      description: "Response-only wire DTO for telemetry reads (#344).\n            \n\nUntil now the controllers returned BuildingOS.Shared.ValidTelemetryData directly, so the storage\nlayer's discriminated split (`value`/`valueType`/`valueText`/`valueBool`,\n#152) leaked into the HTTP contract and every API consumer had to reassemble it. That split is a\nParquet/EF concern — BuildingOS.Shared.ValidTelemetryData is an EF entity and binds the lake's column\nmodel, so it cannot be retyped in place — while the canonical schema\n(`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic\n`value`. This DTO restores that shape at the boundary.\n<b>#359 removed the legacy payload fields.</b>`valueText`/`valueBool` are gone; the\nnon-numeric half of a reading now travels in BuildingOs.ApiServer.Telemetry.TelemetryReading.State. BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType stays,\nbecause it never duplicated the payload the way those two did — it describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,\nderived from the value actually shipped rather than copied from the stored tag. (Copying the\nstored tag is what made the wire say `{ value: 42, valueType: \"string\" }` for a mixed\naggregate bucket, where the stored tag classifies the bucket's last-in-bucket reading.)"
     TelemetryThresholds:
       type: object
       properties:
@@ -4164,44 +4220,6 @@ components:
             type: string
         enabled:
           type: boolean
-      additionalProperties: false
-    ValidTelemetryData:
-      type: object
-      properties:
-        building:
-          type: string
-          nullable: true
-        data:
-          type: string
-          nullable: true
-        datetime:
-          type: string
-          nullable: true
-        deviceId:
-          type: string
-          nullable: true
-        id:
-          type: string
-          nullable: true
-        name:
-          type: string
-          nullable: true
-        pointId:
-          type: string
-          nullable: true
-        value:
-          type: number
-          format: double
-          nullable: true
-        valueType:
-          type: string
-          nullable: true
-        valueText:
-          type: string
-          nullable: true
-        valueBool:
-          type: boolean
-          nullable: true
       additionalProperties: false
 tags:
   - name: AdminAudit

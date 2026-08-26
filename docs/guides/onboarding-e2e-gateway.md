@@ -12,9 +12,9 @@ API/ダッシュボード → 制御** までの一筆書きを再現できま�
 > 利用者の責任で十分に検証のうえ行ってください。
 
 > 📁 **このガイドの配置と相対リンクについて:** 本ドキュメントは Building OS リポジトリの
-> `docs/` に置いていますが、内容は 4 リポジトリ（`gutp-building-os-oss-public` /
+> `docs/` に置いていますが、内容は 4 リポジトリ（`gutp-building-os-ri` /
 > `nexus-gateway` / `bacnet-sim-gateway` / `opcua-sim-gateway`）を横断します。文中の
-> `nexus-gateway/...` や `gutp-building-os-oss-public/...` などの相対リンクは、
+> `nexus-gateway/...` や `gutp-building-os-ri/...` などの相対リンクは、
 > [Step 0](#step-0--github-からダウンロードリポジトリ取得) で 4 リポジトリを**同じ親ディレクトリ
 > `gutp/` に並べた**構成を前提としています。Building OS 単体の内部リンク（`docs/...`）は
 > このリポジトリ内で解決できます。
@@ -144,7 +144,7 @@ nexus-gateway の Egress Agent → コネクタが `WriteProperty`（BACnet）/ 
 
 | コンポーネント | リポジトリ | 役割 | 実装言語 |
 |---|---|---|---|
-| **Building OS (OSS)** | `gutp-building-os-oss-public` | System of Record。テレメトリ蓄積・API・ダッシュボード・デジタルツイン・制御ルーティング | .NET 8 / Next.js 15 |
+| **Building OS (OSS)** | `gutp-building-os-ri` | System of Record。テレメトリ蓄積・API・ダッシュボード・デジタルツイン・制御ルーティング | .NET 8 / Next.js 16 |
 | **nexus-gateway** | `nexus-gateway` | エッジ統合ゲートウェイ。プロトコル差異の吸収と `(gateway_id, point_id)` への正規化、Building OS への上り/下り | Go（コネクタは Go/Python/Java）|
 | **bacnet-sim-gateway** | `bacnet-sim-gateway` | SBCO 点リストから標準準拠の **仮想 BACnet B-BC** を生成し BACnet/IP で公開 | Python 3.12 |
 | **opcua-sim-gateway** | `opcua-sim-gateway` | SBCO 点リストから **仮想 OPC UA サーバ**（アドレス空間）を生成し opc.tcp で公開 | Python 3.12 |
@@ -172,7 +172,7 @@ nexus-gateway は「接続と翻訳」だけを担います。シミュレータ
 
 | リポジトリ（ローカル配置名） | GitHub | 内容 |
 |---|---|---|
-| `gutp-building-os-oss-public` | [gutp-bim/gutp-building-os-ri](https://github.com/gutp-bim/gutp-building-os-ri) | ビル OS の参考実装（OSS） |
+| `gutp-building-os-ri` | [gutp-bim/gutp-building-os-ri](https://github.com/gutp-bim/gutp-building-os-ri) | ビル OS の参考実装（OSS） |
 | `nexus-gateway` | [gutp-bim/nexus-gateway](https://github.com/gutp-bim/nexus-gateway) | ビル OS 用の汎用ゲートウェイ（参考実装） |
 | `bacnet-sim-gateway` | [takashikasuya/bacnet-sim-gateway](https://github.com/takashikasuya/bacnet-sim-gateway) | BACnet/IP 仮想 B-BC シミュレータ |
 | `opcua-sim-gateway` | [takashikasuya/opcua-sim-gateway](https://github.com/takashikasuya/opcua-sim-gateway) | OPC UA 仮想サーバ シミュレータ |
@@ -185,7 +185,7 @@ nexus-gateway は「接続と翻訳」だけを担います。シミュレータ
 # 任意の作業用親ディレクトリを作って、その中に 4 つ並べる
 mkdir -p ~/gutp && cd ~/gutp
 
-git clone https://github.com/gutp-bim/gutp-building-os-ri   gutp-building-os-oss-public
+git clone https://github.com/gutp-bim/gutp-building-os-ri
 git clone https://github.com/gutp-bim/nexus-gateway
 git clone https://github.com/takashikasuya/bacnet-sim-gateway
 git clone https://github.com/takashikasuya/opcua-sim-gateway
@@ -195,7 +195,7 @@ git clone https://github.com/takashikasuya/opcua-sim-gateway
 
 ```
 gutp/                          # 親ディレクトリ（名前は任意）
-├── gutp-building-os-oss-public/
+├── gutp-building-os-ri/
 ├── nexus-gateway/
 ├── bacnet-sim-gateway/
 └── opcua-sim-gateway/
@@ -209,7 +209,7 @@ Windows (PowerShell) の場合:
 
 ```powershell
 New-Item -ItemType Directory -Force ~/gutp | Out-Null; Set-Location ~/gutp
-git clone https://github.com/gutp-bim/gutp-building-os-ri   gutp-building-os-oss-public
+git clone https://github.com/gutp-bim/gutp-building-os-ri
 git clone https://github.com/gutp-bim/nexus-gateway
 git clone https://github.com/takashikasuya/bacnet-sim-gateway
 git clone https://github.com/takashikasuya/opcua-sim-gateway
@@ -225,8 +225,7 @@ Get-ChildItem -Directory | Select-Object Name    # 4 ディレクトリが並ん
   （nexus-gateway は `v0.1.0` public preview がベースライン）。
 - **git を使わず ZIP で取得する場合:** 各リポジトリの GitHub ページ →「Code」→
   「Download ZIP」。展開後のフォルダ名が上記の並びになるよう、
-  `-main` などのサフィックスを外してリネームしてください
-  （特に `gutp-building-os-ri` → `gutp-building-os-oss-public` に合わせる）。
+  `-main` などのサフィックスを外してリネームしてください。
 - **更新するとき:** 各ディレクトリで `git pull` を実行します。
 
 > 本ガイドが置かれている `gutp/` 直下は、既にこの配置になっています。
@@ -289,7 +288,7 @@ sudo apt-get install -y build-essential libffi-dev libssl-dev
 ### A-1. OSS スタックを起動
 
 ```bash
-cd gutp-building-os-oss-public
+cd gutp-building-os-ri
 
 make local-up-oss
 # 中身は: docker compose -f docker-compose.oss.yaml up -d
@@ -466,31 +465,117 @@ API を叩けます（認証を試すときは `WithLocalAuth`。詳細は [Step
 
 ### A-3. デジタルツインに設備（Point List の正本）を入れる
 
-> ⭐ **この Step D と共通で使える完成済み fixture を用意しています:**
-> [`../fixtures/e2e/`](../../fixtures/e2e/README.md)。`twin.ttl`（Building OS twin 正本 = 8 point /
-> `GW-SOS-001` / `bldg-e2e`）をそのまま `/admin/twin` に replace アップロードするか
+> ⭐ **サンプルデータで手早く試したいだけなら、この Step D と共通で使える完成済み fixture が
+> あります:** [`../fixtures/e2e/`](../../fixtures/e2e/README.md)。`twin.ttl`（Building OS twin 正本
+> = 8 point / `GW-SOS-001` / `bldg-e2e`）をそのまま `/admin/twin` に replace アップロードするか
 > `OXIGRAPH_SEED_TTL_PATH` で投入し、nexus-gateway 側は同ディレクトリの `pointlist.csv` を
-> `PROVISIONING_FILE` に渡せば、両者が同じ `(gateway_id, point_id)` を指した状態になります。
-> 以下は最小例（自作する場合の参考）。
+> `PROVISIONING_FILE` に渡せば、両者が同じ `(gateway_id, point_id)` を指した状態になります
+> （`docker-compose.oss.yaml` はデフォルトでこの fixture を起動時シードします）。
+>
+> 以下は、**自分の建物の実際のポイントリストを CSV から投入したい人向け**の手順です
+> (A-3-1〜A-3-3)。
 
 読み取り・制御は **twin に登録された point** を起点に解決されます（未登録は 404）。
-Web Client の `/admin/twin`（`http://localhost:3000/admin/twin`）から Turtle を
-アップロードするのが簡単です。最小例:
 
-```turtle
-@prefix sbco: <https://www.sbco.or.jp/ont/> .
+#### A-3-1. ポイントCSVを準備する
 
-<https://example.com/bldg/bldg-1> a sbco:Building ;
-    sbco:name "デモビル" ; sbco:building "bldg-1" .
+「どの機器のどの値を、どんな名前・単位・アドレスで公開するか」を1行1ポイントで書いた CSV を
+用意します。列の意味は
+[スマートビル標準ポイントリスト仕様（`pointlist.md`）](https://github.com/smartbuilding-co-creation-organization/smartbuilding_datamodel_builder/blob/main/pointlist.md)
+が正本です。共有 fixture
+[`fixtures/e2e/pointlist.csv`](../../fixtures/e2e/pointlist.csv) が実例になります。必須列は次の
+とおりです。
 
-<https://example.com/point/pt-001> a sbco:PointExt ;
-    sbco:name "室温" ; sbco:unit "degC" ;
-    sbco:localId "PT-001" ; sbco:gatewayId "GW-DEMO" ;
-    sbco:building "bldg-1" .   # 必須: ingress でビルを解決するために使用
+| 列 | 意味 |
+|---|---|
+| `gateway_id` | 所属ゲートウェイ（1 ビルにのみ所属できる制約は後述） |
+| `point_id` | Building OS 側の論理点ID（正本） |
+| `point_name` / `point_type` / `point_specification` | 点の名前・種別・仕様（Measurement/Setpoint/Command/Status 等） |
+| `writable` | 書込可否（true/false） |
+| `device_id` / `device_name` / `device_type` | 所属機器（同じ `device_id` の点は 1 つの Equipment にまとまります） |
+| `site` / `building` / `floor` / `installation_area` | 階層（サイト→建物→フロア→部屋） |
+| `local_id` | ゲートウェイ側のネイティブアドレス（BACnet なら ObjectID、OPC-UA なら nodeId、MQTT なら topic） |
+
+> ⚠️ **既知の制約:** Equipment が Room を経由せず Level に直接ぶら下がる階層は Building OS
+> 側では正当なパスとして受理されます（`rec:locatedIn` を Level に直接向ける、または
+> `sbco:floor` リテラルで Level 名と一致させる、のいずれでも可）。ただし変換ツール
+> （smartbuilding_datamodel_builder）は `installation_area` が空/`-` だと空間アンカー
+> （Room への `locatedIn`）を出力できず、いずれの経路にも到達できない **orphan**（どの
+> Building にも繋がらない機器）を生成することがあります。`installation_area` を埋めるか、
+> 空にする場合は `floor` が実在の Level 名と一致していることを確認してください。
+
+#### A-3-2. CSVをRDF(Turtle)に変換する
+
+CSV を Building OS の twin が読める Turtle(RDF) に変換するには、
+[smartbuilding_datamodel_builder](https://github.com/smartbuilding-co-creation-organization/smartbuilding_datamodel_builder)
+の CLI を使います(ブラウザ版 UI でも同じ変換ができますが、CLI の方が手順として再現しやすいので
+ここでは CLI を案内します)。
+
+```bash
+git clone https://github.com/smartbuilding-co-creation-organization/smartbuilding_datamodel_builder ../smartbuilding_datamodel_builder
+cd ../smartbuilding_datamodel_builder
+corepack enable
+pnpm install --frozen-lockfile
+pnpm cli -- --input ../gutp-building-os-ri/fixtures/e2e/pointlist.csv \
+  --format RDF --serializer Turtle --out pointlist.ttl
 ```
 
-起動時シードで自動投入する場合は、環境変数 `OXIGRAPH_SEED_TTL_PATH` に Turtle ファイルを
-指定すると、起動のたびにデフォルトグラフを全置換します（`OxiGraphSeedHostedService`）。
+SHACL 検証で警告(warning)が出ても、それだけでは書き込みは止まりません。**ブロッキング
+(blocking)な違反**で終了コード `1` になった場合は `--allow-issues` を付けて続行できます
+(`--list-formats` で対応フォーマット一覧、終了コード `0`=成功 / `1`=ブロッキング検証エラー /
+`2`=引数・入出力エラー)。
+
+出力される Turtle について、次の2点を必ず理解してから使ってください:
+
+- **階層(`rec:`/`brick:`語彙)はそのままで問題ありません。** このツールは Site/Building/Level/Room
+  を `rec:Site`/`rec:Building`/`rec:Level`/`rec:Room`、`rec:hasPart`/`rec:locatedIn` などの
+  REC/Brick 語彙で出力しますが、Building OS の取り込み時 (`OxiGraphIngestMaterializer`) が
+  自動的に `sbco:` へ書き換えるため、手動修正は不要です
+  ([`docs/architecture/standard-mapping.md`](../architecture/standard-mapping.md) §6)。
+  `EquipmentExt`/`PointExt` と各点の `sbco:` プロパティ(`gatewayId`/`localId`/`writable` 等)は
+  最初から `sbco:` で出力されます。
+- **制御スキーマ(`bos:minValue`/`maxValue`/`dataType`/`enumLabels`)はこのツールでは一切
+  出力されません。** 書込可能(`writable: true`)なポイントについては、実際に制御を通すために
+  Building OS 側の `bos:` トリプルを別途手動で追記する必要があります。たとえば設定温度
+  (16〜30℃)・照明On/Off・ファン速度(Off/Low/Medium/High)の3点なら、次のような差分パッチを
+  同じ `sbr:` 名前空間で `append` インポートします:
+
+  ```turtle
+  @prefix sbr: <https://www.sbco.or.jp/ont/resource/> .
+  @prefix bos: <http://buildingos.gutp.jp/ontology#> .
+
+  sbr:SOS-PT-004 bos:dataType "boolean" .
+  sbr:SOS-PT-006 bos:dataType "number" ; bos:minValue "16" ; bos:maxValue "30" .
+  sbr:SOS-PT-007 bos:dataType "enum" ;
+    bos:enumLabels "{\"1\":\"Off\",\"2\":\"Low\",\"3\":\"Medium\",\"4\":\"High\"}" .
+  ```
+
+  > ⚠️ `bos:enumLabels` は `&&` 区切りの文字列ではなく、**キーが許容コード(数値)の JSON
+  > オブジェクト**です（`ControlValueValidator` が `JsonDocument.Parse` でキー集合を読み、
+  > 許容値として使います。パースに失敗すると enum 検証は素通りします）。上のキー番号は
+  > 実際に送る `present_value`(BACnet multiStateValue の 1 始まり)と一致させてください。
+
+  このパッチを当てるまでは、`GET /gateways/{id}/pointlist` の `controlSchema` は
+  `null` のままです([A-4](#a-4-起動確認)・[Step D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)
+  で実際に確認できます)。`sbco:maxPresValue`/`minPresValue`(CSV の `max_pres_value`/
+  `min_pres_value` 由来)は UI 表示のフォールバックにすぎず、制御範囲の検証には使われません
+  (正本は `bos:minValue`/`maxValue`)。
+
+#### A-3-3. ツインへインポートする
+
+Web Client の `/admin/twin`（`http://localhost:3000/admin/twin`）から、A-3-2 で作った
+`pointlist.ttl` をアップロードします。
+
+| モード | 動作 |
+|---|---|
+| `append`（省略時） | 既存データに追記。同一トリプルは無視 |
+| `replace` | 全データを削除して新しい TTL で置き換え |
+
+プレビューでトリプル件数・ゲートウェイ数・エラー（orphan など）を確認してから適用できます。
+curl でも同じことができます（詳細は [`resource-management.md`](resource-management.md) の
+「2. インポート方法」の方法C）。起動時シードで自動投入する場合は、
+環境変数 `OXIGRAPH_SEED_TTL_PATH` に Turtle ファイルを指定すると、起動のたびにデフォルト
+グラフを全置換します（`OxiGraphSeedHostedService`）。
 
 > **gateway_id 制約:** 1 つの `gateway_id` は 1 つのビルにのみ所属できます
 > （複数ビルにまたがると起動停止 or 409）。E2E では `GW-SOS-001` のような ID を使います。
@@ -758,7 +843,7 @@ mock Building OS の代わりに、Step A で起動した **実 Building OS** �
 ### D-1. Building OS 側で gRPC ingress を有効化
 
 ```bash
-cd gutp-building-os-oss-public
+cd gutp-building-os-ri
 GRPC_INGRESS_PORT=5051 docker compose -f docker-compose.oss.yaml up -d --force-recreate \
   --no-deps building-os.connector-worker
 ```
@@ -766,7 +851,7 @@ GRPC_INGRESS_PORT=5051 docker compose -f docker-compose.oss.yaml up -d --force-r
 Windows (PowerShell):
 
 ```powershell
-Set-Location gutp-building-os-oss-public
+Set-Location gutp-building-os-ri
 $env:GRPC_INGRESS_PORT="5051"
 docker compose -f docker-compose.oss.yaml up -d --force-recreate --no-deps building-os.connector-worker
 ```
@@ -823,8 +908,31 @@ go run ./cmd/gateway
 
 - `GATEWAY_ID` は twin に登録した `sbco:gatewayId` と一致させます（例 `GW-SOS-001`）。
 - `BOS_INSECURE=true`（平文 h2c）は **dev/CI 専用**。本番は [Step F](#step-f--証明書と-mtls本番寄り) の mTLS に置き換えます。
-- Point List は Building OS の twin が正本。`PROVISIONING_URL=https://.../provisioning` を
-  与えれば twin から同期（ETag / `If-None-Match`→304 / `?since=` 差分）します。
+- Point List は Building OS の twin が正本。`PROVISIONING_URL=https://bos.example.com` を
+  与えれば twin から同期（ETag / `If-None-Match`→304 / `?since=` 差分）します。gateway が
+  `/gateways/{gatewayId}/pointlist` を自分で末尾に付けるので、**パスは含めないベース URL**
+  （スキーム+ホスト[:ポート]のみ）を渡してください。CSV 固定 (`PROVISIONING_FILE`) の代わりに
+  こちらを使うと、A-3 で投入した twin の内容が変わるたびに gateway 側が自動で追従します。
+
+#### D-2 補足. ポイントリスト同期を手動で確認する
+
+`GET /gateways/{gatewayId}/pointlist` を gateway の代わりに手元の curl で叩いて、
+ETag/304 の挙動を実際に見ることができます（動作確認済み）。
+
+```bash
+# 初回取得 — レスポンスの ETag ヘッダを控える
+curl -i -H "X-Gateway-Id: GW-SOS-001" \
+  'http://localhost:5000/gateways/GW-SOS-001/pointlist'
+
+# 変更がなければ 304(ローカルは mTLS 終端がないため X-Gateway-Id はそのまま信頼される —
+# 本番は Traefik の mTLS 終端がこのヘッダを上書きする)
+curl -i -H "X-Gateway-Id: GW-SOS-001" \
+  -H 'If-None-Match: "<上で得た ETag>"' \
+  'http://localhost:5000/gateways/GW-SOS-001/pointlist'
+```
+
+既定スタック（認証必須）では、上の `X-Gateway-Id` ヘッダの代わりに [Step E](#step-e--ユーザロールトークン認証)
+で取得した admin の Bearer トークンでも通ります（`Authorization: Bearer $TOKEN`）。
 
 ### D-3. 上り（テレメトリ）を確認
 
@@ -997,6 +1105,20 @@ ADMIN_API_URL=https://gateway-admin-api.example.com
 エッジが証明書由来の信頼ヘッダ `X-Gateway-Id` を注入、Building OS がフレームの
 `gateway_id` と一致するかを検証します。
 
+**何を・なぜ検証しているか:** 束縛されるのは 1 つの `gateway_id` につき、テレメトリ取り込み
+（ingress :5051）・制御（egress :5052）・ポイントリスト同期（`GET /gateways/{id}/pointlist`）の
+**3 経路すべて**です。証明書の CN/SAN と `gateway_id` を紐付けることで、「この gateway だけが
+自分の点を送受信・同期できる」ことを保証します（他の gateway の点を騙って送る、といった
+なりすましを防ぎます）。
+
+**`BOS_INSECURE=true` は何を省略しているか:** 証明書によるこの ID 紐付けをまるごと省略し、
+フレーム上で gateway 自身が名乗る `gateway_id` をそのまま信頼します（ローカル/CI ではこれで
+十分 — [Step D-2](#d-2-補足-ポイントリスト同期を手動で確認する) の `X-Gateway-Id` ヘッダを
+そのまま curl から渡せるのも同じ理由です）。「穴が空いている」のではなく、Building OS が
+明示的に許容している dev 向けの選択です。本番でこれを閉じるには、下の F-2 の手順で
+Traefik + cert-manager による mTLS 終端を配線し、`GRPC_INGRESS_REQUIRE_GATEWAY_IDENTITY=true`
+で強制します。
+
 ### F-1. nexus-gateway 側（mTLS で Building OS に接続）
 
 `--bos-insecure` を外し、CA + クライアント証明書/鍵を渡します。
@@ -1008,18 +1130,154 @@ BOS_CA_FILE=/etc/nexus/tls/ca.pem \
 BOS_CERT_FILE=/etc/nexus/tls/gateway.crt \   # CN/SAN が GATEWAY_ID を表す
 BOS_KEY_FILE=/etc/nexus/tls/gateway.key \
 BOS_SERVER_NAME=bos.example.com \            # 任意: SNI/検証名の上書き
-PROVISIONING_URL=https://bos.example.com/provisioning \
+PROVISIONING_URL=https://bos.example.com \
+PROVISIONING_CA_FILE=/etc/nexus/tls/ca.pem \
+PROVISIONING_CERT_FILE=/etc/nexus/tls/gateway.crt \
+PROVISIONING_KEY_FILE=/etc/nexus/tls/gateway.key \
 go run ./cmd/gateway
 ```
 
 - `--bos-cert`/`--bos-key` を省くと **サーバ認証のみ TLS**（CA 検証だけ）、付けると **mTLS**。
 - gateway 自身は `X-Gateway-Id` を送りません（Traefik エッジが証明書から供給）。
-- 詳細: `nexus-gateway/SECURITY.md` と ADR-0007。
+- **Point List チャネル（`PROVISIONING_*`）は `BOS_*` とは別設定**です（nexus-gateway#135）。
+  両リンクが同じエッジで終端していても、`BOS_CA_FILE` 等は `PROVISIONING_*` に暗黙で継承されません
+  — 上のように明示してください。未設定のままなら通常の HTTPS（system roots 検証。無検証ではない）
+  のままで、証明書だけ・鍵だけの片方指定は起動時に拒否されます。
+- 詳細: `nexus-gateway/SECURITY.md` と ADR-0007、`nexus-gateway/README.md` の
+  “Point List provisioning over TLS/mTLS” 節。
+
+### 手を動かして試す — ローカルで mTLS ポイントリスト同期を実演する（advanced, 任意）
+
+> ここまでの F-1 は「本番でどう設定するか」でした。この節は逆に、**自己署名証明書だけで
+> 今この場で実際に動かして確かめる**節です。読み飛ばして [F-2](#f-2-building-os-側エッジ-mtls-の配線)
+> に進んでも構いません。
+
+用意するもの: `openssl` と `docker`（[前提ツール](#4-前提ツール実行環境の整備)と同じ）。
+Step A・Step D-2 まで済んでいる前提です（`GATEWAY_ID=GW-SOS-001` の twin が投入済み）。
+
+#### 1. 自己署名の CA・サーバ証明書・クライアント証明書を作る
+
+```bash
+mkdir -p /tmp/mtls-demo && cd /tmp/mtls-demo
+
+# CA（このデモだけで使う使い捨て）
+openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt -days 2 \
+  -subj "/CN=local-demo-ca"
+
+# サーバ証明書（mTLS 終端エッジ用。SAN=localhost）
+openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=localhost"
+printf "subjectAltName=DNS:localhost,IP:127.0.0.1\n" > server.ext
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 2 -extfile server.ext
+
+# クライアント証明書（gateway 用。CN = gateway_id — 本番の cert-manager 束縛と同じルール）
+openssl req -newkey rsa:2048 -nodes -keyout client.key -out client.csr -subj "/CN=GW-SOS-001"
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 2
+```
+
+#### 2. mTLS 終端エッジを nginx で立てる
+
+本番はこれを Traefik の `passTLSClientCert` が担います（[F-2](#f-2-building-os-側エッジ-mtls-の配線)）。
+ローカルではもっと軽く、nginx 1 コンテナで同じ性質（クライアント証明書必須 + 証明書 CN を信頼ヘッダに
+注入）を再現します。
+
+```bash
+cat > /tmp/mtls-demo/nginx.conf <<'EOF'
+events {}
+http {
+  # nginx に「証明書 CN だけを取り出す」変数は無いため、$ssl_client_s_dn（DN 全体）から
+  # map で CN を抜き出す。単一 CN の自己署名証明書なら "CN=..." だけの文字列になる。
+  map $ssl_client_s_dn $ssl_client_cn {
+    default "";
+    "~(?:^|,)CN=(?<CN>[^,]+)" $CN;
+  }
+
+  server {
+    listen 15443 ssl;
+    ssl_certificate        /certs/server.crt;
+    ssl_certificate_key    /certs/server.key;
+    ssl_client_certificate /certs/ca.crt;
+    ssl_verify_client on;                 # クライアント証明書必須。無ければ 400 で拒否（後述）
+
+    location / {
+      # クライアントが自分で送ってきた X-Gateway-Id はここで上書きされる（詐称防止）。
+      # 注入するのは「検証済み証明書の CN」だけ — Traefik の passTLSClientCert と同じ性質。
+      proxy_set_header X-Gateway-Id $ssl_client_cn;
+      proxy_pass http://host.docker.internal:5000;
+    }
+  }
+}
+EOF
+
+docker run -d --name mtls-demo-edge -p 15443:15443 \
+  --add-host=host.docker.internal:host-gateway \
+  -v /tmp/mtls-demo:/certs:ro \
+  -v /tmp/mtls-demo/nginx.conf:/etc/nginx/nginx.conf:ro \
+  nginx:1.31.4-alpine   # 検証済みバージョン。$ssl_client_s_dn の書式(RFC2253)自体は 1.19.5+ で共通だが、タグを固定して再現性を確保
+```
+
+> `--add-host=host.docker.internal:host-gateway` は Linux 向けです（Docker Desktop では既定で解決できます）。
+
+#### 3. gateway を mTLS 経由の Point List 同期で起動する
+
+ingress/egress（`BOS_*`）は D-2 のまま `BOS_INSECURE=true` で構いません。Point List チャネルだけを
+mTLS に切り替えます。
+
+```bash
+cd nexus-gateway
+GATEWAY_ID=GW-SOS-001 \
+BOS_INGRESS_ADDR=localhost:5051 \
+BOS_EGRESS_ADDR=localhost:5052 \
+BOS_INSECURE=true \
+PROVISIONING_URL=https://localhost:15443 \
+PROVISIONING_CA_FILE=/tmp/mtls-demo/ca.crt \
+PROVISIONING_CERT_FILE=/tmp/mtls-demo/client.crt \
+PROVISIONING_KEY_FILE=/tmp/mtls-demo/client.key \
+go run ./cmd/gateway
+```
+
+ログに `pointsync: point list updated ... count=8` が出れば、mTLS 終端エッジ経由で twin から
+Point List を取得できています。[D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)の curl 例は
+`DISABLE_AUTH=true` で偶然通っていましたが、ここでは gateway 自身は `X-Gateway-Id` を一切送らず、
+**エッジが証明書の CN から注入した値だけ**で Building OS 側の trusted-header 検証を実際に通しています
+— 本番と同じ認証経路をローカルで確かめられます。
+
+#### 4. curl で直接確認する（任意）
+
+```bash
+# 正しいクライアント証明書 → 200、gatewayId は証明書 CN どおり GW-SOS-001
+curl -s --cacert /tmp/mtls-demo/ca.crt \
+  --cert /tmp/mtls-demo/client.crt --key /tmp/mtls-demo/client.key \
+  https://localhost:15443/gateways/GW-SOS-001/pointlist | head -c 200
+
+# クライアント証明書なし → 400 "No required SSL certificate was sent"
+# （nginx の ssl_verify_client on はアプリ層での拒否です。本番の Traefik は
+#   clientAuth.clientAuthType: RequireAndVerifyClientCert — TLS ハンドシェイクの
+#   時点で拒否するため、こちらのほうが早く落ちます。「証明書がなければ拒否される」
+#   という結論は同じでも、拒否される層は異なります）
+curl -i --cacert /tmp/mtls-demo/ca.crt \
+  https://localhost:15443/gateways/GW-SOS-001/pointlist
+
+# ヘッダ詐称を試みる → CN 由来の値が優先され、詐称は効かない（gatewayId は GW-SOS-001 のまま）
+curl -s --cacert /tmp/mtls-demo/ca.crt \
+  --cert /tmp/mtls-demo/client.crt --key /tmp/mtls-demo/client.key \
+  -H "X-Gateway-Id: GW-EVIL" https://localhost:15443/gateways/GW-SOS-001/pointlist | head -c 200
+```
+
+ETag / `If-None-Match` → 304 の挙動自体は平文のときと同じです
+（[D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)）。
+
+#### 5. 片付け
+
+```bash
+docker rm -f mtls-demo-edge
+rm -rf /tmp/mtls-demo
+```
 
 ### F-2. Building OS 側（エッジ mTLS の配線）
 
 - north-south gRPC ingress（Traefik）と cert-manager による mTLS 発行は
-  [`gutp-building-os-oss-public/docs/operations/oss-gateway-bridge-infra.md`](../operations/oss-gateway-bridge-infra.md)。
+  [`gutp-building-os-ri/docs/operations/oss-gateway-bridge-infra.md`](../operations/oss-gateway-bridge-infra.md)。
 - 証明書の発行/ローテーション/失効、`gateway_id` 束縛の enforce 段階導入は
   [`docs/operations/oss-gateway-security-ops.md`](../operations/oss-gateway-security-ops.md)。
 - なりすまし注入防止: `GRPC_INGRESS_REQUIRE_GATEWAY_IDENTITY=true` で、mTLS 検証済み
@@ -1153,6 +1411,7 @@ nexus-gateway を起動したとき、JetStream の `EVENTS` ストリーム作�
 | 18090 | Keycloak（dev） | nexus-gateway | – |
 | 14222 / 18222 | NATS（client / monitor） | nexus-gateway | – |
 | 15051 | mock Building OS（gRPC スタブ） | nexus-gateway | – |
+| 15443 | mTLS 終端エッジ（nginx、[Step F advanced](#手を動かして試す--ローカルで-mtls-ポイントリスト同期を実演するadvanced-任意)のみ） | Step F advanced | – |
 | 4840 | OPC UA（opc.tcp） | opcua-sim | – |
 | 47808 | BACnet/IP（UDP） | bacnet-sim | – |
 
@@ -1167,7 +1426,7 @@ nexus-gateway を起動したとき、JetStream の `EVENTS` ストリーム作�
 | ファイル | 内容 |
 |---|---|
 | [`nexus-gateway/docs/nexus-gateway-report.html`](nexus-gateway/docs/nexus-gateway-report.html) | 背景・概要・**SVG アーキテクチャ図**・データフロー/コネクタ図・技術スタック・性能・品質・**セキュリティモデル**・セットアップ |
-| [`gutp-building-os-oss-public/docs/repository-review.html`](repository-review.html) | 概要・アーキテクチャ・データモデル & Point List 取込・データフロー・**UI スナップショット**・管理ツール UI・SBCO 概念比較・**nexus-gateway E2E 稼働記録(2026-06-20)**・実験環境仕様 |
+| [`gutp-building-os-ri/docs/repository-review.html`](repository-review.html) | 概要・アーキテクチャ・データモデル & Point List 取込・データフロー・**UI スナップショット**・管理ツール UI・SBCO 概念比較・**nexus-gateway E2E 稼働記録(2026-06-20)**・実験環境仕様 |
 | [`bacnet-sim-gateway/docs/architecture-review.html`](bacnet-sim-gateway/docs/architecture-review.html) | Executive Summary・System Context・**Architecture & Pipeline 図**・主要コンポーネント・データ/制御フロー・ADR・不変条件・**管理 UI スクリーンショット** |
 
 補助的なシーケンス図（Markdown）も参照:

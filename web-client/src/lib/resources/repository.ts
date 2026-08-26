@@ -1,8 +1,16 @@
 import { API_BASE_URL, authHeaders, mutationError } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
-import { toPointResource, toRef, toSearchHit } from "./mapping";
+import {
+  toDeviceResource,
+  toPointDetail,
+  toPointResource,
+  toRef,
+  toSearchHit,
+} from "./mapping";
 import { normalizeSearchParams } from "./search";
 import type {
+  DeviceResource,
+  PointDetailResource,
   PointResource,
   ResourceMetadata,
   ResourceMetadataPatch,
@@ -41,12 +49,17 @@ export async function listSpaces(
   return res.map((s) => toRef("space", s));
 }
 
+/**
+ * `DeviceResource` extends `ResourceRef`, so widening this from a bare ref costs existing callers
+ * nothing (`lib/home/loaders.ts` only reads the ref fields) while letting the space detail page
+ * render `deviceType` without reaching for the wire type (#350 4c).
+ */
 export async function listDevices(
   spaceDtId: string,
   token?: string,
-): Promise<ResourceRef[]> {
+): Promise<DeviceResource[]> {
   const res = await apiClient(token).devices.$get({ query: { spaceDtId } });
-  return res.map((d) => toRef("device", d));
+  return res.map(toDeviceResource);
 }
 
 export async function listPoints(
@@ -76,8 +89,53 @@ export async function listChildren(
   }
 }
 
-export async function getPointDetail(pointId: string, token?: string) {
-  return apiClient(token).point_details._pointId(enc(pointId)).$get();
+export async function getPointDetail(
+  pointId: string,
+  token?: string,
+): Promise<PointDetailResource> {
+  return toPointDetail(
+    await apiClient(token).point_details._pointId(enc(pointId)).$get(),
+  );
+}
+
+/**
+ * Single-resource reads (#350 4c). The detail pages used to call `apiClient()` themselves, which is
+ * how the wire types reached `src/app` in the first place — moving the fetch here is what lets those
+ * pages consume domain types.
+ *
+ * Ids are digital-twin ids and are encoded here, once, rather than at each call site.
+ *
+ * These **throw** on 404/403, unlike {@link resolveRef}, which returns null — the detail pages want
+ * an error banner for a resource that does not exist, not a silently empty screen. Callers need a
+ * try/catch.
+ */
+export async function getDevice(
+  deviceDtId: string,
+  token?: string,
+): Promise<DeviceResource> {
+  return toDeviceResource(
+    await apiClient(token).devices._deviceDtId(enc(deviceDtId)).$get(),
+  );
+}
+
+export async function getFloorRef(
+  floorDtId: string,
+  token?: string,
+): Promise<ResourceRef> {
+  return toRef(
+    "floor",
+    await apiClient(token).floors._floorDtId(enc(floorDtId)).$get(),
+  );
+}
+
+export async function getSpaceRef(
+  spaceDtId: string,
+  token?: string,
+): Promise<ResourceRef> {
+  return toRef(
+    "space",
+    await apiClient(token).spaces._spaceDtId(enc(spaceDtId)).$get(),
+  );
 }
 
 /**

@@ -1,4 +1,4 @@
-import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import type { PointDetailResource } from "@/lib/resources/types";
 import { Dialog } from "@headlessui/react";
 import { useMemo, useState } from "react";
 
@@ -11,7 +11,7 @@ export function MultiStateOutputControlModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  pointDetail: PointDetail;
+  pointDetail: PointDetailResource;
   onControl: (value: number) => Promise<void>;
   isLoading: boolean;
 }) {

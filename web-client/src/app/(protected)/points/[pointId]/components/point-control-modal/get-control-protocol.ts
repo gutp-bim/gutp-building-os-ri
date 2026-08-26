@@ -1,4 +1,4 @@
-import type { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import type { PointDetailResource } from "@/lib/resources/types";
 import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
 
 /**
@@ -11,6 +11,8 @@ import { getCollectionProtocol } from "@/lib/utils/helper/device-helper";
  * 制御が可能かどうかはプロトコルではなく `point.writable` が決める点に注意。
  */
 export const getControlProtocol = (
-  pointDetail: PointDetail,
+  pointDetail: PointDetailResource,
 ): "BACnet" | null =>
+  // getCollectionProtocol は #320 以降 MQTT / OPC-UA も返す。ここは BACnet 制御フローの
+  // 入口なので、BACnet 以外は null に潰して「制御できない」に倒す。
   getCollectionProtocol(pointDetail.point) === "BACnet" ? "BACnet" : null;

@@ -119,6 +119,15 @@ public class GatewayPointListScaleTest(
         }
     }
 
+    /// <summary>
+    /// Builds the scale dataset with a real spatial chain per building (#300).
+    ///
+    /// This previously emitted <c>sbco:BuildingExt</c> — a class that does not exist in the ontology
+    /// (<c>OxiGraphOntology.Cls_Building</c>), so the building was invisible to every building-scoped
+    /// read with no error to notice — and never linked it to a Level, which made every point an
+    /// orphan by <c>OxiGraphTwinAdminService.OrphanPattern</c>'s definition. The point-list path
+    /// keyed off <c>gatewayId</c> and so passed regardless; anything treating these as buildings did not.
+    /// </summary>
     private static string BuildDataset()
     {
         var ttl = new StringBuilder("@prefix sbco: <https://www.sbco.or.jp/ont/> .\n");
@@ -126,13 +135,22 @@ public class GatewayPointListScaleTest(
         {
             var buildingId = $"SCALE-B{building:D2}";
             var gatewayId = $"GW-SCALE-{building:D2}";
-            ttl.Append($"<urn:scale:building:{building}> a sbco:BuildingExt ; sbco:id \"{buildingId}\" ; sbco:name \"Scale Building {building}\" .\n");
+            var floorId = $"{buildingId}-F1";
+            var buildingUri = $"urn:scale:building:{building}";
+            var floorUri = $"urn:scale:level:{building}";
+            var roomUri = $"urn:scale:room:{building}";
+
+            // Building →hasPart→ Level →hasPart→ Room, the chain the reachability check walks.
+            ttl.Append($"<{buildingUri}> a sbco:Building ; sbco:id \"{buildingId}\" ; sbco:name \"Scale Building {building}\" ; sbco:hasPart <{floorUri}> .\n");
+            ttl.Append($"<{floorUri}> a sbco:Level ; sbco:id \"{floorId}\" ; sbco:name \"{floorId}\" ; sbco:hasPart <{roomUri}> .\n");
+            ttl.Append($"<{roomUri}> a sbco:Room ; sbco:id \"{buildingId}-R1\" ; sbco:name \"Scale Room {building}\" .\n");
+
             for (var point = 0; point < PointsPerBuilding; point++)
             {
                 var pointId = $"{buildingId}-P{point:D5}";
                 var pointUri = $"urn:scale:point:{building}:{point}";
                 ttl.Append($"<{pointUri}> a sbco:PointExt ; sbco:id \"{pointId}\" ; sbco:name \"{pointId}\" ; sbco:building \"{buildingId}\" ; sbco:writable false ; sbco:gatewayId \"{gatewayId}\" .\n");
-                ttl.Append($"<urn:scale:device:{building}:{point}> a sbco:EquipmentExt ; sbco:id \"DEV-{pointId}\" ; sbco:name \"Device {pointId}\" ; sbco:hasPoint <{pointUri}> .\n");
+                ttl.Append($"<urn:scale:device:{building}:{point}> a sbco:EquipmentExt ; sbco:id \"DEV-{pointId}\" ; sbco:name \"Device {pointId}\" ; sbco:locatedIn <{roomUri}> ; sbco:floor \"{floorId}\" ; sbco:hasPoint <{pointUri}> .\n");
             }
         }
         return ttl.ToString();

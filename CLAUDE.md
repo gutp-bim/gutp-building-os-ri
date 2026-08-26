@@ -148,7 +148,6 @@ web-client/src/
 ├── lib/
 │   ├── auth/                    # Keycloak OIDC config
 │   ├── infra/aspida-client/     # auto-generated Aspida types — do NOT edit manually
-│   ├── infra/zod-api-client/    # Zodios client with runtime Zod validation
 │   ├── infra/grpc-client/       # gRPC-web client for device control streaming
 │   └── gen/                     # auto-generated gRPC TypeScript from proto files
 ├── middleware.ts                # auth middleware
@@ -288,8 +287,7 @@ backstop).
 
 | Client | When to use |
 |--------|-------------|
-| Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) |
-| Zodios client (`src/lib/infra/zod-api-client/`) | REST with runtime Zod validation |
+| Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) — the only generated REST client |
 | gRPC client via `useControlExecution()` (`src/lib/infra/grpc-client/`) | device control streaming (point_control) |
 | bespoke authenticated fetch (`src/lib/admin/http.ts`) | the few endpoints still outside the Aspida schema — resource-metadata writes and telemetry/control-audit reads that need custom response handling |
 | resource/telemetry façade (`src/lib/resources/`, `src/lib/telemetry/`) | resource hierarchy + telemetry reads — **UI calls these, not aspida directly** |
@@ -397,7 +395,17 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 > caught: `integration-tests` weekly and `demo-smoke` (#180, full `make demo` bring-up + smoke)
 > monthly; scheduled failures file an issue. **Local verification is the primary gate** (`dotnet test`,
 > `yarn test`/`typecheck`/`lint`, `yarn build`). The release/deploy chain (`harbor-push` →
-> `argocd-image-update`, `generate-swagger`) still runs on `main` merges.
+> `argocd-image-update`) still runs on `main` merges.
+>
+> **`swagger.yaml` は自動生成されない（#354）。** `generate-swagger` ワークフローは「main への push で
+> 再生成して自動コミット」する設計だったが、main へのマージ直後に必ず入る `argocd-image-update` の
+> コミットと push が競合して常に失敗していたため削除した。代わりに `pr-check` の `.NET Build & Test`
+> が **PR 時点で** 再生成し、差分があれば落とす。API を変えたら `./Tools/sync-type.bash` を実行し、
+> `docs/schema/swagger.yaml` と `web-client/src/lib/infra/aspida-client/generated/` を一緒に
+> コミットすること。**CI は両方を検査する**（#354 で swagger、#357 で aspida 生成物）。
+> `generate_swagger.bash` 単体は aspida 側を更新しないため、これだけを実行して swagger.yaml だけを
+> コミットすると aspida 側の検査が落ちる。`sync-type.bash` は `generate_swagger.bash` に委譲した
+> うえで aspida も再生成するので、常にこちらを使うこと。
 
 ## Environment Variables
 
@@ -420,6 +428,7 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 | `PARQUET_QUERY_MAX_FILES` | parquet mode: per-query object cap; over it → partial result (most-recent partitions) + warning. `0` = unlimited. | `0` |
 | `PROMETHEUS_URL` | Prometheus query API for KPIs in the built-in simple-monitoring endpoint (`GET /api/system/status`). Unset → KPIs degrade to null, Grafana not required. | — |
 | `SYSTEM_STATUS_HEALTH_TARGETS` | Per-service up/down for `GET /api/system/status` via `/health` fan-out (Prometheus-independent). Comma-separated `name=healthUrl`. Unset → only the API server is reported. | — |
+| `OXIGRAPH_STARTUP_TIMEOUT_SEC` | #321: how long `OxiGraphSeedHostedService` waits for OxiGraph to start answering queries before failing startup. Applies when `OXIGRAPH_SEED_TTL_PATH` **or** `OXIGRAPH_DEVICE_TEMPLATE_PATH` is set — both paths query the store (the seed import + gateway-uniqueness check, and `DeviceTemplateValidator` respectively), and the wait runs once before whichever comes first. With neither set nothing is asked of the store and startup never blocks on it. OxiGraph's distroless image can carry no healthcheck, so Compose/K8s cannot express "wait until ready"; this retry is what actually covers the race. Raise it if the store legitimately takes longer to bind. Also honoured by the ConnectorWorker, which runs the same hosted service. | `60` |
 
 > **Effective-config view (#147):** `GET /api/system/config` (admin-only) returns the API server's effective configuration for a **read-only** allowlist (`ConfigAllowlist.ApiServer`); secrets report presence only (no value). IaC/ArgoCD stays the source of truth — this is observability, not editing. Wired into the web-client `(platform)` workspace at `/platform/config`.
 

@@ -186,7 +186,9 @@ sbr:SOS-PT-007 a sbco:PointExt ;
   sbco:objectTypeBacnet "multiStateValue" ;
   sbco:instanceNoBacnet "3001" ;
   bos:dataType "enum" ;
-  bos:enumLabels "Off&&Low&&Medium&&High" .
+  # enumLabels はキーが許容コード(BACnet multiStateValue は 1 始まり)の JSON オブジェクト。
+  # ControlValueValidator が JsonDocument.Parse で許容コード集合を導出する (#331)。
+  bos:enumLabels "{\"1\":\"Off\",\"2\":\"Low\",\"3\":\"Medium\",\"4\":\"High\"}" .
 
 # ── Point: SOS-PT-008 有効電力 (read-only, analogInput 1004) ─────────────────
 sbr:SOS-PT-008 a sbco:PointExt ;

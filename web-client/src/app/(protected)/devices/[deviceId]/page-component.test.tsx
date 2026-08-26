@@ -33,7 +33,13 @@ import DeviceDetailPageComponent from "./page-component";
 function renderPage() {
   return render(
     <TableProvider
-      fields={["name", "dataSpecification", "dataType", "writable", "targetArea"]}
+      fields={[
+        "name",
+        "dataSpecification",
+        "dataType",
+        "writable",
+        "targetArea",
+      ]}
     >
       <DeviceDetailPageComponent deviceId="urn:dev:1" />
     </TableProvider>,
@@ -71,7 +77,14 @@ describe("DeviceDetailPageComponent (#195)", () => {
   it("shows a text loading state, then the device info and keyboard-accessible point links", async () => {
     deviceGet.mockResolvedValueOnce(device);
     pointsGet.mockResolvedValueOnce([
-      { id: "point:1", name: "室温", specification: "spec", type: "float", writable: false, targetArea: "R1" },
+      {
+        id: "point:1",
+        name: "室温",
+        specification: "spec",
+        type: "float",
+        writable: false,
+        targetArea: "R1",
+      },
     ]);
     renderPage();
 
@@ -89,7 +102,9 @@ describe("DeviceDetailPageComponent (#195)", () => {
     pointsGet.mockResolvedValueOnce([]);
     renderPage();
 
-    expect(await screen.findByText("Owner : Building Management")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Owner : Building Management"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Site : site-1")).toBeInTheDocument();
     expect(screen.getByText("Supplier : VendorA")).toBeInTheDocument();
     expect(screen.getByText("Device Type : Sensor")).toBeInTheDocument();
@@ -113,5 +128,20 @@ describe("DeviceDetailPageComponent (#195)", () => {
     expect(await screen.findByTestId("inline-banner-error")).toHaveTextContent(
       "デバイス情報の取得に失敗しました。",
     );
+  });
+
+  // The データ型 cell reads the point's measurement kind. On the domain type `type` is the resource
+  // discriminator (always "point"), so a migration that leaves `.point.type` in place still compiles
+  // and renders "point" in every row — the trap documented on `PointResource.kind`. No assertion
+  // covered this cell before, which is exactly why it slipped through.
+  it("renders the measurement kind in データ型, not the resource discriminator", async () => {
+    deviceGet.mockResolvedValueOnce(device);
+    pointsGet.mockResolvedValueOnce([
+      { id: "point:1", name: "室温", type: "float", targetArea: "R1" },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("float")).toBeInTheDocument();
+    expect(screen.queryByText("point")).not.toBeInTheDocument();
   });
 });

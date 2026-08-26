@@ -1,4 +1,4 @@
-import { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import type { PointDetailResource } from "@/lib/resources/types";
 import {
   getCollectionProtocol,
   getPointLocalId,
@@ -17,7 +17,11 @@ const BACNET_OBJECT_TYPE_MAP: Record<string, string> = {
   23: "Accumulator",
 };
 
-export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
+export function PointInfo({
+  pointDetail,
+}: {
+  pointDetail: PointDetailResource;
+}) {
   // 収集プロトコル（アドレッシング）と書き込み可否（制御できるか）は別の問い。以前は
   // 「制御タイプ」1 行に畳んでいたため、read-only な BACnet ポイントは収集経路も空欄になった (#294)。
   const collectionProtocol = getCollectionProtocol(pointDetail.point);
@@ -52,7 +56,7 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
             {localId || unassigned}
           </div>
           <div className="font-semibold">ポイント種別</div>
-          <div>{pointDetail.point.type || "-"}</div>
+          <div>{pointDetail.point.kind || "-"}</div>
           <div className="font-semibold">ポイント区分</div>
           <div>{pointDetail.point.specification || "-"}</div>
           <div className="font-semibold">書き込み可否</div>
@@ -79,9 +83,9 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
           <div>{pointDetail.point.unit || unassigned}</div>
           <div className="font-semibold">Interval</div>
           <div>
-            {pointDetail.point.interval == null
+            {pointDetail.point.expectedIntervalSeconds == null
               ? unassigned
-              : `${pointDetail.point.interval} s`}
+              : `${pointDetail.point.expectedIntervalSeconds} s`}
           </div>
         </div>
       </div>
@@ -113,8 +117,8 @@ export function PointInfo({ pointDetail }: { pointDetail: PointDetail }) {
               <div className="font-semibold text-blue-700">
                 Instance No Bacnet
               </div>
-              <div className="text-blue-900">
-                {pointDetail.point.instanceNoBacnet || "-"}
+              <div className="text-blue-900" data-testid="instance-no-bacnet">
+                {pointDetail.point.instanceNoBacnet ?? "-"}
               </div>
             </div>
           </div>

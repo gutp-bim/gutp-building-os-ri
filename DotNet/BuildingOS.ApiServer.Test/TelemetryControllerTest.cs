@@ -5,6 +5,7 @@ using BuildingOS.Shared.Domain.Grouping.Entities;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.Telemetry;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,35 @@ public class TelemetryControllerTest
 {
     private static ValidTelemetryData Sample(string pointId, string datetime, double value) =>
         new() { PointId = pointId, Datetime = datetime, Value = value };
+
+    /// <summary>
+    /// Like <see cref="Build"/> but also hands back the twin and per-tier store mocks, which the
+    /// deprecated per-tier actions (<c>/warm</c>, <c>/cold</c>) go through instead of the router.
+    /// </summary>
+    private static (TelemetryController controller, Mock<ITelemetryQueryRouter> router,
+        Mock<IAuthorizationService> authz, Mock<ITelemetryDatabase> telemetryDb, Mock<IDigitalTwinDatabase> twin)
+        BuildWithStores(string role = "admin")
+    {
+        var twin = new Mock<IDigitalTwinDatabase>();
+        var telemetryDb = new Mock<ITelemetryDatabase>();
+        var router = new Mock<ITelemetryQueryRouter>();
+        var authz = new Mock<IAuthorizationService>();
+
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(Array.Empty<ValidTelemetryData>());
+
+        var controller = new TelemetryController(twin.Object, telemetryDb.Object, router.Object, authz.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = "u1", Role = role, Permissions = [] } },
+                },
+            },
+        };
+        return (controller, router, authz, telemetryDb, twin);
+    }
 
     private static (TelemetryController controller, Mock<ITelemetryQueryRouter> router, Mock<IAuthorizationService> authz)
         Build(string role = "admin")
@@ -45,6 +75,52 @@ public class TelemetryControllerTest
             },
         };
         return (controller, router, authz);
+    }
+
+    /// <summary>
+    /// #347: <c>GetWarm</c> was declared singular while the store returns an array, so the generated
+    /// OpenAPI documented an object while the wire shipped a list. The defect lives in the declared
+    /// type (that is what Swashbuckle reads), not the runtime body, so this asserts the signature.
+    /// #344 additionally moved it onto the wire DTO.
+    /// </summary>
+    [Fact]
+    public void GetWarm_DeclaresAnArrayReturnType_MatchingWhatTheStoreReturns()
+    {
+        var action = typeof(TelemetryController).GetMethod(nameof(TelemetryController.GetWarm));
+        Assert.NotNull(action);
+        Assert.Equal(typeof(Task<ActionResult<TelemetryReading[]>>), action!.ReturnType);
+    }
+
+    /// <summary>
+    /// The mirror-image defect, found while introducing the wire DTO (#344): <c>GetHot</c> was
+    /// declared <c>ActionResult&lt;ValidTelemetryData[]&gt;</c> while
+    /// <c>ITelemetryDatabase.GetHotTelemetry</c> returns a single nullable row — the document
+    /// promised an array where the wire ships one object (or null).
+    /// </summary>
+    [Fact]
+    public void GetHot_DeclaresASingleReading_MatchingWhatTheStoreReturns()
+    {
+        var action = typeof(TelemetryController).GetMethod(nameof(TelemetryController.GetHot));
+        Assert.NotNull(action);
+        Assert.Equal(typeof(Task<ActionResult<TelemetryReading>>), action!.ReturnType);
+    }
+
+    /// <summary>The runtime body has always been the array; this pins it alongside the signature.</summary>
+    [Fact]
+    public async Task GetWarm_ReturnsTheWarmRowsAsAnArray()
+    {
+        var (controller, _, _, telemetryDb, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+        telemetryDb
+            .Setup(d => d.GetWarmTelemetries("p1", It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync([Sample("p1", "2026-01-01T00:00:00Z", 1)]);
+
+        var result = await controller.GetWarm(
+            "p1", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), CancellationToken.None);
+
+        var body = Assert.IsType<TelemetryReading[]>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal("p1", Assert.Single(body).PointId);
     }
 
     private static LatestSample[] Body(ActionResult<LatestSample[]> result) =>
@@ -73,8 +149,10 @@ public class TelemetryControllerTest
     [Fact]
     public async Task BatchLatest_CarriesDiscriminatedValue_ForNonNumericPoints()
     {
-        // #152: a string/boolean latest sample surfaces via ValueType + ValueText/ValueBool while the
-        // numeric Value stays null; a numeric point keeps Value with ValueType "number".
+        // #344: `Value` is now the union — a string point returns the string, a boolean point the
+        // boolean. #359 then dropped the legacy ValueText/ValueBool pair; the non-numeric half of a
+        // reading rides in `State` instead, and `ValueType` still describes `Value`. A raw row
+        // repeats its reading in both, which is what the string/boolean cases below pin.
         var (controller, router, _) = Build();
         router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "pStr" && q.Latest), It.IsAny<CancellationToken>()))
               .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "pStr", Datetime = "2026-07-15T00:00:00Z", ValueType = "string", ValueText = "auto" } });
@@ -88,18 +166,18 @@ public class TelemetryControllerTest
         var body = Body(result);
         var str = Assert.Single(body, s => s.PointId == "pStr");
         Assert.Equal("string", str.ValueType);
-        Assert.Equal("auto", str.ValueText);
-        Assert.Null(str.Value);
+        Assert.Equal("auto", str.Value);
+        Assert.Equal("auto", str.State);
 
         var boolean = Assert.Single(body, s => s.PointId == "pBool");
         Assert.Equal("boolean", boolean.ValueType);
-        Assert.True(boolean.ValueBool);
-        Assert.Null(boolean.Value);
+        Assert.Equal(true, boolean.Value);
+        Assert.Equal(true, boolean.State);
 
         var num = Assert.Single(body, s => s.PointId == "pNum");
         Assert.Equal("number", num.ValueType);
         Assert.Equal(21.5, num.Value);
-        Assert.Null(num.ValueText);
+        Assert.Null(num.State);
     }
 
     [Fact]

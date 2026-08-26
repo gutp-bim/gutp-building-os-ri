@@ -15,7 +15,7 @@ Building OS は **SBCO オントロジー**（`sbco:`）をリソース記述に
 
 ```turtle
 @prefix sbco: <https://www.sbco.or.jp/ont/> .
-@prefix bos:  <https://building-os.example.com/ontology#> .
+@prefix bos:  <http://buildingos.gutp.jp/ontology#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 # ── ビル ──────────────────────────────────────────────────────────────────
@@ -55,12 +55,32 @@ Building OS は **SBCO オントロジー**（`sbco:`）をリソース記述に
     sbco:objectTypeBacnet "analogInput" ;
     sbco:instanceNoBacnet "0"^^xsd:integer ;
 
-    # 制御スキーマ（writable=true のポイントに設定）
-    bos:controlSchema   "{\"dataType\":\"number\",\"min\":16,\"max\":28,\"step\":0.5}" .
+    # 制御スキーマ（writable=true のポイントに設定）— 個別の述語で書く
+    bos:dataType        "number" ;
+    bos:minValue        "16" ;
+    bos:maxValue        "28" .
 ```
 
 > **`sbco:building` リテラルは必須です。** OxiGraph の ingress メタデータ解決（`IPointMetadataCache`）が
 > `point_id` から建物を引く際にこのフィールドを使用します。省略するとテレメトリ受信が失敗します。
+
+> ⚠️ **制御スキーマ（`bos:`）の書き方に注意。** サーバ側が読むのは
+> `bos:dataType` / `bos:minValue` / `bos:maxValue` / `bos:enumLabels` の **4 つの個別述語**です
+> （`OssControlSchemaResolver` の SPARQL）。JSON を 1 つの述語にまとめた書き方（`bos:controlSchema`
+> など）は**どこからも読まれません**。また `bos:` の名前空間は
+> `http://buildingos.gutp.jp/ontology#` が正です — 別の IRI を使うと SPARQL の `OPTIONAL` に
+> マッチせず、制御スキーマは**エラーにならないまま無視されます**（検証は permissive なため、
+> 範囲外の値でも 202 が返ります）。
+>
+> enum 型の `bos:enumLabels` は **キーが許容コード（数値）の JSON オブジェクト文字列**です:
+>
+> ```turtle
+> bos:dataType "enum" ;
+> bos:enumLabels "{\"1\":\"冷房\",\"2\":\"暖房\",\"3\":\"送風\"}" .
+> ```
+>
+> `&&` 区切りの文字列は JSON として解釈できず、enum 検証が**素通り**します。正本は
+> [oss-control-safety.md](../architecture/oss-control-safety.md) を参照してください。
 
 ---
 

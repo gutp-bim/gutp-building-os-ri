@@ -15,7 +15,26 @@ public static class NatsStreamTopology
     [
         ("building-os.raw.",       "BUILDING_OS_RAW",       ["building-os.raw.>"]),
         ("building-os.validated.", "BUILDING_OS_VALIDATED", ["building-os.validated.>"]),
-        ("building-os.control.",   "BUILDING_OS_CONTROL",   ["building-os.control.>"]),
+        // Deliberately the literal durable subject, NOT `building-os.control.>` (#381).
+        // Only the generic request subject is consumed from JetStream (the `pointcontrolworker`
+        // durable, whose FilterSubject is this exact string). The other two subjects under
+        // `building-os.control.` are core-NATS request/reply and must stay out of the stream:
+        //
+        //   building-os.control.request.gw.{gatewayId}  per-gateway egress (GatewayBridge subscribes
+        //     with core `nats.SubscribeAsync`, not JetStream). The publisher sends this as a NATS
+        //     *request* and uses `NatsNoRespondersException` to detect an offline gateway and fail
+        //     fast with 503 (#186). A stream bound to `building-os.control.>` registers interest on
+        //     this subject and **replies with a PubAck**, so no-responders can never fire and the
+        //     503 branch is unreachable — the caller instead waits out the result timeout while the
+        //     audit row stays `pending`. Verified with `nats request`: the wildcard binding answers
+        //     `{"stream":"BUILDING_OS_CONTROL","seq":N}` in <1 ms, an unbound subject answers
+        //     "No responders are available".
+        //   building-os.control.result.{controlId}      consumed by WaitForResult over core NATS.
+        //
+        // Note that `building-os.control.request` does not match `building-os.control.request.gw.X`:
+        // NATS literal subjects match token-for-token, so the per-gateway subject is a distinct
+        // subject rather than a child of this one.
+        ("building-os.control.",   "BUILDING_OS_CONTROL",   ["building-os.control.request"]),
         ("building-os.dlq.",       "BUILDING_OS_DLQ",       ["building-os.dlq.>"]),
     ];
 

@@ -86,15 +86,25 @@ postgres-exporter / pgbouncer / Ollama が `:latest`。新規ユーザーの初�
 
 ### 7. フロントエンドのデフォルト API URL 不整合（オンボーディング摩擦）
 
-`NEXT_PUBLIC_API_BASE_URL` 未設定時のフォールバックが揃っていない:
+~~`NEXT_PUBLIC_API_BASE_URL` 未設定時のフォールバックが揃っていない:~~
 
-- `web-client/src/lib/infra/api-client/client.ts:54` ほか 5 箇所 → `http://localhost:8081`
-- `web-client/src/lib/infra/grpc-client/index.ts:4` → `http://localhost:8080`
-- 実際のローカル API Server（`WithLocal`）→ **`http://localhost:5000`**
+- ~~`web-client/src/lib/infra/api-client/client.ts:54` ほか 5 箇所 → `http://localhost:8081`~~
+- ~~`web-client/src/lib/infra/grpc-client/index.ts:4` → `http://localhost:8080`~~
+- ~~実際のローカル API Server（`WithLocal`）→ **`http://localhost:5000`**~~
 
-README 手順どおりに `yarn dev` + `dotnet run` すると素の状態では API に繋がらない。
+~~README 手順どおりに `yarn dev` + `dotnet run` すると素の状態では API に繋がらない。
 フォールバックを `5000` に統一し、`web-client/.env.example`（`NEXT_PUBLIC_API_BASE_URL` /
-`NEXT_PUBLIC_KEYCLOAK_*` / `NEXT_PUBLIC_ASSISTANT_ENABLED`）を追加するのが早い。
+`NEXT_PUBLIC_KEYCLOAK_*` / `NEXT_PUBLIC_ASSISTANT_ENABLED`）を追加するのが早い。~~
+
+→ **解消済み (#19):** ハードコードされたフォールバックは全箇所 `http://localhost:5000` に統一され
+（`8081` / `8080` は 1 箇所も残っていない）、`web-client/.env.example` も追加済み。
+指摘対象だった `infra/api-client/` 自体も、消費者ゼロの未使用クライアントとして #311 で削除した。
+
+ただし `infra/aspida-client/index.ts:11` だけはハードコードのフォールバックを持たず、
+`API_BASE_URL ?? NEXT_PUBLIC_API_BASE_URL` のみで解決する（compose / Helm / ArgoCD は
+いずれも明示設定しており、umbrella chart は同一 origin 相対のため空文字を渡す）。
+`.env.local` を作らずに `yarn dev` した場合は Next の origin に相対解決されて 404 になるため、
+`web-client/README.md:78` の手順に従うこと。
 
 ### 8. ドキュメントのドリフト（新規ユーザーが最初に踏む）
 

@@ -3,6 +3,7 @@ using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
+using BuildingOs.ApiServer.Telemetry;
 using Microsoft.AspNetCore.Mvc;
 using AuthorizationService = BuildingOS.Shared.Domain.Authorization.IAuthorizationService;
 
@@ -31,7 +32,7 @@ public class TelemetryController(
     [HttpGet("hot")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ValidTelemetryData[]>> GetHot([FromQuery] string pointId, CancellationToken ct)
+    public async Task<ActionResult<TelemetryReading>> GetHot([FromQuery] string pointId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(pointId))
         {
@@ -50,7 +51,7 @@ public class TelemetryController(
         if (!existPoint) return NotFound();
 
         var result = await telemetryDatabase.GetHotTelemetry(pointId);
-        return Ok(result);
+        return Ok(TelemetryReading.From(result));
     }
 
     /// <summary>
@@ -60,7 +61,7 @@ public class TelemetryController(
     [HttpGet("warm")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ValidTelemetryData>> GetWarm(
+    public async Task<ActionResult<TelemetryReading[]>> GetWarm(
         [FromQuery] string pointId,
         [FromQuery] DateTime startTime,
         [FromQuery] DateTime endTime,
@@ -88,7 +89,7 @@ public class TelemetryController(
         }
 
         var result = await telemetryDatabase.GetWarmTelemetries(pointId, startTime, endTime);
-        return Ok(result);
+        return Ok(TelemetryReading.From(result));
     }
 
     /// <summary>
@@ -98,7 +99,7 @@ public class TelemetryController(
     [HttpGet("cold")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ValidTelemetryData[]>> GetCold(
+    public async Task<ActionResult<TelemetryReading[]>> GetCold(
         [FromQuery] string pointId,
         [FromQuery] DateTime startTime,
         [FromQuery] DateTime endTime,
@@ -126,7 +127,7 @@ public class TelemetryController(
         }
 
         var result = await telemetryDatabase.GetColdTelemetries(pointId, startTime, endTime);
-        return Ok(result);
+        return Ok(TelemetryReading.From(result));
     }
 
     /// <summary>
@@ -135,7 +136,7 @@ public class TelemetryController(
     [Obsolete("Use GET /telemetries/query (canonical, auto tier-selection). Retained for backward compatibility.")]
     [HttpGet("cold-multi-point")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Dictionary<string, ValidTelemetryData[]>>> GetColdMultiPoint(
+    public async Task<ActionResult<Dictionary<string, TelemetryReading[]>>> GetColdMultiPoint(
         [FromQuery] string[] pointIds,
         [FromQuery] DateTime startTime,
         [FromQuery] DateTime endTime,
@@ -163,7 +164,7 @@ public class TelemetryController(
         }
 
         var result = await telemetryDatabase.GetColdTelemetries(pointIds, startTime, endTime);
-        return Ok(result);
+        return Ok(result.ToDictionary(kv => kv.Key, kv => TelemetryReading.From(kv.Value)));
     }
 
     /// <summary>
@@ -178,7 +179,7 @@ public class TelemetryController(
     [HttpGet("query")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ValidTelemetryData[]>> Query(
+    public async Task<ActionResult<TelemetryReading[]>> Query(
         [FromQuery] string pointId,
         [FromQuery] DateTime? start,
         [FromQuery] DateTime? end,
@@ -207,7 +208,7 @@ public class TelemetryController(
             new TelemetryQueryRequest(pointId, start, end, granularity, latest), ct);
 
         Response.Headers["Cache-Control"] = "max-age=60";
-        return Ok(result);
+        return Ok(TelemetryReading.From(result));
     }
 
     /// <summary>
@@ -269,9 +270,12 @@ public class TelemetryController(
                 .QueryAsync(new TelemetryQueryRequest(pointId, null, null, TelemetryGranularity.Raw, true), ct)
                 .ConfigureAwait(false);
             var latest = result.LastOrDefault();
+            // Same rule as TelemetryReading.From: the discriminant describes the union value we
+            // ship, derived from it rather than copied off the row.
+            var value = TelemetryValueKind.Resolve(latest);
             return new LatestSample(
-                pointId, latest?.Datetime, latest?.Value,
-                latest?.ValueType, latest?.ValueText, latest?.ValueBool);
+                pointId, latest?.Datetime, value,
+                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest));
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
@@ -293,10 +297,39 @@ public sealed record BatchLatestRequest(string[] PointIds);
 
 /// <summary>
 /// One point's latest sample; <c>Datetime</c>/<c>Value</c> are null when it has no data (#182).
-/// The discriminated value fields (#152) carry non-numeric latest readings: <c>ValueType</c> is
-/// <c>"number"</c>/<c>"string"</c>/<c>"boolean"</c> (null → numeric for legacy data), with the payload in
-/// <c>Value</c> (numeric), <c>ValueText</c> (string), or <c>ValueBool</c> (boolean).
+/// <para>
+/// <c>Value</c> is the union-typed reading (#344) — a number, string, or boolean — described in the
+/// OpenAPI document as <c>oneOf</c> by <c>TelemetryValueSchemaFilter</c>. <c>State</c> carries the
+/// reading's non-numeric half, and <c>ValueType</c> describes <c>Value</c>; the legacy
+/// <c>ValueText</c>/<c>ValueBool</c> pair left the wire in #359. Kept in step with
+/// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading"/>, whose docs carry the full rationale
+/// — the client's value decoder is satisfied structurally by both, so a divergence here surfaces only
+/// as a type error in the generated client.
+/// Response-only: <c>object?</c> deserializes as a <c>JsonElement</c>, so do not reuse this for input.
+/// </para>
 /// </summary>
+/// <param name="PointId">The point this sample belongs to.</param>
+/// <param name="Datetime">ISO-8601 timestamp of the reading; <c>null</c> when the point has no data.</param>
+/// <param name="Value">
+/// The reading, as a <see cref="double"/>, <see cref="string"/>, <see cref="bool"/>, or <c>null</c>.
+/// Widened to <c>oneOf: [number, string, boolean]</c> in the OpenAPI document by
+/// <c>TelemetryValueSchemaFilter</c>, which is what makes generated clients see a real union rather
+/// than an untyped hole.
+/// </param>
+/// <param name="ValueType">
+/// <c>"number"</c> | <c>"string"</c> | <c>"boolean"</c> — the kind of <paramref name="Value"/>,
+/// derived from the value actually shipped rather than copied from the stored tag, so it cannot
+/// contradict it. A descriptor, not a lookup key.
+/// </param>
+/// <param name="State">
+/// The reading's <b>non-numeric half</b> — a <see cref="string"/>, a <see cref="bool"/>, or
+/// <c>null</c> — independent of any number in <paramref name="Value"/> (#359). Replaced the legacy
+/// <c>ValueText</c>/<c>ValueBool</c> pair. A non-numeric reading is repeated here rather than left
+/// null, so a client reads the state half with a single lookup instead of falling back to
+/// <paramref name="Value"/>. Batch-latest returns raw samples only, so unlike
+/// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading.State"/> this never carries a state
+/// alongside a numeric average — see that type's docs for why the field exists at all.
+/// </param>
 public sealed record LatestSample(
-    string PointId, string? Datetime, double? Value,
-    string? ValueType = null, string? ValueText = null, bool? ValueBool = null);
+    string PointId, string? Datetime, object? Value,
+    string? ValueType = null, object? State = null);

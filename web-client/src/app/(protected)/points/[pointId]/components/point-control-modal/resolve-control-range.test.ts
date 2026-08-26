@@ -1,4 +1,8 @@
-import type { PointDetail } from "@/lib/infra/aspida-client/generated/@types";
+import { aPointDetail } from "@/lib/resources/test-fixtures";
+import type {
+  ControlSchemaResource,
+  PointResource,
+} from "@/lib/resources/types";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,10 +11,12 @@ import {
   resolveControlRange,
 } from "./resolve-control-range";
 
+// Shared typed fixtures (src/lib/resources/test-fixtures.ts): the base used to be duplicated
+// verbatim in each test file, so every new PointResource field meant three edits.
 const detail = (
-  point: Record<string, unknown>,
-  controlSchema?: Record<string, unknown>,
-) => ({ point, controlSchema }) as unknown as PointDetail;
+  point: Partial<PointResource>,
+  controlSchema?: Partial<ControlSchemaResource>,
+) => aPointDetail({ point, controlSchema });
 
 describe("resolveControlRange (#298)", () => {
   it("prefers the ControlSchema bounds, which are what the server validates against", () => {

@@ -7,15 +7,18 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn() }) }));
 vi.mock("./components/telemetry-hot-data", () => ({ TelemetryHotData: () => <div data-testid="hot" /> }));
 vi.mock("./components/telemetry-warm-data", () => ({
   // Expose the received data + a way to change the period so the out-of-order test can drive it.
+  // warmData is the domain TelemetryPoint[] ({t, v}) — the page passes the façade's series straight
+  // through, with no re-shaping into the aspida row form (#346).
   TelemetryWarmData: ({
     warmData,
     onPeriodChange,
   }: {
-    warmData: { value?: number }[];
+    warmData: { t: string; v: number }[];
     onPeriodChange: (p: string) => void;
   }) => (
     <div>
-      <div data-testid="warm-values">{warmData.map((d) => d.value).join(",")}</div>
+      <div data-testid="warm-values">{warmData.map((d) => d.v).join(",")}</div>
+      <div data-testid="warm-times">{warmData.map((d) => d.t).join(",")}</div>
       <button data-testid="pick-30d" onClick={() => onPeriodChange("30d")}>
         30d
       </button>
@@ -79,7 +82,10 @@ describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
 
   it("shows no error banners when the reads succeed", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
-    (latestTelemetrySample as Mock).mockResolvedValue({ datetime: "2026-07-17T00:00:00Z", value: 1 });
+    (latestTelemetrySample as Mock).mockResolvedValue({
+      t: "2026-07-17T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    });
     (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
 
     render(<PointDetailPageComponent pointId="p1" />);
@@ -106,7 +112,10 @@ describe("PointDetailPageComponent loading state (#195)", () => {
 describe("PointDetailPageComponent out-of-order warm responses (#197 review)", () => {
   it("ignores a stale warm response so a slow superseded request can't overwrite the chart", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
-    (latestTelemetrySample as Mock).mockResolvedValue({ datetime: "2026-07-17T00:00:00Z", value: 1 });
+    (latestTelemetrySample as Mock).mockResolvedValue({
+      t: "2026-07-17T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    });
 
     // Each queryTelemetry call captures its own resolver so we can settle them out of order.
     const resolvers: ((v: unknown) => void)[] = [];
@@ -136,5 +145,20 @@ describe("PointDetailPageComponent out-of-order warm responses (#197 review)", (
     // The stale A response must not overwrite B's chart.
     await waitFor(() => expect(screen.getByTestId("warm-values")).toHaveTextContent("1"));
     expect(screen.getByTestId("warm-values")).not.toHaveTextContent("30");
+  });
+
+  it("passes the mapped domain series straight to the chart without re-shaping it", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(42));
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    // The façade already produced {t, v}; the page must not rebuild aspida-shaped rows from it.
+    await waitFor(() =>
+      expect(screen.getByTestId("warm-values")).toHaveTextContent("42"),
+    );
+    expect(screen.getByTestId("warm-times")).toHaveTextContent(
+      "2026-07-17T00:00:00Z",
+    );
   });
 });

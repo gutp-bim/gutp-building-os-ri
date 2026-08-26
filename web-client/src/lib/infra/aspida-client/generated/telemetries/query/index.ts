@@ -19,6 +19,6 @@ export type Methods = DefineMethods<{
 
     status: 200;
     /** OK */
-    resBody: Types.ValidTelemetryData[];
+    resBody: Types.TelemetryReading[];
   };
 }>;

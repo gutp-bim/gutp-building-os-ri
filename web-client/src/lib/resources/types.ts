@@ -23,7 +23,17 @@ export type PointResource = ResourceRef & {
   unit: string | null;
   scale: number | null;
   specification: string | null;
-  /** The point's measurement kind (aspida `Point.type`), renamed to avoid clashing with `type`. */
+  /**
+   * The point's measurement kind (aspida `Point.type`), renamed because `type` is already the
+   * resource discriminator on {@link ResourceRef}.
+   *
+   * **Trap when migrating a screen off the wire type (#350 4b/4c):** `point.type` still compiles
+   * against `PointResource` — it just silently becomes the literal `"point"` for every point instead
+   * of the measurement kind. TypeScript cannot catch it (both are non-empty strings), so a row like
+   * 「ポイント種別」 would quietly render "point" everywhere. That is the #294/#298 failure class this
+   * façade exists to prevent. Grep every `\.point\.type` when swapping a prop to
+   * {@link PointDetailResource} and rewrite it to `.point.kind`.
+   */
   kind: string | null;
   /**
    * Expected telemetry interval in seconds (aspida `Point.interval`, sbco:interval). Drives per-point
@@ -39,6 +49,71 @@ export type PointResource = ResourceRef & {
   alarmLow: number | null;
   warnHigh: number | null;
   warnLow: number | null;
+  /**
+   * BACnet native addressing (`sbco:objectTypeBacnet` / `instanceNoBacnet` / `deviceIdBacnet`). This
+   * is *addressing*, not writability — whether a point can be controlled is decided by
+   * {@link PointResource.writable} and the control schema (#294). `instanceNoBacnet` of 0 is a valid
+   * instance, so consumers must test `!= null`, never truthiness.
+   */
+  objectTypeBacnet: string | null;
+  instanceNoBacnet: number | null;
+  deviceIdBacnet: string | null;
+  /**
+   * Protocol-native point address (`sbco:localId`): the BACnet ObjectID, the MQTT topic, or the
+   * OPC-UA nodeId. Lets an operator trace a reading back to its concrete source (#320).
+   */
+  localId: string | null;
+  /**
+   * Collection protocol resolved server-side by `GatewayPointProtocolResolver` (`bos:protocol`
+   * first, then BACnet native fields, then the local-id shape) — the *same* resolver the gateway
+   * point-list uses, so the two views cannot disagree (#294/#298 class). Addressing, not
+   * writability: {@link PointResource.writable} decides whether a point can be controlled.
+   */
+  protocol: string | null;
+  /**
+   * The BACnet raw span (`sbco:minPresValue`/`maxPresValue`). **Display-only fallback** — the
+   * authority for a control write range is the ControlSchema's `bos:minValue`/`maxValue`
+   * (ADR-0005 §2.5, `resolve-control-range.ts`).
+   */
+  minPresValue: number | null;
+  maxPresValue: number | null;
+  /** `sbco:targetArea` — the area the point measures/controls; rendered by the device point table. */
+  targetArea: string | null;
+};
+
+/**
+ * The control schema (`bos:*`) — the **authority** for a control write range (ADR-0005 §2.5).
+ * Distinct from {@link PointResource.minPresValue}/`maxPresValue`, which are the BACnet raw span and
+ * a display-only fallback.
+ */
+export type ControlSchemaResource = {
+  dataType: string | null;
+  enumLabels: string | null;
+  minValue: number | null;
+  maxValue: number | null;
+};
+
+/** A device, with the attributes the detail panes render. Nulls are normalized. */
+export type DeviceResource = ResourceRef & {
+  type: "device";
+  deviceType: string | null;
+  supplier: string | null;
+  owner: string | null;
+  site: string | null;
+  buildingName: string | null;
+  gatewayId: string | null;
+};
+
+/**
+ * Everything the point detail screen needs, as domain types — the façade equivalent of the aspida
+ * `PointDetail` (#350). Spatial context is optional because the twin may not place a point.
+ */
+export type PointDetailResource = {
+  point: PointResource;
+  device: DeviceResource | null;
+  floor: ResourceRef | null;
+  space: ResourceRef | null;
+  controlSchema: ControlSchemaResource | null;
 };
 
 /** One cross-resource search match. */
