@@ -59,7 +59,7 @@ Usage:
       [--prometheus http://localhost:9090] [--runtime-job building-os-connector-worker]
       [--runtime-container building-os.connector-worker]
       [--ingress localhost:5051] [--oxigraph http://localhost:7878]
-      [--minio-endpoint localhost:9000] [--flush-wait 90]
+      [--minio-endpoint localhost:9000] [--flush-wait <既定: PARQUET_FLUSH_INTERVAL + 60s>]
       [--containers building-os.connector-worker,building-os.nats,building-os.oxigraph,building-os.api,building-os.minio]
 """
 
@@ -102,6 +102,14 @@ _MEM_UNIT = {"B": 1 / (1024 * 1024), "KIB": 1 / 1024, "KB": 1 / 1024, "MIB": 1.0
 
 # runtime メトリクス（#370）は connector-worker プロセス 1 つを見るので、コンテナごとのループでは
 # なくこの固定の接頭辞で出す（OTEL_SERVICE_NAME = Prometheus の job ラベル = このコンテナ）。
+# ParquetLakeWriterOptions.FlushInterval のアプリ既定（分）。compose は PARQUET_FLUSH_INTERVAL を
+# 空で渡す（= アプリ既定に従う）ので、E10 の実運用条件はこの値になる。
+DEFAULT_PARQUET_FLUSH_INTERVAL_MIN = 5
+# flush 窓の端に当たっても確実に 1 回 flush を跨ぐための余裕[秒]（writer のアイドルポーリングは最大 20s）。
+FLUSH_WAIT_MARGIN_S = 60
+# 行数が足りないときに追加で flush 窓を待つ回数の上限。
+QUALITY_CHECK_RETRIES = 2
+
 RUNTIME_CONTAINER = "building-os.connector-worker"
 DEFAULT_RUNTIME_JOB = "building-os-connector-worker"
 
@@ -901,6 +909,61 @@ def summarize_resources(samples: list[dict], containers: list[str],
     return metrics
 
 
+def parquet_flush_interval_s() -> int:
+    """ParquetLakeWriterWorker の flush 間隔[秒]。
+
+    writer 側は `PARQUET_FLUSH_INTERVAL`（**分**、>0 のときのみ有効）で上書きでき、未指定なら
+    `ParquetLakeWriterOptions.FlushInterval` の既定 5 分
+    （`DotNet/BuildingOS.Shared/Infrastructure/Telemetry/ParquetLake/ParquetLakeWriterWorker.cs`）。
+    ここで **1 分を既定にしてはいけない** — compose は `PARQUET_FLUSH_INTERVAL` を空で渡す
+    （`${PARQUET_FLUSH_INTERVAL:-}` = アプリ既定に従う）ので、E10 の実運用条件では 5 分になる。
+    """
+    raw = os.environ.get("PARQUET_FLUSH_INTERVAL", "").strip()
+    try:
+        mins = int(raw)
+    except ValueError:
+        mins = 0
+    return (mins if mins > 0 else DEFAULT_PARQUET_FLUSH_INTERVAL_MIN) * 60
+
+
+def default_flush_wait_s() -> int:
+    """突合前に待つ秒数の既定。
+
+    **固定値にしてはいけない。** 以前は 90 秒固定で、writer の flush 間隔（既定 5 分）より短かった。
+    そのため送信終了時点でバッファに残っていた最大 1 flush 窓ぶん（E10 の既定レートで約 1,860 行）が
+    レイクに落ちる前に `quality_checker.py` が走り、**実損失ゼロの run が `data_loss_ratio` を
+    非ゼロで報告する**（#383）。24h run の実測で 0.23%。レートや点数を上げれば gate 閾値 1% を
+    超えて偽陽性の失敗になりうる。
+
+    writer は「最大でも FlushInterval ごと」に flush し、アイドル時のポーリングが最大 20 秒なので、
+    最後のフレームの後に確実に 1 回 flush させるには interval + 余裕が要る。
+    """
+    return parquet_flush_interval_s() + FLUSH_WAIT_MARGIN_S
+
+
+def reconcile_with_lake(run_id: str, building: str, expected: int, minio_endpoint: str,
+                        retries: int = QUALITY_CHECK_RETRIES) -> dict | None:
+    """quality_checker を走らせ、行数が足りなければ 1 flush 窓ぶん待って**上限回数まで**やり直す。
+
+    待ち時間の導出（`default_flush_wait_s`）だけでは、writer が遅れたり compaction と重なったりした
+    ときに取りこぼす。行数が `expected` に届かない間だけ追加で待つことで、flush 間隔を知らなくても
+    正しく突合できる — ただし本当に損失がある run で無駄に待たないよう回数で打ち切る。
+    """
+    best = None
+    for attempt in range(retries + 1):
+        qc = run_quality_checker(run_id, building, expected, minio_endpoint)
+        if qc is not None and (best is None or qc.get("db_row_count", 0) > best.get("db_row_count", 0)):
+            best = qc
+        rows = (best or {}).get("db_row_count", 0)
+        if rows >= expected or attempt == retries:
+            return best
+        wait = parquet_flush_interval_s()
+        print(f"[s19] lake has {rows}/{expected} rows — waiting {wait}s for another flush "
+              f"(attempt {attempt + 1}/{retries})", file=sys.stderr)
+        time.sleep(wait)
+    return best
+
+
 def run_quality_checker(run_id: str, building: str, expected: int, minio_endpoint: str) -> dict | None:
     perf = os.path.dirname(os.path.abspath(__file__))
     py = os.path.join(perf, ".venv", "bin", "python")
@@ -991,7 +1054,7 @@ async def run(args) -> int:
         # resource sampling is isolated from this — the Ack wait, not the transfer, is what times
         # out under sustained chunked load). Using `accepted` here would understate `expected` and
         # let loss_rate mask real gaps once db_count exceeds it (evaluate() clips loss at 0).
-        qc = run_quality_checker(run_id, building, ingest_result["sent"], args.minio_endpoint)
+        qc = reconcile_with_lake(run_id, building, ingest_result["sent"], args.minio_endpoint)
         if qc is None:
             # Match s15_ingest_throughput.py's behavior: a missing quality-check-result.json means
             # we cannot vouch for data integrity at all. Leaving loss/dup/rows as None here would
@@ -1083,13 +1146,19 @@ def main() -> int:
     ap.add_argument("--ingress", default=os.environ.get("INGRESS_TARGET", "localhost:5051"))
     ap.add_argument("--oxigraph", default=os.environ.get("OXIGRAPH_URL", "http://localhost:7878"))
     ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
-    ap.add_argument("--flush-wait", type=int, default=90)
+    ap.add_argument("--flush-wait", type=int, default=None,
+                     help="突合前に flush を待つ秒数。未指定なら PARQUET_FLUSH_INTERVAL（未設定なら "
+                          f"アプリ既定 {DEFAULT_PARQUET_FLUSH_INTERVAL_MIN} 分）+ {FLUSH_WAIT_MARGIN_S}s "
+                          "から導出する。固定値にすると writer の flush 間隔より短くなり、実損失ゼロの "
+                          "run が data_loss_ratio を非ゼロで報告する（#383）")
     ap.add_argument("--seed-visible-timeout", type=float, default=DEFAULT_SEED_VISIBLE_TIMEOUT_S,
                      help="seed したポイントが ingress から見えるまで待つ上限[s]。cold な "
                           "PointMetadataCache のロードは点数に対して二次で効くので、--points を "
                           "既定より大きくするならここも上げる（wait_visible_at_scale の docstring）")
     ap.add_argument("--containers", default=",".join(DEFAULT_CONTAINERS))
     args = ap.parse_args()
+    if args.flush_wait is None:
+        args.flush_wait = default_flush_wait_s()
     if args.role == "resource":
         os.makedirs(args.out, exist_ok=True)
         return resource_role_main(args)
