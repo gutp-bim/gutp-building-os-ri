@@ -60,39 +60,51 @@ jobs:
           # dispatch time, which is not necessarily the commit the images were built
           # from. head_sha is.
           TARGET_SHA: ${{ github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
+          # Under workflow_run the payload already names the exact run and how it
+          # ended. Use those rather than looking the commit up: a rerun, or a second
+          # run for the same SHA, would make a head_sha lookup gate on a different run
+          # than the one that triggered this.
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVENT_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
           set -euo pipefail
 
-          # Wait for harbor-push on this exact commit. Under the push trigger this
-          # workflow starts alongside the build, so without waiting it would decide
-          # before there is anything to decide on — the failure mode #306 is about.
-          deadline=$(( SECONDS + 2400 ))
-          conclusion=""
-          run_id=""
-          while :; do
-            run_json=$(gh api \
-              "repos/${GITHUB_REPOSITORY}/actions/workflows/harbor-push.yml/runs?head_sha=${TARGET_SHA}&per_page=1" \
-              --jq '.workflow_runs[0] // empty')
+          if [ -n "${EVENT_RUN_ID:-}" ]; then
+            run_id="$EVENT_RUN_ID"
+            conclusion="$EVENT_CONCLUSION"
+            echo "Triggered by harbor-push run ${run_id} (${conclusion})"
+          else
+            # Push trigger: this workflow starts alongside the build, so the run has to
+            # be found and waited for. Deciding before the build finishes is the exact
+            # failure mode #306 is about.
+            deadline=$(( SECONDS + 2400 ))
+            conclusion=""
+            run_id=""
+            while :; do
+              run_json=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/harbor-push.yml/runs?head_sha=${TARGET_SHA}&per_page=1" \
+                --jq '.workflow_runs[0] // empty')
 
-            if [ -n "$run_json" ]; then
-              run_id=$(jq -r '.id' <<<"$run_json")
-              status=$(jq -r '.status' <<<"$run_json")
-              conclusion=$(jq -r '.conclusion // ""' <<<"$run_json")
-              [ "$status" = "completed" ] && break
-              echo "harbor-push run ${run_id} is ${status}; waiting"
-            else
-              # A commit that skipped CI (the bot's own tag commits do) never starts a
-              # build, so there is nothing to wait for and nothing to update.
-              echo "No harbor-push run for ${TARGET_SHA}"
-            fi
+              if [ -n "$run_json" ]; then
+                run_id=$(jq -r '.id' <<<"$run_json")
+                status=$(jq -r '.status' <<<"$run_json")
+                conclusion=$(jq -r '.conclusion // ""' <<<"$run_json")
+                [ "$status" = "completed" ] && break
+                echo "harbor-push run ${run_id} is ${status}; waiting"
+              else
+                # A commit that skipped CI (the bot's own tag commits do) never starts
+                # a build, so there is nothing to wait for and nothing to update.
+                echo "No harbor-push run for ${TARGET_SHA}"
+              fi
 
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::notice::gave up waiting for a harbor-push run on ${TARGET_SHA}; leaving tags untouched"
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 30
-          done
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::notice::gave up waiting for a harbor-push run on ${TARGET_SHA}; leaving tags untouched"
+                echo "proceed=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              sleep 30
+            done
+          fi
 
           if [ "$conclusion" != "success" ]; then
             echo "::notice::harbor-push run ${run_id} concluded '${conclusion}' — leaving tags untouched"
