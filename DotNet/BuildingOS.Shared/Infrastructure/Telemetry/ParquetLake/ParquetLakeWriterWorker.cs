@@ -64,19 +64,47 @@ public sealed class ParquetLakeWriterWorker : BackgroundService
     public static TimeSpan ComputeFetchExpires(TimeSpan flushInterval) =>
         TimeSpan.FromSeconds(Math.Clamp(flushInterval.TotalSeconds, 1, 20));
 
+    /// <summary>
+    /// Attempts for the startup JetStream handshake. TransientRetry doubles from 1s, so 7 attempts
+    /// wait ~63s in total — deliberately in the same range as the OxiGraph startup budget (#321), and
+    /// not the helper's default 5 (~15s). What is being waited on is JetStream recovering its file
+    /// store, and that scales with what the stream holds: the failure this guards against (#382)
+    /// appeared only once a 24h soak had left ~530k messages to replay, so a budget tuned to an empty
+    /// dev stack would expire exactly when it matters. Exhausting it still throws, leaving the
+    /// container restart policy as the outer backstop.
+    /// </summary>
+    private const int JetStreamHandshakeAttempts = 7;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var (streamName, subjects) = NatsStreamTopology.Resolve(_options.Subject);
-        await EnsureStreamWithLimitsAsync(streamName, subjects, stoppingToken).ConfigureAwait(false);
 
-        var consumer = await _js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(_options.DurableName)
+        // Retried for the same reason NatsMessageSubscription retries its own handshake (#61): right
+        // after NATS comes up, the JetStream API can be unreachable while the file store is still
+        // recovering, and both calls below talk to it. Unretried, that surfaces as
+        // NatsJSApiNoResponseException out of ExecuteAsync — and because BackgroundService's default
+        // BackgroundServiceExceptionBehavior is StopHost, it takes the whole worker down. The
+        // container's restart policy then papers over it, so what is really "the dependency was not
+        // ready" reads as a crash loop with a `crit` log (#382). The more data JetStream holds the
+        // easier it reproduces: it surfaced after a 24h soak left ~530k messages to recover.
+        await TransientRetry.RunAsync(async ct =>
         {
-            FilterSubject = _options.Subject,
-            AckPolicy = ConsumerConfigAckPolicy.Explicit,
-            DeliverPolicy = ConsumerConfigDeliverPolicy.All,
-            AckWait = _options.AckWait,
-            MaxAckPending = Math.Max(_options.FlushMaxRows * 2, 100_000),
-        }, stoppingToken).ConfigureAwait(false);
+            await EnsureStreamWithLimitsAsync(streamName, subjects, ct).ConfigureAwait(false);
+            return true;
+        }, stoppingToken, maxAttempts: JetStreamHandshakeAttempts, logger: _logger,
+           operationName: $"ParquetLakeWriterWorker: ensure stream {streamName}").ConfigureAwait(false);
+
+        var consumer = await TransientRetry.RunAsync(
+            ct => _js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(_options.DurableName)
+            {
+                FilterSubject = _options.Subject,
+                AckPolicy = ConsumerConfigAckPolicy.Explicit,
+                DeliverPolicy = ConsumerConfigDeliverPolicy.All,
+                AckWait = _options.AckWait,
+                MaxAckPending = Math.Max(_options.FlushMaxRows * 2, 100_000),
+            }, ct).AsTask(),
+            stoppingToken, maxAttempts: JetStreamHandshakeAttempts, logger: _logger,
+            operationName: $"ParquetLakeWriterWorker: create consumer {_options.DurableName}").ConfigureAwait(false);
 
         var accumulator = new TelemetryBatchAccumulator();
         var pending = new List<INatsJSMsg<string>>();
