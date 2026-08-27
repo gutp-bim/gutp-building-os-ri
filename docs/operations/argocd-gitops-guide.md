@@ -104,9 +104,9 @@ spec:
           - env: reference
             cluster: https://kubernetes.default.svc
           - env: staging
-            cluster: https://k8s-eng10.internal:6443
-          - env: gutp
-            cluster: https://k8s-gutp.internal:6443
+            cluster: https://k8s-staging.example.com:6443
+          - env: production
+            cluster: https://k8s-production.example.com:6443
   template:
     metadata:
       name: 'building-os-{{env}}'

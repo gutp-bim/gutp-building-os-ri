@@ -31,8 +31,10 @@ cd "$repository_root"
 ACR_REGISTRY="${ACR_REGISTRY:-}"
 REGISTRY="${REGISTRY:-$ACR_REGISTRY}"
 if [ -z "$REGISTRY" ]; then
-  echo "Error: set REGISTRY (or ACR_REGISTRY) to the container registry to push to," >&2
-  echo "       e.g. REGISTRY=ghcr.io/<owner> or REGISTRY=<harbor-host>/<project>" >&2
+  echo "Error: no registry configured. Set REGISTRY (or ACR_REGISTRY) to the" >&2
+  echo "       registry to push to, for example:" >&2
+  echo "         REGISTRY=ghcr.io/<owner>" >&2
+  echo "         REGISTRY=<harbor-host>/<project>" >&2
   exit 1
 fi
 HARBOR_REGISTRY="${HARBOR_REGISTRY:-}"
