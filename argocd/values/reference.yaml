@@ -12,7 +12,7 @@ replicaCount: 1
 
 image:
   repository: harbor.example.com/building-os/building-os-api-server
-  tag: cd241c06
+  tag: efacee40
   pullPolicy: IfNotPresent
 
 service:
