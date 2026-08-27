@@ -129,8 +129,14 @@ jobs:
             exit 0
           fi
 
-          # [skip ci] matters: harbor-push triggers on any push to main, so without
-          # it this commit would start another build, which would trigger this
-          # workflow again.
+          # [skip ci] keeps this commit from starting an idle cycle. GitHub Actions
+          # honours it on push events (as it does [ci skip], [no ci], [skip actions]
+          # and [actions skip]), and harbor-push triggers on every push to main.
+          # Without it this commit would start a harbor-push run that builds nothing —
+          # argocd/ is outside that workflow's DotNet/proto/web-client filters, so its
+          # matrix comes out empty — and that run would still finish successfully and
+          # re-trigger this one. The second pass finds no `Build & Push` jobs, updates
+          # no overlay and commits nothing, so it stops there rather than looping;
+          # [skip ci] just avoids the two idle runs.
           git commit -m "chore(argocd): update image tags to ${TAG} [skip ci]"
           git push origin HEAD:main
