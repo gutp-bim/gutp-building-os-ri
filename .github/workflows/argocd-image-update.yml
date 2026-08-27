@@ -20,9 +20,6 @@ concurrency:
   group: argocd-image-update-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  REGISTRY: ${{ vars.HARBOR_REGISTRY || 'ghcr.io/takashikasuya' }}
-
 jobs:
   update-image-tags:
     runs-on: ubuntu-latest
@@ -48,9 +45,9 @@ jobs:
           TAG="${{ steps.tag.outputs.IMAGE_TAG }}"
           # Target values file is injected via the ARGOCD_VALUES_FILE repository
           # variable so other deployments can point CI at their own file (#17);
-          # the default preserves the reference environment ("utokyo-eng2").
+          # the default preserves the reference environment ("reference").
           # See argocd/values/example.yaml for a generalized template.
-          VALUES_FILE="${{ vars.ARGOCD_VALUES_FILE || 'argocd/values/utokyo-eng2.yaml' }}"
+          VALUES_FILE="${{ vars.ARGOCD_VALUES_FILE || 'argocd/values/reference.yaml' }}"
 
           sed -i "s/^  tag: .*/  tag: ${TAG}/" "${VALUES_FILE}"
 

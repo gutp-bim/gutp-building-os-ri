@@ -1,4 +1,4 @@
-# OpenTofu variables — example environment ("utokyo-eng2").
+# OpenTofu variables — example environment ("reference").
 # This is a REFERENCE CONFIGURATION for an on-premises Kubernetes deployment.
 # Replace all *.buildingos.local hostnames with your own domain.
 #
@@ -7,13 +7,13 @@
 #   - -var-file=<secrets.tfvars> (gitignored)
 #   - CI: GitHub Actions secrets → OPENTOFU_VARS
 
-environment   = "utokyo-eng2"
+environment   = "reference"
 namespace     = "building-os"
 storage_class = "local-path"
 
-# Harbor registry — previously Azure Container Registry (UTokyoBuildingOSEng2ContainerRegistry)
-harbor_hostname = "harbor.eng2.buildingos.local"
-image_registry  = "harbor.eng2.buildingos.local/building-os"
+# Harbor registry — replaces the Azure Container Registry used before the OSS migration
+harbor_hostname = "harbor.example.com"
+image_registry  = "harbor.example.com/building-os"
 image_tag       = "latest"
 
 # Keycloak realm — previously Azure AD tenant

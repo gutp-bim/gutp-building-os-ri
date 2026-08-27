@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "dev:eng2": "dotenv -e .env.eng2 -- next dev --turbopack",
+    "dev:remote": "dotenv -e .env.remote -- next dev --turbopack",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "next start",
     "lint": "eslint .",

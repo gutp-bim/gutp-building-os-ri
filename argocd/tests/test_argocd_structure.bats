@@ -7,33 +7,33 @@ ARGOCD_DIR="$REPO_ROOT/argocd"
 
 # ── Argo CD Application definitions ──────────────────────────────────────────
 
-@test "argocd: apps/ dir contains utokyo-eng2 Application manifest" {
-  [ -f "$ARGOCD_DIR/apps/utokyo-eng2.yaml" ]
+@test "argocd: apps/ dir contains reference Application manifest" {
+  [ -f "$ARGOCD_DIR/apps/reference.yaml" ]
 }
 
-@test "argocd: utokyo-eng2 Application kind is Application" {
-  grep -q "kind: Application" "$ARGOCD_DIR/apps/utokyo-eng2.yaml"
+@test "argocd: reference Application kind is Application" {
+  grep -q "kind: Application" "$ARGOCD_DIR/apps/reference.yaml"
 }
 
-@test "argocd: utokyo-eng2 Application targets building-os namespace" {
-  grep -q "namespace: building-os" "$ARGOCD_DIR/apps/utokyo-eng2.yaml"
+@test "argocd: reference Application targets building-os namespace" {
+  grep -q "namespace: building-os" "$ARGOCD_DIR/apps/reference.yaml"
 }
 
-@test "argocd: utokyo-eng2 Application uses syncPolicy automated" {
-  grep -q "automated:" "$ARGOCD_DIR/apps/utokyo-eng2.yaml"
+@test "argocd: reference Application uses syncPolicy automated" {
+  grep -q "automated:" "$ARGOCD_DIR/apps/reference.yaml"
 }
 
-@test "argocd: utokyo-eng2 Application has prune and selfHeal enabled" {
-  grep -q "prune: true" "$ARGOCD_DIR/apps/utokyo-eng2.yaml"
-  grep -q "selfHeal: true" "$ARGOCD_DIR/apps/utokyo-eng2.yaml"
+@test "argocd: reference Application has prune and selfHeal enabled" {
+  grep -q "prune: true" "$ARGOCD_DIR/apps/reference.yaml"
+  grep -q "selfHeal: true" "$ARGOCD_DIR/apps/reference.yaml"
 }
 
-@test "argocd: values/ dir contains utokyo-eng2.yaml" {
-  [ -f "$ARGOCD_DIR/values/utokyo-eng2.yaml" ]
+@test "argocd: values/ dir contains reference.yaml" {
+  [ -f "$ARGOCD_DIR/values/reference.yaml" ]
 }
 
-@test "argocd: values/utokyo-eng2.yaml has image registry config" {
-  grep -q "repository" "$ARGOCD_DIR/values/utokyo-eng2.yaml"
+@test "argocd: values/reference.yaml has image registry config" {
+  grep -q "repository" "$ARGOCD_DIR/values/reference.yaml"
 }
 
 # ── Argo CD install manifest ──────────────────────────────────────────────────

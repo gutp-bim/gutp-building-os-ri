@@ -1,25 +1,29 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: web-client-utokyo-eng2
+  name: building-os-reference
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
+    # Notification: alert Slack on sync failure (configure argocd notifications)
     notifications.argoproj.io/subscribe.on-sync-failed.slack: "building-os-alerts"
 spec:
   project: default
 
   source:
-    repoURL: https://github.com/takashikasuya/gutp-building-os-oss.git
+    repoURL: https://github.com/gutp-bim/gutp-building-os-ri.git
     targetRevision: HEAD
-    path: kubernetes/helm/web-client
+    # Deploy the api-server Helm chart as the primary application.
+    # Additional services (connector-worker, web-client, etc.) are defined
+    # as separate Applications or in an ApplicationSet (post-Phase 6).
+    path: kubernetes/helm/api-server
     helm:
       valueFiles:
-        - ../../argocd/values/web-client-utokyo-eng2.yaml
+        - ../../argocd/values/reference.yaml
       values: |
         image:
-          repository: harbor.eng2.buildingos.local/building-os/building-os-web-client
+          repository: harbor.example.com/building-os/building-os-api-server
 
   destination:
     server: https://kubernetes.default.svc

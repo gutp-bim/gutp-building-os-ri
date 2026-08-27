@@ -41,7 +41,7 @@ server:
 
     # Repository: public GitHub repo, no credentials needed.
     repositories: |
-      - url: https://github.com/takashikasuya/gutp-building-os-oss.git
+      - url: https://github.com/gutp-bim/gutp-building-os-ri.git
         name: building-os-oss
 
   # RBAC: Keycloak group → Argo CD role mapping.

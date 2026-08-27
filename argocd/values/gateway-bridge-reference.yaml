@@ -1,8 +1,8 @@
-# ArgoCD Helm values for gateway-bridge — utokyo-eng2 environment.
+# ArgoCD Helm values for gateway-bridge — reference environment.
 replicaCount: 2
 
 image:
-  repository: harbor.eng2.buildingos.local/building-os/building-os-gateway-bridge
+  repository: harbor.example.com/building-os/building-os-gateway-bridge
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -24,7 +24,7 @@ autoscaling:
 # review (Envoy-vs-Traefik, cert-manager issuer). HITL: verify on-cluster.
 ingress:
   enabled: false
-  host: gateway-bridge.eng2.buildingos.local
+  host: gateway-bridge.example.com
   mtls:
     enabled: false
     certManager:

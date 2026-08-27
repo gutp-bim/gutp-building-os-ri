@@ -40,9 +40,8 @@ CosmosDB・Digital Twins からデータを取得し REST API として配信す
 
 | プロファイル | 用途 |
 |-------------|------|
-| `WithLocal` | ローカル開発 |
-| `WithProduction` | 本番データでの開発（GUTP 環境） |
-| `WithEng2Production` | 本番データでの開発（工学部2号館環境） |
+| `WithLocal` | ローカル開発（`DISABLE_AUTH=true`） |
+| `WithLocalAuth` | ローカル開発（Keycloak で認証あり） |
 
 ```bash
 dotnet run --launch-profile WithLocal

@@ -2,8 +2,8 @@ out/
 .local/
 # Mosquitto password file — generated at container startup by docker-entrypoint.sh
 oss-stack/mosquitto/passwd
-Tools/auth-proxy-server/.env.eng2
-Tools/auth-proxy-server/.env.gutp
+Tools/auth-proxy-server/.env.*
+web-client/.env.remote
 # .NET build artifacts
 Tools/parity-harness/bin/
 Tools/parity-harness/obj/

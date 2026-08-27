@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: connector-worker-utokyo-eng2
+  name: web-client-reference
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -11,15 +11,15 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/takashikasuya/gutp-building-os-oss.git
+    repoURL: https://github.com/gutp-bim/gutp-building-os-ri.git
     targetRevision: HEAD
-    path: kubernetes/helm/connector-worker
+    path: kubernetes/helm/web-client
     helm:
       valueFiles:
-        - ../../argocd/values/connector-worker-utokyo-eng2.yaml
+        - ../../argocd/values/web-client-reference.yaml
       values: |
         image:
-          repository: harbor.eng2.buildingos.local/building-os/building-os-connector-worker
+          repository: harbor.example.com/building-os/building-os-web-client
 
   destination:
     server: https://kubernetes.default.svc

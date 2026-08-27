@@ -8,7 +8,7 @@
 # - `image.tag` is managed by CI: the argocd-image-update workflow rewrites it
 #   to the short commit SHA on every main merge (set the ARGOCD_VALUES_FILE
 #   repository variable to target your file instead of the reference one).
-# - The utokyo-eng2*.yaml files alongside this template are a REFERENCE
+# - The reference*.yaml files alongside this template are a REFERENCE
 #   environment kept in this repo as a working sample; production environment
 #   values are recommended to live in a dedicated GitOps repository long-term.
 

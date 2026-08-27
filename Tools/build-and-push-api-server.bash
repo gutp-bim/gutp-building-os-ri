@@ -25,8 +25,18 @@ set -euo pipefail
 repository_root=$(git rev-parse --show-toplevel)
 cd "$repository_root"
 
-ACR_REGISTRY="${ACR_REGISTRY:-utokyobuildingoseng2containerregistry.azurecr.io}"
+# No default: the previous one hard-coded a specific deployment's Azure Container
+# Registry hostname, which both leaked that deployment's identity and silently
+# pushed to it for anyone who forgot to set REGISTRY.
+ACR_REGISTRY="${ACR_REGISTRY:-}"
 REGISTRY="${REGISTRY:-$ACR_REGISTRY}"
+if [ -z "$REGISTRY" ]; then
+  echo "Error: no registry configured. Set REGISTRY (or ACR_REGISTRY) to the" >&2
+  echo "       registry to push to, for example:" >&2
+  echo "         REGISTRY=ghcr.io/<owner>" >&2
+  echo "         REGISTRY=<harbor-host>/<project>" >&2
+  exit 1
+fi
 HARBOR_REGISTRY="${HARBOR_REGISTRY:-}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 IMAGES="${IMAGES:-api-server}"
