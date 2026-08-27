@@ -2,9 +2,18 @@
 replicaCount: 1
 
 image:
-  repository: harbor.example.com/building-os/building-os-connector-worker
-  tag: latest
+  repository: ghcr.io/gutp-bim/buildingos-connector-worker
+  tag: main # bootstrap only — CI rewrites this to sha-<short-sha> after each build
   pullPolicy: IfNotPresent
+
+# Credentials for pulling from the registry above. GHCR packages owned by an
+# organization are private by default, so a cluster pulling ghcr.io/gutp-bim/...
+# needs a docker-registry secret and its name listed here. Left empty because the
+# secret is environment-specific and must not be committed:
+#   kubectl -n building-os create secret docker-registry ghcr-pull \
+#     --docker-server=ghcr.io --docker-username=<user> --docker-password=<PAT>
+imagePullSecrets: []
+
 
 nats:
   url: nats://nats.building-os.svc.cluster.local:4222

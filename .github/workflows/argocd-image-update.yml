@@ -1,20 +1,20 @@
 name: Argo CD Image Update
 
-# Triggered after container images are built and pushed.
-# Updates the image tag in argocd/values/<env>.yaml and commits back
-# to the repo — Argo CD detects the git change and auto-syncs.
+# Rewrites the image tag in the Argo CD values overlays after images are built,
+# and commits back so Argo CD picks the change up.
+#
+# This workflow must never move a tag that no image carries. It therefore runs
+# ONLY after a successful "Harbor Dual Push" run, and only for the services that
+# run actually built. It used to also trigger on `push` to main, independently of
+# whether the build succeeded — which is how, for a month during which harbor-push
+# was failing to start, 88 commits advanced the tags while nothing was published
+# (#306).
 
 on:
   workflow_run:
     workflows: ["Harbor Dual Push (GHCR + Harbor)"]
     types:
       - completed
-  push:
-    branches:
-      - main
-    paths:
-      - "DotNet/**"
-      - "web-client/**"
 
 concurrency:
   group: argocd-image-update-${{ github.ref }}
@@ -23,39 +23,102 @@ concurrency:
 jobs:
   update-image-tags:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+    # `conclusion == success` is the point of the workflow_run-only trigger: a build
+    # that failed, was cancelled or was skipped must leave the tags where they are.
+    # The branch guard keeps tag pushes to main — harbor-push also runs for v*.*.*
+    # tags and for manual dispatches from feature branches.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
 
     permissions:
       contents: write
+      actions: read # read the triggering run's jobs to learn which images were built
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine image tag
         id: tag
+        env:
+          # NOT github.sha: on a workflow_run event that is the default branch's tip
+          # at dispatch time, which is not necessarily the commit the images were
+          # built from. head_sha is.
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          # Use short SHA as the image tag for traceability
-          echo "IMAGE_TAG=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          # Must match what harbor-push publishes. docker/metadata-action's
+          # `type=sha,prefix=sha-` emits the 7-character short SHA, so the tag is
+          # `sha-abcdefg`. The previous `${GITHUB_SHA::8}` was wrong three ways at
+          # once — no prefix, eight characters, and the wrong commit (#306).
+          echo "IMAGE_TAG=sha-${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag sha-${HEAD_SHA:0:7} from run ${{ github.event.workflow_run.id }}"
 
-      - name: Update ArgoCD values image tags
+      - name: Collect the services that were actually built
+        id: built
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
-          TAG="${{ steps.tag.outputs.IMAGE_TAG }}"
-          # Target values file is injected via the ARGOCD_VALUES_FILE repository
-          # variable so other deployments can point CI at their own file (#17);
-          # the default preserves the reference environment ("reference").
-          # See argocd/values/example.yaml for a generalized template.
-          VALUES_FILE="${{ vars.ARGOCD_VALUES_FILE || 'argocd/values/reference.yaml' }}"
+          # harbor-push builds only the images whose sources changed, so bumping
+          # every overlay to this SHA would point the untouched ones at a tag that
+          # was never pushed. The build matrix names each job "Build & Push (<name>)".
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/jobs" --paginate \
+            --jq '.jobs[] | select(.conclusion == "success") | .name' > jobs.txt
 
-          sed -i "s/^  tag: .*/  tag: ${TAG}/" "${VALUES_FILE}"
+          sed -n 's/^Build & Push (\(.*\))$/\1/p' jobs.txt | sort -u > built.txt
 
-          echo "Updated ${VALUES_FILE} → tag: ${TAG}"
-          cat "${VALUES_FILE}"
+          if [ ! -s built.txt ]; then
+            echo "No image build jobs succeeded in run ${RUN_ID} — nothing to update."
+          fi
+          echo "Built: $(tr '\n' ' ' < built.txt)"
+          { echo "services<<EOF"; cat built.txt; echo "EOF"; } >> "$GITHUB_OUTPUT"
+
+      - name: Update the Argo CD values overlays
+        env:
+          TAG: ${{ steps.tag.outputs.IMAGE_TAG }}
+          SERVICES: ${{ steps.built.outputs.services }}
+          # Retarget CI at another deployment's overlays (#17) with a repository
+          # variable holding `service=path` pairs, comma or newline separated. The
+          # default is the bundled reference environment. A service missing from the
+          # map is skipped rather than guessed at.
+          VALUES_MAP: >-
+            ${{ vars.ARGOCD_VALUES_MAP ||
+            'api-server=argocd/values/reference.yaml,
+            connector-worker=argocd/values/connector-worker-reference.yaml,
+            gateway-bridge=argocd/values/gateway-bridge-reference.yaml,
+            web-client=argocd/values/web-client-reference.yaml' }}
+        run: |
+          set -euo pipefail
+
+          printf '%s' "$VALUES_MAP" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -v '^$' > map.txt
+
+          while IFS= read -r service; do
+            [ -n "$service" ] || continue
+            file="$(sed -n "s|^${service}=||p" map.txt | head -1)"
+            if [ -z "$file" ]; then
+              echo "::notice::no values overlay mapped for '${service}' — skipping"
+              continue
+            fi
+            if [ ! -f "$file" ]; then
+              echo "::error::values overlay '${file}' mapped for '${service}' does not exist"
+              exit 1
+            fi
+            # Anchored to the two-space indent under the top-level `image:` block so
+            # a `tag:` nested anywhere else in the overlay is left alone.
+            sed -i "s|^  tag: .*|  tag: ${TAG}|" "$file"
+            echo "Updated ${file} → tag: ${TAG}"
+          done <<< "$SERVICES"
 
       - name: Commit and push updated values
+        env:
+          TAG: ${{ steps.tag.outputs.IMAGE_TAG }}
         run: |
+          set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -66,6 +129,14 @@ jobs:
             exit 0
           fi
 
-          TAG="${{ steps.tag.outputs.IMAGE_TAG }}"
+          # [skip ci] keeps this commit from starting an idle cycle. GitHub Actions
+          # honours it on push events (as it does [ci skip], [no ci], [skip actions]
+          # and [actions skip]), and harbor-push triggers on every push to main.
+          # Without it this commit would start a harbor-push run that builds nothing —
+          # argocd/ is outside that workflow's DotNet/proto/web-client filters, so its
+          # matrix comes out empty — and that run would still finish successfully and
+          # re-trigger this one. The second pass finds no `Build & Push` jobs, updates
+          # no overlay and commits nothing, so it stops there rather than looping;
+          # [skip ci] just avoids the two idle runs.
           git commit -m "chore(argocd): update image tags to ${TAG} [skip ci]"
           git push origin HEAD:main

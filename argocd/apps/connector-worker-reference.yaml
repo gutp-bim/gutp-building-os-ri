@@ -17,9 +17,6 @@ spec:
     helm:
       valueFiles:
         - ../../argocd/values/connector-worker-reference.yaml
-      values: |
-        image:
-          repository: harbor.example.com/building-os/building-os-connector-worker
 
   destination:
     server: https://kubernetes.default.svc

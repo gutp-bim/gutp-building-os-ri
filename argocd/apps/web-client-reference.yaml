@@ -17,9 +17,6 @@ spec:
     helm:
       valueFiles:
         - ../../argocd/values/web-client-reference.yaml
-      values: |
-        image:
-          repository: harbor.example.com/building-os/building-os-web-client
 
   destination:
     server: https://kubernetes.default.svc
