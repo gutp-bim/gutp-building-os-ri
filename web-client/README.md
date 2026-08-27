@@ -93,8 +93,8 @@ NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=web-client
 # 標準起動
 yarn dev
 
-# eng2 環境での起動
-yarn dev:eng2
+# リモートのバックエンドに接続して起動（.env.remote を用意する）
+yarn dev:remote
 ```
 
 ブラウザで [http://localhost:3000](http://localhost:3000) にアクセスしてください。
@@ -105,8 +105,8 @@ yarn dev:eng2
 # 開発サーバー起動（Turbopack 有効）
 yarn dev
 
-# eng2 環境で開発サーバー起動
-yarn dev:eng2
+# リモートのバックエンドに接続して開発サーバー起動
+yarn dev:remote
 
 # 本番ビルド
 yarn build

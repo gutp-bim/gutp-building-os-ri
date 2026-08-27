@@ -56,8 +56,8 @@ HELM_DIR="$REPO_ROOT/kubernetes/helm"
   grep -q "7878" "$TOFU_DIR/modules/oxigraph/outputs.tf"
 }
 
-@test "opentofu: environments dir has utokyo-eng2 and gutp tfvars" {
-  [ -f "$TOFU_DIR/environments/utokyo-eng2.tfvars" ]
+@test "opentofu: environments dir has reference and gutp tfvars" {
+  [ -f "$TOFU_DIR/environments/reference.tfvars" ]
   [ -f "$TOFU_DIR/environments/gutp.tfvars" ]
 }
 

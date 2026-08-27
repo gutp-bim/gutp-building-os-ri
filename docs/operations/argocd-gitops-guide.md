@@ -1,6 +1,6 @@
 # Argo CD GitOps Guide
 
-Building OS の GitOps 運用ガイド。試験環境 `utokyo-eng2` を起点に Argo CD で継続的デプロイを実現する。
+Building OS の GitOps 運用ガイド。同梱の参照環境 `reference` を起点に Argo CD で継続的デプロイを実現する。
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Building OS の GitOps 運用ガイド。試験環境 `utokyo-eng2` を起点に
 git push → GitHub Actions (build + push image)
                 ↓
        argocd-image-update.yml
-       (update argocd/values/utokyo-eng2.yaml tag)
+       (update argocd/values/reference.yaml tag)
                 ↓
          git commit to main
                 ↓
@@ -35,14 +35,14 @@ helm upgrade --install argocd argo/argo-cd \
 ### 2. Apply the Application manifest
 
 ```bash
-kubectl apply -f argocd/apps/utokyo-eng2.yaml
+kubectl apply -f argocd/apps/reference.yaml
 ```
 
 ### 3. Verify sync
 
 ```bash
-argocd app get building-os-utokyo-eng2
-argocd app sync building-os-utokyo-eng2  # manual sync for first deploy
+argocd app get building-os-reference
+argocd app sync building-os-reference  # manual sync for first deploy
 ```
 
 ## Rollback Procedure
@@ -53,7 +53,7 @@ Argo CD tracks `revisionHistoryLimit: 5` prior synced states.
 
 ```bash
 # Find the commit that changed the broken image tag
-git log argocd/values/utokyo-eng2.yaml --oneline | head -5
+git log argocd/values/reference.yaml --oneline | head -5
 
 # Revert to the last known-good tag
 git revert <commit-sha>
@@ -65,7 +65,7 @@ git push origin main
 
 ```bash
 # Roll back to a previous revision without touching git
-argocd app rollback building-os-utokyo-eng2 <revision-number>
+argocd app rollback building-os-reference <revision-number>
 ```
 
 Note: Option B creates drift between git state and cluster state. Always follow up with a git revert to reconcile.
@@ -101,9 +101,9 @@ spec:
   generators:
     - list:
         elements:
-          - env: utokyo-eng2
+          - env: reference
             cluster: https://kubernetes.default.svc
-          - env: utokyo-eng10
+          - env: staging
             cluster: https://k8s-eng10.internal:6443
           - env: gutp
             cluster: https://k8s-gutp.internal:6443
@@ -137,8 +137,8 @@ argocd/
 ├── install/
 │   └── argocd-values.yaml     # Argo CD Helm install values
 ├── apps/
-│   └── utokyo-eng2.yaml       # Single Application (Phase 6)
+│   └── reference.yaml       # Single Application (Phase 6)
 ├── values/
-│   └── utokyo-eng2.yaml       # Per-env values overlay
+│   └── reference.yaml       # Per-env values overlay
 └── appsets/                   # ApplicationSet (post-Phase 6)
 ```

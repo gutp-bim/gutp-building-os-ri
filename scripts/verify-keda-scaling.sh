@@ -11,13 +11,13 @@
 #   bash scripts/verify-keda-scaling.sh
 #
 # 環境変数:
-#   IMAGE_REGISTRY   コンテナイメージのレジストリ（デフォルト: harbor.eng2.buildingos.local）
+#   IMAGE_REGISTRY   コンテナイメージのレジストリ（デフォルト: harbor.example.com）
 #   CLUSTER_NAME     k3d クラスタ名（デフォルト: building-os-keda-test）
 #   NAMESPACE        K8s namespace（デフォルト: building-os）
 
 set -euo pipefail
 
-IMAGE_REGISTRY="${IMAGE_REGISTRY:-harbor.eng2.buildingos.local}"
+IMAGE_REGISTRY="${IMAGE_REGISTRY:-harbor.example.com}"
 CLUSTER_NAME="${CLUSTER_NAME:-building-os-keda-test}"
 NAMESPACE="${NAMESPACE:-building-os}"
 

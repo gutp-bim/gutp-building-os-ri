@@ -1,8 +1,8 @@
-# ArgoCD Helm values for connector-worker — utokyo-eng2 environment.
+# ArgoCD Helm values for connector-worker — reference environment.
 replicaCount: 1
 
 image:
-  repository: harbor.eng2.buildingos.local/building-os/building-os-connector-worker
+  repository: harbor.example.com/building-os/building-os-connector-worker
   tag: latest
   pullPolicy: IfNotPresent
 

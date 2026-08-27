@@ -48,7 +48,7 @@ handled by NATS. Choosing Traefik keeps the bridge consistent with the deployed 
   optional Traefik IngressRoute/TLSOption + optional cert-manager Certificate), mirroring the other
   per-component charts. Also added to the monolithic `building-os` chart
   (`templates/gateway-bridge.yaml`, `gatewayBridge.*` values) for all-in-one installs.
-- ArgoCD: `argocd/apps/gateway-bridge-utokyo-eng2.yaml` + `argocd/values/gateway-bridge-utokyo-eng2.yaml`.
+- ArgoCD: `argocd/apps/gateway-bridge-reference.yaml` + `argocd/values/gateway-bridge-reference.yaml`.
 - OTel: `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME` env (traces+metrics+logs; no-op when unset).
 - Disabled by default (`enabled: false`) — opt-in once the infra review is done.
 

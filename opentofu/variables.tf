@@ -11,7 +11,7 @@ variable "kube_context" {
 }
 
 variable "environment" {
-  description = "Environment name (utokyo-eng2 / utokyo-eng10 / utokyo-eng13 / gutp)"
+  description = "Environment name; selects environments/<name>.tfvars (e.g. the bundled \"reference\" sample)"
   type        = string
 }
 

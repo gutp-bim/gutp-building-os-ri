@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: gateway-bridge-utokyo-eng2
+  name: gateway-bridge-reference
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -11,15 +11,15 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/takashikasuya/gutp-building-os-oss.git
+    repoURL: https://github.com/gutp-bim/gutp-building-os-ri.git
     targetRevision: HEAD
     path: kubernetes/helm/gateway-bridge
     helm:
       valueFiles:
-        - ../../argocd/values/gateway-bridge-utokyo-eng2.yaml
+        - ../../argocd/values/gateway-bridge-reference.yaml
       values: |
         image:
-          repository: harbor.eng2.buildingos.local/building-os/building-os-gateway-bridge
+          repository: harbor.example.com/building-os/building-os-gateway-bridge
 
   destination:
     server: https://kubernetes.default.svc
