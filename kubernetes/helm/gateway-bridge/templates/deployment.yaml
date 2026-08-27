@@ -21,6 +21,10 @@ spec:
         app.kubernetes.io/name: gateway-bridge
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: gateway-bridge
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

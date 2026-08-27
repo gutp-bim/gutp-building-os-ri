@@ -5,9 +5,12 @@
 # (see argocd/apps/ for the reference app manifests).
 #
 # Notes:
-# - `image.tag` is managed by CI: the argocd-image-update workflow rewrites it
-#   to the short commit SHA on every main merge (set the ARGOCD_VALUES_FILE
-#   repository variable to target your file instead of the reference one).
+# - `image.tag` is managed by CI: the argocd-image-update workflow rewrites it to
+#   `sha-<short-sha>` — the same tag harbor-push publishes — after a SUCCESSFUL
+#   build, and only for the services that build actually produced. Point CI at
+#   your own overlays with the ARGOCD_VALUES_MAP repository variable, holding
+#   `service=path` pairs (api-server / connector-worker / gateway-bridge /
+#   web-client).
 # - The reference*.yaml files alongside this template are a REFERENCE
 #   environment kept in this repo as a working sample; production environment
 #   values are recommended to live in a dedicated GitOps repository long-term.
@@ -15,9 +18,16 @@
 replicaCount: 1
 
 image:
-  repository: <your-registry>/building-os/building-os-api-server
-  tag: latest # overwritten by CI (argocd-image-update) with the commit SHA
+  # The bundled reference overlays pull from this project's own GHCR packages
+  # (ghcr.io/gutp-bim/buildingos-<service>), which is where harbor-push publishes.
+  repository: <your-registry>/buildingos-api-server
+  tag: main # bootstrap only — CI rewrites this to sha-<short-sha> after each build
   pullPolicy: IfNotPresent
+
+# Needed when the registry above requires credentials. GHCR packages owned by an
+# organization are private by default, so a cluster pulling ghcr.io/<org>/... needs
+# a docker-registry secret named here.
+imagePullSecrets: []
 
 service:
   type: ClusterIP

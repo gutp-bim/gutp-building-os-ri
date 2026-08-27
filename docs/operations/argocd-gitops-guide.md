@@ -5,19 +5,30 @@ Building OS の GitOps 運用ガイド。同梱の参照環境 `reference` を�
 ## Architecture
 
 ```
-git push → GitHub Actions (build + push image)
-                ↓
-       argocd-image-update.yml
-       (update argocd/values/reference.yaml tag)
-                ↓
-         git commit to main
-                ↓
-         Argo CD detects diff
-                ↓
-      helm upgrade (auto sync)
-                ↓
-       building-os namespace updated
+git push to main
+      ↓
+harbor-push.yml — builds only the images whose sources changed,
+                  publishes ghcr.io/gutp-bim/buildingos-<service>:sha-<short-sha>
+                  (and :main)
+      ↓  workflow_run: completed && conclusion == success
+argocd-image-update.yml — rewrites `image.tag` to sha-<short-sha>
+                          in the overlay of each service that was built
+      ↓
+git commit to main ([skip ci])
+      ↓
+Argo CD detects diff → helm upgrade (auto sync)
+      ↓
+building-os namespace updated
 ```
+
+> **タグは、そのタグを持つイメージが実際に publish された後にしか動きません。**
+> `argocd-image-update` は harbor-push の**成功後にのみ**起動し、その run が実際に
+> ビルドしたサービスの overlay だけを書き換えます。以前は `push` にも独立して
+> トリガされていたため、ビルドが 1 度も成功していない期間にタグだけが 88 回進み、
+> 存在しないイメージを指し続けていました（#306）。
+>
+> タグ形式は harbor-push が publish するもの（`sha-` + 短縮 SHA 7 桁）と一致させて
+> あります。`sha-` が無い・8 桁、といったズレはそのまま「存在しないタグ」になります。
 
 ## Initial Setup
 

@@ -36,3 +36,10 @@ autoscaling:
 
 # Warm-tier storage mode (#216): "parquet" (default) or "timescale".
 warmStore: parquet
+
+# Credentials for a private image registry. Required when `image.repository`
+# points at a registry that needs authentication — GHCR packages owned by an
+# organization are private by default, so a deployment pulling from
+# ghcr.io/<org>/... needs a docker-registry secret named here. Empty means the
+# node's own credentials (or a public registry) are enough.
+imagePullSecrets: []
