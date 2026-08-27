@@ -3,18 +3,28 @@ name: Argo CD Image Update
 # Rewrites the image tag in the Argo CD values overlays after images are built,
 # and commits back so Argo CD picks the change up.
 #
-# This workflow must never move a tag that no image carries. It therefore runs
-# ONLY after a successful "Harbor Dual Push" run, and only for the services that
-# run actually built. It used to also trigger on `push` to main, independently of
-# whether the build succeeded — which is how, for a month during which harbor-push
-# was failing to start, 88 commits advanced the tags while nothing was published
-# (#306).
+# This workflow must never move a tag that no image carries. What it must NOT do is
+# trust the trigger to guarantee that: it looks the build up and checks it.
+#
+# The `workflow_run` trigger alone is not enough. In this repository it has never
+# once fired: across 30 consecutive successful harbor-push runs, every single
+# argocd-image-update run was `event=push`, and removing the push trigger left the
+# chain completely dead. So both triggers are declared, and the job resolves and
+# verifies the harbor-push run for the target commit itself — which is the check
+# that actually matters. Under `push` that means waiting for the build to finish.
+#
+# The original defect (#306) was not the push trigger as such; it was that nothing
+# verified the build before advancing the tag, which let 88 commits move tags during
+# a month when harbor-push could not even start.
 
 on:
   workflow_run:
     workflows: ["Harbor Dual Push (GHCR + Harbor)"]
     types:
       - completed
+  push:
+    branches:
+      - main
 
 concurrency:
   group: argocd-image-update-${{ github.ref }}
@@ -23,17 +33,17 @@ concurrency:
 jobs:
   update-image-tags:
     runs-on: ubuntu-latest
-    # `conclusion == success` is the point of the workflow_run-only trigger: a build
-    # that failed, was cancelled or was skipped must leave the tags where they are.
-    # The branch guard keeps tag pushes to main — harbor-push also runs for v*.*.*
-    # tags and for manual dispatches from feature branches.
+    # No trigger-level guard: whether the build succeeded is established below by
+    # looking the run up, which works the same for both triggers. Under workflow_run
+    # the branch still has to be main — harbor-push also runs for v*.*.* tags and for
+    # manual dispatches from feature branches.
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      github.event_name == 'push' ||
       github.event.workflow_run.head_branch == 'main'
 
     permissions:
       contents: write
-      actions: read # read the triggering run's jobs to learn which images were built
+      actions: read # resolve the harbor-push run for this commit and read its jobs
 
     steps:
       - name: Checkout repository
@@ -42,30 +52,75 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine image tag
-        id: tag
+      - name: Resolve the build for this commit
+        id: build
         env:
-          # NOT github.sha: on a workflow_run event that is the default branch's tip
-          # at dispatch time, which is not necessarily the commit the images were
-          # built from. head_sha is.
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NOT github.sha under workflow_run: there it is the default branch tip at
+          # dispatch time, which is not necessarily the commit the images were built
+          # from. head_sha is.
+          TARGET_SHA: ${{ github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
         run: |
-          # Must match what harbor-push publishes. docker/metadata-action's
-          # `type=sha,prefix=sha-` emits the 7-character short SHA, so the tag is
-          # `sha-abcdefg`. The previous `${GITHUB_SHA::8}` was wrong three ways at
-          # once — no prefix, eight characters, and the wrong commit (#306).
-          echo "IMAGE_TAG=sha-${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "Resolved tag sha-${HEAD_SHA:0:7} from run ${{ github.event.workflow_run.id }}"
+          set -euo pipefail
+
+          # Wait for harbor-push on this exact commit. Under the push trigger this
+          # workflow starts alongside the build, so without waiting it would decide
+          # before there is anything to decide on — the failure mode #306 is about.
+          deadline=$(( SECONDS + 2400 ))
+          conclusion=""
+          run_id=""
+          while :; do
+            run_json=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/harbor-push.yml/runs?head_sha=${TARGET_SHA}&per_page=1" \
+              --jq '.workflow_runs[0] // empty')
+
+            if [ -n "$run_json" ]; then
+              run_id=$(jq -r '.id' <<<"$run_json")
+              status=$(jq -r '.status' <<<"$run_json")
+              conclusion=$(jq -r '.conclusion // ""' <<<"$run_json")
+              [ "$status" = "completed" ] && break
+              echo "harbor-push run ${run_id} is ${status}; waiting"
+            else
+              # A commit that skipped CI (the bot's own tag commits do) never starts a
+              # build, so there is nothing to wait for and nothing to update.
+              echo "No harbor-push run for ${TARGET_SHA}"
+            fi
+
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::notice::gave up waiting for a harbor-push run on ${TARGET_SHA}; leaving tags untouched"
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 30
+          done
+
+          if [ "$conclusion" != "success" ]; then
+            echo "::notice::harbor-push run ${run_id} concluded '${conclusion}' — leaving tags untouched"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The tag must match what harbor-push publishes. docker/metadata-action's
+          # `type=sha,prefix=sha-` emits the 7-character short SHA. The previous
+          # `${GITHUB_SHA::8}` was wrong three ways at once — no prefix, eight
+          # characters, and under workflow_run the wrong commit (#306).
+          {
+            echo "proceed=true"
+            echo "run_id=${run_id}"
+            echo "tag=sha-${TARGET_SHA:0:7}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Collect the services that were actually built
         id: built
+        if: steps.build.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_ID: ${{ steps.build.outputs.run_id }}
         run: |
-          # harbor-push builds only the images whose sources changed, so bumping
-          # every overlay to this SHA would point the untouched ones at a tag that
-          # was never pushed. The build matrix names each job "Build & Push (<name>)".
+          set -euo pipefail
+          # harbor-push builds only the images whose sources changed, so bumping every
+          # overlay to this SHA would point the untouched ones at a tag that was never
+          # pushed. The build matrix names each job "Build & Push (<name>)".
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/jobs" --paginate \
             --jq '.jobs[] | select(.conclusion == "success") | .name' > jobs.txt
 
@@ -78,8 +133,9 @@ jobs:
           { echo "services<<EOF"; cat built.txt; echo "EOF"; } >> "$GITHUB_OUTPUT"
 
       - name: Update the Argo CD values overlays
+        if: steps.build.outputs.proceed == 'true'
         env:
-          TAG: ${{ steps.tag.outputs.IMAGE_TAG }}
+          TAG: ${{ steps.build.outputs.tag }}
           SERVICES: ${{ steps.built.outputs.services }}
           # Retarget CI at another deployment's overlays (#17) with a repository
           # variable holding `service=path` pairs, comma or newline separated. The
@@ -115,8 +171,9 @@ jobs:
           done <<< "$SERVICES"
 
       - name: Commit and push updated values
+        if: steps.build.outputs.proceed == 'true'
         env:
-          TAG: ${{ steps.tag.outputs.IMAGE_TAG }}
+          TAG: ${{ steps.build.outputs.tag }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
