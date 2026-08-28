@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Building OS テレメトリーデータフロー",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      500
+    ]
+  },
+  "stages": [
+    {
+      "label": "収集"
+    },
+    {
+      "label": "取り込み・正規化"
+    },
+    {
+      "label": "検証済み配信"
+    },
+    {
+      "label": "蓄積"
+    },
+    {
+      "label": "提供"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gateway",
+      "type": "external",
+      "label": "現場ゲートウェイ",
+      "sublabel": "BACnet / BOWS / Kandt",
+      "stage": 0,
+      "row": 1,
+      "tag": "point_id 解決"
+    },
+    {
+      "id": "device",
+      "type": "external",
+      "label": "MQTT / Hono 機器",
+      "sublabel": "現場センサー",
+      "stage": 0,
+      "row": 2,
+      "width": 140,
+      "tag": "任意構成"
+    },
+    {
+      "id": "ingress",
+      "type": "backend",
+      "label": "GatewayIngress",
+      "sublabel": "gRPC 取り込み",
+      "stage": 1,
+      "row": 1,
+      "tag": "取り込み正本"
+    },
+    {
+      "id": "connector",
+      "type": "backend",
+      "label": "ConnectorWorker",
+      "sublabel": "protocol 別に正規化",
+      "stage": 1,
+      "row": 2,
+      "width": 140,
+      "tag": "raw.* 購読"
+    },
+    {
+      "id": "twin",
+      "type": "database",
+      "label": "OxiGraph ツイン",
+      "sublabel": "建物→階→室→機器→点",
+      "stage": 0,
+      "row": 0,
+      "width": 145,
+      "tag": "SPARQL"
+    },
+    {
+      "id": "nats",
+      "type": "messagebus",
+      "label": "NATS JetStream",
+      "sublabel": "validated.telemetry",
+      "stage": 2,
+      "row": 1,
+      "width": 140,
+      "tag": "publish-ack"
+    },
+    {
+      "id": "lake",
+      "type": "database",
+      "label": "Parquet レイク",
+      "sublabel": "MinIO warm + cold",
+      "stage": 3,
+      "row": 0,
+      "width": 140,
+      "tag": "建物 × 時刻"
+    },
+    {
+      "id": "hot",
+      "type": "database",
+      "label": "NATS KV 最新値",
+      "sublabel": "点ごとの latest",
+      "stage": 3,
+      "row": 2,
+      "width": 140,
+      "tag": "一次参照"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API サーバー",
+      "sublabel": "REST + gRPC",
+      "stage": 4,
+      "row": 1,
+      "tag": "JWT 認可"
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Web クライアント",
+      "sublabel": "Next.js 画面",
+      "stage": 4,
+      "row": 2,
+      "width": 140,
+      "tag": "Aspida"
+    }
+  ],
+  "flows": [
+    {
+      "id": "frames",
+      "from": "gateway",
+      "to": "ingress",
+      "label": "TelemetryFrame",
+      "classification": "gateway_id + point_id + 値",
+      "variant": "emphasis",
+      "labelAt": [
+        208,
+        314
+      ],
+      "route": "straight"
+    },
+    {
+      "id": "raw-device",
+      "from": "device",
+      "to": "connector",
+      "label": "生テレメトリー",
+      "classification": "building-os.raw.mqtt / raw.hono",
+      "variant": "default",
+      "labelAt": [
+        208,
+        428
+      ]
+    },
+    {
+      "id": "enrich",
+      "from": "twin",
+      "to": "ingress",
+      "label": "point_id → 建物・機器",
+      "classification": "TTL メタデータキャッシュ",
+      "variant": "dashed"
+    },
+    {
+      "id": "direct-publish",
+      "from": "ingress",
+      "to": "nats",
+      "label": "付与済みで直接発行",
+      "classification": "raw ホップなし",
+      "variant": "emphasis",
+      "labelAt": [
+        416,
+        200
+      ],
+      "route": "straight"
+    },
+    {
+      "id": "normalized",
+      "from": "connector",
+      "to": "nats",
+      "label": "正規化して再発行",
+      "classification": "localId → pointId 解決後",
+      "variant": "default"
+    },
+    {
+      "id": "lake-write",
+      "from": "nats",
+      "to": "lake",
+      "label": "Parquet へフラッシュ",
+      "classification": "durable pull consumer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "kv-latest",
+      "from": "nats",
+      "to": "hot",
+      "label": "点ごとの最新値",
+      "classification": "発行と同時に KV へ",
+      "variant": "default"
+    },
+    {
+      "id": "range-query",
+      "from": "lake",
+      "to": "api",
+      "label": "期間照会",
+      "classification": "GET /telemetries/query",
+      "variant": "emphasis"
+    },
+    {
+      "id": "latest-read",
+      "from": "hot",
+      "to": "api",
+      "label": "最新値の即時応答",
+      "classification": "外れたら lake へ",
+      "variant": "default"
+    },
+    {
+      "id": "serve",
+      "from": "api",
+      "to": "web",
+      "label": "REST + gRPC-web",
+      "classification": "権限で絞り込み済み",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "主経路",
+      "items": [
+        "ゲートウェイは point_id だけを送り、ツイン由来の建物・機器を付与して発行する",
+        "点リストを共有しない MQTT / Hono 機器のみ raw.* を経由する",
+        "検証済みテレメトリーは経路を問わず一本の subject に集約される"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "蓄積",
+      "items": [
+        "建物 × 時刻でまとめて MinIO に書き、part 名で再送を冪等にする",
+        "CompactionWorker が確定時刻の part を統合し、ILM が保持期間を切る",
+        "最新値は発行と同時に KV に入り、直近値の参照は Parquet を走査しない"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "図に含めない経路",
+      "items": [
+        "制御は逆向き — API → NATS → GatewayBridge → ゲートウェイ",
+        "利用者・権限・制御監査は PostgreSQL 16 に永続化される",
+        "資源エクスプローラは同じツインを API 経由で読む"
+      ]
+    }
+  ]
+}

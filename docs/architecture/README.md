@@ -4,6 +4,7 @@
 [`../adr/`](../adr/) を参照してください。
 
 - [システムアーキテクチャ](system-architecture.md)
+- [テレメトリーデータフロー図](telemetry-dataflow.html)（HTML / ブラウザで開く。元仕様は [`telemetry-dataflow.archify.json`](telemetry-dataflow.archify.json)）
 - [テレメトリ仕様](telemetry-specification.md)
 - [NATS JetStream 設計](oss-nats-design.md)
 - [Hot / Warm / Cold アーキテクチャ](oss-tier-architecture.md)
