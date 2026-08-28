@@ -241,12 +241,14 @@ gate の置き方を組み替えた（#297）。
 
 代わりに**リークの検出器**として次の 4 つに閾値を置く。いずれも 24h × 2 本の実測に対して余裕がある:
 
+KPI キーは `E10-soak.json` / gate 出力に出る名前そのままで書く（照合するときに探せるように）。
+
 | 系列 | 閾値 | A 実測 | B 実測 |
 |---|---|---|---|
-| `gc_heap_gen2_mib_growth_per_hour` | ≤ 0.5 MiB/h | +0.01 | −0.06 |
-| `gc_heap_loh_mib_growth_per_hour` | ≤ 0.5 MiB/h | −0.31 | −0.40 |
-| `rss_minus_gc_committed_growth_mib_per_hour` | ≤ 3.0 MiB/h | −0.17 | +0.97 |
-| `thread_pool_thread_count_growth_per_hour` | ≤ 0.5 count/h | 0.00 | +0.01 |
+| `connector_worker_gc_heap_gen2_mib_growth_per_hour` | ≤ 0.5 MiB/h | +0.01 | −0.06 |
+| `connector_worker_gc_heap_loh_mib_growth_per_hour` | ≤ 0.5 MiB/h | −0.31 | −0.40 |
+| `connector_worker_rss_minus_gc_committed_growth_mib_per_hour` | ≤ 3.0 MiB/h | −0.17 | +0.97 |
+| `connector_worker_thread_pool_thread_count_growth_per_hour` | ≤ 0.5 count/h | 0.00 | +0.01 |
 
 **2 本の run から引いた暫定値である。** 上振れが再現したら緩めるのではなく、まず何が滞留して
 いるかを見ること — この 4 つはいずれも「増えていたら理由が要る」量であって、環境差で動く量ではない。

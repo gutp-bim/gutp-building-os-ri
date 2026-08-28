@@ -48,9 +48,11 @@ if [[ -n "$MEM_LIMIT" ]]; then
   COMPOSE_ARGS+=(-f "$REPO_ROOT/docker-compose.memlimit.yaml")
   export CONNECTOR_WORKER_MEM_LIMIT="$MEM_LIMIT"
   echo "[s19] connector-worker capped at $MEM_LIMIT (#297 survival-under-a-cap variant)"
-  echo "[s19]   oom_count_total / restart_count_total already gate at 0, so a cap the process"
-  echo "[s19]   cannot live within fails the run. Watch gc_collections_growth_per_hour for the"
-  echo "[s19]   cost of a smaller nursery, and the ingest KPIs for whether it reached the data path."
+  echo "[s19]   oom_count_total and restart_count_total are gated at 0, so if the process cannot"
+  echo "[s19]   live within this cap the run fails on its own."
+  echo "[s19]   A smaller nursery means collecting more often, so the cost of the cap shows up in"
+  echo "[s19]   connector_worker_gc_collections_growth_per_hour; data_loss_ratio and pending_stable"
+  echo "[s19]   say whether that cost reached the data path."
 fi
 
 echo "[s19] ensuring stack is up (GRPC_INGRESS_PORT=$GRPC_INGRESS_PORT, flush/compaction=app default)"

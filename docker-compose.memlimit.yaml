@@ -26,11 +26,12 @@
 #
 # READING THE RESULT
 #
-# `oom_count_total` and `restart_count_total` are already gated at 0, so a cap the process cannot
-# live within fails the run rather than needing a new metric. What to watch beyond that is
-# `connector_worker_gc_collections_growth_per_hour`: a smaller nursery means collecting more often,
-# so the cost of a tighter limit shows up as GC frequency, and next to it the ingest KPIs
-# (data_loss_ratio, pending_stable) say whether that cost reached the data path.
+# No new metric is needed to read the result. `oom_count_total` and `restart_count_total` are gated
+# at 0, so if the process cannot live within the cap, the run fails on its own.
+#
+# Beyond that, watch `connector_worker_gc_collections_growth_per_hour`. A smaller nursery means
+# collecting more often, so the cost of a tighter cap shows up as GC frequency; `data_loss_ratio`
+# and `pending_stable` then say whether that cost reached the data path.
 services:
   building-os.connector-worker:
     mem_limit: ${CONNECTOR_WORKER_MEM_LIMIT:-1g}
