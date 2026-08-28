@@ -44,3 +44,23 @@ jobs:
             -f kubernetes/helm/building-os/values-minimal.yaml \
             --namespace building-os \
             | kubectl apply --dry-run=server -f -
+
+      # The umbrella chart is not what Argo CD deploys — each Application points at a per-service
+      # chart and feeds it one of the argocd/values overlays. Validating that pair against a real
+      # API server is the only place a mismatch between an overlay and the chart it is written for
+      # gets caught before a cluster sees it.
+      #
+      # Pairs come from the Application manifests, so this covers whatever Argo CD is set to deploy
+      # without a list here to keep in sync.
+      - name: Per-service charts + their Argo CD overlays → kubectl apply --dry-run=server
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r chart values manifest; do
+            echo "::group::${chart} + ${values}  (${manifest})"
+            helm lint "${chart}"
+            helm template "$(basename "${chart}")" "${chart}" \
+              -f "${values}" \
+              --namespace building-os \
+              | kubectl apply --dry-run=server -f -
+            echo "::endgroup::"
+          done < <(python3 scripts/argocd-chart-pairs.py)

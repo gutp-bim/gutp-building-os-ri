@@ -224,3 +224,23 @@ jobs:
         run: |
           helm template building-os kubernetes/helm/building-os \
             -f kubernetes/helm/building-os/values-prod.yaml
+
+      # The umbrella chart above is not what gets deployed. Each Argo CD Application points at a
+      # per-service chart (argocd/apps/*.yaml → kubernetes/helm/<service>), and those had no lint
+      # and no template here at all — a check that looks like coverage while the thing actually
+      # shipped goes unchecked, which is the shape of #306.
+      #
+      # The pairs are read out of the Application manifests rather than listed here, so adding an
+      # Application extends the coverage on its own. A hardcoded list would be a second place to
+      # forget, which is how the overlays came to point at images nobody published.
+      - name: Lint + template the per-service charts against their Argo CD overlays
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r chart values manifest; do
+            echo "::group::${chart} + ${values}  (${manifest})"
+            helm lint "${chart}"
+            # Rendered with the overlay rather than chart defaults: a chart that renders on its own
+            # but not with the values Argo CD actually feeds it is the failure that matters here.
+            helm template "$(basename "${chart}")" "${chart}" -f "${values}" > /dev/null
+            echo "::endgroup::"
+          done < <(python3 scripts/argocd-chart-pairs.py)
