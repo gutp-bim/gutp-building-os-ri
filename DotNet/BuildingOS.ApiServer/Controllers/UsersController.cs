@@ -114,16 +114,20 @@ public class UsersController : ControllerBase
             // (Keycloak unconfigured) or any other failure still persisted the resource-id mappings —
             // a write committed for an operation the caller was told did not happen. The mapping is a
             // reverse-lookup record for permissions that now exist, so it is only true once they do.
-            if (request.Permissions != null)
-            {
-                foreach (var permission in request.Permissions)
-                {
-                    await SavePermissionMappingAsync(permission, request.ResourceDisplayNames, ct).ConfigureAwait(false);
-                }
-            }
+            //
+            // And because it lands second, its failure must not be reported as the update failing:
+            // the attributes are already committed in Keycloak (#307).
+            var mappingError = await TrySavePermissionMappingsAsync(
+                authContext, "set-attributes", id, request.Permissions, request.ResourceDisplayNames, ct)
+                .ConfigureAwait(false);
 
             await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Success,
-                new { role = request.Role, permissions = request.Permissions?.Count ?? 0 }, ct).ConfigureAwait(false);
+                new
+                {
+                    role = request.Role,
+                    permissions = request.Permissions?.Count ?? 0,
+                    resourceIdMappingSaved = mappingError is null
+                }, ct).ConfigureAwait(false);
             return Ok(ToResponse(user));
         }
         catch (UserManagementUnavailableException)
@@ -136,7 +140,7 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update attributes for user {UserId}", id);
+            _logger.LogError(ex, "Failed to update attributes for user {UserId}", ForLog(id));
             await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
                 new { error = ex.Message }, ct).ConfigureAwait(false);
             return BadRequest(new { error = ex.Message });
@@ -201,7 +205,7 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to set enabled={Enabled} for user {UserId}", request.Enabled, id);
+            _logger.LogError(ex, "Failed to set enabled={Enabled} for user {UserId}", request.Enabled, ForLog(id));
             await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
                 new { error = ex.Message }, ct).ConfigureAwait(false);
             return BadRequest(new { error = ex.Message });
@@ -236,17 +240,22 @@ public class UsersController : ControllerBase
             permissions.Add(hashedPermission);
         }
 
-        // ハッシュ→元IDのマッピングを保存（逆引き用）
-        await SavePermissionMappingAsync(request.Permission, null, ct).ConfigureAwait(false);
-
         var updateRequest = new UpdateUserAttributesRequest
         {
             Permissions = permissions
         };
 
         var updated = await _userService.UpdateUserAttributesAsync(id, updateRequest, ct).ConfigureAwait(false);
+
+        // ハッシュ→元IDのマッピングを保存（逆引き用）。Saved after the grant lands, for the reason
+        // UpdateAttributes spells out: writing it first leaves a mapping behind for a permission the
+        // caller was told was never granted. Its own failure does not undo the grant (#307).
+        var mappingError = await TrySavePermissionMappingsAsync(
+            authContext, "add-permission", id, new[] { request.Permission }, null, ct).ConfigureAwait(false);
+
         await AuditAsync(authContext, "add-permission", id, AdminAuditResult.Success,
-            new { permission = request.Permission }, ct).ConfigureAwait(false);
+            new { permission = request.Permission, resourceIdMappingSaved = mappingError is null }, ct)
+            .ConfigureAwait(false);
         return Ok(ToResponse(updated));
     }
 
@@ -324,6 +333,77 @@ public class UsersController : ControllerBase
     /// パーミッション文字列からリソースIDのハッシュ→元IDマッピングを保存する。
     /// グループタイプのパーミッションはハッシュ化しないため保存不要。
     /// </summary>
+    /// <summary>
+    /// Strips CR/LF from a value before it goes into a log message.
+    ///
+    /// The user id arrives on the route, so a caller could put newlines in it and forge log lines
+    /// that look like separate entries (CodeQL's log-injection rule flags exactly this). The audit
+    /// record stores the same id as a field, where it is data rather than text and needs no
+    /// escaping — this is only for the human-readable line.
+    /// </summary>
+    private static string ForLog(string value) =>
+        value.Replace("\r", string.Empty).Replace("\n", string.Empty);
+
+    /// <summary>
+    /// Persists the hash→original-id mappings for permissions that have just been granted, and
+    /// reports a failure instead of raising it (#307).
+    ///
+    /// The caller has already committed the grant in Keycloak by the time this runs. Letting a
+    /// failure here surface as the request's failure told the client the update had not happened
+    /// while the remote side had already changed, which invites a retry of something that is
+    /// already done.
+    ///
+    /// **What is actually lost when this fails.** The mapping is a reverse-lookup record only:
+    /// authorization compares hashes, so the permission itself keeps working. What degrades is
+    /// resolving a hash back to the resource it names — <c>MyResourcesController</c>'s
+    /// <c>ResolveOriginalIdsAsync</c>, which is how a user's accessible-resource list is built.
+    /// A permission whose mapping is missing therefore grants access but does not show up in that
+    /// list. That is a discoverability gap, not a hole: it fails closed.
+    ///
+    /// **How it is repaired.** Re-issuing the same request. Both call sites write the mapping
+    /// unconditionally for every permission in the request, and <c>SaveMappingAsync</c> is an
+    /// upsert, so a later successful PATCH of the same permission set restores what this one
+    /// missed. That is why there is no outbox or reconciliation job here: the operation that
+    /// creates the record is idempotent and operators already repeat it. The failure is recorded
+    /// in the audit log (action + <c>resource-id-mapping</c>, result Failure) so the gap is
+    /// findable rather than silent, and the success audit carries
+    /// <c>resourceIdMappingSaved</c> so a partial outcome is visible on the successful path too.
+    /// </summary>
+    /// <returns>The failure message, or <c>null</c> when every mapping was saved.</returns>
+    private async Task<string?> TrySavePermissionMappingsAsync(
+        AuthorizationContext auth,
+        string action,
+        string targetId,
+        IEnumerable<string>? permissions,
+        Dictionary<string, string>? displayNames,
+        CancellationToken ct)
+    {
+        if (permissions is null) return null;
+
+        try
+        {
+            foreach (var permission in permissions)
+            {
+                await SavePermissionMappingAsync(permission, displayNames, ct).ConfigureAwait(false);
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            // Deliberately not rethrown: see the summary. The grant stands; only the reverse lookup
+            // is incomplete.
+            _logger.LogWarning(ex,
+                "Resource-id mapping not saved for user {UserId} after {Action} succeeded; " +
+                "the permission is in effect but will not appear in accessible-resource listings " +
+                "until the request is repeated", ForLog(targetId), action);
+
+            await AuditAsync(auth, $"{action}:resource-id-mapping", targetId, AdminAuditResult.Failure,
+                new { error = ex.Message }, ct).ConfigureAwait(false);
+
+            return ex.Message;
+        }
+    }
+
     private async Task SavePermissionMappingAsync(string permission, Dictionary<string, string>? displayNames, CancellationToken ct)
     {
         var parsed = PermissionHelper.ParsePermissionString(permission);

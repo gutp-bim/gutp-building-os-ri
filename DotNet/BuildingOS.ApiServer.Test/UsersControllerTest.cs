@@ -23,13 +23,18 @@ public class UsersControllerTest
     /// Overrides the mock, so a test can drive the controller with a real implementation —
     /// <see cref="UnconfiguredUserManagementService"/> for the unconfigured path (#293).
     /// </param>
+    /// <param name="mapping">
+    /// Overrides the mock so a test can make the reverse-lookup write fail, or assert whether it
+    /// happened at all (#307).
+    /// </param>
     private static (UsersController controller, Mock<IUserManagementService> svc, Mock<IAdminAuditRecorder> audit)
-        Build(AuthorizationContext auth, IReadOnlyList<EntraUser>? users = null, IUserManagementService? service = null)
+        Build(AuthorizationContext auth, IReadOnlyList<EntraUser>? users = null, IUserManagementService? service = null,
+              Mock<IResourceIdMappingRepository>? mapping = null)
     {
         var svc = new Mock<IUserManagementService>();
         svc.Setup(s => s.GetUsersAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(users ?? Array.Empty<EntraUser>());
-        var mapping = new Mock<IResourceIdMappingRepository>();
+        mapping ??= new Mock<IResourceIdMappingRepository>();
         var audit = new Mock<IAdminAuditRecorder>();
         var controller = new UsersController(
             service ?? svc.Object, mapping.Object, audit.Object, NullLogger<UsersController>.Instance)
@@ -157,5 +162,83 @@ public class UsersControllerTest
         audit.Verify(a => a.RecordAsync(
             It.Is<AdminAuditRecord>(r => r.Action == "set-attributes" && r.Result == AdminAuditResult.Success),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── Reverse-lookup mapping is bookkeeping, not part of the update (#307) ──
+
+    [Fact]
+    public async Task UpdateAttributes_MappingSaveFails_StillSucceeds_BecauseKeycloakAlreadyCommitted()
+    {
+        // The attributes are committed in Keycloak before the mapping is written. Reporting the
+        // mapping's failure as the request's failure told the caller nothing had happened while the
+        // remote side had already changed, inviting a retry of something already done.
+        var users = new[] { User("admin-a", "admin"), User("op", "operator") };
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        mapping.Setup(m => m.SaveMappingAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"), users, mapping: mapping);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator"));
+
+        var result = await controller.UpdateAttributes(
+            "op",
+            new UsersController.UpdateUserAttributesApiRequest
+            {
+                Role = "operator",
+                Permissions = ["building:bldg-1:read"]
+            },
+            default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_MappingSaveFails_AuditsTheGapAndStillAuditsTheUpdate()
+    {
+        // The gap has to be findable: a warning alone would leave no record that a permission is in
+        // effect but missing from accessible-resource listings.
+        var users = new[] { User("admin-a", "admin"), User("op", "operator") };
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        mapping.Setup(m => m.SaveMappingAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"), users, mapping: mapping);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator"));
+
+        await controller.UpdateAttributes(
+            "op",
+            new UsersController.UpdateUserAttributesApiRequest { Permissions = ["building:bldg-1:read"] },
+            default);
+
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r =>
+                r.Action == "set-attributes:resource-id-mapping" && r.Result == AdminAuditResult.Failure),
+            It.IsAny<CancellationToken>()), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "set-attributes" && r.Result == AdminAuditResult.Success),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddPermission_GrantFails_LeavesNoMappingBehind()
+    {
+        // The mapping used to be written before the grant, so a failed grant left a reverse-lookup
+        // record for a permission the caller was told was never given.
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), mapping: mapping);
+        svc.Setup(s => s.GetUserByIdAsync("op", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("keycloak down"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => controller.AddPermission(
+            "op", new UsersController.AddPermissionRequest { Permission = "building:bldg-1:read" }, default));
+
+        mapping.Verify(m => m.SaveMappingAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
