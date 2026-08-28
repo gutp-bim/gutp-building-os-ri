@@ -230,13 +230,55 @@ DURATION_HOURS=6 PROMETHEUS_URL=$PROM CHUNK_SECONDS=0 \
 スロープが明確に小さければ再接続が寄与している。両者が同等なら (a) は棄却され、(b)/(c) の判別は
 上表と **より長い run**（#297 の acceptance criteria は ≥72h）に持ち越す。
 
+## #297: 閾値を「増加量」ではなく「滞留」に置く
+
+24h A/B（下記「実施記録」）で増加の正体が **Server GC の gen0 予算拡大**と判明したことを受け、
+gate の置き方を組み替えた（#297）。
+
+**RSS 増加率には閾値を置かない。** gen0 予算は GC が見た利用可能メモリから決まるので、その値は
+ホストのメモリ量・同居プロセス・cgroup limit で変わる。環境ごとに動く数字を gate にすると、
+環境が変わるたびに合わなくなる。RSS は記録として `report` のまま残す。
+
+代わりに**リークの検出器**として次の 4 つに閾値を置く。いずれも 24h × 2 本の実測に対して余裕がある:
+
+| 系列 | 閾値 | A 実測 | B 実測 |
+|---|---|---|---|
+| `gc_heap_gen2_mib_growth_per_hour` | ≤ 0.5 MiB/h | +0.01 | −0.06 |
+| `gc_heap_loh_mib_growth_per_hour` | ≤ 0.5 MiB/h | −0.31 | −0.40 |
+| `rss_minus_gc_committed_growth_mib_per_hour` | ≤ 3.0 MiB/h | −0.17 | +0.97 |
+| `thread_pool_thread_count_growth_per_hour` | ≤ 0.5 count/h | 0.00 | +0.01 |
+
+**2 本の run から引いた暫定値である。** 上振れが再現したら緩めるのではなく、まず何が滞留して
+いるかを見ること — この 4 つはいずれも「増えていたら理由が要る」量であって、環境差で動く量ではない。
+
+これらは `--prometheus` を渡した run だけが値を出す。未指定なら metric 自体が無く、gate は FAIL では
+なく **SKIP** になる（`gate.py`: absent → SKIP）ので、短時間の反復 run は落ちない。
+
+## #297: 上限下での生存試験（`MEM_LIMIT`）
+
+「どこまで増えるか」を無制限に測り続けるより、**上限を課して生き残るか**を見るほうが運用の問いに
+直接答える。GC は cgroup limit を読んでヒープを合わせるので、capped run の結果は
+「Helm values に何を書くか」そのものになる。しかも 1 水準あたり数時間で済む。
+
+```bash
+MEM_LIMIT=768m DURATION_HOURS=6 RATE=6.2167 POINTS=1865 \
+PROMETHEUS_URL=http://localhost:9090 \
+  bash Tools/e2e-performance/s19_endurance_soak.sh e2e/results/E10-cap-768m
+```
+
+`docker-compose.memlimit.yaml` が **connector-worker だけ**に `mem_limit` を課す（依存側を絞ると
+測定対象が変わる）。`oom_count_total` / `restart_count_total` は既に 0 で gate されているので、
+プロセスが生きられない上限は**新しい metric を足さずに run が落ちる**形で分かる。
+
+読み方: 小さい nursery は回収頻度を上げるので、上限を締めたコストは
+`connector_worker_gc_collections_growth_per_hour` に出る。それが実害に達したかは
+`data_loss_ratio` / `pending_stable` が答える。
+
 ## 合否（`e2e/kpi-thresholds.yaml`: `E10_endurance_soak`）
 再起動 = 0 / OOM = 0 / data_loss_ratio ≤ 1% / duplicate_rate ≤ 0.5% / health_probe_success_rate ≥ 99.9% /
-pending_stable = 1。RSS 増加量そのものは report（安全域は #297 の ≥72h 確定試験で定める）。
-#370 の runtime 系メトリクス（`connector_worker_gc_*` / `connector_worker_rss_minus_gc_committed_*`）
-も **すべて report** — 安全域を決めるための調査そのものなので、ここに閾値を置くと結論を先取りして
-しまう。`--prometheus` 無しの run ではこれらの metric は出力されず、gate 表には「—」が並ぶ
-（`op: report` は常に INFO なので run を落とすことはない）。
+pending_stable = 1。**RSS 増加量そのものは report のまま**（理由は上記「#297: 閾値を『増加量』では
+なく『滞留』に置く」）。リーク検出の 4 つ（gen2 / LOH / RSS−committed / thread pool）には閾値が
+入っており、`--prometheus` 無しの run では metric 自体が無いので **SKIP** になる（FAIL ではない）。
 
 ## 実施記録: 24h A/B（2026-08-25〜2026-08-27、#370/#371 の結論）
 
