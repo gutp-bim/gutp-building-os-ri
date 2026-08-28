@@ -15,6 +15,7 @@
 #
 # Usage: DURATION_HOURS=4 RATE=6 POINTS=1865 bash s19_endurance_soak.sh [OUT_DIR]
 #        CHUNK_SECONDS=0 PROMETHEUS_URL=http://localhost:9090 bash s19_endurance_soak.sh [OUT_DIR]
+#        MEM_LIMIT=768m bash s19_endurance_soak.sh [OUT_DIR]   # #297: survival under a cap
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -31,15 +32,33 @@ POINTS="${POINTS:-1865}"
 # （--chunk-seconds 300 / runtime サンプリング無効）がそのまま唯一の正本になる。
 CHUNK_SECONDS="${CHUNK_SECONDS:-}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-}"
+# MEM_LIMIT: cap the connector worker (#297). Unset = no cap, which is the historical behaviour.
+# The 24h A/B established that uncapped RSS is a property of how much memory the GC sees, so the
+# question worth asking of a longer run is "does it live within a limit", not "where does it stop".
+MEM_LIMIT="${MEM_LIMIT:-}"
 
 PYTHON_VENV="$PERF/.venv/bin/python"
 [[ -x "$PYTHON_VENV" ]] || uv venv "$PERF/.venv"
 uv pip install -r "$PERF/requirements.txt" --python "$PYTHON_VENV" -q
 
+# Compose files as an array: the mem-limit variant adds a second -f, and a single COMPOSE_FILE
+# string cannot carry that.
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+if [[ -n "$MEM_LIMIT" ]]; then
+  COMPOSE_ARGS+=(-f "$REPO_ROOT/docker-compose.memlimit.yaml")
+  export CONNECTOR_WORKER_MEM_LIMIT="$MEM_LIMIT"
+  echo "[s19] connector-worker capped at $MEM_LIMIT (#297 survival-under-a-cap variant)"
+  echo "[s19]   oom_count_total and restart_count_total are gated at 0, so if the process cannot"
+  echo "[s19]   live within this cap the run fails on its own."
+  echo "[s19]   A smaller nursery means collecting more often, so the cost of the cap shows up in"
+  echo "[s19]   connector_worker_gc_collections_growth_per_hour; data_loss_ratio and pending_stable"
+  echo "[s19]   say whether that cost reached the data path."
+fi
+
 echo "[s19] ensuring stack is up (GRPC_INGRESS_PORT=$GRPC_INGRESS_PORT, flush/compaction=app default)"
 # building-os.api is not on the E10 ingest path (gRPC GatewayIngress -> connector-worker -> NATS ->
 # Parquet writer bypasses it) and is intentionally excluded so the soak doesn't need its host port.
-GRPC_INGRESS_PORT="$GRPC_INGRESS_PORT" docker compose -f "$COMPOSE_FILE" up -d \
+GRPC_INGRESS_PORT="$GRPC_INGRESS_PORT" docker compose "${COMPOSE_ARGS[@]}" up -d \
   building-os.nats building-os.oxigraph building-os.minio \
   building-os.postgres building-os.pgbouncer building-os.pgbouncer-session \
   building-os.connector-worker building-os.gateway-bridge
@@ -65,7 +84,7 @@ if [[ -n "$PROMETHEUS_URL" ]]; then
   echo "[s19] PROMETHEUS_URL=$PROMETHEUS_URL — starting the observability profile (#370 runtime metrics)"
   echo "[s19]   note: this also starts tempo/loki (otel-collector depends_on) and makes the OTLP"
   echo "[s19]   log pipeline live — Prometheus-on RSS is not comparable to Prometheus-off runs"
-  docker compose -f "$COMPOSE_FILE" --profile observability up -d \
+  docker compose "${COMPOSE_ARGS[@]}" --profile observability up -d \
     building-os.prometheus building-os.tempo building-os.loki building-os.otel-collector
   EXTRA_ARGS+=(--prometheus "$PROMETHEUS_URL")
 fi

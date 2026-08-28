@@ -73,21 +73,39 @@ axes:
     # #370 A/B の独立変数の**実測値**。chunk_seconds: 0（単一ストリーム指定）でも途中で失敗すれば
     # 張り直しているので、設定値ではなく実際に張った本数を見る。
     chunk_count:                              { op: report, unit: count, note: "実際に張った gRPC ストリーム本数" }
-    # #370: RSS の内訳分離。s19 に --prometheus を渡した run だけが値を出す（未指定なら metric 自体
-    # が存在せず gate は「—」を表示する）。閾値は置かない — 安全域を決めるための調査そのものなので、
-    # ここに数字を書くと #370 の結論を先取りしてしまう。
-    connector_worker_gc_heap_size_mib_growth_per_hour:        { op: report, unit: "MiB/h", note: "GC heap（全世代 + LOH/POH）の後半スロープ" }
+    # #370 の調査は 24h × 2 本で決着した（#370 のコメント / E10 シナリオ文書「実施記録」）。
+    # 増加は Server GC の gen0 予算拡大で、リークではない。したがって閾値は「RSS がどれだけ増えたか」
+    # ではなく「**滞留しているか**」に置く（#297）。
+    #
+    # RSS 増加率に閾値を置かないのは意図的である。増加の実体が gen0 予算の拡大である以上、その値は
+    # GC が見た利用可能メモリに依存する — ホストのメモリ量・同居プロセス・cgroup limit で変わる数字を
+    # gate にすると、環境が変わるたびに合わなくなる。RSS は report のまま残す（記録としては要る）。
+    #
+    # 下の 4 つが「リークの検出器」。いずれも 24h × 2 本の実測に対して十分な余裕を取ってある:
+    #   gen2        実測 +0.01 / -0.06 → 0.5。gen2 は 24h・53 万フレームで 3 MiB 前後に留まった。
+    #               0.5 MiB/h は 72h で +36 MiB、その水準に対して明確に異常。
+    #   LOH         実測 -0.31 / -0.40（微減）→ 0.5。同上。
+    #   RSS-committed  実測 -0.17 / +0.97 → 3.0。native / page cache 側の増加。+0.97 に対する余裕を
+    #               取りつつ、72h で +216 MiB は説明を要する、という水準。
+    #   thread pool 実測 0.00 / +0.01 → 0.5。スレッドリークは緩やかな単調増加として出る。
+    #
+    # **2 本の run から引いた暫定値である。** 上振れの再現があれば緩めるのではなく、まず何が滞留して
+    # いるかを見ること — この 4 つはいずれも「増えていたら理由が要る」量であって、環境差で動く量ではない。
+    #
+    # これらは s19 に --prometheus を渡した run だけが値を出す。未指定なら metric 自体が存在せず、
+    # gate は FAIL ではなく SKIP になる（gate.py: absent → SKIP）ので、短時間の反復 run は落ちない。
+    connector_worker_gc_heap_gen2_mib_growth_per_hour:        { op: lte, value: 0.5, unit: "MiB/h", note: "gen2 の滞留。オブジェクトが解放されていない場合ここに出る" }
+    connector_worker_gc_heap_loh_mib_growth_per_hour:         { op: lte, value: 0.5, unit: "MiB/h", note: "LOH の滞留（#297 の名指し調査項目）" }
+    connector_worker_rss_minus_gc_committed_growth_mib_per_hour: { op: lte, value: 3.0, unit: "MiB/h", note: "native / page cache 側の増加。GC では説明できない分" }
+    connector_worker_thread_pool_thread_count_growth_per_hour: { op: lte, value: 0.5, unit: "count/h", note: "thread pool スレッド数の後半スロープ（専用スレッドは含まないので、横ばい＝スレッド不増とは読めない）" }
+    connector_worker_gc_heap_size_mib_growth_per_hour:        { op: report, unit: "MiB/h", note: "GC heap（全世代 + LOH/POH）の後半スロープ。gen0 を含むので値そのものは振れる — 判定には使わない" }
     connector_worker_gc_committed_mib_growth_per_hour:        { op: report, unit: "MiB/h", note: "GC が commit している総量（= 直近 GC 時点の値）の後半スロープ" }
-    connector_worker_gc_heap_loh_mib_growth_per_hour:         { op: report, unit: "MiB/h", note: "LOH のみ（#297 の名指し調査項目）" }
+    connector_worker_gc_heap_gen0_mib_growth_per_hour:        { op: report, unit: "MiB/h", note: "gen0 = nursery の予算。24h A/B で増加の主因と判明したが、GC の裁量なので閾値は置かない" }
     connector_worker_gc_collections_growth_per_hour:          { op: report, unit: "count/h", note: "GC 発生頻度。gc_committed の鮮度＝判別指標の品質を示す（低いほど subtrahend が古い）" }
-    # 注: 取れるのは thread pool のスレッド数のみ。専用スレッド（native リソースが張るもの）は
-    # この系列に含まれないので、横ばい＝「スレッドは増えていない」とは読めない。
-    connector_worker_thread_pool_thread_count_growth_per_hour: { op: report, unit: "count/h", note: "thread pool スレッド数の後半スロープ（専用スレッドは含まない）" }
     # 判別指標: RSS − GC committed。RSS が伸びてこれが横ばい = managed heap の伸び、
     # これも伸びる = native / page cache / GC が OS に返していない領域。
     connector_worker_rss_minus_gc_committed_mib_start:        { op: report, unit: MiB }
     connector_worker_rss_minus_gc_committed_mib_end:          { op: report, unit: MiB }
-    connector_worker_rss_minus_gc_committed_growth_mib_per_hour: { op: report, unit: "MiB/h" }
     # カバレッジ。判別指標は「RSS スロープ」と「差分スロープ」の比較で読むが、Prometheus の
     # カバレッジが部分的だと両者が違う時間帯を指す。_samples と _paired（差分と同じ tick 集合だけで
     # 測った RSS スロープ）を併せて見て、比較の両辺が同じ窓かを確認すること。
