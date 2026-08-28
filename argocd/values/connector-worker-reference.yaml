@@ -3,7 +3,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/gutp-bim/buildingos-connector-worker
-  tag: main # bootstrap only — CI rewrites this to sha-<short-sha> after each build
+  tag: sha-43699d8
   pullPolicy: IfNotPresent
 
 # Credentials for pulling from the registry above. GHCR packages owned by an
