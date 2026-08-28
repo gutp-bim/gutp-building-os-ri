@@ -29,7 +29,8 @@ def main() -> int:
         return 1
 
     for manifest in manifests:
-        source = open(manifest, encoding="utf-8").read()
+        with open(manifest, encoding="utf-8") as handle:
+            source = handle.read()
         release = re.search(r"^  name: (\S+)", source, re.M)
         chart = re.search(r"^    path: (\S+)", source, re.M)
         # valueFiles entries are written relative to the chart directory.

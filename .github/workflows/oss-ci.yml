@@ -236,6 +236,18 @@ jobs:
       - name: Lint + template the per-service charts against their Argo CD overlays
         run: |
           set -euo pipefail
+          # Assigned first, not piped from a process substitution: `done < <(cmd)` discards cmd's
+          # exit status, so a manifest that made the extractor exit 1 would leave the loop with
+          # fewer lines — or none — and the step would still pass. That is the very failure this
+          # check exists to prevent.
+          pairs="$(python3 scripts/argocd-chart-pairs.py)"
+          # An empty list would also loop zero times and report success, which reads identically to
+          # "everything passed".
+          if [ -z "${pairs}" ]; then
+            echo "::error::no chart/overlay pairs extracted from argocd/apps/ — nothing was validated"
+            exit 1
+          fi
+          echo "Validating $(printf '%s\n' "${pairs}" | wc -l | tr -d ' ') chart/overlay pair(s)"
           while IFS=$'\t' read -r release chart values manifest; do
             echo "::group::${release}: ${chart} + ${values}  (${manifest})"
             helm lint "${chart}"
@@ -243,4 +255,4 @@ jobs:
             # but not with the values Argo CD actually feeds it is the failure that matters here.
             helm template "${release}" "${chart}" -f "${values}" > /dev/null
             echo "::endgroup::"
-          done < <(python3 scripts/argocd-chart-pairs.py)
+          done <<< "${pairs}"
