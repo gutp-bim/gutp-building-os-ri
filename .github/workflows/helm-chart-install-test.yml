@@ -55,10 +55,10 @@ jobs:
       - name: Per-service charts + their Argo CD overlays → kubectl apply --dry-run=server
         run: |
           set -euo pipefail
-          while IFS=$'\t' read -r chart values manifest; do
-            echo "::group::${chart} + ${values}  (${manifest})"
+          while IFS=$'\t' read -r release chart values manifest; do
+            echo "::group::${release}: ${chart} + ${values}  (${manifest})"
             helm lint "${chart}"
-            helm template "$(basename "${chart}")" "${chart}" \
+            helm template "${release}" "${chart}" \
               -f "${values}" \
               --namespace building-os \
               | kubectl apply --dry-run=server -f -

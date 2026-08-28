@@ -236,11 +236,11 @@ jobs:
       - name: Lint + template the per-service charts against their Argo CD overlays
         run: |
           set -euo pipefail
-          while IFS=$'\t' read -r chart values manifest; do
-            echo "::group::${chart} + ${values}  (${manifest})"
+          while IFS=$'\t' read -r release chart values manifest; do
+            echo "::group::${release}: ${chart} + ${values}  (${manifest})"
             helm lint "${chart}"
             # Rendered with the overlay rather than chart defaults: a chart that renders on its own
             # but not with the values Argo CD actually feeds it is the failure that matters here.
-            helm template "$(basename "${chart}")" "${chart}" -f "${values}" > /dev/null
+            helm template "${release}" "${chart}" -f "${values}" > /dev/null
             echo "::endgroup::"
           done < <(python3 scripts/argocd-chart-pairs.py)
