@@ -224,3 +224,35 @@ jobs:
         run: |
           helm template building-os kubernetes/helm/building-os \
             -f kubernetes/helm/building-os/values-prod.yaml
+
+      # The umbrella chart above is not what gets deployed. Each Argo CD Application points at a
+      # per-service chart (argocd/apps/*.yaml → kubernetes/helm/<service>), and those had no lint
+      # and no template here at all — a check that looks like coverage while the thing actually
+      # shipped goes unchecked, which is the shape of #306.
+      #
+      # The pairs are read out of the Application manifests rather than listed here, so adding an
+      # Application extends the coverage on its own. A hardcoded list would be a second place to
+      # forget, which is how the overlays came to point at images nobody published.
+      - name: Lint + template the per-service charts against their Argo CD overlays
+        run: |
+          set -euo pipefail
+          # Assigned first, not piped from a process substitution: `done < <(cmd)` discards cmd's
+          # exit status, so a manifest that made the extractor exit 1 would leave the loop with
+          # fewer lines — or none — and the step would still pass. That is the very failure this
+          # check exists to prevent.
+          pairs="$(python3 scripts/argocd-chart-pairs.py)"
+          # An empty list would also loop zero times and report success, which reads identically to
+          # "everything passed".
+          if [ -z "${pairs}" ]; then
+            echo "::error::no chart/overlay pairs extracted from argocd/apps/ — nothing was validated"
+            exit 1
+          fi
+          echo "Validating $(printf '%s\n' "${pairs}" | wc -l | tr -d ' ') chart/overlay pair(s)"
+          while IFS=$'\t' read -r release chart values manifest; do
+            echo "::group::${release}: ${chart} + ${values}  (${manifest})"
+            helm lint "${chart}"
+            # Rendered with the overlay rather than chart defaults: a chart that renders on its own
+            # but not with the values Argo CD actually feeds it is the failure that matters here.
+            helm template "${release}" "${chart}" -f "${values}" > /dev/null
+            echo "::endgroup::"
+          done <<< "${pairs}"
