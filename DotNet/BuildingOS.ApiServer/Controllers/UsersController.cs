@@ -140,7 +140,7 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update attributes for user {UserId}", id);
+            _logger.LogError(ex, "Failed to update attributes for user {UserId}", ForLog(id));
             await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
                 new { error = ex.Message }, ct).ConfigureAwait(false);
             return BadRequest(new { error = ex.Message });
@@ -205,7 +205,7 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to set enabled={Enabled} for user {UserId}", request.Enabled, id);
+            _logger.LogError(ex, "Failed to set enabled={Enabled} for user {UserId}", request.Enabled, ForLog(id));
             await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
                 new { error = ex.Message }, ct).ConfigureAwait(false);
             return BadRequest(new { error = ex.Message });
@@ -334,6 +334,17 @@ public class UsersController : ControllerBase
     /// グループタイプのパーミッションはハッシュ化しないため保存不要。
     /// </summary>
     /// <summary>
+    /// Strips CR/LF from a value before it goes into a log message.
+    ///
+    /// The user id arrives on the route, so a caller could put newlines in it and forge log lines
+    /// that look like separate entries (CodeQL's log-injection rule flags exactly this). The audit
+    /// record stores the same id as a field, where it is data rather than text and needs no
+    /// escaping — this is only for the human-readable line.
+    /// </summary>
+    private static string ForLog(string value) =>
+        value.Replace("\r", string.Empty).Replace("\n", string.Empty);
+
+    /// <summary>
     /// Persists the hash→original-id mappings for permissions that have just been granted, and
     /// reports a failure instead of raising it (#307).
     ///
@@ -384,7 +395,7 @@ public class UsersController : ControllerBase
             _logger.LogWarning(ex,
                 "Resource-id mapping not saved for user {UserId} after {Action} succeeded; " +
                 "the permission is in effect but will not appear in accessible-resource listings " +
-                "until the request is repeated", targetId, action);
+                "until the request is repeated", ForLog(targetId), action);
 
             await AuditAsync(auth, $"{action}:resource-id-mapping", targetId, AdminAuditResult.Failure,
                 new { error = ex.Message }, ct).ConfigureAwait(false);
