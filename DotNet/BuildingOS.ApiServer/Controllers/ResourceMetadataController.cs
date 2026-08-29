@@ -2,6 +2,7 @@ using BuildingOS.Shared.Infrastructure;
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
+using BuildingOs.ApiServer.GatewayProvisioning;
 using Microsoft.AspNetCore.Mvc;
 using Entities = BuildingOS.Shared;
 
@@ -19,7 +20,10 @@ namespace BuildingOs.ApiServer.Controllers;
 [AuthorizeFilter]
 public class ResourceMetadataController(
     IAuthorizedTwinView twinView,
-    IDigitalTwinDatabase db) : ControllerBase
+    IDigitalTwinDatabase db,
+    IPointListMaterializer pointListMaterializer,
+    IPointListMaterializerSweepTrigger pointListMaterializerSweep,
+    ILogger<ResourceMetadataController> logger) : ControllerBase
 {
     // ── GET ──────────────────────────────────────────────────────────────────
 
@@ -131,6 +135,27 @@ public class ResourceMetadataController(
         if (point == null) return NotFound();
 
         await db.UpdateResourceMetadataAsync(point.DtId, req.Identifiers, req.CustomTags, ct).ConfigureAwait(false);
+
+        // Point.GatewayName actually holds the sbco:gatewayId literal (same predicate
+        // ListGatewayPointList filters on) despite the name — see MapPoint. A single gateway's
+        // materialized row is cheap to rebuild (#259/#260: ~91ms at 1k points), so this runs inline
+        // rather than queuing a full sweep; a rebuild failure is logged and swallowed — it never fails
+        // the PATCH — because the cache is a best-effort accelerator, not a correctness gate (the read
+        // path always re-validates against the Twin's own ETag before trusting a cache hit).
+        if (!string.IsNullOrEmpty(point.GatewayName))
+        {
+            try
+            {
+                await pointListMaterializer.RebuildGatewayAsync(point.GatewayName, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Point-list materialization failed for gateway {GatewayId} after a point metadata patch; " +
+                    "reads for it fall back to a live Twin query", point.GatewayName);
+            }
+        }
+
         return NoContent();
     }
 
@@ -148,6 +173,12 @@ public class ResourceMetadataController(
 
         // Non-point resources: the URL param is the dtId (RDF IRI) — use it directly as SPARQL subject.
         await db.UpdateResourceMetadataAsync(resourceId, req.Identifiers, req.CustomTags, ct).ConfigureAwait(false);
+
+        // Which gateway(s) own points under this resource isn't cheaply resolvable today (no existing
+        // query walks resource → owned points → gateways), so this falls back to a coalesced
+        // background full sweep rather than under-invalidating a subset of gateways. See the
+        // point-list-projection plan's Phase B non-goals for the targeted-lookup follow-up.
+        pointListMaterializerSweep.RequestSweep();
         return NoContent();
     }
 

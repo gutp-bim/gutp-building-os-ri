@@ -1,5 +1,7 @@
+using System.Text.Json;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
+using BuildingOS.Shared.Domain.GatewayPointListCache;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOs.ApiServer.Middlewares;
@@ -25,7 +27,9 @@ public class GatewayProvisioningController(
     IDigitalTwinDatabase digitalTwinDatabase,
     IGatewayIdentityResolver gatewayIdentity,
     IGatewayPointListSnapshotStore snapshotStore,
-    IPointListRevisionCoordinator revisionCoordinator) : ControllerBase
+    IPointListRevisionCoordinator revisionCoordinator,
+    IGatewayPointListCacheStore gatewayPointListCache,
+    ILogger<GatewayProvisioningController> logger) : ControllerBase
 {
     /// <summary>
     /// 当該 gateway が所有する全 point（native addressing / unit / writable / control schema / device）を
@@ -58,21 +62,20 @@ public class GatewayProvisioningController(
             return StatusCode(StatusCodes.Status403Forbidden);
 
         var sharedGeneration = await revisionCoordinator.GetGenerationAsync(ct).ConfigureAwait(false);
+        // Fetched unconditionally (not just when a conditional header is present) — this is also the
+        // freshness anchor for the materialized cache read-through below, so a cold/first-time client
+        // can hit a warm cache row too, not just get a cheap 304.
+        var currentEtag = await revisionCoordinator.GetCurrentEtagAsync(gatewayId, ct).ConfigureAwait(false);
         var ifNoneMatch = Request.Headers.IfNoneMatch.ToString();
         var conditionalEtag = !string.IsNullOrEmpty(since) ? since : ifNoneMatch;
-        if (!string.IsNullOrEmpty(conditionalEtag))
+        if (!string.IsNullOrEmpty(conditionalEtag) && string.Equals(currentEtag, conditionalEtag, StringComparison.Ordinal))
         {
-            var currentEtag = await revisionCoordinator.GetCurrentEtagAsync(gatewayId, ct).ConfigureAwait(false);
-            if (string.Equals(currentEtag, conditionalEtag, StringComparison.Ordinal))
-            {
-                Response.Headers.ETag = currentEtag;
-                Response.Headers.CacheControl = "no-cache";
-                return StatusCode(StatusCodes.Status304NotModified);
-            }
+            Response.Headers.ETag = currentEtag;
+            Response.Headers.CacheControl = "no-cache";
+            return StatusCode(StatusCodes.Status304NotModified);
         }
 
-        var entries = await digitalTwinDatabase.ListGatewayPointList(gatewayId).ConfigureAwait(false);
-        var etag = PointListEtag.Compute(entries);
+        var (entries, etag) = await ResolveEntriesAsync(gatewayId, currentEtag, ct).ConfigureAwait(false);
 
         Response.Headers.ETag = etag;
         Response.Headers.CacheControl = "no-cache"; // always revalidate via ETag
@@ -121,5 +124,38 @@ public class GatewayProvisioningController(
             GeneratedAt = DateTime.UtcNow,
             Points = entries.Select(GatewayPointDto.From).ToArray(),
         });
+    }
+
+    /// <summary>
+    /// Read-through the materialized Point List cache (point-list-projection plan, Phase B). Only
+    /// trusts a cached row when <paramref name="currentEtag"/> — already fail-closed by
+    /// <see cref="IPointListRevisionCoordinator"/> — independently confirms it is current; on any
+    /// miss, mismatch, or cache-store error this falls back to the live Twin query unchanged, so a
+    /// cache problem can only ever cost what today's baseline already costs, never a wrong or stale
+    /// answer.
+    /// </summary>
+    private async Task<(GatewayPointEntry[] Entries, string Etag)> ResolveEntriesAsync(
+        string gatewayId, string? currentEtag, CancellationToken ct)
+    {
+        if (!string.IsNullOrEmpty(currentEtag))
+        {
+            try
+            {
+                var cached = await gatewayPointListCache.GetAsync(gatewayId, ct).ConfigureAwait(false);
+                if (cached is not null && string.Equals(cached.Etag, currentEtag, StringComparison.Ordinal))
+                {
+                    var entries = JsonSerializer.Deserialize<GatewayPointEntry[]>(cached.PayloadJson);
+                    if (entries is not null) return (entries, cached.Etag);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Gateway point-list cache read failed for {GatewayId}; querying the Twin", gatewayId);
+            }
+        }
+
+        var liveEntries = await digitalTwinDatabase.ListGatewayPointList(gatewayId).ConfigureAwait(false);
+        return (liveEntries, PointListEtag.Compute(liveEntries));
     }
 }

@@ -98,6 +98,36 @@ native addressing / unit / writable / control schema / device を含む（無い
 - サポートされる更新経路はTwin Admin importと起動時seedである。OxiGraphを外部から直接更新した場合は
   整合性契約の対象外なので、全ApiServerを再起動して共有世代を失効させる。
 
+#### 200 応答のマテリアライズドキャッシュ（Phase B、point-list-projection計画）
+
+上記のETag/世代機構は**304を安価にする**ためのものであり、200応答（新規/変更後の初回取得）は
+従来どおり毎回OxiGraphへのライブクエリを払っていた。10k→50kで170.5ms→2,745.0msと非線形に悪化する
+問題（`docs/reference/performance-evaluation-report.md` §7）に対応するため、PostgreSQL
+（`gateway_pointlist_cache`テーブル、`IGatewayPointListCacheStore`/`GatewayPointListCacheStore`）に
+Gateway単位のフルPoint List（`GatewayPointEntry[]`のJSON）を事前計算して保持する。
+
+- **正しさの根拠にはしない**: このテーブルは200応答を速くするための**ベストエフォートのアクセラレータ**
+  でしかない。`GatewayProvisioningController`は既存の`IPointListRevisionCoordinator.GetCurrentEtagAsync`
+  （fail-closed）で得たETagとキャッシュ行のETagが一致した場合**のみ**キャッシュを信頼する。ミス・不一致・
+  ストア例外はすべて既存のライブOxiGraphクエリへフォールバックするため、キャッシュの障害は「今日と同じ
+  速度に戻るだけ」であり、誤った応答にはなり得ない。
+- **書き込み**: `IPointListMaterializer`（`PointListMaterializer`）が`ListGatewayPointList` +
+  `PointListEtag.Compute`をそのまま使って1 Gateway分を再構築する（`RebuildGatewayAsync`）か、
+  `IDigitalTwinDatabase.ListGatewayIds()`で全Gatewayを列挙して並列度を絞って再構築する
+  （`RebuildAllAsync`）。
+- **トリガー**（ハイブリッド）:
+  - `TwinAdminController.ApplyImport`成功後、`IPointListMaterializerSweepTrigger.RequestSweep()`で
+    非同期・合流済みのフルスイープをキューイングする（管理者リクエストの応答はブロックしない）。
+  - `ResourceMetadataController.PatchPoint`は対象Gateway（`Point.GatewayName`——名前に反して
+    `sbco:gatewayId`の値そのもの）だけを同期的に再構築する（#259/#260実測で約91msと軽量なため）。
+  - building/floor/space/deviceのPATCHは対象Gatewayを安価に絞り込む手段が今はないため、同じく
+    `RequestSweep()`にフォールバックする。
+  - `PointListMaterializerSweepService`（`BackgroundService`）が20分間隔の安全網としても
+    `RebuildAllAsync`を実行し、上記トリガーが取りこぼした変更を自己修復する。
+- 上記のETag/世代機構とは意図的に別関心事として分離している。世代コーディネータは「クライアントの
+  ETagが最新か」を、このキャッシュは「今のフルPoint Listは何か」を答えるだけで、CASや世代トークンを
+  持たない——鮮度の最終権威は常にETag/世代機構側にある。
+
 ## 認証（マシン認証・本番品質の肝）
 
 ユーザー RBAC ではなく **gateway のマシン認証**。gateway は既に gRPC（GatewayEgress）を

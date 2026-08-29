@@ -3,6 +3,7 @@ namespace BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
+using BuildingOS.Shared.Domain.GatewayPointListCache;
 using BuildingOS.Shared.Domain.Grouping.Entities;
 using BuildingOS.Shared.Domain.PointControl;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ public class RelationalDbContext : DbContext
     public DbSet<SystemConfigEntry> SystemConfigEntries => Set<SystemConfigEntry>();
     public DbSet<PointControlAuditEntry> PointControlAudits => Set<PointControlAuditEntry>();
     public DbSet<AdminAuditEntry> AdminAudits => Set<AdminAuditEntry>();
+    public DbSet<GatewayPointListCacheEntry> GatewayPointListCacheEntries => Set<GatewayPointListCacheEntry>();
 
     public RelationalDbContext(DbContextOptions<RelationalDbContext> options)
         : base(options)
@@ -115,6 +117,17 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
             entity.HasIndex(e => new { e.SubjectType, e.CreatedAt }).HasDatabaseName("IX_admin_audit_subject_type_created_at");
             entity.HasIndex(e => new { e.TargetId, e.CreatedAt }).HasDatabaseName("IX_admin_audit_target_id_created_at");
+        });
+
+        modelBuilder.Entity<GatewayPointListCacheEntry>(entity =>
+        {
+            entity.ToTable("gateway_pointlist_cache");
+            entity.HasKey(e => e.GatewayId);
+            entity.Property(e => e.GatewayId).HasColumnName("gateway_id").HasMaxLength(200);
+            entity.Property(e => e.Etag).HasColumnName("etag").IsRequired().HasMaxLength(200);
+            entity.Property(e => e.PayloadJson).HasColumnName("payload_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(e => e.PointCount).HasColumnName("point_count").IsRequired();
+            entity.Property(e => e.MaterializedAt).HasColumnName("materialized_at").IsRequired();
         });
     }
 }

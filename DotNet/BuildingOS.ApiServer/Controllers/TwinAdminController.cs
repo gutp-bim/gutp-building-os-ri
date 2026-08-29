@@ -26,17 +26,20 @@ public class TwinAdminController : ControllerBase
     private readonly ITwinAdminService _twin;
     private readonly IAdminAuditRecorder _audit;
     private readonly IPointListRevisionCoordinator _pointListRevisions;
+    private readonly IPointListMaterializerSweepTrigger _pointListMaterializerSweep;
     private readonly ILogger<TwinAdminController> _logger;
 
     public TwinAdminController(
         ITwinAdminService twin,
         IAdminAuditRecorder audit,
         IPointListRevisionCoordinator pointListRevisions,
+        IPointListMaterializerSweepTrigger pointListMaterializerSweep,
         ILogger<TwinAdminController> logger)
     {
         _twin = twin;
         _audit = audit;
         _pointListRevisions = pointListRevisions;
+        _pointListMaterializerSweep = pointListMaterializerSweep;
         _logger = logger;
     }
 
@@ -158,6 +161,11 @@ public class TwinAdminController : ControllerBase
                 // closed to a Twin query rather than trusting any pre-import ETag.
                 await _pointListRevisions.CompleteUpdateAsync(updateToken, CancellationToken.None).ConfigureAwait(false);
             }
+            // Best-effort, off the request thread: the materialized Point List cache (Phase B) can
+            // touch every gateway on a bulk import, so this only queues a coalesced background sweep
+            // rather than rebuilding inline — the admin response is not blocked on a full-twin
+            // materialization. Reads stay correct in the meantime via the ETag invalidation above.
+            _pointListMaterializerSweep.RequestSweep();
             await AuditAsync(auth, "import-apply", null, AdminAuditResult.Success,
                 Meta(request.Turtle, mode.ToString(), preview, request.AllowOrphans), ct).ConfigureAwait(false);
             return Ok(preview);
