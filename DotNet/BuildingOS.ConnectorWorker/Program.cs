@@ -16,29 +16,27 @@ var bootstrapConfig = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .AddCommandLine(args)
     .Build();
-var grpcIngressPort = ResolveGrpcIngressPort(bootstrapConfig["GRPC_INGRESS_PORT"]);
+// WORKER_ROLE (#400) selects the capability set. It is read from the same bootstrap sources as the
+// ports because it decides whether the gRPC listener is opened at all: only ingest-capable roles get
+// the port, so a lake/control replica inheriting GRPC_INGRESS_PORT from a shared config neither binds
+// a dead listener nor trips the port-collision check below.
+var workerRole = WorkerRoles.Parse(bootstrapConfig[WorkerRoles.EnvVar]);
+var grpcIngressPort = workerRole.RunsTelemetryIngress()
+    ? ResolveGrpcIngressPort(bootstrapConfig["GRPC_INGRESS_PORT"])
+    : null;
 var healthPort = ResolvePort(bootstrapConfig["HEALTH_PORT"], 8081);
 
 var builder = WebApplication.CreateBuilder(args);
 ConfigureKestrelListeners(builder, healthPort, grpcIngressPort);
 
-// Service graph, grouped by capability (see ConnectorWorkerServiceCollectionExtensions). Behaviour is
-// identical to the prior inline registration — only the listener differs between hosts.
-builder.AddConnectorWorkerObservability();
-builder.AddConnectorWorkerMessaging();
-builder.AddConnectorWorkerTwin();
-builder.AddConnectorWorkerControl();
-builder.AddProtocolConnectors();
-builder.AddParquetLakeWriter();
-builder.AddColdExportWorker();
+// Service graph for this role, grouped by capability (see ConnectorWorkerServiceCollectionExtensions).
+// WORKER_ROLE unset / "all" registers exactly what the worker registered before the switch existed.
+builder.AddConnectorWorkerCapabilities(workerRole, grpcIngressPort);
 
 // Health (#145): liveness = the process serves HTTP (no checks); readiness = the NATS connection is
 // Open so the worker can actually consume/publish. The system-status fan-out (#144) targets /health.
 builder.Services.AddHealthChecks()
     .AddCheck<NatsReadinessHealthCheck>("nats", tags: ["ready"]);
-
-// gRPC ingress (#181): added only when GRPC_INGRESS_PORT is set (the listener gate).
-builder.AddTelemetryIngress(grpcIngressPort);
 
 var app = builder.Build();
 // Liveness: no checks — 200 as long as the process serves HTTP (orchestrator restart signal).
@@ -48,7 +46,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
 if (grpcIngressPort is not null)
     app.MapGrpcService<GatewayIngressService>();
-LogStartup(app.Services, grpcIngressPort);
+LogStartup(app.Services, workerRole, grpcIngressPort);
 app.Run();
 
 // ── Host configuration helpers ────────────────────────────────────────────────
@@ -96,7 +94,7 @@ static void ConfigureKestrelListeners(WebApplicationBuilder builder, int healthP
 // Startup summary — emitted through the real logging pipeline (also exported to Loki via OTel) so
 // operators can immediately tell which ingress scenarios are active and what HONO_AMQP_HOST resolved
 // to inside the process (see issue #131).
-void LogStartup(IServiceProvider services, int? ingressGrpcPort)
+void LogStartup(IServiceProvider services, WorkerRole role, int? ingressGrpcPort)
 {
     var config = services.GetRequiredService<IConfiguration>();
     var mqttHost = config["MQTT_HOST"]?.Trim();
@@ -110,14 +108,24 @@ void LogStartup(IServiceProvider services, int? ingressGrpcPort)
     var grpcDesc = ingressGrpcPort is int p
         ? $"enabled port={p}, identity-binding={(identity?.Enforce == true ? $"enforced(header={identity.HeaderName})" : "off")}" +
           $", hierarchy-check={(hierarchy?.Enforce == true ? "enforced" : "off")}"
-        : "disabled (GRPC_INGRESS_PORT unset)";
+        : role.RunsTelemetryIngress()
+            ? "disabled (GRPC_INGRESS_PORT unset)"
+            : $"disabled (role={role.ToString().ToLowerInvariant()})";
+
+    // The MQTT/Hono ingress workers belong to the protocol-connector capability, so a role that does
+    // not run them must not report "enabled" just because the host variable is present in the config.
+    string IngressDesc(string? host, string unsetReason) =>
+        !role.RunsProtocolConnectors() ? $"disabled (role={role.ToString().ToLowerInvariant()})"
+        : string.IsNullOrWhiteSpace(host) ? unsetReason
+        : $"enabled host={host}";
 
     services.GetRequiredService<ILoggerFactory>()
         .CreateLogger("BuildingOS.ConnectorWorker.Startup")
         .LogInformation(
-            "Connector scenarios — gRPC ingress: {Grpc}, MQTT: {Mqtt}, Hono/AMQP: {Hono} (HONO_AMQP_HOST='{HonoHostRaw}')",
+            "Connector role: {Role} — gRPC ingress: {Grpc}, MQTT: {Mqtt}, Hono/AMQP: {Hono} (HONO_AMQP_HOST='{HonoHostRaw}')",
+            role.ToString().ToLowerInvariant(),
             grpcDesc,
-            string.IsNullOrWhiteSpace(mqttHost) ? "disabled (MQTT_HOST unset)" : $"enabled host={mqttHost}",
-            string.IsNullOrWhiteSpace(honoHost) ? "disabled (HONO_AMQP_HOST unset)" : $"enabled host={honoHost}",
+            IngressDesc(mqttHost, "disabled (MQTT_HOST unset)"),
+            IngressDesc(honoHost, "disabled (HONO_AMQP_HOST unset)"),
             honoHostRaw);
 }

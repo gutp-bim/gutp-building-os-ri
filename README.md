@@ -447,6 +447,7 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 | 変数 | 説明 | 必須 |
 |------|------|------|
 | `NATS_URL` | NATS 接続 URL | ✅ |
+| `WORKER_ROLE` | 起動する機能グループ（#400）。`all`（既定・未設定も同じ）/ `ingest` / `lake` / `control`。不正値は起動時に fail-fast。`all` / `lake` は 1 レプリカ固定、`ingest` / `control` は水平スケール可。分割例は `docker-compose.roles.yaml` | — |
 | `WARM_STORE` | Warm 層モード。`parquet`（既定）/ `timescale` | — |
 | `MINIO_ENDPOINT` | MinIO/S3 エンドポイント（parquet モード時必須）| parquet モード |
 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | MinIO 認証情報 | parquet モード |

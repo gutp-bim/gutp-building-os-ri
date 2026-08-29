@@ -114,7 +114,12 @@
 
 ## 5. スケール / 可用性
 
-- **ConnectorWorker GatewayIngress / ApiServer はステートレス** → 水平スケール可。
+- **ApiServer はステートレス** → 水平スケール可。
+- **ConnectorWorker は `WORKER_ROLE`（#400）次第**: 水平スケール可なのは `ingest`（gRPC GatewayIngress /
+  MQTT・Hono ingress / `raw.*` 正規化）と `control`（`NatsPointControlWorker` + ハンドラ）のみ。
+  既定の `all` と `lake` は **1 レプリカ固定** — `OxiGraphSeedHostedService`（ツインの default graph を
+  置き換える）・`CompactionWorker`・`LakeRetentionHostedService` にレプリカ間排他がないため。
+  分割して ingest だけをスケールする構成例は `docker-compose.roles.yaml`。
 - **GatewayBridge もステートレス**: ゲートウェイのストリームは任意レプリカに載り、制御は per-gateway NATS subject で
   当該ストリーム保持レプリカに必ず届く（LB のスティッキー不要、[oss-gateway-bridge-infra.md](oss-gateway-bridge-infra.md)）。
 - **耐障害性**: テレメトリは store-and-forward（NATS JetStream の at-least-once + ParquetLakeWriter durable consumer）。
@@ -129,7 +134,10 @@
 確定値は本番スケール実測（[#297](https://github.com/takashikasuya/gutp-building-os-oss/issues/297)）後に
 サイジング表（[#298](https://github.com/takashikasuya/gutp-building-os-oss/issues/298)）へ反映します。現時点の方針:
 
-- **ConnectorWorker / ApiServer**: スループットに応じてレプリカ数で水平スケール（ステートレス）。
+- **ApiServer**: スループットに応じてレプリカ数で水平スケール（ステートレス）。
+- **ConnectorWorker**: レプリカ数でスケールできるのは `WORKER_ROLE=ingest` / `control` のみ。
+  `all` / `lake` は 1 レプリカ固定（ツインシード・compaction・retention にレプリカ間排他なし）なので、
+  取り込みスループットが足りない場合は role 分割してから ingest をスケールする（§5）。
 - **NATS JetStream**: `BUILDING_OS_VALIDATED` の MaxBytes/MaxAge（24h）でストリーム容量を上限管理（`PARQUET_STREAM_MAX_BYTES`）。
 - **MinIO**: Parquet + ILM 保持（`LAKE_RETENTION_DAYS`）で容量を制御。bytes/row は TimescaleDB 比 ~0.02（E7）。
 - **flush/compaction**: 鮮度と小ファイル数のトレードオフ（[oss-sla-freshness.md](oss-sla-freshness.md)）。

@@ -39,6 +39,11 @@ spec:
               value: {{ .Values.nats.url | quote }}
             - name: NATS_STREAM
               value: {{ .Values.nats.stream | quote }}
+            # Capability role (#400). Default "all" registers every capability group in one process
+            # (unchanged behaviour). "ingest" / "lake" / "control" split them across Deployments;
+            # an unknown value fails fast at startup. Only ingest/control may run >1 replica.
+            - name: WORKER_ROLE
+              value: {{ .Values.workerRole | default "all" | quote }}
             # Warm-tier storage mode (#216). Default parquet → ParquetLakeWriter persists validated
             # telemetry to the lake (MinIO); the TimescaleDB cold export is disabled. Set to
             # "timescale" to restore the cold-export path.

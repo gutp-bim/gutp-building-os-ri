@@ -1,6 +1,10 @@
 # ArgoCD Helm values for connector-worker — reference environment.
 replicaCount: 1
 
+# Capability role (#400): all|ingest|lake|control. `replicaCount` must stay 1 while this is
+# all or lake (twin seed / compaction / retention have no cross-replica exclusion).
+workerRole: all
+
 image:
   repository: ghcr.io/gutp-bim/buildingos-connector-worker
   tag: sha-496040a

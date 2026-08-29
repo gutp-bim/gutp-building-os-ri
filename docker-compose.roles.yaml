@@ -1,0 +1,64 @@
+# ── Split-role connector workers (#400) — OPT-IN OVERLAY, not part of the default stack ─────────────
+#
+# The default OSS stack runs ONE connector worker with WORKER_ROLE=all: every capability (gRPC/MQTT
+# ingress, raw.* normalizers, point control, Parquet lake writer + compaction + retention, twin seed)
+# in a single process. That is deliberate for a reference implementation — `docker compose up` brings
+# the whole pipeline up, and the measured latencies are already well inside their targets.
+#
+# This overlay is the worked example of the *other* shape: the same image started three times with
+# different WORKER_ROLE values, so the latency-sensitive ingest path no longer shares a process (and a
+# GC heap, and a CPU quota) with batch Parquet compaction. Use it to reproduce the before/after
+# measurement in #401, or as the starting point for a Standard/Scale deployment profile.
+#
+#   # ingest + lake + control as three processes
+#   WORKER_ROLE=ingest docker compose -f docker-compose.oss.yaml -f docker-compose.roles.yaml \
+#     up -d building-os.connector-worker building-os.connector-worker-lake \
+#           building-os.connector-worker-control
+#
+# WORKER_ROLE=ingest on the shell reaches the base `building-os.connector-worker` service through its
+# ${WORKER_ROLE:-all} default, so that container stops running the lake and control workers and the two
+# services below pick them up. Leave WORKER_ROLE unset and you get the all-in-one worker plus two
+# redundant siblings — so always set it when using this file.
+#
+# Replica safety: `lake` must stay at one replica (CompactionWorker and LakeRetentionHostedService have
+# no cross-replica exclusion — two of them would compact the same building-hour concurrently). `ingest`
+# and `control` consume through durable NATS consumers and are safe to scale. The twin seed runs in
+# neither: with the roles split, seeding is the API server's job (OXIGRAPH_SEED_TTL_PATH there).
+
+services:
+  # Telemetry persistence: ParquetLakeWriterWorker + CompactionWorker + LakeRetentionHostedService
+  # (or ColdExportWorker under WARM_STORE=timescale). No ingest surface, no twin client.
+  building-os.connector-worker-lake:
+    extends:
+      file: docker-compose.oss.yaml
+      service: building-os.connector-worker
+    container_name: building-os.connector-worker-lake
+    environment:
+      WORKER_ROLE: lake
+      OTEL_SERVICE_NAME: building-os-connector-worker-lake
+      # The role ignores this, but clearing it keeps the intent legible and avoids inheriting a port
+      # this container would never bind.
+      GRPC_INGRESS_PORT: ""
+    ports:
+      - "8082:8081"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+      building-os.minio:
+        condition: service_healthy
+
+  # Physical device control: NatsPointControlWorker + the binding handlers.
+  building-os.connector-worker-control:
+    extends:
+      file: docker-compose.oss.yaml
+      service: building-os.connector-worker
+    container_name: building-os.connector-worker-control
+    environment:
+      WORKER_ROLE: control
+      OTEL_SERVICE_NAME: building-os-connector-worker-control
+      GRPC_INGRESS_PORT: ""
+    ports:
+      - "8083:8081"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
