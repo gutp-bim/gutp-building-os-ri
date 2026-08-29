@@ -16,6 +16,7 @@ using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Assistant;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
+using BuildingOS.Shared.Domain.GatewayPointListCache;
 using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.UserManagement;
 using BuildingOs.ApiServer.Middlewares;
@@ -215,6 +216,10 @@ namespace BuildingOs.ApiServer
                 options.UseNpgsql(_envModule.PostgresConnectionString));
             services.AddScoped<IGroupRepository, GroupRepository>();
             services.AddScoped<ISystemConfigStore, SystemConfigStore>();
+            // Materialized Gateway Point List cache (point-list-projection plan, Phase B) — a
+            // best-effort accelerator for GatewayProvisioningController's 200 path, scoped like the
+            // RelationalDbContext it wraps.
+            services.AddScoped<IGatewayPointListCacheStore, GatewayPointListCacheStore>();
             services.AddScoped<ISystemSettingsService, SystemSettingsService>();
             services.AddScoped<IAdminAuditRecorder, EfAdminAuditRecorder>();
 
@@ -354,6 +359,19 @@ namespace BuildingOs.ApiServer
 
             // Point-list resync push (gateway admin #323): publishes building-os.pointlist.updated.gw.{id}.
             services.AddSingleton<IPointListUpdatePublisher, NatsPointListUpdatePublisher>();
+
+            // Materialized Point List cache write side (point-list-projection plan, Phase B).
+            // PointListMaterializer is scoped (it depends on the scoped IDigitalTwinDatabase and
+            // IGatewayPointListCacheStore) so it can be injected directly by a request-scoped
+            // controller (ResourceMetadataController's inline single-gateway rebuild). The sweep
+            // service is registered once and exposed under three surfaces resolving to the same
+            // singleton instance: itself, IHostedService (runs the background loop), and
+            // IPointListMaterializerSweepTrigger (the non-blocking signal other controllers inject).
+            services.AddScoped<IPointListMaterializer, PointListMaterializer>();
+            services.AddSingleton<PointListMaterializerSweepService>();
+            services.AddSingleton<IPointListMaterializerSweepTrigger>(
+                sp => sp.GetRequiredService<PointListMaterializerSweepService>());
+            services.AddHostedService(sp => sp.GetRequiredService<PointListMaterializerSweepService>());
 
             services
                 .AddMemoryCache()

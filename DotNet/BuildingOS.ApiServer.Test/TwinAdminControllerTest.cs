@@ -16,7 +16,10 @@ public class TwinAdminControllerTest
         new() { UserId = "actor", Role = role, Permissions = [] };
 
     private static (TwinAdminController c, Mock<ITwinAdminService> svc, Mock<IAdminAuditRecorder> audit)
-        Build(AuthorizationContext auth, IPointListRevisionCoordinator? revisions = null)
+        Build(
+            AuthorizationContext auth,
+            IPointListRevisionCoordinator? revisions = null,
+            IPointListMaterializerSweepTrigger? materializerSweep = null)
     {
         var svc = new Mock<ITwinAdminService>();
         var audit = new Mock<IAdminAuditRecorder>();
@@ -24,6 +27,7 @@ public class TwinAdminControllerTest
             svc.Object,
             audit.Object,
             revisions ?? new MemoryPointListRevisionCoordinator(),
+            materializerSweep ?? Mock.Of<IPointListMaterializerSweepTrigger>(),
             NullLogger<TwinAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
@@ -191,6 +195,19 @@ public class TwinAdminControllerTest
         audit.Verify(a => a.RecordAsync(
             It.Is<AdminAuditRecord>(r => r.Action == "import-apply" && r.Result == AdminAuditResult.Success),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApplyImport_Valid_RequestsAPointListMaterializerSweep()
+    {
+        var sweep = new Mock<IPointListMaterializerSweepTrigger>();
+        var (c, svc, _) = Build(Auth("admin"), materializerSweep: sweep.Object);
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
+
+        await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
+
+        sweep.Verify(s => s.RequestSweep(), Times.Once);
     }
 
     [Fact]

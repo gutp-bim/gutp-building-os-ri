@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import socket
 import subprocess
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,14 +26,49 @@ from twin_hierarchy import TwinHierarchy  # noqa: E402
 SBCO = "https://www.sbco.or.jp/ont/"
 
 
+def _percentile(sorted_values: list[float], p: float) -> float:
+    """Nearest-rank percentile; diagnostic reporting, not a statistical guarantee."""
+    if not sorted_values:
+        return 0.0
+    rank = max(0, min(len(sorted_values) - 1, math.ceil(p * len(sorted_values)) - 1))
+    return sorted_values[rank]
+
+
+def _percentile_summary(prefix: str, values: list[float]) -> dict:
+    sorted_values = sorted(values)
+    return {
+        f"{prefix}_p50_ms": round(_percentile(sorted_values, 0.50), 3),
+        f"{prefix}_p95_ms": round(_percentile(sorted_values, 0.95), 3),
+        f"{prefix}_max_ms": round(sorted_values[-1], 3) if sorted_values else 0.0,
+        f"{prefix}_min_ms": round(sorted_values[0], 3) if sorted_values else 0.0,
+    }
+
+
 def measure(topology: list[dict], boundary, *, invalid_per_gateway: int,
-            flush_timeout_s: float, poll_interval_s: float) -> dict:
+            flush_timeout_s: float, poll_interval_s: float,
+            include_diagnostics: bool = False) -> dict:
+    """Run one scale stage. ``include_diagnostics`` is opt-in (default off, matching the
+    pre-existing single-measurement shape every caller and unit test relies on) — when set, adds a
+    warm (immediate repeat) measurement and, if the boundary exposes
+    ``point_list_milliseconds_concurrent``, a concurrent-gateway p50/p95/max/min breakdown, so a scale
+    tier can report where the documented non-linear Point List cost comes from (Phase A of the
+    point-list-projection plan) without changing the shape existing callers depend on.
+    """
     gateways = sorted({point["gateway_id"] for point in topology})
     buildings = sorted({point["building_id"] for point in topology})
     try:
         boundary.seed(topology)
         boundary.refresh_services()
-        point_list_ms = max(boundary.point_list_milliseconds(gateways), default=0.0)
+        cold_durations = boundary.point_list_milliseconds(gateways)
+        point_list_ms = max(cold_durations, default=0.0)
+        diagnostics: dict = {}
+        if include_diagnostics:
+            warm_durations = boundary.point_list_milliseconds(gateways)
+            diagnostics["point_list_warm_ms"] = round(max(warm_durations, default=0.0), 3)
+            concurrent_fn = getattr(boundary, "point_list_milliseconds_concurrent", None)
+            if concurrent_fn is not None:
+                diagnostics.update(_percentile_summary(
+                    "point_list_concurrent", concurrent_fn(gateways)))
         valid_frames = [(point["gateway_id"], point["point_id"]) for point in topology]
         accepted = boundary.ingest(valid_frames)
         invalid_frames = [
@@ -46,7 +83,7 @@ def measure(topology: list[dict], boundary, *, invalid_per_gateway: int,
             boundary.wait(poll_interval_s)
             waited += poll_interval_s
             lake_rows = boundary.lake_rows(buildings)
-        return {
+        result = {
             "point_list_ms": round(point_list_ms, 3),
             "accepted": accepted,
             "rejected": rejected,
@@ -55,6 +92,8 @@ def measure(topology: list[dict], boundary, *, invalid_per_gateway: int,
             "lake_rows": lake_rows,
             "flush_ms": round(waited * 1_000, 3),
         }
+        result.update(diagnostics)
+        return result
     finally:
         boundary.cleanup()
 
@@ -153,19 +192,33 @@ class RealBoundary:
         raise TimeoutError("API did not become healthy after topology refresh")
 
     def point_list_milliseconds(self, gateways: list[str]) -> list[float]:
-        durations = []
-        for gateway in gateways:
-            started = time.perf_counter()
-            response = requests.get(
-                f"{self.args.base_url.rstrip('/')}/gateways/{gateway}/pointlist",
-                headers={"X-Gateway-Id": gateway}, timeout=120)
-            elapsed = (time.perf_counter() - started) * 1_000
-            response.raise_for_status()
-            if len(response.json().get("points", [])) != sum(
-                    point["gateway_id"] == gateway for point in self._topology):
-                raise RuntimeError(f"Point List count mismatch for {gateway}")
-            durations.append(elapsed)
-        return durations
+        return [self._point_list_once(gateway) for gateway in gateways]
+
+    # Caps the thread pool regardless of how many gateways are passed in — this only needs enough
+    # concurrency to exercise the intended 20-gateway diagnostic case; an unbounded pool would
+    # oversubscribe the host if this helper is ever reused with a much larger gateway list.
+    MAX_CONCURRENT_POINT_LIST_WORKERS = 32
+
+    def point_list_milliseconds_concurrent(self, gateways: list[str]) -> list[float]:
+        """Fire every gateway's Point List request at once (many gateways polling one API process
+        concurrently, matching real replica load) instead of the sequential per-gateway loop above,
+        and report the raw per-request durations for percentile summarization.
+        """
+        workers = max(1, min(len(gateways), self.MAX_CONCURRENT_POINT_LIST_WORKERS))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(self._point_list_once, gateways))
+
+    def _point_list_once(self, gateway: str) -> float:
+        started = time.perf_counter()
+        response = requests.get(
+            f"{self.args.base_url.rstrip('/')}/gateways/{gateway}/pointlist",
+            headers={"X-Gateway-Id": gateway}, timeout=120)
+        elapsed = (time.perf_counter() - started) * 1_000
+        response.raise_for_status()
+        if len(response.json().get("points", [])) != sum(
+                point["gateway_id"] == gateway for point in self._topology):
+            raise RuntimeError(f"Point List count mismatch for {gateway}")
+        return elapsed
 
     def ingest(self, frames: list[tuple[str, str]]) -> int:
         import grpc  # type: ignore
@@ -233,6 +286,10 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--invalid-per-gateway", type=int, default=10)
     parser.add_argument("--flush-timeout", type=float, default=120)
     parser.add_argument("--poll-interval", type=float, default=10)
+    parser.add_argument(
+        "--no-diagnostics", action="store_true",
+        help="skip the warm-repeat and concurrent-gateway Point List measurements (Phase A); "
+             "reports only the single cold measurement, matching pre-#261-diagnostics behaviour.")
     return parser
 
 
@@ -241,7 +298,8 @@ def main() -> int:
     topology = json.loads(Path(args.topology).read_text())
     result = measure(topology, RealBoundary(args, args.run_id),
                      invalid_per_gateway=args.invalid_per_gateway,
-                     flush_timeout_s=args.flush_timeout, poll_interval_s=args.poll_interval)
+                     flush_timeout_s=args.flush_timeout, poll_interval_s=args.poll_interval,
+                     include_diagnostics=not args.no_diagnostics)
     Path(args.output).write_text(json.dumps(result, indent=2))
     return 0
 

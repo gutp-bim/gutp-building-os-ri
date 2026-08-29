@@ -1,5 +1,7 @@
+using System.Text.Json;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
+using BuildingOS.Shared.Domain.GatewayPointListCache;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOs.ApiServer.Controllers;
 using BuildingOs.ApiServer.GatewayProvisioning;
@@ -7,6 +9,7 @@ using BuildingOs.ApiServer.Middlewares;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -30,7 +33,8 @@ public class GatewayProvisioningControllerTest
         IGatewayPointListSnapshotStore? snapshots = null,
         IPointListRevisionCoordinator? revisions = null,
         string gatewayId = "GW001",
-        Mock<IDigitalTwinDatabase>? db = null)
+        Mock<IDigitalTwinDatabase>? db = null,
+        IGatewayPointListCacheStore? cache = null)
     {
         // #114: unless a shared `db` is supplied (multi-gateway tests below), the mock is scoped to
         // `gatewayId` (every single-gateway call site here targets "GW001", the default) and returns
@@ -41,7 +45,12 @@ public class GatewayProvisioningControllerTest
 
         var controller = new GatewayProvisioningController(
             db.Object, new HeaderGatewayIdentityResolver(), snapshots ?? NewSnapshots(),
-            revisions ?? new MemoryPointListRevisionCoordinator());
+            revisions ?? new MemoryPointListRevisionCoordinator(),
+            // Unconfigured mock: Moq returns a completed null-result Task for GetAsync, i.e. an
+            // always-miss cache — every existing test here exercises the live-query fallback path
+            // unless it explicitly opts into a configured `cache`.
+            cache ?? new Mock<IGatewayPointListCacheStore>().Object,
+            NullLogger<GatewayProvisioningController>.Instance);
 
         var ctx = new DefaultHttpContext();
         if (callerGatewayHeader is not null) ctx.Request.Headers["X-Gateway-Id"] = callerGatewayHeader;
@@ -364,5 +373,88 @@ public class GatewayProvisioningControllerTest
         var diff = Assert.IsType<GatewayPointListDiffResponse>(ok.Value);
         Assert.True(diff.Full);
         Assert.Equal(["PT101", "PT102"], diff.Points.Select(p => p.PointId));
+    }
+
+    // ── Materialized cache read-through (point-list-projection plan, Phase B) ──────────────
+
+    private static GatewayPointListCacheEntry CacheRow(string gatewayId, string etag, GatewayPointEntry[] entries) =>
+        new()
+        {
+            GatewayId = gatewayId, Etag = etag, PayloadJson = JsonSerializer.Serialize(entries),
+            PointCount = entries.Length, MaterializedAt = DateTime.UtcNow,
+        };
+
+    [Fact]
+    public async Task Returns200FromCache_WhenCachedEtagMatchesCurrentRevision_WithoutQueryingTwin()
+    {
+        var entries = new[] { Pt("PT001") };
+        var etag = PointListEtag.Compute(entries);
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var generation = await revisions.GetGenerationAsync();
+        await revisions.SaveIfGenerationUnchangedAsync("GW001", etag, generation!, default);
+
+        var cache = new Mock<IGatewayPointListCacheStore>();
+        cache.Setup(c => c.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CacheRow("GW001", etag, entries));
+
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { ["GW001"] = entries });
+        var (controller, _) = Build(
+            [], callerGatewayHeader: "GW001", revisions: revisions, db: db, cache: cache.Object);
+
+        var result = await controller.GetPointList("GW001", null, default);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var body = Assert.IsType<GatewayPointListResponse>(ok.Value);
+        Assert.Equal(["PT001"], body.Points.Select(p => p.PointId));
+        db.Verify(twin => twin.ListGatewayPointList(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task FallsBackToTwin_WhenCachedEtagDoesNotMatchCurrentRevision()
+    {
+        var entries = new[] { Pt("PT001") };
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var generation = await revisions.GetGenerationAsync();
+        await revisions.SaveIfGenerationUnchangedAsync("GW001", "\"sha256:current\"", generation!, default);
+
+        var cache = new Mock<IGatewayPointListCacheStore>();
+        cache.Setup(c => c.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CacheRow("GW001", "\"sha256:stale\"", []));
+
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { ["GW001"] = entries });
+        var (controller, _) = Build(
+            [], callerGatewayHeader: "GW001", revisions: revisions, db: db, cache: cache.Object);
+
+        var result = await controller.GetPointList("GW001", null, default);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var body = Assert.IsType<GatewayPointListResponse>(ok.Value);
+        Assert.Equal(["PT001"], body.Points.Select(p => p.PointId));
+        db.Verify(twin => twin.ListGatewayPointList("GW001"), Times.Once);
+    }
+
+    [Fact]
+    public async Task FallsBackToTwin_WhenCacheStoreThrows()
+    {
+        var entries = new[] { Pt("PT001") };
+        var etag = PointListEtag.Compute(entries);
+        var revisions = new MemoryPointListRevisionCoordinator();
+        var generation = await revisions.GetGenerationAsync();
+        await revisions.SaveIfGenerationUnchangedAsync("GW001", etag, generation!, default);
+
+        var cache = new Mock<IGatewayPointListCacheStore>();
+        cache.Setup(c => c.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("cache unavailable"));
+
+        var db = NewScopedDb(new Dictionary<string, GatewayPointEntry[]> { ["GW001"] = entries });
+        var (controller, _) = Build(
+            [], callerGatewayHeader: "GW001", revisions: revisions, db: db, cache: cache.Object);
+
+        var result = await controller.GetPointList("GW001", null, default);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var body = Assert.IsType<GatewayPointListResponse>(ok.Value);
+        Assert.Equal(["PT001"], body.Points.Select(p => p.PointId));
+        db.Verify(twin => twin.ListGatewayPointList("GW001"), Times.Once);
     }
 }

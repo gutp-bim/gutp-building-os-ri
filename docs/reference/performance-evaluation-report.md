@@ -110,6 +110,7 @@ Point List p95 487.5 ms、Parquet flush p99 194.5 msを記録した。
 
 1. **Point Listの50k以降**: 10k→50kで170.5→2,745.0 msと非線形に増加した。100k、同時20 Gateway、
    cold cacheで再測定し、必要ならOxiGraph query plan・ページング・事前materializationを検討する。
+   100kでの初回計測と、その結果分かったことは§7.1を参照。
 2. **初回full同期のpayload**: ETag一致304は十分高速だが、Gateway再構築時のfull responseはPoint数に比例する。
    圧縮、差分保持期間、Gateway側適用時間とメモリを次のKPIにする。
 3. **Parquet freshness**: 通常は設定した1分flushに支配される。低遅延要件はHot KV/tail-mergeを利用し、
@@ -117,6 +118,68 @@ Point List p95 487.5 ms、Parquet flush p99 194.5 msを記録した。
 4. **長時間・並行負荷**: 50k評価は各Pointを1回投入する容量・正確性評価であり、50k Pointからの継続同時送信ではない。
    次は50k Twinを維持した1〜4時間のrate sweepと、API read混在負荷を実施する。
 5. **専用ベンチ/Kubernetes**: 本番SLO確定前に固定スペックnode、resource limit、永続Volume、複数API replicaで再計測する。
+
+### 7.1 100k profiling results（診断計測、非公式ベンチマーク）
+
+Point List projection計画（Phase A）の一環として、`GatewayPointListScaleTest`に100k（10 Building ×
+10,000 Point/Gateway）ケースと20 Gateway同時アクセスケースを追加し、`ListGatewayPointList`が発行する
+3クエリ（point-URI解決／属性VALUES制約クエリ／device VALUES制約クエリ）ごとの時間内訳、JSON
+シリアライズ単体の時間、cold（初回）/warmの区別を計測できるようにした。あわせて
+`s17_scale_stage.py`/`s17_multibuilding_scale_sweep.py`にも同種の診断計測（warm再計測・同時実行
+p50/p95/max、規模別閾値`--point-list-ms-by-scale`）を追加した。
+
+**⚠️ 以下の絶対値は§6の測定環境（固定スペック専用ホスト）ではなく、この作業を行った共有サンドボックス
+環境での一回限りの実行値であり、10kケース自体も§4の91.4msに対し実測546msと桁が異なる（環境間の
+比較用途には使えない）。ここで意味を持つのは絶対値ではなく、内訳の比率が示す相対的な知見である。**
+
+100kケース（1 Gatewayが10,000 Point）の実測（cold）:
+
+| 指標 | 値 |
+|---|--:|
+| API全体（`apiResponseMilliseconds`） | 47,379 ms |
+| うちOxiGraph HTTPクエリ合計（3クエリ） | 4,327 ms |
+| — point-URI解決 | 2,519 ms |
+| — 属性（VALUES制約） | 426 ms |
+| — device（VALUES制約） | 1,382 ms |
+| JSONシリアライズ単体 | 28 ms |
+| ETag一致304 | 0.3 ms、追加OxiGraphクエリ0 |
+
+warm（直後の再計測）もcoldとほぼ同値（`apiResponseMilliseconds` 47,360 ms、OxiGraph 4,215 ms）——
+コールドキャッシュ由来の揺らぎではなく、恒常的な内訳だと分かる。
+
+**分かったこと**: `apiResponseMilliseconds`（47.4秒）のうちOxiGraphへのHTTP往復が占めるのは
+4.3秒（約9%）に過ぎず、残り約9割はこの3クエリの外で消費されている。10kケースではAPI全体966msに
+対しOxiGraphクエリ546ms（約57%）と比率が大きく異なり、規模とともにこの「クエリ外」の割合が
+増えている。250k（`BUILDINGOS_SCALE_STRETCH=1`でopt-in実行）はこの作業では未実行。
+
+### 7.2 GC/CPUプロファイリング結果 — 「.NET側処理説」は裏付けられなかった
+
+上記の「クエリ外の9割」について、当初は`attributesByPoint`/`devicesByPoint`の`GroupBy`/`ToDictionary`
+構築など.NET側のLINQ/GC処理が支配的ではないかと仮説を立てたが、`dotnet-counters`（`System.Runtime`
+カウンタ）を100kケースの実行中にアタッチして直接観測した結果、**この仮説は裏付けられなかった**。
+
+- **CPU使用率は最大でも3.6%**。43秒規模のCPUバウンドな処理（LINQ/Dictionary構築）が起きていれば
+  相応の期間高いCPU使用率が観測されるはずだが、そのような区間は見られなかった。
+- **GCはほぼ発生していない**: 34秒間`Gen 0/1/2 GC Count`が0のまま推移し、その後短いバースト
+  （数秒間でGen0数回・Gen1/2各1回、GC一時停止は最大でも11ms/秒程度）があるのみ。大規模な
+  アロケーション処理を示す継続的なGC活動は観測されなかった。
+- **スレッドプールのキュー滞留（`ThreadPool Queue Length`）は常に0、ロック競合
+  （`Monitor Lock Contention Count`）も0**。スレッドプール枯渇やロック待ちでもない。
+- 観測された挙動は、CPU・GC・スレッドプールのいずれの指標から見てもプロセスがほぼ**アイドル
+  （何かを待っている状態）**であることを示しており、いずれのリソースにも負荷がかかっていない。
+
+**結論**: 「クエリ外の9割」がどこで消費されているかは、このプロファイリングだけでは特定できな
+かった。少なくとも.NET側のCPUバウンドな処理（LINQ/GC/JSON構築）が主要因という当初の仮説は誤りで
+あり、取り下げる。低CPU・低GCで長時間かかる挙動はネットワーク/IO待ちに典型的だが、
+`QueryTimingHandler`で計測した3クエリのHTTP往復時間（4.3秒）にその待ち時間が含まれていない理由は
+不明のままである。この共有サンドボックス環境（Docker Desktop、他プロセスと共有）自体が測定を
+歪めている可能性もあり、§6の専用ホストで`dotnet-trace`によるフル（CPU + 待機時間の呼び出しスタック
+付き）トレースを取得しない限り、真因の特定はできない。
+
+20 Gateway同時アクセス（50k Point、10k Pointのケースと同じ共有サンドボックスで実行）:
+wall-clock 39.7秒、p50 38.3秒、p95 39.6秒、max 39.7秒——同時実行数の増加で1リクエストあたりの
+レイテンシがさらに悪化する傾向も確認できたが、これも同一の環境要因が乗っている可能性があり、
+専用ホストでの再計測が必要。
 
 ## 8. 再現方法と証跡
 
@@ -142,7 +205,11 @@ Twin fixtureを作成・清掃し、`kpi-summary.json`、`report.md`、3サー�
 
 - 50kは10 Building / 20 Gatewayの固定分布で、偏り・Gateway単独50kは未評価。
 - ingressは1 stageにつき各Point 1 frame。継続rate、burst、複数同時streamは既存E1/E2とは別条件。
-- Point List値は逐次20 Gatewayの最大値で、同時実行時のp95ではない。
+- Point List値は逐次20 Gatewayの最大値で、同時実行時のp95ではない（`s17_scale_stage.py`に
+  同時実行p50/p95/max計測を追加済みだが、§6の専用ホストではまだ実行していない — §7.1参照）。
+- §7.1の100k/20同時Gateway診断値は共有サンドボックス環境の一回限りの実行であり、絶対値は§6の
+  専用ホストでの計測と比較できない。相対的な内訳の知見（OxiGraphクエリ時間が全体の一部に過ぎない
+  こと）のみを暫定的な仮説として扱う。
 - 再接続評価は単一GatewayBridge replica・単一ホストであり、LB、複数replica、TLS終端、WAN jitterは未評価。
 - 旧TimescaleDB結果とParquet既定結果を混同しない。本レポートの主結論はParquet既定の実測のみを用いる。
 - 初回スモーク失敗値はランナー検証中の認証・起動同期不備であり、正式runには含めていない。

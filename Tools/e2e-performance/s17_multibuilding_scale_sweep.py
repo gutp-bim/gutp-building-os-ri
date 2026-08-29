@@ -36,6 +36,12 @@ class Thresholds:
     point_list_ms: float = 5_000
     loss_rate: float = 0.01
     flush_ms: float = 120_000
+    # Per-scale override for point_list_ms (e.g. {100_000: 20_000}). A single global budget stops
+    # being meaningful once scales exceed what's been benchmarked (report.md §7: 50k is already
+    # non-linear relative to 10k) — without an override, a 100k/250k stage either passes on a budget
+    # that was never validated at that scale, or fails loudly with no way to say "expected, still
+    # diagnosing" versus "regression". None (default) preserves the single global point_list_ms.
+    point_list_ms_by_scale: dict[int, float] | None = None
 
 
 def build_topology(scale: int, buildings: int, gateways: int, run_id: str) -> list[Point]:
@@ -63,8 +69,12 @@ def evaluate_stage(*, scale: int, point_list_ms: float, accepted: int, rejected:
                    flush_ms: float, thresholds: Thresholds) -> dict:
     loss = max(0, expected_accepted - lake_rows)
     loss_rate = loss / expected_accepted if expected_accepted else 0.0
+    point_list_ms_threshold = (
+        thresholds.point_list_ms_by_scale.get(scale, thresholds.point_list_ms)
+        if thresholds.point_list_ms_by_scale else thresholds.point_list_ms
+    )
     failures = []
-    if point_list_ms > thresholds.point_list_ms:
+    if point_list_ms > point_list_ms_threshold:
         failures.append("point_list_ms")
     if loss_rate > thresholds.loss_rate or accepted != expected_accepted:
         failures.append("loss_rate")
@@ -75,6 +85,7 @@ def evaluate_stage(*, scale: int, point_list_ms: float, accepted: int, rejected:
     metrics = {
         "point_count": scale,
         "point_list_ms": round(point_list_ms, 3),
+        "point_list_ms_threshold": point_list_ms_threshold,
         "accepted": accepted,
         "rejected": rejected,
         "expected_accepted": expected_accepted,
@@ -127,15 +138,38 @@ def _evaluate_measurement(measurement: dict, scale: int, thresholds: Thresholds)
     missing = [key for key in required if key not in measurement]
     if missing:
         raise ValueError(f"stage {scale} missing metrics: {', '.join(missing)}")
-    return evaluate_stage(scale=scale, thresholds=thresholds,
-                          **{key: measurement[key] for key in required})
+    result = evaluate_stage(scale=scale, thresholds=thresholds,
+                            **{key: measurement[key] for key in required})
+    # Pass through any diagnostic keys the stage runner added (warm/concurrent Point List
+    # percentiles, --diagnostics on by default in s17_scale_stage.py) without evaluate_stage needing
+    # to know their names — they carry no pass/fail threshold of their own, just visibility.
+    diagnostics = {key: value for key, value in measurement.items() if key not in required}
+    if diagnostics:
+        result["metrics"].update(diagnostics)
+    return result
+
+
+def parse_scale_ms_overrides(pairs: list[str] | None) -> dict[int, float] | None:
+    """Parses ``scale=ms`` CLI pairs (e.g. ``100000=20000``) into a threshold override map."""
+    if not pairs:
+        return None
+    overrides: dict[int, float] = {}
+    for pair in pairs:
+        scale_str, sep, ms_str = pair.partition("=")
+        if not sep:
+            raise ValueError(f"expected scale=ms, got {pair!r}")
+        overrides[int(scale_str)] = float(ms_str)
+    return overrides
 
 
 def run(args: argparse.Namespace) -> int:
     run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-s17")
     output = Path(args.output) / run_id
     output.mkdir(parents=True, exist_ok=True)
-    thresholds = Thresholds(args.max_point_list_ms, args.max_loss_rate, args.max_flush_ms)
+    thresholds = Thresholds(
+        args.max_point_list_ms, args.max_loss_rate, args.max_flush_ms,
+        point_list_ms_by_scale=parse_scale_ms_overrides(args.point_list_ms_by_scale),
+    )
     results = []
     for stage_index, scale in enumerate(args.scales, 1):
         stage = output / f"stage-{scale}"
@@ -189,6 +223,11 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id")
     parser.add_argument("--output", default=str(Path(__file__).parent / "results"))
     parser.add_argument("--max-point-list-ms", type=float, default=5_000)
+    parser.add_argument(
+        "--point-list-ms-by-scale", nargs="+", default=None,
+        help="per-scale point_list_ms threshold overrides as scale=ms pairs, e.g. "
+             "--point-list-ms-by-scale 50000=5000 100000=20000 — falls back to "
+             "--max-point-list-ms for any scale not listed.")
     parser.add_argument("--max-loss-rate", type=float, default=0.01)
     parser.add_argument("--max-flush-ms", type=float, default=120_000)
     parser.add_argument("--continue-on-failure", action="store_true")
