@@ -13,7 +13,9 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// </summary>
 public sealed class OxiGraphTwinAdminService : ITwinAdminService
 {
-    private const string Sbco = "https://www.sbco.or.jp/ont/";
+    // internal: ControlSchemaIssueDetection (#336) reuses this namespace and the Link() graph-scoping
+    // helper below to run the same query-building convention for its own detection.
+    internal const string Sbco = "https://www.sbco.or.jp/ont/";
 
     /// <summary>
     /// Cap on the enumerated orphan sample (the count is exact). Same value as the SPARQL console's
@@ -86,7 +88,16 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
                     r.GetValueOrDefault("reason", "")))
                 .ToList();
 
-            return new TwinImportPreview(triples, (int)gateways, collisions, (int)orphanTotal, orphans);
+            // Control-schema completeness (#336): a writable point missing/malformed bos: schema
+            // fails open at control time (ControlValueValidator skips validation) with no signal —
+            // surface it here, at import time, purely as a count (never blocks apply).
+            var schemaRows = await _client.QueryAsync(
+                ControlSchemaIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
+            var (schemaIssueCount, schemaIssues) = ControlSchemaIssueDetection.Classify(schemaRows, MaxOrphans);
+
+            return new TwinImportPreview(
+                triples, (int)gateways, collisions, (int)orphanTotal, orphans,
+                schemaIssueCount, schemaIssues);
         }
         finally
         {
@@ -216,7 +227,10 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     // already in the twin — hence the UNION wraps every triple individually: one GRAPH around a whole
     // chain would cut exactly that case and orphan the entire import. Replace drops the default graph
     // before importing, so there only the staged triples may count.
-    private static string Link(string graph, TwinImportMode mode, string triple) =>
+    //
+    // internal: ControlSchemaIssueDetection (#336) reuses this to scope its own candidate/lookup
+    // triples the same way, for both admin preview and OxiGraphSeedHostedService's post-seed check.
+    internal static string Link(string graph, TwinImportMode mode, string triple) =>
         mode == TwinImportMode.Replace
             ? $"GRAPH <{graph}> {{ {triple} }}"
             : $"{{ {{ GRAPH <{graph}> {{ {triple} }} }} UNION {{ {triple} }} }}";

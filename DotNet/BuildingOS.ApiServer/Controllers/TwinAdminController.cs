@@ -199,6 +199,7 @@ public class TwinAdminController : ControllerBase
         gatewayCount = preview.GatewayCount,
         orphanCount = preview.OrphanCount,
         allowOrphans,
+        controlSchemaIssueCount = preview.ControlSchemaIssueCount,
         valid = preview.Valid,
     };
 

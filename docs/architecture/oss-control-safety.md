@@ -98,9 +98,20 @@ source of truth）に対して値を検証し、不正なら **400** を返す�
 **スキーマ未定義のポイントは許容（検証スキップ）** — 後方互換。認可は writable ゲートが担保する。
 スキーマを制約したいポイントには必ず ControlSchema を付与すること（HITL レビュー対象）。
 
-> フェイルオープン: スキーマ解決自体が失敗した場合（OxiGraph 一時障害等）も検証はスキップされ、
-> 制御は writable ゲートのみで通る（twin 障害で全制御が止まるのを避ける選択）。解決失敗は警告ログに
-> 残るため、障害は可視。値検証を厳格にしたい運用ではこのフェイルオープンを許容範囲か HITL で確認すること。
+> フェイルオープン: スキーマ解決自体が失敗した場合（OxiGraph 一時障害・`bos:dataType` 未出力・
+> `bos:enumLabels` が不正な JSON 等）も検証はスキップされ、制御は writable ゲートのみで通る（twin
+> 障害で全制御が止まるのを避ける選択）。値検証を厳格にしたい運用ではこのフェイルオープンを許容範囲か
+> HITL で確認すること。
+>
+> **検知は twin 投入経路側の責務（#336）**: `ControlValueValidator` / `OssControlSchemaResolver`
+> 自体はランタイムでは意図的に無言のまま（フェイルオープンの原則どおり）だが、writable なポイントの
+> `bos:` スキーマが解決不能（述語欠落・`enumLabels` が不正な JSON）なことは、twin を投入する2つの
+> 経路それぞれで観測できる: ①`(admin)` の import preview/apply（`OxiGraphTwinAdminService`）が
+> `TwinImportPreview.controlSchemaIssueCount`/`controlSchemaIssues` として件数・一覧を返す（apply を
+> ブロックはしない、あくまで観測用）。②起動時シード（`OXIGRAPH_SEED_TTL_PATH`、preview/apply を経由
+> しない唯一の投入経路）も同じ検知ロジックを流用し、問題があれば非致命的な警告ログを出す（起動は
+> 止めない）。twin はこの2経路以外で内容が変わらないため、両方をカバーすれば「解決不能なまま気づかれ
+> ない」状態は生じない。
 
 ControlSchema は OxiGraph（ポイントリスト）上の `sbco:PointExt` の Building OS 拡張プロパティで表現する:
 

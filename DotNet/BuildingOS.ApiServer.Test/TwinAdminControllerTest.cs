@@ -83,7 +83,7 @@ public class TwinAdminControllerTest
         // reports orphans the apply would not have.
         var (c, svc, _) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, []));
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
 
         var result = await c.PreviewImport(
             new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
@@ -97,7 +97,7 @@ public class TwinAdminControllerTest
     {
         var (c, svc, _) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(1, 0, [], 0, []));
+            .ReturnsAsync(new TwinImportPreview(1, 0, [], 0, [], 0, []));
 
         await c.PreviewImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
 
@@ -109,7 +109,7 @@ public class TwinAdminControllerTest
     {
         var (c, svc, audit) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(10, 1, [new GatewayCollision("GW001", 2)], 0, []));
+            .ReturnsAsync(new TwinImportPreview(10, 1, [new GatewayCollision("GW001", 2)], 0, [], 0, []));
 
         var result = await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
 
@@ -128,7 +128,7 @@ public class TwinAdminControllerTest
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TwinImportPreview(10, 1, [], 2,
                 [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoDevice),
-                 new TwinOrphanResource("urn:pt:2", TwinOrphanReasons.NoBuildingPath)]));
+                 new TwinOrphanResource("urn:pt:2", TwinOrphanReasons.NoBuildingPath)], 0, []));
 
         var result = await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
 
@@ -146,7 +146,7 @@ public class TwinAdminControllerTest
         var (c, svc, audit) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TwinImportPreview(10, 1, [], 2,
-                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoRoom)]));
+                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoRoom)], 0, []));
 
         var result = await c.ApplyImport(
             new TwinAdminController.TwinImportRequest { Turtle = "ttl", AllowOrphans = true }, default);
@@ -166,7 +166,7 @@ public class TwinAdminControllerTest
         var (c, svc, _) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TwinImportPreview(10, 1, [new GatewayCollision("GW001", 2)], 1,
-                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoDevice)]));
+                [new TwinOrphanResource("urn:pt:1", TwinOrphanReasons.NoDevice)], 0, []));
 
         var result = await c.ApplyImport(
             new TwinAdminController.TwinImportRequest { Turtle = "ttl", AllowOrphans = true }, default);
@@ -180,7 +180,7 @@ public class TwinAdminControllerTest
     {
         var (c, svc, audit) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, []));
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
 
         var result = await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);
 
@@ -198,7 +198,7 @@ public class TwinAdminControllerTest
     {
         var (c, svc, _) = Build(Auth("admin"));
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(1, 0, [], 0, []));
+            .ReturnsAsync(new TwinImportPreview(1, 0, [], 0, [], 0, []));
 
         await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default);
 
@@ -213,7 +213,7 @@ public class TwinAdminControllerTest
             .ThrowsAsync(new InvalidOperationException("revision store unavailable"));
         var (controller, twin, _) = Build(Auth("admin"), revisions.Object);
         twin.Setup(service => service.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TwinImportPreview(1, 1, [], 0, []));
+            .ReturnsAsync(new TwinImportPreview(1, 1, [], 0, [], 0, []));
 
         var result = await controller.ApplyImport(
             new TwinAdminController.TwinImportRequest { Turtle = "ttl", Mode = "replace" }, default);

@@ -4130,6 +4130,14 @@ components:
           type: boolean
           description: "階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。\ngateway_id 一意性違反は上書きできない。"
       additionalProperties: false
+    TwinControlSchemaIssue:
+      type: object
+      properties:
+        pointId:
+          type: string
+        reason:
+          type: string
+      additionalProperties: false
     TwinImportPreview:
       type: object
       properties:
@@ -4150,6 +4158,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TwinOrphanResource'
+        controlSchemaIssueCount:
+          type: integer
+          format: int32
+        controlSchemaIssues:
+          type: array
+          items:
+            $ref: '#/components/schemas/TwinControlSchemaIssue'
         valid:
           type: boolean
           readOnly: true
