@@ -123,3 +123,94 @@ def test_report_renders_stage_runner_failure_without_metrics():
 
     assert "2,000 | FAIL" in report
     assert "stage_runner" in report
+
+
+def test_evaluate_stage_uses_per_scale_threshold_override_when_present():
+    thresholds = scale_sweep.Thresholds(
+        point_list_ms=5_000, point_list_ms_by_scale={100_000: 20_000})
+
+    at_override_scale = scale_sweep.evaluate_stage(
+        scale=100_000, point_list_ms=15_000, accepted=1, rejected=0,
+        expected_accepted=1, expected_rejected=0, lake_rows=1, flush_ms=0,
+        thresholds=thresholds)
+    at_unlisted_scale = scale_sweep.evaluate_stage(
+        scale=50_000, point_list_ms=6_000, accepted=1, rejected=0,
+        expected_accepted=1, expected_rejected=0, lake_rows=1, flush_ms=0,
+        thresholds=thresholds)
+
+    assert at_override_scale["passed"] is True
+    assert at_override_scale["metrics"]["point_list_ms_threshold"] == 20_000
+    assert at_unlisted_scale["passed"] is False
+    assert "point_list_ms" in at_unlisted_scale["exceeded_thresholds"]
+    assert at_unlisted_scale["metrics"]["point_list_ms_threshold"] == 5_000
+
+
+def test_parse_scale_ms_overrides_reads_pairs_and_accepts_none():
+    assert scale_sweep.parse_scale_ms_overrides(None) is None
+    assert scale_sweep.parse_scale_ms_overrides(
+        ["50000=5000", "100000=20000"]) == {50_000: 5_000.0, 100_000: 20_000.0}
+
+
+def test_evaluate_measurement_passes_through_diagnostic_keys_without_affecting_pass_fail():
+    measurement = {
+        "point_list_ms": 100.0, "accepted": 1, "rejected": 0,
+        "expected_accepted": 1, "expected_rejected": 0, "lake_rows": 1, "flush_ms": 0.0,
+        "point_list_warm_ms": 90.0, "point_list_concurrent_p95_ms": 250.0,
+    }
+
+    result = scale_sweep._evaluate_measurement(measurement, 2_000, scale_sweep.Thresholds())
+
+    assert result["passed"] is True
+    assert result["metrics"]["point_list_warm_ms"] == 90.0
+    assert result["metrics"]["point_list_concurrent_p95_ms"] == 250.0
+
+
+def test_stage_measure_diagnostics_are_opt_in_and_add_warm_and_concurrent_metrics():
+    stage = load_stage_module()
+    topology = [
+        {"point_id": "p1", "building_id": "b1", "gateway_id": "g1"},
+        {"point_id": "p2", "building_id": "b2", "gateway_id": "g2"},
+    ]
+
+    class Boundary:
+        calls = 0
+
+        def seed(self, points): pass
+        def refresh_services(self): pass
+
+        def point_list_milliseconds(self, gateways):
+            self.calls += 1
+            return [10.0, 20.0] if self.calls == 1 else [5.0, 8.0]
+
+        def point_list_milliseconds_concurrent(self, gateways):
+            return [1.0, 2.0, 3.0, 4.0]
+
+        def ingest(self, frames):
+            return 0 if frames and frames[0][1].startswith("unknown-") else len(frames)
+
+        def lake_rows(self, buildings): return 2
+        def cleanup(self): pass
+        def wait(self, seconds): pass
+
+    default_result = stage.measure(
+        topology, Boundary(), invalid_per_gateway=1, flush_timeout_s=5, poll_interval_s=0.01)
+    assert "point_list_warm_ms" not in default_result
+
+    diagnostic_result = stage.measure(
+        topology, Boundary(), invalid_per_gateway=1, flush_timeout_s=5, poll_interval_s=0.01,
+        include_diagnostics=True)
+
+    assert diagnostic_result["point_list_ms"] == 20.0
+    assert diagnostic_result["point_list_warm_ms"] == 8.0
+    assert diagnostic_result["point_list_concurrent_p50_ms"] == 2.0
+    assert diagnostic_result["point_list_concurrent_max_ms"] == 4.0
+
+
+def test_percentile_summary_uses_nearest_rank_on_sorted_values():
+    stage = load_stage_module()
+
+    summary = stage._percentile_summary("x", [40.0, 10.0, 30.0, 20.0])
+
+    assert summary == {
+        "x_p50_ms": 20.0, "x_p95_ms": 40.0, "x_max_ms": 40.0, "x_min_ms": 10.0,
+    }
