@@ -90,6 +90,34 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
     }
 
     [Fact]
+    public async Task MultipleGateways_TrackedIndependently_DisconnectingOneLeavesOtherUntouched()
+    {
+        // Two distinct gateway_ids sharing the same KV bucket: proves MarkConnected/MarkDisconnected/Get
+        // are correctly scoped per gatewayId and never cross-contaminate (#114 follow-up gap — every
+        // existing test above uses a single gatewayId).
+        var store = await CreateStoreAsync();
+        var gwA = $"gw-{Guid.NewGuid():N}";
+        var gwB = $"gw-{Guid.NewGuid():N}";
+
+        await store.MarkConnectedAsync(gwA, "replica-a");
+        await store.MarkConnectedAsync(gwB, "replica-b");
+
+        var statusA = await store.GetAsync(gwA);
+        var statusB = await store.GetAsync(gwB);
+        Assert.NotNull(statusA);
+        Assert.Equal("replica-a", statusA!.ReplicaId);
+        Assert.NotNull(statusB);
+        Assert.Equal("replica-b", statusB!.ReplicaId);
+
+        await store.MarkDisconnectedAsync(gwA, "replica-a");
+
+        Assert.Null(await store.GetAsync(gwA));
+        var stillB = await store.GetAsync(gwB);
+        Assert.NotNull(stillB);
+        Assert.Equal("replica-b", stillB!.ReplicaId);
+    }
+
+    [Fact]
     public async Task Entry_Expires_After_Ttl()
     {
         // The TTL backstop: a heartbeat a crashed replica never refreshed disappears on its own.

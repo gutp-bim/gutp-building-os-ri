@@ -78,6 +78,46 @@ public class OxiGraphSeedHostedServiceValidationTest : IDisposable
         Assert.Contains("Humidity", ex.Message);
     }
 
+    // ── gateway_id uniqueness (multi-gateway follow-up to #114) ────────────
+
+    [Fact]
+    public async Task RunAsync_GatewayIdSpansMultipleBuildings_ThrowsInvalidOperationException()
+    {
+        // GatewayUniquenessQuery flags gw-shared as spanning 2 buildings — every /query call in
+        // this fake returns the same JSON, which is fine here: the readiness probe and the
+        // (unused, publisher is null) point-list/control-schema queries don't care about content,
+        // only ValidateGatewayUniquenessAsync's row shape matters for the throw.
+        var sparql = "{\"results\":{\"bindings\":[" +
+            "{\"gatewayId\":{\"type\":\"literal\",\"value\":\"gw-shared\"}," +
+            "\"buildings\":{\"type\":\"literal\",\"value\":\"2\"}}]}}";
+
+        var svc = BuildService(sparqlJson: sparql, importStatus: HttpStatusCode.NoContent);
+
+        // A non-empty, non-existent seedTtlPath enters the validation branch (WaitForOxiGraph +
+        // ValidateGatewayUniquenessAsync) while TrySeedAsync itself just warns-and-skips on the
+        // missing file — the same pattern the existing templatePath tests use above.
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.RunAsync(
+                seedTtlPath: "/tmp/oxigraph-seed-hosted-service-validation-test-does-not-exist.ttl",
+                templatePath: null,
+                ct: default));
+
+        Assert.Contains("gw-shared", ex.Message);
+        Assert.Contains("2 buildings", ex.Message);
+    }
+
+    [Fact]
+    public async Task RunAsync_NoGatewaySpansMultipleBuildings_DoesNotThrow()
+    {
+        // HAVING (COUNT(DISTINCT ?building) > 1) means a clean twin returns zero rows — must not throw.
+        var svc = BuildService(sparqlJson: EmptySparql(), importStatus: HttpStatusCode.NoContent);
+
+        await svc.RunAsync(
+            seedTtlPath: "/tmp/oxigraph-seed-hosted-service-validation-test-does-not-exist.ttl",
+            templatePath: null,
+            ct: default);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────
 
     private OxiGraphSeedHostedService BuildService(string sparqlJson, HttpStatusCode importStatus)
