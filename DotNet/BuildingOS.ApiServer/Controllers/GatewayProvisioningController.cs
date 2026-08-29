@@ -148,14 +148,27 @@ public class GatewayProvisioningController(
                     if (entries is not null) return (entries, cached.Etag);
                 }
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning(ex,
-                    "Gateway point-list cache read failed for {GatewayId}; querying the Twin", gatewayId);
+                    "Gateway point-list cache read failed for {GatewayId}; querying the Twin",
+                    ForLog(gatewayId));
             }
         }
 
         var liveEntries = await digitalTwinDatabase.ListGatewayPointList(gatewayId).ConfigureAwait(false);
         return (liveEntries, PointListEtag.Compute(liveEntries));
     }
+
+    // Strips control characters (CR/LF etc.) from a path-derived value before it reaches a log
+    // message, so a caller can't forge fake log lines by putting newlines in gatewayId (CodeQL:
+    // log entries created from user input). Same defense as NatsKvGatewayConnectionStore.ForLog,
+    // reimplemented locally — that one is internal to BuildingOS.Shared and not visible here.
+    private static readonly System.Text.RegularExpressions.Regex ControlChars = new(@"\p{C}");
+
+    private static string ForLog(string value) => ControlChars.Replace(value, "_");
 }

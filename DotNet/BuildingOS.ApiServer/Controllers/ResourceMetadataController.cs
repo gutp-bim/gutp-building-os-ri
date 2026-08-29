@@ -148,6 +148,10 @@ public class ResourceMetadataController(
             {
                 await pointListMaterializer.RebuildGatewayAsync(point.GatewayName, ct).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning(ex,

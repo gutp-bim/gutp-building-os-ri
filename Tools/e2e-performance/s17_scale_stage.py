@@ -194,12 +194,18 @@ class RealBoundary:
     def point_list_milliseconds(self, gateways: list[str]) -> list[float]:
         return [self._point_list_once(gateway) for gateway in gateways]
 
+    # Caps the thread pool regardless of how many gateways are passed in — this only needs enough
+    # concurrency to exercise the intended 20-gateway diagnostic case; an unbounded pool would
+    # oversubscribe the host if this helper is ever reused with a much larger gateway list.
+    MAX_CONCURRENT_POINT_LIST_WORKERS = 32
+
     def point_list_milliseconds_concurrent(self, gateways: list[str]) -> list[float]:
         """Fire every gateway's Point List request at once (many gateways polling one API process
         concurrently, matching real replica load) instead of the sequential per-gateway loop above,
         and report the raw per-request durations for percentile summarization.
         """
-        with ThreadPoolExecutor(max_workers=max(1, len(gateways))) as pool:
+        workers = max(1, min(len(gateways), self.MAX_CONCURRENT_POINT_LIST_WORKERS))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             return list(pool.map(self._point_list_once, gateways))
 
     def _point_list_once(self, gateway: str) -> float:

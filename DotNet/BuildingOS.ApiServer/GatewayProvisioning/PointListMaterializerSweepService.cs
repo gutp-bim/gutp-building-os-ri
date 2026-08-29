@@ -70,6 +70,10 @@ public sealed class PointListMaterializerSweepService(
             var materializer = scope.ServiceProvider.GetRequiredService<IPointListMaterializer>();
             await materializer.RebuildAllAsync(ct).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogWarning(ex,

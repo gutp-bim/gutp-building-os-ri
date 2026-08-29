@@ -48,6 +48,10 @@ public sealed class PointListMaterializer(
             {
                 await RebuildGatewayAsync(gatewayId, ct).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 // One malformed/unreachable gateway must not blank out every other gateway's cache row
