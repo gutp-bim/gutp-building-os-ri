@@ -1,0 +1,108 @@
+# ── Split-role connector workers (#400) — OPT-IN OVERLAY, not part of the default stack ─────────────
+#
+# The default OSS stack runs ONE connector worker with WORKER_ROLE=all: every capability (gRPC/MQTT
+# ingress, raw.* normalizers, point control, Parquet lake writer + compaction + retention, twin seed)
+# in a single process. That is deliberate for a reference implementation — `docker compose up` brings
+# the whole pipeline up, and the measured latencies are already well inside their targets.
+#
+# This overlay is the worked example of the *other* shape: the same image started three times with
+# different WORKER_ROLE values, so the latency-sensitive ingest path no longer shares a process (and a
+# GC heap, and a CPU quota) with batch Parquet compaction. Use it to reproduce the before/after
+# measurement in #401, or as the starting point for a Standard/Scale deployment profile.
+#
+#   PARQUET_FLUSH_INTERVAL=1 \
+#     docker compose -f docker-compose.oss.yaml -f docker-compose.roles.yaml up -d \
+#       building-os.connector-worker building-os.connector-worker-lake \
+#       building-os.connector-worker-control
+#
+# Adding this file demotes the base `building-os.connector-worker` to WORKER_ROLE=ingest: the override
+# below wins over that service's ${WORKER_ROLE:-all} default. That has to live in the file rather than
+# in an exported shell variable — leaving it to the operator would mean any later `up`, `restart` or
+# `start` without the variable re-exported silently restores the all-in-one worker while the lake
+# service below keeps running, i.e. two Parquet writers and two compactors on the same building-hour,
+# the one topology this file's replica note calls unsafe.
+#
+# The services below are written out rather than `extends`-ing the base service on purpose: extends
+# CONCATENATES list fields, so an inherited `ports:` entry would make every role try to publish the
+# gRPC ingress port and the second container would fail to bind it. Spelling out the env each role
+# actually reads also documents the split — the lake worker needs no twin endpoint, the control worker
+# no object store.
+#
+# Replica safety: `lake` must stay at one replica (CompactionWorker and LakeRetentionHostedService have
+# no cross-replica exclusion — two of them would compact the same building-hour concurrently). `ingest`
+# and `control` consume through durable NATS consumers and are safe to scale. The twin seed runs in
+# neither: with the roles split, seeding is the API server's job (OXIGRAPH_SEED_TTL_PATH there).
+
+services:
+  # Demote the stack's worker to the ingest half. Compose merges `environment` maps key by key across
+  # -f files with the later file winning, so this is the only key the base service changes.
+  building-os.connector-worker:
+    environment:
+      WORKER_ROLE: ingest
+
+  # Telemetry persistence: ParquetLakeWriterWorker + CompactionWorker + LakeRetentionHostedService
+  # (or ColdExportWorker under WARM_STORE=timescale). No ingest surface, no twin client.
+  building-os.connector-worker-lake:
+    build:
+      context: .
+      dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
+    container_name: building-os.connector-worker-lake
+    environment:
+      WORKER_ROLE: lake
+      NATS_URL: nats://building-os.nats:4222
+      HEALTH_PORT: "8081"
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
+      OTEL_SERVICE_NAME: building-os-connector-worker-lake
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      WARM_STORE: ${WARM_STORE:-parquet}
+      TIMESCALE_CONNECTION_STRING: ${TIMESCALE_CONNECTION_STRING:-}
+      MINIO_ENDPOINT: http://building-os.minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-buildingos}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-buildingos123}
+      PARQUET_FLUSH_INTERVAL: ${PARQUET_FLUSH_INTERVAL:-}
+      PARQUET_FLUSH_MAX_ROWS: ${PARQUET_FLUSH_MAX_ROWS:-}
+      LAKE_COMPACTION_INTERVAL: ${LAKE_COMPACTION_INTERVAL:-}
+      LAKE_COMPACTION_SETTLE_MINUTES: ${LAKE_COMPACTION_SETTLE_MINUTES:-}
+      LAKE_COMPACTION_MIN_PARTS: ${LAKE_COMPACTION_MIN_PARTS:-}
+      LAKE_RETENTION_DAYS: ${LAKE_RETENTION_DAYS:-365}
+      PARQUET_STREAM_MAX_BYTES: ${PARQUET_STREAM_MAX_BYTES:-1073741824}
+      COLD_EXPORT_INTERVAL: "5"
+    ports:
+      - "8082:8081"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+      building-os.minio:
+        condition: service_healthy
+    networks:
+      - oss
+    restart: unless-stopped
+
+  # Physical device control: NatsPointControlWorker + the binding handlers. Keeps the twin client
+  # (the Hono handler resolves point ids through it) but opens no ingest surface.
+  building-os.connector-worker-control:
+    build:
+      context: .
+      dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
+    container_name: building-os.connector-worker-control
+    environment:
+      WORKER_ROLE: control
+      NATS_URL: nats://building-os.nats:4222
+      HEALTH_PORT: "8081"
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
+      OTEL_SERVICE_NAME: building-os-connector-worker-control
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      ENABLE_SIM_CONTROL: "true"
+      OXIGRAPH_ENDPOINT: http://building-os.oxigraph:7878
+      GatewayConnectionTypes__Map__gw-001: "bacnet-sim"
+      GatewayConnectionTypes__Map__GW-SOS-001: "bacnet-sim"
+    ports:
+      - "8083:8081"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+    networks:
+      - oss
+    restart: unless-stopped

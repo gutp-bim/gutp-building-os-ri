@@ -32,6 +32,32 @@ namespace BuildingOS.ConnectorWorker.Startup;
 /// </summary>
 public static class ConnectorWorkerServiceCollectionExtensions
 {
+    /// <summary>
+    /// The whole service graph for one <see cref="WorkerRole"/> (#400). <see cref="WorkerRole.All"/>
+    /// registers exactly what the worker registered before the role switch existed, in the same order,
+    /// so an unset WORKER_ROLE changes nothing. Observability and messaging are unconditional: every
+    /// role publishes or consumes on NATS, and the readiness probe resolves INatsConnection.
+    /// </summary>
+    public static IHostApplicationBuilder AddConnectorWorkerCapabilities(
+        this IHostApplicationBuilder builder, WorkerRole role, int? grpcIngressPort)
+    {
+        builder.AddConnectorWorkerObservability();
+        builder.AddConnectorWorkerMessaging();
+        if (role.RunsTwinClient()) builder.AddConnectorWorkerTwinClient();
+        if (role.RunsTwinSeed()) builder.AddConnectorWorkerTwinSeed();
+        if (role.RunsControl()) builder.AddConnectorWorkerControl();
+        if (role.RunsProtocolConnectors()) builder.AddProtocolConnectors();
+        if (role.RunsLake())
+        {
+            builder.AddParquetLakeWriter();
+            builder.AddColdExportWorker();
+        }
+        // The role decides, not the port: a lake/control replica inheriting GRPC_INGRESS_PORT from a
+        // shared config must not open an ingest surface.
+        builder.AddTelemetryIngress(role.RunsTelemetryIngress() ? grpcIngressPort : null);
+        return builder;
+    }
+
     /// <summary>OpenTelemetry (traces + metrics + logs via OTLP). No-op when the OTLP endpoint is unset.</summary>
     public static IHostApplicationBuilder AddConnectorWorkerObservability(this IHostApplicationBuilder builder)
     {
@@ -68,6 +94,14 @@ public static class ConnectorWorkerServiceCollectionExtensions
 
     /// <summary>Digital twin (OxiGraph) client + seed import + pointlist-update publisher + PointIdFactory.</summary>
     public static IHostApplicationBuilder AddConnectorWorkerTwin(this IHostApplicationBuilder builder)
+        => builder.AddConnectorWorkerTwinClient().AddConnectorWorkerTwinSeed();
+
+    /// <summary>
+    /// The read-only half of the twin capability: the OxiGraph client and the point-id resolvers the
+    /// protocol connectors, the gRPC ingress metadata cache and the Hono control handler all resolve.
+    /// Split from the seed (#400) so a role that must not write the twin can still read it.
+    /// </summary>
+    public static IHostApplicationBuilder AddConnectorWorkerTwinClient(this IHostApplicationBuilder builder)
     {
         var oxiGraphEndpoint = builder.Configuration["OXIGRAPH_ENDPOINT"] ?? "http://localhost:7878";
         builder.Services.AddHttpClient("oxigraph");
@@ -75,14 +109,6 @@ public static class ConnectorWorkerServiceCollectionExtensions
             new OxiGraphClient(
                 sp.GetRequiredService<IHttpClientFactory>().CreateClient("oxigraph"),
                 oxiGraphEndpoint));
-        // Materializes REC/Brick-vocabulary twin RDF into the sbco:/bos: canonical form the rest of
-        // the codebase queries against — see OxiGraphIngestMaterializer's doc comment.
-        builder.Services.AddSingleton<OxiGraphIngestMaterializer>();
-        // Point-list-update publisher (#224/push): seed import signals each gateway to revalidate.
-        builder.Services.AddSingleton<IPointListUpdatePublisher>(sp =>
-            new NatsPointListUpdatePublisher(sp.GetRequiredService<INatsConnection>()));
-        // Seed OxiGraph with pointlist RDF on startup (no-op when OXIGRAPH_SEED_TTL_PATH is unset).
-        builder.Services.AddHostedService<OxiGraphSeedHostedService>();
 
         // PointIdFactory caches OxiGraph mappings (5-min TTL, retry with backoff on initial load).
         builder.Services.AddSingleton<IPointIdDataSource, OxiGraphPointIdDataSource>();
@@ -91,6 +117,23 @@ public static class ConnectorWorkerServiceCollectionExtensions
                 sp.GetRequiredService<IPointIdDataSource>(),
                 sp.GetRequiredService<ILogger<PointIdFactory>>()));
         builder.Services.AddSingleton(_ => new BacnetPointResolver());
+        return builder;
+    }
+
+    /// <summary>
+    /// The writing half: startup seed import plus the gateway notification it emits. The seed replaces
+    /// the default graph, so exactly one process may run it — see <see cref="WorkerRoles.RunsTwinSeed"/>.
+    /// </summary>
+    public static IHostApplicationBuilder AddConnectorWorkerTwinSeed(this IHostApplicationBuilder builder)
+    {
+        // Materializes REC/Brick-vocabulary twin RDF into the sbco:/bos: canonical form the rest of
+        // the codebase queries against — see OxiGraphIngestMaterializer's doc comment.
+        builder.Services.AddSingleton<OxiGraphIngestMaterializer>();
+        // Point-list-update publisher (#224/push): seed import signals each gateway to revalidate.
+        builder.Services.AddSingleton<IPointListUpdatePublisher>(sp =>
+            new NatsPointListUpdatePublisher(sp.GetRequiredService<INatsConnection>()));
+        // Seed OxiGraph with pointlist RDF on startup (no-op when OXIGRAPH_SEED_TTL_PATH is unset).
+        builder.Services.AddHostedService<OxiGraphSeedHostedService>();
         return builder;
     }
 

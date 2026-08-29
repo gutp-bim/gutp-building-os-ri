@@ -1,3 +1,8 @@
+# NOTE (#400): the consumer-lag triggers below all watch `building-os-raw` subjects, i.e. they
+# describe an **ingest-role** worker (WORKER_ROLE=ingest). The Deployment in this file is
+# WORKER_ROLE=all, and scaling an "all" worker to maxReplicaCount > 1 would run the twin seed,
+# compaction and retention workers in every replica (no cross-replica exclusion). Repoint
+# `scaleTargetRef` at an ingest-role Deployment before applying this ScaledObject.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -74,6 +79,11 @@ spec:
         - name: connector-worker
           image: buildingos/connector-worker:latest
           env:
+            # Capability role (#400): all|ingest|lake|control. "all" is single-replica only —
+            # switch to "ingest" (and split lake/control into their own Deployments) before
+            # letting the ScaledObject above scale this out.
+            - name: WORKER_ROLE
+              value: "all"
             - name: NATS_URL
               valueFrom:
                 secretKeyRef:

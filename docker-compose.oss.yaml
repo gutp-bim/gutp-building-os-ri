@@ -506,6 +506,14 @@ services:
     container_name: building-os.connector-worker
     environment:
       NATS_URL: nats://building-os.nats:4222
+      # Capability set for this process (#400): all | ingest | lake | control. Unset or `all` is the
+      # single all-in-one worker this stack has always run — the OSS RI shape. The split roles exist so
+      # a production deployment can scale the latency-sensitive ingest path independently of the batch
+      # lake path; see docker-compose.roles.yaml for a worked two-process example.
+      # `all` and `lake` MUST stay at one replica: OxiGraphSeedHostedService replaces the twin's default
+      # graph, and CompactionWorker / LakeRetentionHostedService have no cross-replica exclusion.
+      # `ingest` and `control` are safe to scale (both consume via durable NATS consumers).
+      WORKER_ROLE: ${WORKER_ROLE:-all}
       # Internal /health surface (#145): liveness (/health/live), readiness (/health/ready = NATS
       # connection Open), overall (/health). Does not open the external gRPC ingest surface.
       HEALTH_PORT: "8081"

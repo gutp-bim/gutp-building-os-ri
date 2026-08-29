@@ -86,6 +86,9 @@ connectorWorker:
       memory: 512Mi
   env:
     NATS_URL: "nats://nats.building-os.svc.cluster.local:4222"
+    # Capability role (#400): all|ingest|lake|control. Keep `replicas: 1` unless this is
+    # ingest or control (twin seed / compaction / retention have no cross-replica exclusion).
+    WORKER_ROLE: "all"
 
 # GatewayBridge (gRPC ⇄ NATS bridge for the external BOWS connector). Stateless / horizontally
 # scalable; per-gateway routing is by NATS subject. Disabled by default (opt-in infra).

@@ -37,6 +37,11 @@ autoscaling:
 # Warm-tier storage mode (#216): "parquet" (default) or "timescale".
 warmStore: parquet
 
+# Capability role (#400): all|ingest|lake|control. `replicaCount` must stay 1 unless
+# `workerRole` is ingest or control — the twin seed, compaction and retention workers
+# have no cross-replica exclusion.
+workerRole: all
+
 # Credentials for a private image registry. Required when `image.repository`
 # points at a registry that needs authentication — GHCR packages owned by an
 # organization are private by default, so a deployment pulling from
