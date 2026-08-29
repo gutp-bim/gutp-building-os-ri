@@ -236,21 +236,23 @@ public sealed class OxiGraphSeedHostedService(
     }
 
     // #336: non-fatal by design — a schema issue must never fail startup (fail-open at control time
-    // means fail-open here too). Reuses OxiGraphTwinAdminService's detection query/classifier against
-    // the plain default graph (graph/mode both null — the seed has already fully materialized, so
-    // there is no staging graph to scope against, unlike PreviewImportAsync).
+    // means fail-open here too). Reuses ControlSchemaIssueDetection's query/classifier against the
+    // plain default graph (graph/mode both null — the seed has already fully materialized, so there
+    // is no staging graph to scope against, unlike PreviewImportAsync).
     //
     // internal for the same reason as the three query constants above — test fakes route on exact
     // query text. static readonly (not const): built from a method call, not a literal.
-    internal static readonly string ControlSchemaIssueQuery =
-        $"SELECT ?pt ?dataType ?enumLabels WHERE {{ {OxiGraphTwinAdminService.ControlSchemaIssuePattern(null, null)} }}";
+    internal static readonly string ControlSchemaIssueQuery = ControlSchemaIssueDetection.BuildQuery(null, null);
 
     private async Task LogControlSchemaIssuesAsync(CancellationToken ct)
     {
         try
         {
             var rows = await client.QueryAsync(ControlSchemaIssueQuery, ct).ConfigureAwait(false);
-            var (count, issues) = OxiGraphTwinAdminService.ClassifyControlSchemaRows(rows, cap: 1000);
+            // Uncapped: this only ever feeds a log line, not an HTTP response, so there is no
+            // response-size reason to truncate — and truncating here would make the per-reason
+            // breakdown below silently undercount against the (always exact) total (#336 review).
+            var (count, issues) = ControlSchemaIssueDetection.Classify(rows, cap: int.MaxValue);
             if (count > 0)
             {
                 var byReason = issues.GroupBy(i => i.Reason).Select(g => $"{g.Key}={g.Count()}");

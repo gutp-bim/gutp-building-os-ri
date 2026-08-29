@@ -8,6 +8,7 @@ namespace BuildingOS.Shared.Test.Infrastructure.OxiGraph;
 public class OxiGraphTwinAdminServiceTest
 {
     private const string Sbco = "https://www.sbco.or.jp/ont/";
+    private const string Bos = "http://buildingos.gutp.jp/ontology#";
 
     private static OxiGraphTwinAdminService Create(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
@@ -330,10 +331,71 @@ public class OxiGraphTwinAdminServiceTest
     }
 
     [Fact]
+    public async Task PreviewImport_ReportsControlSchemaIssue_EnumWithNoUsableAllowedCodes()
+    {
+        // #336 review: a JSON object that parses cleanly but yields zero numeric-parseable keys (empty
+        // object, or keys that are not codes) is exactly what ControlValueValidator.ParseAllowedCodes
+        // turns into an empty allowed-set — itself treated as permissive by ValidateEnum. Detection
+        // must flag this the same as an outright parse failure, not just "is this valid JSON".
+        var service = Create(req =>
+        {
+            if (req.Method == HttpMethod.Put) return new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (req.RequestUri!.AbsolutePath.EndsWith("/update")) return new HttpResponseMessage(HttpStatusCode.NoContent);
+            var q = Uri.UnescapeDataString(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult()).Replace('+', ' ');
+            if (q.Contains("COUNT(*)")) return Bindings(new Dictionary<string, string> { ["n"] = "10" });
+            if (q.Contains("COUNT(DISTINCT ?gw)")) return Bindings(new Dictionary<string, string> { ["n"] = "1" });
+            if (q.Contains("COUNT(DISTINCT ?pt)")) return Bindings(new Dictionary<string, string> { ["n"] = "0" });
+            if (IsOrphanQuery(q)) return Bindings();
+            if (IsControlSchemaIssueQuery(q))
+            {
+                return Bindings(
+                    new Dictionary<string, string> { ["pt"] = "urn:pt:enum-empty", ["dataType"] = "enum", ["enumLabels"] = "{}" },
+                    new Dictionary<string, string> { ["pt"] = "urn:pt:enum-non-numeric-key", ["dataType"] = "enum", ["enumLabels"] = "{\"OFF\":\"0\"}" });
+            }
+            return Bindings();
+        });
+
+        var preview = await service.PreviewImportAsync("ttl", TwinImportMode.Append);
+
+        Assert.Equal(2, preview.ControlSchemaIssueCount);
+        Assert.All(preview.ControlSchemaIssues, i => Assert.Equal(ControlSchemaIssueReasons.MalformedEnumLabels, i.Reason));
+    }
+
+    [Fact]
+    public async Task PreviewImport_ControlSchemaIssue_DedupesByPoint()
+    {
+        // #336 review: the schema lookups span both graphs in Append mode (via Link's UNION), so the
+        // same point's dataType/enumLabels triple can surface as more than one solution row (e.g. an
+        // append that re-declares an existing point). Classification must count/report each point once.
+        var service = Create(req =>
+        {
+            if (req.Method == HttpMethod.Put) return new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (req.RequestUri!.AbsolutePath.EndsWith("/update")) return new HttpResponseMessage(HttpStatusCode.NoContent);
+            var q = Uri.UnescapeDataString(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult()).Replace('+', ' ');
+            if (q.Contains("COUNT(*)")) return Bindings(new Dictionary<string, string> { ["n"] = "10" });
+            if (q.Contains("COUNT(DISTINCT ?gw)")) return Bindings(new Dictionary<string, string> { ["n"] = "1" });
+            if (q.Contains("COUNT(DISTINCT ?pt)")) return Bindings(new Dictionary<string, string> { ["n"] = "0" });
+            if (IsOrphanQuery(q)) return Bindings();
+            if (IsControlSchemaIssueQuery(q))
+            {
+                return Bindings(
+                    new Dictionary<string, string> { ["pt"] = "urn:pt:1" },
+                    new Dictionary<string, string> { ["pt"] = "urn:pt:1" });
+            }
+            return Bindings();
+        });
+
+        var preview = await service.PreviewImportAsync("ttl", TwinImportMode.Append);
+
+        Assert.Equal(1, preview.ControlSchemaIssueCount);
+        Assert.Equal("urn:pt:1", Assert.Single(preview.ControlSchemaIssues).PointId);
+    }
+
+    [Fact]
     public async Task PreviewImport_ControlSchemaIssue_IgnoresReadOnlyPoints()
     {
         // Fail-open contract (#336): a read-only point with no bos:dataType is normal, not an issue —
-        // ControlSchemaIssuePattern only candidates sbco:writable "true" points.
+        // ControlSchemaIssueDetection.BuildQuery only candidates sbco:writable "true" points.
         var service = Create(req =>
         {
             if (req.Method == HttpMethod.Put) return new HttpResponseMessage(HttpStatusCode.NoContent);
@@ -358,13 +420,24 @@ public class OxiGraphTwinAdminServiceTest
     }
 
     [Fact]
-    public async Task PreviewImport_Append_ControlSchemaIssue_ScopesAcrossStagingAndDefaultGraph()
+    public async Task PreviewImport_Append_ControlSchemaIssue_CandidateScopedToStagingGraphOnly()
     {
+        // #336 review regression: the candidate (which points are judged at all) must mirror
+        // OrphanPattern — the staged points only, even in Append mode — so re-importing an already-
+        // existing writable point never re-surfaces it (and never double-counts it via the second
+        // UNION branch an unscoped candidate would introduce).
         var (graph, schemaQuery) = await CaptureControlSchemaIssueQueryAsync(TwinImportMode.Append);
 
         Assert.Contains(
-            $"{{ {{ GRAPH <{graph}> {{ ?pt a <{Sbco}PointExt> ; <{Sbco}writable> \"true\" . }} }} UNION {{ ?pt a <{Sbco}PointExt> ; <{Sbco}writable> \"true\" . }} }}",
+            $"GRAPH <{graph}> {{ ?pt a <{Sbco}PointExt> ; <{Sbco}writable> \"true\" . }}",
             schemaQuery);
+        Assert.DoesNotContain(
+            $"UNION {{ ?pt a <{Sbco}PointExt> ; <{Sbco}writable> \"true\" . }}",
+            schemaQuery);
+        // ...while the schema lookups themselves may still resolve from either graph, since a newly
+        // staged point's bos: schema triples could already exist in the default graph.
+        Assert.Contains($"UNION {{ ?pt <{Bos}dataType> ?dataType . }}", schemaQuery);
+        Assert.Contains($"UNION {{ ?pt <{Bos}enumLabels> ?enumLabels . }}", schemaQuery);
     }
 
     [Fact]

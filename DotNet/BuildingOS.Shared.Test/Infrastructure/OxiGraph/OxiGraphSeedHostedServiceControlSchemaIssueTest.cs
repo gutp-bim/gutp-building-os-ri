@@ -38,6 +38,32 @@ public class OxiGraphSeedHostedServiceControlSchemaIssueTest
     }
 
     [Fact]
+    public async Task RunAsync_ControlSchemaIssuesFound_ReasonBreakdownSumsToTheReportedTotal()
+    {
+        // #336 review: the total logged is the exact (uncapped) count, so the per-reason breakdown
+        // computed from the same classification must always sum to it — no separate cap between the
+        // two that could make them silently disagree.
+        var handler = new SeedQueryRoutingHandler(controlSchemaIssueRows:
+        [
+            new Dictionary<string, string> { ["pt"] = "urn:pt:1" },
+            new Dictionary<string, string> { ["pt"] = "urn:pt:2" },
+            new Dictionary<string, string> { ["pt"] = "urn:pt:3", ["dataType"] = "enum", ["enumLabels"] = "not json" },
+        ]);
+        var client = new OxiGraphClient(new HttpClient(handler), "http://oxigraph:7878");
+        var materializer = new OxiGraphIngestMaterializer(client, RecordingLogger<OxiGraphIngestMaterializer>.Null);
+        var logger = new RecordingLogger<OxiGraphSeedHostedService>();
+        var service = new OxiGraphSeedHostedService(client, materializer, logger);
+
+        await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Warning
+            && e.Message.Contains("3 writable point(s)")
+            && e.Message.Contains("missing_datatype=2")
+            && e.Message.Contains("malformed_enum_labels=1"));
+    }
+
+    [Fact]
     public async Task RunAsync_NoControlSchemaIssues_LogsNothing()
     {
         var handler = new SeedQueryRoutingHandler(controlSchemaIssueRows: []);

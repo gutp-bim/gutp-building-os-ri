@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 using BuildingOS.Shared.Domain.TwinAdmin;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,11 +13,9 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// </summary>
 public sealed class OxiGraphTwinAdminService : ITwinAdminService
 {
-    private const string Sbco = "https://www.sbco.or.jp/ont/";
-
-    // Same namespace OssControlSchemaResolver inlines for the bos: control-schema extension (#336) —
-    // not in OxiGraphOntology because that class only carries SBCO constants.
-    private const string Bos = "http://buildingos.gutp.jp/ontology#";
+    // internal: ControlSchemaIssueDetection (#336) reuses this namespace and the Link() graph-scoping
+    // helper below to run the same query-building convention for its own detection.
+    internal const string Sbco = "https://www.sbco.or.jp/ont/";
 
     /// <summary>
     /// Cap on the enumerated orphan sample (the count is exact). Same value as the SPARQL console's
@@ -93,11 +90,10 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
 
             // Control-schema completeness (#336): a writable point missing/malformed bos: schema
             // fails open at control time (ControlValueValidator skips validation) with no signal —
-            // surface it here, at import time, purely as a count (never blocks apply; see ClassifyControlSchemaRows).
+            // surface it here, at import time, purely as a count (never blocks apply).
             var schemaRows = await _client.QueryAsync(
-                $"SELECT ?pt ?dataType ?enumLabels WHERE {{ {ControlSchemaIssuePattern(materializedGraph, mode)} }}",
-                ct).ConfigureAwait(false);
-            var (schemaIssueCount, schemaIssues) = ClassifyControlSchemaRows(schemaRows, MaxOrphans);
+                ControlSchemaIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
+            var (schemaIssueCount, schemaIssues) = ControlSchemaIssueDetection.Classify(schemaRows, MaxOrphans);
 
             return new TwinImportPreview(
                 triples, (int)gateways, collisions, (int)orphanTotal, orphans,
@@ -232,72 +228,12 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     // chain would cut exactly that case and orphan the entire import. Replace drops the default graph
     // before importing, so there only the staged triples may count.
     //
-    // internal: OxiGraphSeedHostedService reuses this (and ControlSchemaIssuePattern below) to run the
-    // same #336 detection against the plain default graph right after a startup seed, which never goes
-    // through PreviewImportAsync/ApplyImportAsync at all.
+    // internal: ControlSchemaIssueDetection (#336) reuses this to scope its own candidate/lookup
+    // triples the same way, for both admin preview and OxiGraphSeedHostedService's post-seed check.
     internal static string Link(string graph, TwinImportMode mode, string triple) =>
         mode == TwinImportMode.Replace
             ? $"GRAPH <{graph}> {{ {triple} }}"
             : $"{{ {{ GRAPH <{graph}> {{ {triple} }} }} UNION {{ {triple} }} }}";
-
-    // Candidate writable points + their (possibly absent) bos:dataType/bos:enumLabels (#336). graph/mode
-    // null means "the plain current default graph" (post-seed check, nothing staged); non-null scopes
-    // the candidate + both OPTIONALs via Link() exactly like OrphanPattern, so append/replace agree with
-    // whatever ApplyImportAsync would actually leave behind.
-    internal static string ControlSchemaIssuePattern(string? graph, TwinImportMode? mode)
-    {
-        string L(string triple) => graph is null ? triple : Link(graph, mode!.Value, triple);
-
-        return $@"
-{L($"?pt a <{Sbco}PointExt> ; <{Sbco}writable> \"true\" .")}
-OPTIONAL {{ {L($"?pt <{Bos}dataType> ?dataType .")} }}
-OPTIONAL {{ {L($"?pt <{Bos}enumLabels> ?enumLabels .")} }}";
-    }
-
-    // Classifies every candidate row into a reason (or drops it, when the point's schema is fine).
-    // No SPARQL COUNT here — unlike OrphanPattern, "is bos:enumLabels valid JSON" cannot be pushed into
-    // SPARQL, so this runs the one unlimited candidate query and classifies/counts/caps in C#. Count is
-    // exact (classified over every row); Issues is capped for response-size safety, same as Orphans.
-    internal static (int Count, List<TwinControlSchemaIssue> Issues) ClassifyControlSchemaRows(
-        IReadOnlyList<IReadOnlyDictionary<string, string>> rows, int cap)
-    {
-        var issues = new List<TwinControlSchemaIssue>();
-        foreach (var row in rows)
-        {
-            var pt = row.GetValueOrDefault("pt", "");
-            var dataType = row.GetValueOrDefault("dataType", "");
-            if (string.IsNullOrEmpty(dataType))
-            {
-                issues.Add(new TwinControlSchemaIssue(pt, ControlSchemaIssueReasons.MissingDataType));
-                continue;
-            }
-
-            if (string.Equals(dataType, "enum", StringComparison.OrdinalIgnoreCase)
-                && !IsValidEnumLabelsJson(row.GetValueOrDefault("enumLabels", "")))
-            {
-                issues.Add(new TwinControlSchemaIssue(pt, ControlSchemaIssueReasons.MalformedEnumLabels));
-            }
-        }
-
-        return (issues.Count, issues.Count > cap ? issues.Take(cap).ToList() : issues);
-    }
-
-    // Mirrors ControlValueValidator.ParseAllowedCodes's own JSON-validity check (an object, not any
-    // JSON value) — deliberately duplicated rather than shared: ParseAllowedCodes is private to the
-    // control-execution hot path, which #336 leaves untouched by design (detection lives here instead).
-    private static bool IsValidEnumLabelsJson(string? enumLabels)
-    {
-        if (string.IsNullOrWhiteSpace(enumLabels)) return false;
-        try
-        {
-            using var doc = JsonDocument.Parse(enumLabels);
-            return doc.RootElement.ValueKind == JsonValueKind.Object;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
 
     private async Task<long> ScalarCountAsync(string sparql, CancellationToken ct)
     {
