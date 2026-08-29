@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   repository: ghcr.io/gutp-bim/buildingos-web-client
-  tag: main # bootstrap only — CI rewrites this to sha-<short-sha> after each build
+  tag: sha-b10926e
   pullPolicy: IfNotPresent
 
 # Credentials for pulling from the registry above. GHCR packages owned by an
