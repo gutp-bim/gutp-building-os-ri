@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   applyTwinImport,
   canApplyImport,
+  controlSchemaIssueReasonLabel,
   orphanReasonLabel,
   previewSummary,
   previewTwinImport,
@@ -224,6 +225,22 @@ export function TwinAdminPageClient() {
                   />
                   階層未接続を承知のうえで適用する（監査に記録されます）
                 </label>
+              </div>
+            )}
+            {preview.controlSchemaIssueCount > 0 && (
+              // #336: observation-only — never blocks apply (fail-open matches the control path itself),
+              // so no override checkbox here (unlike preview-orphans above).
+              <div data-testid="preview-control-schema-issues">
+                <ul className="mt-1 list-disc pl-5 text-amber-700">
+                  {preview.controlSchemaIssues.map((i) => (
+                    <li key={i.pointId}>{i.pointId}: {controlSchemaIssueReasonLabel(i.reason)}</li>
+                  ))}
+                </ul>
+                {preview.controlSchemaIssues.length < preview.controlSchemaIssueCount && (
+                  <p className="mt-1 text-xs text-gray-600">
+                    ほか {preview.controlSchemaIssueCount - preview.controlSchemaIssues.length} 件（表示上限で省略）
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canApplyImport,
+  controlSchemaIssueReasonLabel,
   orphanReasonLabel,
   previewSummary,
   type TwinImportPreview,
@@ -12,6 +13,8 @@ const valid: TwinImportPreview = {
   collisions: [],
   orphanCount: 0,
   orphans: [],
+  controlSchemaIssueCount: 0,
+  controlSchemaIssues: [],
   valid: true,
 };
 const invalid: TwinImportPreview = {
@@ -20,6 +23,8 @@ const invalid: TwinImportPreview = {
   collisions: [{ gatewayId: "GW001", buildingCount: 2 }],
   orphanCount: 0,
   orphans: [],
+  controlSchemaIssueCount: 0,
+  controlSchemaIssues: [],
   valid: false,
 };
 const orphaned: TwinImportPreview = {
@@ -31,7 +36,22 @@ const orphaned: TwinImportPreview = {
     { resourceId: "urn:pt:1", reason: "no_device" },
     { resourceId: "urn:pt:2", reason: "no_building_path" },
   ],
+  controlSchemaIssueCount: 0,
+  controlSchemaIssues: [],
   valid: false,
+};
+const schemaIssues: TwinImportPreview = {
+  tripleCount: 100,
+  gatewayCount: 1,
+  collisions: [],
+  orphanCount: 0,
+  orphans: [],
+  controlSchemaIssueCount: 2,
+  controlSchemaIssues: [
+    { pointId: "urn:pt:1", reason: "missing_datatype" },
+    { pointId: "urn:pt:2", reason: "malformed_enum_labels" },
+  ],
+  valid: true,
 };
 
 describe("canApplyImport", () => {
@@ -70,6 +90,12 @@ describe("previewSummary", () => {
     expect(summary).toContain("gateway_id 重複 1 件");
     expect(summary).toContain("階層未接続 3 件");
   });
+  it("flags control-schema issues without affecting validity", () => {
+    expect(previewSummary(schemaIssues)).toContain("制御スキーマ不整合 2 件");
+    // #336 is observation-only — a schema issue never marks the preview invalid.
+    expect(previewSummary(schemaIssues)).not.toContain("検証 OK");
+    expect(schemaIssues.valid).toBe(true);
+  });
 });
 
 describe("orphanReasonLabel", () => {
@@ -80,5 +106,19 @@ describe("orphanReasonLabel", () => {
   });
   it("passes an unknown reason through", () => {
     expect(orphanReasonLabel("no_such_reason")).toBe("no_such_reason");
+  });
+});
+
+describe("controlSchemaIssueReasonLabel", () => {
+  it("labels the two schema-issue reasons", () => {
+    expect(controlSchemaIssueReasonLabel("missing_datatype")).toBe(
+      "制御スキーマ未設定（dataType 欠落）",
+    );
+    expect(controlSchemaIssueReasonLabel("malformed_enum_labels")).toBe(
+      "enumLabels が不正な JSON",
+    );
+  });
+  it("passes an unknown reason through", () => {
+    expect(controlSchemaIssueReasonLabel("no_such_reason")).toBe("no_such_reason");
   });
 });

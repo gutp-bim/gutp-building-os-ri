@@ -70,6 +70,13 @@ public sealed class OxiGraphSeedHostedService(
             // revalidate. Best-effort: never fault startup, and skip when no publisher is wired
             // (OSS/local without GatewayBridge).
             await PublishPointListUpdatesAsync(ct).ConfigureAwait(false);
+
+            // #336: a writable point with a missing/malformed bos: control schema fails open at
+            // control time (ControlValueValidator skips validation) with no signal at all. The admin
+            // import UI catches this on a re-import (OxiGraphTwinAdminService.PreviewImportAsync), but
+            // this startup seed never goes through that path — so run the same detection here too,
+            // as a non-fatal warning. Never blocks startup: fail-open for control means fail-open here.
+            await LogControlSchemaIssuesAsync(ct).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrEmpty(templatePath))
@@ -226,6 +233,36 @@ public sealed class OxiGraphSeedHostedService(
             }
         }
         logger.LogInformation("Published point-list-update signals for {Count} gateway(s) after seed", published);
+    }
+
+    // #336: non-fatal by design — a schema issue must never fail startup (fail-open at control time
+    // means fail-open here too). Reuses OxiGraphTwinAdminService's detection query/classifier against
+    // the plain default graph (graph/mode both null — the seed has already fully materialized, so
+    // there is no staging graph to scope against, unlike PreviewImportAsync).
+    //
+    // internal for the same reason as the three query constants above — test fakes route on exact
+    // query text. static readonly (not const): built from a method call, not a literal.
+    internal static readonly string ControlSchemaIssueQuery =
+        $"SELECT ?pt ?dataType ?enumLabels WHERE {{ {OxiGraphTwinAdminService.ControlSchemaIssuePattern(null, null)} }}";
+
+    private async Task LogControlSchemaIssuesAsync(CancellationToken ct)
+    {
+        try
+        {
+            var rows = await client.QueryAsync(ControlSchemaIssueQuery, ct).ConfigureAwait(false);
+            var (count, issues) = OxiGraphTwinAdminService.ClassifyControlSchemaRows(rows, cap: 1000);
+            if (count > 0)
+            {
+                var byReason = issues.GroupBy(i => i.Reason).Select(g => $"{g.Key}={g.Count()}");
+                logger.LogWarning(
+                    "Control-schema issues detected after seed: {Count} writable point(s) ({Reasons})",
+                    count, string.Join(", ", byReason));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Control-schema issue check after seed failed (non-fatal)");
+        }
     }
 
     private static void CountPush(string gatewayId, string result) =>

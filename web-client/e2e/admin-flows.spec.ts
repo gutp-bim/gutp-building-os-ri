@@ -110,6 +110,35 @@ test.describe("Twin RDF import", () => {
     await expect(page.getByTestId("apply-button")).toBeEnabled();
   });
 
+  test("reports control-schema issues without blocking apply (#336)", async ({
+    page,
+  }) => {
+    await mockTwinPreview(page, {
+      tripleCount: 30,
+      gatewayCount: 1,
+      collisions: [],
+      orphanCount: 0,
+      orphans: [],
+      controlSchemaIssueCount: 1,
+      controlSchemaIssues: [
+        { pointId: "urn:pt:writable-1", reason: "missing_datatype" },
+      ],
+      valid: true,
+    });
+
+    await page.goto("/admin/twin");
+    await page.getByTestId("ttl-input").fill(VALID_TTL);
+    await page.getByTestId("preview-button").click();
+
+    const result = page.getByTestId("preview-result");
+    await expect(result).toContainText("制御スキーマ不整合 1 件");
+    await expect(
+      page.getByTestId("preview-control-schema-issues"),
+    ).toContainText("制御スキーマ未設定（dataType 欠落）");
+    // Observation-only: unlike orphans, a schema issue never disables apply.
+    await expect(page.getByTestId("apply-button")).toBeEnabled();
+  });
+
   test("surfaces a preview error instead of failing silently", async ({
     page,
   }) => {

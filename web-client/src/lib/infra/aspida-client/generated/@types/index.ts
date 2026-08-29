@@ -582,12 +582,19 @@ export type TwinAdminControllerTwinImportRequest = {
   allowOrphans?: boolean | undefined;
 }
 
+export type TwinControlSchemaIssue = {
+  pointId?: string | undefined;
+  reason?: string | undefined;
+}
+
 export type TwinImportPreview = {
   tripleCount?: number | undefined;
   gatewayCount?: number | undefined;
   collisions?: GatewayCollision[] | undefined;
   orphanCount?: number | undefined;
   orphans?: TwinOrphanResource[] | undefined;
+  controlSchemaIssueCount?: number | undefined;
+  controlSchemaIssues?: TwinControlSchemaIssue[] | undefined;
   valid?: boolean | undefined;
 }
 

@@ -45,18 +45,47 @@ public static class TwinOrphanReasons
 public sealed record TwinOrphanResource(string ResourceId, string Reason);
 
 /// <summary>
+/// Why a writable point's <c>bos:</c> control schema could not be resolved to a usable shape (#336).
+/// Both reasons converge to the same silent fail-open at control time (<c>ControlValueValidator</c>
+/// skips validation) — this is the detection side, run at twin-ingestion time instead of the control
+/// hot path, so the twin's author sees it instead of it staying invisible forever.
+/// </summary>
+public static class ControlSchemaIssueReasons
+{
+    /// <summary>A writable point carries no <c>bos:dataType</c> triple at all.</summary>
+    public const string MissingDataType = "missing_datatype";
+
+    /// <summary>
+    /// A writable point declares <c>bos:dataType "enum"</c> but its <c>bos:enumLabels</c> is missing,
+    /// empty, or not a JSON object — <c>ControlValueValidator.ParseAllowedCodes</c> would silently
+    /// treat this as "no allowed set" and validate permissively.
+    /// </summary>
+    public const string MalformedEnumLabels = "malformed_enum_labels";
+}
+
+/// <summary>
+/// A writable point whose <c>bos:</c> control schema is missing or unusable
+/// (<see cref="Reason"/> is one of <see cref="ControlSchemaIssueReasons"/>).
+/// </summary>
+public sealed record TwinControlSchemaIssue(string PointId, string Reason);
+
+/// <summary>
 /// Pre-apply analysis of an RDF import, computed by staging the Turtle in a temporary named graph
 /// (#322): triple/gateway counts, any gateway_id→multiple-building collisions, and the points the
 /// building hierarchy does not reach (#291). <see cref="Valid"/> is false when either exists;
 /// applying anyway is blocked by the controller (orphans only, and only on an explicit override).
 /// <c>Orphans</c> is a capped sample for display, so it may be shorter than <c>OrphanCount</c>.
+/// <c>ControlSchemaIssues</c> (#336) is observation-only — it never affects <see cref="Valid"/> or
+/// blocks apply, matching the control path's own fail-open design.
 /// </summary>
 public sealed record TwinImportPreview(
     long TripleCount,
     int GatewayCount,
     IReadOnlyList<GatewayCollision> Collisions,
     int OrphanCount,
-    IReadOnlyList<TwinOrphanResource> Orphans)
+    IReadOnlyList<TwinOrphanResource> Orphans,
+    int ControlSchemaIssueCount,
+    IReadOnlyList<TwinControlSchemaIssue> ControlSchemaIssues)
 {
     public bool Valid => Collisions.Count == 0 && OrphanCount == 0;
 }
