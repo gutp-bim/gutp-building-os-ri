@@ -22,7 +22,7 @@
         <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
         <PackageReference Include="Testcontainers.Minio" Version="4.13.0" />
         <PackageReference Include="Npgsql" Version="10.0.3" />
-        <PackageReference Include="AWSSDK.S3" Version="4.0.102.3" />
+        <PackageReference Include="AWSSDK.S3" Version="4.0.102.4" />
         <PackageReference Include="NATS.Client.Core" Version="3.0.1" />
         <PackageReference Include="NATS.Client.JetStream" Version="3.0.1" />
         <PackageReference Include="NATS.Client.KeyValueStore" Version="3.0.1" />
