@@ -62,7 +62,17 @@ public class MinioBlobStorage : IBlobStorage
         ListObjectsV2Response response;
         do
         {
-            response = await _s3.ListObjectsV2Async(request, cancellationToken);
+            try
+            {
+                response = await _s3.ListObjectsV2Async(request, cancellationToken);
+            }
+            catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // A bucket that hasn't been created yet (e.g. before the first PutAsync flush) is the
+                // same "nothing here yet" state as the S3Objects-null case below — degrade to empty
+                // instead of propagating NoSuchBucketException to every reader of an empty lake.
+                return keys;
+            }
             // The AWS SDK leaves S3Objects null (not an empty list) when a prefix matches zero objects,
             // so a list over an empty prefix would NRE/ArgumentNullException. Coalesce to empty. This
             // breaks the Parquet latest-value fallback, which lists many (often empty) hour prefixes.
