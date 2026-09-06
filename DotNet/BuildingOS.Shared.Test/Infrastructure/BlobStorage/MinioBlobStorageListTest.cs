@@ -32,11 +32,7 @@ public class MinioBlobStorageListTest
     {
         var s3 = new Mock<IAmazonS3>();
         s3.Setup(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new AmazonS3Exception("The specified bucket does not exist")
-            {
-                StatusCode = System.Net.HttpStatusCode.NotFound,
-                ErrorCode = "NoSuchBucket",
-            });
+            .ThrowsAsync(new NoSuchBucketException("The specified bucket does not exist"));
 
         var storage = new MinioBlobStorage(s3.Object);
 
@@ -48,12 +44,6 @@ public class MinioBlobStorageListTest
     [Fact]
     public async Task ListAsync_BucketDisappearsAfterFirstPage_Rethrows()
     {
-        var exception = new AmazonS3Exception("The specified bucket does not exist")
-        {
-            StatusCode = System.Net.HttpStatusCode.NotFound,
-            ErrorCode = "NoSuchBucket",
-        };
-
         var s3 = new Mock<IAmazonS3>();
         s3.SetupSequence(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListObjectsV2Response
@@ -62,13 +52,11 @@ public class MinioBlobStorageListTest
                 IsTruncated = true,
                 NextContinuationToken = "next",
             })
-            .ThrowsAsync(exception);
+            .ThrowsAsync(new NoSuchBucketException("The specified bucket does not exist"));
 
         var storage = new MinioBlobStorage(s3.Object);
 
-        var actual = await Assert.ThrowsAsync<AmazonS3Exception>(() => storage.ListAsync("cold", "a/"));
-
-        Assert.Equal("NoSuchBucket", actual.ErrorCode);
+        await Assert.ThrowsAsync<NoSuchBucketException>(() => storage.ListAsync("cold", "a/"));
     }
 
     [Fact]

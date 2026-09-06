@@ -66,14 +66,15 @@ public class MinioBlobStorage : IBlobStorage
             {
                 response = await _s3.ListObjectsV2Async(request, cancellationToken);
             }
-            catch (AmazonS3Exception ex) when (ex.ErrorCode == "NoSuchBucket")
+            catch (NoSuchBucketException)
             {
                 // A bucket that hasn't been created yet (e.g. before the first PutAsync flush) is the
                 // same "nothing here yet" state as the S3Objects-null case below — degrade to empty
                 // instead of propagating NoSuchBucketException to every reader of an empty lake.
-                // Matched on ErrorCode (not the broader NotFound status code) so an unrelated 404 isn't
-                // silently swallowed. If pagination already yielded keys, rethrow to avoid silently
-                // masking a mid-list failure.
+                // Caught by the SDK's modeled exception type (not a broader AmazonS3Exception/ErrorCode
+                // match) so an unrelated S3 failure isn't silently swallowed. If pagination already
+                // yielded keys, rethrow instead of discarding them — a bucket disappearing mid-list is
+                // a real failure, not an empty lake.
                 if (keys.Count == 0)
                 {
                     return Array.Empty<string>();
