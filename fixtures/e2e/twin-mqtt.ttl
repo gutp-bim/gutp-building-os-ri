@@ -1,0 +1,500 @@
+# =============================================================================
+# E2E fixture — Building OS デジタルツイン シード (SBCO Turtle) — MQTT 版 (#410)
+# =============================================================================
+# twin.ttl（BACnet/OPC-UA 版）と対になる、MQTT コネクタ経由ゲートウェイ向けの共有 fixture です。
+#   - 1 site / 1 building / 2 level / 各 2 room(= 4 zone) / 3 device / 30 point / 7 writable
+#   - gateway_id は GW-SOS-MQTT-001（1 gateway = 1 building 制約を満たす。twin.ttl の
+#     GW-SOS-001 とは別ゲートウェイ）
+#   - point_id は MQTT-PT-001 .. MQTT-PT-030（twin.ttl の SOS-PT-* とは衝突しない別ワイヤ契約）
+#   - BACnet ネイティブアドレス（sbco:deviceIdBacnet 等）は一切保持しない。
+#     sbco:localId は MQTT トピック形状 `hvac-sim-sos/<zone>/<measurement>`（"/" を含む）とし、
+#     nexus-gateway の internal/pointlist/csv.go と同じ順序で判定する
+#     GatewayPointProtocolResolver（BACnet native → OPC-UA nodeId → "/" を含む=MQTT）が
+#     "mqtt" に解決することを ShippedMqttTwinFixtureTest で検証している。
+#   - twin.ttl は 1 room のみで、device→floor の 3 経路(locatedIn Room chain / locatedIn Level
+#     直接 / sbco:floor 文字列 join)のどれを通るかによる可視性の違いを踏むには小さすぎたため(#410)、
+#     本 fixture では 3 device それぞれに異なる経路を割り当てている:
+#       DEV-AHU-MQTT-1     : sbco:locatedIn room-mqtt-101（Room chain 経由）
+#       DEV-CHILLER-MQTT-1 : sbco:locatedIn floor-mqtt-1（Level 直接）
+#       DEV-WEATHER-MQTT-1 : sbco:floor 文字列のみ（locatedIn なし）
+#
+# 投入方法（いずれか）:
+#   1) Web UI: http://localhost:3000/admin/twin から本ファイルを replace でアップロード
+#   2) 起動時シード: OXIGRAPH_SEED_TTL_PATH=/fixtures/e2e/twin-mqtt.ttl で connector/api を起動
+#
+# 投入後、gateway は GET /gateways/GW-SOS-MQTT-001/pointlist で
+# fixtures/e2e/pointlist-mqtt.json と等価な JSON を取得できます（twin が正本）。
+# =============================================================================
+
+@prefix sbco: <https://www.sbco.or.jp/ont/> .
+@prefix sbr:  <https://www.sbco.or.jp/ont/resource/> .
+@prefix bos:  <http://buildingos.gutp.jp/ontology#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ── 階層: Site → Building → Level(x2) → Room(x2 each = 4 zone) ──────────────
+sbr:site-e2e-mqtt a sbco:Site ;
+  sbco:id "site-e2e-mqtt" ;
+  sbco:name "E2E Demo Site (MQTT)" ;
+  sbco:hasPart sbr:bldg-e2e-mqtt .
+
+sbr:bldg-e2e-mqtt a sbco:Building ;
+  sbco:id "bldg-e2e-mqtt" ;
+  sbco:name "E2E Demo Building (MQTT)" ;
+  sbco:hasPart sbr:floor-mqtt-1 ;
+  sbco:hasPart sbr:floor-mqtt-2 .
+
+sbr:floor-mqtt-1 a sbco:Level ;
+  sbco:id "floor-mqtt-1" ;
+  sbco:name "1F" ;
+  sbco:hasPart sbr:room-mqtt-101 ;
+  sbco:hasPart sbr:room-mqtt-102 .
+
+sbr:floor-mqtt-2 a sbco:Level ;
+  sbco:id "floor-mqtt-2" ;
+  sbco:name "2F" ;
+  sbco:hasPart sbr:room-mqtt-201 ;
+  sbco:hasPart sbr:room-mqtt-202 .
+
+sbr:room-mqtt-101 a sbco:Room ;
+  sbco:id "room-mqtt-101" ;
+  sbco:name "Room 101" .
+
+sbr:room-mqtt-102 a sbco:Room ;
+  sbco:id "room-mqtt-102" ;
+  sbco:name "Room 102" .
+
+sbr:room-mqtt-201 a sbco:Room ;
+  sbco:id "room-mqtt-201" ;
+  sbco:name "Room 201" .
+
+sbr:room-mqtt-202 a sbco:Room ;
+  sbco:id "room-mqtt-202" ;
+  sbco:name "Room 202" .
+
+# ── 機器 1: AHU (4 zone 分の空調ポイント + 全体給気設定値。Room chain 経由) ──
+sbr:DEV-AHU-MQTT-1 a sbco:EquipmentExt ;
+  sbco:id "DEV-AHU-MQTT-1" ;
+  sbco:name "Air Handling Unit 01" ;
+  sbco:deviceType "AHU" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:locatedIn sbr:room-mqtt-101 ;
+  sbco:hasPoint sbr:MQTT-PT-001 ;
+  sbco:hasPoint sbr:MQTT-PT-002 ;
+  sbco:hasPoint sbr:MQTT-PT-003 ;
+  sbco:hasPoint sbr:MQTT-PT-004 ;
+  sbco:hasPoint sbr:MQTT-PT-005 ;
+  sbco:hasPoint sbr:MQTT-PT-006 ;
+  sbco:hasPoint sbr:MQTT-PT-007 ;
+  sbco:hasPoint sbr:MQTT-PT-008 ;
+  sbco:hasPoint sbr:MQTT-PT-009 ;
+  sbco:hasPoint sbr:MQTT-PT-010 ;
+  sbco:hasPoint sbr:MQTT-PT-011 ;
+  sbco:hasPoint sbr:MQTT-PT-012 ;
+  sbco:hasPoint sbr:MQTT-PT-013 ;
+  sbco:hasPoint sbr:MQTT-PT-014 ;
+  sbco:hasPoint sbr:MQTT-PT-015 ;
+  sbco:hasPoint sbr:MQTT-PT-016 ;
+  sbco:hasPoint sbr:MQTT-PT-017 ;
+  sbco:hasPoint sbr:MQTT-PT-018 ;
+  sbco:hasPoint sbr:MQTT-PT-019 ;
+  sbco:hasPoint sbr:MQTT-PT-020 ;
+  sbco:hasPoint sbr:MQTT-PT-021 .
+
+# ── 機器 2: Chiller (プラント系統ポイント。Level 直接 locatedIn) ─────────────
+sbr:DEV-CHILLER-MQTT-1 a sbco:EquipmentExt ;
+  sbco:id "DEV-CHILLER-MQTT-1" ;
+  sbco:name "Chiller 01" ;
+  sbco:deviceType "Chiller" ;
+  sbco:locatedIn sbr:floor-mqtt-1 ;
+  sbco:hasPoint sbr:MQTT-PT-022 ;
+  sbco:hasPoint sbr:MQTT-PT-023 ;
+  sbco:hasPoint sbr:MQTT-PT-024 ;
+  sbco:hasPoint sbr:MQTT-PT-025 ;
+  sbco:hasPoint sbr:MQTT-PT-026 .
+
+# ── 機器 3: 気象観測 (屋外系統ポイント。sbco:floor 文字列のみ、locatedIn なし) ─
+# 注意(#410 Copilot review): sbco:floor 文字列 join は Level の sbco:id ではなく sbco:name に
+# 対して行われる(OxiGraphPointMetadataDataSource の ReachabilityQuery)。よって値は floor-mqtt-1
+# の sbco:name である "1F" と一致させる必要がある(sbco:id "floor-mqtt-1" ではない)。
+sbr:DEV-WEATHER-MQTT-1 a sbco:EquipmentExt ;
+  sbco:id "DEV-WEATHER-MQTT-1" ;
+  sbco:name "Weather Station 01" ;
+  sbco:deviceType "Weather" ;
+  sbco:floor "1F" ;
+  sbco:hasPoint sbr:MQTT-PT-027 ;
+  sbco:hasPoint sbr:MQTT-PT-028 ;
+  sbco:hasPoint sbr:MQTT-PT-029 ;
+  sbco:hasPoint sbr:MQTT-PT-030 .
+
+# ── Zone Z1A (room-mqtt-101 / floor-mqtt-1) ──────────────────────────────────
+sbr:MQTT-PT-001 a sbco:PointExt ;
+  sbco:id "MQTT-PT-001" ;
+  sbco:name "Zone Temperature (Z1A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1a/temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-002 a sbco:PointExt ;
+  sbco:id "MQTT-PT-002" ;
+  sbco:name "Zone Humidity (Z1A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Humidity" ;
+  sbco:unit "%" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1a/humidity" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-003 a sbco:PointExt ;
+  sbco:id "MQTT-PT-003" ;
+  sbco:name "Zone CO2 (Z1A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "CO2" ;
+  sbco:unit "ppm" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1a/co2" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-004 a sbco:PointExt ;
+  sbco:id "MQTT-PT-004" ;
+  sbco:name "Zone Occupancy (Z1A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Occupancy" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1a/occupancy" ;
+  bos:dataType "boolean" .
+
+sbr:MQTT-PT-005 a sbco:PointExt ;
+  sbco:id "MQTT-PT-005" ;
+  sbco:name "Zone Temperature Setpoint (Z1A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/z1a/setpoint" ;
+  bos:dataType "number" ;
+  bos:minValue "18" ;
+  bos:maxValue "28" .
+
+# ── Zone Z1B (room-mqtt-102 / floor-mqtt-1) ──────────────────────────────────
+sbr:MQTT-PT-006 a sbco:PointExt ;
+  sbco:id "MQTT-PT-006" ;
+  sbco:name "Zone Temperature (Z1B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1b/temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-007 a sbco:PointExt ;
+  sbco:id "MQTT-PT-007" ;
+  sbco:name "Zone Humidity (Z1B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Humidity" ;
+  sbco:unit "%" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1b/humidity" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-008 a sbco:PointExt ;
+  sbco:id "MQTT-PT-008" ;
+  sbco:name "Zone CO2 (Z1B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "CO2" ;
+  sbco:unit "ppm" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1b/co2" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-009 a sbco:PointExt ;
+  sbco:id "MQTT-PT-009" ;
+  sbco:name "Zone Occupancy (Z1B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Occupancy" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z1b/occupancy" ;
+  bos:dataType "boolean" .
+
+sbr:MQTT-PT-010 a sbco:PointExt ;
+  sbco:id "MQTT-PT-010" ;
+  sbco:name "Zone Temperature Setpoint (Z1B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/z1b/setpoint" ;
+  bos:dataType "number" ;
+  bos:minValue "18" ;
+  bos:maxValue "28" .
+
+# ── Zone Z2A (room-mqtt-201 / floor-mqtt-2) ──────────────────────────────────
+sbr:MQTT-PT-011 a sbco:PointExt ;
+  sbco:id "MQTT-PT-011" ;
+  sbco:name "Zone Temperature (Z2A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2a/temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-012 a sbco:PointExt ;
+  sbco:id "MQTT-PT-012" ;
+  sbco:name "Zone Humidity (Z2A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Humidity" ;
+  sbco:unit "%" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2a/humidity" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-013 a sbco:PointExt ;
+  sbco:id "MQTT-PT-013" ;
+  sbco:name "Zone CO2 (Z2A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "CO2" ;
+  sbco:unit "ppm" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2a/co2" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-014 a sbco:PointExt ;
+  sbco:id "MQTT-PT-014" ;
+  sbco:name "Zone Occupancy (Z2A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Occupancy" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2a/occupancy" ;
+  bos:dataType "boolean" .
+
+sbr:MQTT-PT-015 a sbco:PointExt ;
+  sbco:id "MQTT-PT-015" ;
+  sbco:name "Zone Temperature Setpoint (Z2A)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/z2a/setpoint" ;
+  bos:dataType "number" ;
+  bos:minValue "18" ;
+  bos:maxValue "28" .
+
+# ── Zone Z2B (room-mqtt-202 / floor-mqtt-2) ──────────────────────────────────
+sbr:MQTT-PT-016 a sbco:PointExt ;
+  sbco:id "MQTT-PT-016" ;
+  sbco:name "Zone Temperature (Z2B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2b/temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-017 a sbco:PointExt ;
+  sbco:id "MQTT-PT-017" ;
+  sbco:name "Zone Humidity (Z2B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Humidity" ;
+  sbco:unit "%" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2b/humidity" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-018 a sbco:PointExt ;
+  sbco:id "MQTT-PT-018" ;
+  sbco:name "Zone CO2 (Z2B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "CO2" ;
+  sbco:unit "ppm" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2b/co2" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-019 a sbco:PointExt ;
+  sbco:id "MQTT-PT-019" ;
+  sbco:name "Zone Occupancy (Z2B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Occupancy" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/z2b/occupancy" ;
+  bos:dataType "boolean" .
+
+sbr:MQTT-PT-020 a sbco:PointExt ;
+  sbco:id "MQTT-PT-020" ;
+  sbco:name "Zone Temperature Setpoint (Z2B)" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-2" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/z2b/setpoint" ;
+  bos:dataType "number" ;
+  bos:minValue "18" ;
+  bos:maxValue "28" .
+
+# ── AHU 全体給気設定値 (writable) ─────────────────────────────────────────────
+sbr:MQTT-PT-021 a sbco:PointExt ;
+  sbco:id "MQTT-PT-021" ;
+  sbco:name "AHU Supply Air Setpoint" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/ahu/supply-setpoint" ;
+  bos:dataType "number" ;
+  bos:minValue "12" ;
+  bos:maxValue "20" .
+
+# ── Chiller プラント系統 ──────────────────────────────────────────────────────
+sbr:MQTT-PT-022 a sbco:PointExt ;
+  sbco:id "MQTT-PT-022" ;
+  sbco:name "Chilled Water Supply Temperature" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/chiller/chw-supply-temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-023 a sbco:PointExt ;
+  sbco:id "MQTT-PT-023" ;
+  sbco:name "Chilled Water Return Temperature" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/chiller/chw-return-temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-024 a sbco:PointExt ;
+  sbco:id "MQTT-PT-024" ;
+  sbco:name "Compressor Status" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Compressor" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/chiller/compressor-status" ;
+  bos:dataType "boolean" .
+
+sbr:MQTT-PT-025 a sbco:PointExt ;
+  sbco:id "MQTT-PT-025" ;
+  sbco:name "Chiller On/Off Command" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Chiller" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/chiller/onoff-command" ;
+  bos:dataType "boolean" .
+
+sbr:MQTT-PT-026 a sbco:PointExt ;
+  sbco:id "MQTT-PT-026" ;
+  sbco:name "Chiller Setpoint Temperature" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Setpoint" ;
+  sbco:unit "degC" ;
+  sbco:writable "true" ;
+  sbco:localId "hvac-sim-sos/chiller/setpoint-temp" ;
+  bos:dataType "number" ;
+  bos:minValue "5" ;
+  bos:maxValue "12" .
+
+# ── 気象観測 (屋外系統) ───────────────────────────────────────────────────────
+sbr:MQTT-PT-027 a sbco:PointExt ;
+  sbco:id "MQTT-PT-027" ;
+  sbco:name "Outdoor Temperature" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Temperature" ;
+  sbco:unit "degC" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/outdoor/temp" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-028 a sbco:PointExt ;
+  sbco:id "MQTT-PT-028" ;
+  sbco:name "Outdoor Humidity" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Humidity" ;
+  sbco:unit "%" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/outdoor/humidity" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-029 a sbco:PointExt ;
+  sbco:id "MQTT-PT-029" ;
+  sbco:name "Wind Speed" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "WindSpeed" ;
+  sbco:unit "m/s" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/outdoor/wind-speed" ;
+  bos:dataType "number" .
+
+sbr:MQTT-PT-030 a sbco:PointExt ;
+  sbco:id "MQTT-PT-030" ;
+  sbco:name "Solar Irradiance" ;
+  sbco:gatewayId "GW-SOS-MQTT-001" ;
+  sbco:building "bldg-e2e-mqtt" ;
+  sbco:floor "floor-mqtt-1" ;
+  sbco:pointType "Solar" ;
+  sbco:unit "W/m2" ;
+  sbco:writable "false" ;
+  sbco:localId "hvac-sim-sos/outdoor/solar-irradiance" ;
+  bos:dataType "number" .
