@@ -42,6 +42,32 @@ Turtle(RDF) を生成する手順は
 > ファイル起動（`PROVISIONING_FILE`）やシミュレータ生成のためのフラット表現です。3 つは
 > 同じデータセットを表します。
 
+### MQTT 版データセット（#410）
+
+上記は `local_id` が OPC-UA nodeId 形状（`ns=2;s=<point_id>`）のため、`local_id` の形で
+protocol を推定する消費側（nexus-gateway の `internal/pointlist/csv.go`）では **OPC-UA と
+判定され、MQTT コネクタ経由のゲートウェイ/シミュレータはこの fixture に乗れません**。
+`local_id` に MQTT トピック形状(`hvac-sim-sos/<zone>/<measurement>`、`/` を含む)を持つ
+別データセットを用意しています。
+
+| ファイル | 用途 | 消費側 |
+|---|---|---|
+| [`twin-mqtt.ttl`](twin-mqtt.ttl) | Building OS デジタルツイン シード（SBCO Turtle）。**正本**。 | Building OS（OxiGraph） |
+| [`pointlist-mqtt.json`](pointlist-mqtt.json) | `GET /gateways/GW-SOS-MQTT-001/pointlist` が返す JSON と等価な参照スナップショット | 参照 / gateway 同期の期待値 |
+| [`pointlist-mqtt.csv`](pointlist-mqtt.csv) | `pointlist.csv` と同一ヘッダ(30列)のスマートビル標準ポイントリスト形式フラット CSV | **nexus-gateway MQTT コネクタ** |
+
+- **gateway_id:** `GW-SOS-MQTT-001`(`GW-SOS-001` とは別ゲートウェイ。1 gateway = 1 building 制約を満たす)
+- **規模:** 1 site → 1 building → 2 level → 各 2 room(= 4 zone)、device 3 台(AHU / Chiller / 気象観測)、
+  point 30 点(書き込み可能 7 点)
+- **device→floor の経路:** `twin.ttl` は 1 room のみで、`locatedIn Room chain` / `locatedIn Level 直接`
+  / `sbco:floor` 文字列 join という 3 経路のどれを通るかによる可視性の違いを踏むには小さすぎたため、
+  本データセットでは 3 device それぞれに異なる経路を割り当てています
+  (`DEV-AHU-MQTT-1`: Room chain 経由 / `DEV-CHILLER-MQTT-1`: Level 直接 / `DEV-WEATHER-MQTT-1`: `sbco:floor` 文字列のみ)。
+- **検証:** `DotNet/BuildingOS.Shared.Test/Domain/ShippedMqttTwinFixtureTest.cs` が、CSV の 30 列ヘッダが
+  `pointlist.csv` と一致すること・点数(30)/書き込み可能数(7)・全行が `GatewayPointProtocolResolver` で
+  `"mqtt"` に解決されること(＝BACnet ネイティブフィールドが混入していないこと)・twin/CSV/JSON 間の
+  point_id 集合の一致を Docker 不要のユニットテストとして継続的に保証します。
+
 > **local_id と BACnet / OPC-UA:** `local_id`（twin では `sbco:localId`）は設備側ポイント識別子
 > （標準ポイントリストの local_id：BACnet なら ObjectID、MQTT なら TOPIC、OPC-UA なら nodeId）です。
 > 本 fixture では **BACnet のネイティブアドレスを `device_id_bacnet` / `object_type_bacnet` /
