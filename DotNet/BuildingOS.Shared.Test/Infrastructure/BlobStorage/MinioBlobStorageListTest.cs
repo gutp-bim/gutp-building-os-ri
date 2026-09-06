@@ -28,6 +28,38 @@ public class MinioBlobStorageListTest
     }
 
     [Fact]
+    public async Task ListAsync_BucketDoesNotExist_ReturnsEmpty_NoThrow()
+    {
+        var s3 = new Mock<IAmazonS3>();
+        s3.Setup(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new NoSuchBucketException("The specified bucket does not exist"));
+
+        var storage = new MinioBlobStorage(s3.Object);
+
+        var keys = await storage.ListAsync("cold", "building_id=GW/year=2026/month=09/");
+
+        Assert.Empty(keys);
+    }
+
+    [Fact]
+    public async Task ListAsync_BucketDisappearsAfterFirstPage_Rethrows()
+    {
+        var s3 = new Mock<IAmazonS3>();
+        s3.SetupSequence(c => c.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListObjectsV2Response
+            {
+                S3Objects = new List<S3Object> { new() { Key = "a/part-1.parquet" } },
+                IsTruncated = true,
+                NextContinuationToken = "next",
+            })
+            .ThrowsAsync(new NoSuchBucketException("The specified bucket does not exist"));
+
+        var storage = new MinioBlobStorage(s3.Object);
+
+        await Assert.ThrowsAsync<NoSuchBucketException>(() => storage.ListAsync("cold", "a/"));
+    }
+
+    [Fact]
     public async Task ListAsync_ReturnsKeys_WhenObjectsPresent()
     {
         var s3 = new Mock<IAmazonS3>();
