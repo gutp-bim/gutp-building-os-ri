@@ -72,9 +72,14 @@ public class MinioBlobStorage : IBlobStorage
                 // same "nothing here yet" state as the S3Objects-null case below — degrade to empty
                 // instead of propagating NoSuchBucketException to every reader of an empty lake.
                 // Matched on ErrorCode (not the broader NotFound status code) so an unrelated 404 isn't
-                // silently swallowed, and the result is always an explicit empty list, never whatever
-                // partial keys happened to be collected before the failure.
-                return Array.Empty<string>();
+                // silently swallowed. If pagination already yielded keys, rethrow to avoid silently
+                // masking a mid-list failure.
+                if (keys.Count == 0)
+                {
+                    return Array.Empty<string>();
+                }
+
+                throw;
             }
             // The AWS SDK leaves S3Objects null (not an empty list) when a prefix matches zero objects,
             // so a list over an empty prefix would NRE/ArgumentNullException. Coalesce to empty. This
