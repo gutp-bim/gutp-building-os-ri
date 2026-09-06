@@ -113,11 +113,14 @@ sbr:DEV-CHILLER-MQTT-1 a sbco:EquipmentExt ;
   sbco:hasPoint sbr:MQTT-PT-026 .
 
 # ── 機器 3: 気象観測 (屋外系統ポイント。sbco:floor 文字列のみ、locatedIn なし) ─
+# 注意(#410 Copilot review): sbco:floor 文字列 join は Level の sbco:id ではなく sbco:name に
+# 対して行われる(OxiGraphPointMetadataDataSource の ReachabilityQuery)。よって値は floor-mqtt-1
+# の sbco:name である "1F" と一致させる必要がある(sbco:id "floor-mqtt-1" ではない)。
 sbr:DEV-WEATHER-MQTT-1 a sbco:EquipmentExt ;
   sbco:id "DEV-WEATHER-MQTT-1" ;
   sbco:name "Weather Station 01" ;
   sbco:deviceType "Weather" ;
-  sbco:floor "floor-mqtt-1" ;
+  sbco:floor "1F" ;
   sbco:hasPoint sbr:MQTT-PT-027 ;
   sbco:hasPoint sbr:MQTT-PT-028 ;
   sbco:hasPoint sbr:MQTT-PT-029 ;

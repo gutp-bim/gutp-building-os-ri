@@ -81,6 +81,31 @@ public class ShippedMqttTwinFixtureTest
     }
 
     [Fact]
+    public void TwinTtl_FloorLiteralOnlyDevice_MatchesALevelName_NotJustAnyId()
+    {
+        // Regression for a Copilot review finding on #410: the sbco:floor string-literal reachability
+        // path (OxiGraphPointMetadataDataSource's ReachabilityQuery) joins the literal against a
+        // Level's sbco:name, not its sbco:id. DEV-WEATHER-MQTT-1 deliberately carries no
+        // sbco:locatedIn so it only exercises this literal-join path; if its sbco:floor value doesn't
+        // match a Level's sbco:name, the device (and its 4 points) would be silently unreachable from
+        // the building despite the fixture looking complete.
+        var ttl = File.ReadAllText(FixturePath("twin-mqtt.ttl"));
+
+        var levelNames = System.Text.RegularExpressions.Regex
+            .Matches(ttl, "a sbco:Level ;\\s*sbco:id \"[^\"]+\" ;\\s*sbco:name \"([^\"]+)\"")
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+        Assert.NotEmpty(levelNames);
+
+        var deviceBlock = System.Text.RegularExpressions.Regex.Match(
+            ttl, "sbr:DEV-WEATHER-MQTT-1 a sbco:EquipmentExt ;([\\s\\S]*?)\\.\\r?\\n").Groups[1].Value;
+        Assert.DoesNotContain("sbco:locatedIn", deviceBlock);
+
+        var floorLiteral = System.Text.RegularExpressions.Regex.Match(deviceBlock, "sbco:floor \"([^\"]+)\"").Groups[1].Value;
+        Assert.Contains(floorLiteral, levelNames);
+    }
+
+    [Fact]
     public void PointListJson_MatchesTheCsvPointCountAndWritableCount_AndOmitsNative()
     {
         // fixtures/e2e/pointlist.json is the expected GET /gateways/{id}/pointlist response for the
