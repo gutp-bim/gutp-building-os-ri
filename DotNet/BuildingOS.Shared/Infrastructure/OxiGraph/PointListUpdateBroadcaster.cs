@@ -37,7 +37,10 @@ internal static class PointListUpdateBroadcaster
         {
             rows = await client.QueryAsync(DistinctGatewayQuery, ct).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        // Cancellation (e.g. the caller's own request aborting, or host shutdown for the seed path)
+        // is not a publish failure — propagate it rather than logging a misleading "failed" and
+        // returning as if the broadcast had merely found no gateways.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Point-list-update publish failed (non-fatal): could not list gateway ids");
             CountPush("*", "query_failed");
@@ -59,7 +62,9 @@ internal static class PointListUpdateBroadcaster
                 published++;
                 CountPush(gatewayId, "published");
             }
-            catch (Exception ex)
+            // Same reasoning as above: stop promptly on cancellation instead of logging every
+            // remaining gateway as a "failed" publish and continuing to loop over a dead token.
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex, "Point-list-update publish failed for gateway {GatewayId} (non-fatal)", gatewayId);
                 CountPush(gatewayId, "failed");
