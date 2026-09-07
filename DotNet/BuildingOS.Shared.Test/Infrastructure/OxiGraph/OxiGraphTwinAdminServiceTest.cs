@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using BuildingOS.Shared.Domain.TwinAdmin;
+using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.OxiGraph;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BuildingOS.Shared.Test.Infrastructure.OxiGraph;
 
@@ -9,12 +11,15 @@ public class OxiGraphTwinAdminServiceTest
 {
     private const string Sbco = "https://www.sbco.or.jp/ont/";
 
-    private static OxiGraphTwinAdminService Create(Func<HttpRequestMessage, HttpResponseMessage> handler)
+    private static OxiGraphTwinAdminService Create(
+        Func<HttpRequestMessage, HttpResponseMessage> handler,
+        IPointListUpdatePublisher? pointListUpdatePublisher = null)
     {
         var http = new HttpClient(new TwinAdminMockHandler(handler)) { BaseAddress = new Uri("http://oxi:7878") };
         var client = new OxiGraphClient(http, "http://oxi:7878");
         var materializer = new OxiGraphIngestMaterializer(client);
-        return new OxiGraphTwinAdminService(client, materializer);
+        return new OxiGraphTwinAdminService(
+            client, materializer, NullLogger<OxiGraphTwinAdminService>.Instance, pointListUpdatePublisher);
     }
 
     private static HttpResponseMessage Bindings(params Dictionary<string, string>[] rows)
@@ -256,6 +261,65 @@ public class OxiGraphTwinAdminServiceTest
         var service = Create(_ => Bindings());
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.RunReadOnlyQueryAsync("DROP ALL", 10, TimeSpan.FromSeconds(5)));
+    }
+
+    // ── #414: ApplyImportAsync signals gateways to revalidate their point list ─────────────────────
+    // The publish mechanism itself (PointListUpdateBroadcaster) is exercised by
+    // OxiGraphSeedHostedServicePointListPushTest; these tests only pin that ApplyImportAsync actually
+    // calls it, for both import modes, after the twin has been materialized.
+
+    private static Func<HttpRequestMessage, HttpResponseMessage> ApplyHandler(IReadOnlyList<string> gatewayIds) =>
+        req =>
+        {
+            if (req.Method == HttpMethod.Put) return new HttpResponseMessage(HttpStatusCode.NoContent);
+            if (req.RequestUri!.AbsolutePath.EndsWith("/update")) return new HttpResponseMessage(HttpStatusCode.NoContent);
+            // /query — only PointListUpdateBroadcaster.DistinctGatewayQuery is issued by ApplyImportAsync.
+            var q = Uri.UnescapeDataString(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult()).Replace('+', ' ');
+            if (q.Contains("SELECT DISTINCT ?gatewayId"))
+                return Bindings(gatewayIds.Select(g => new Dictionary<string, string> { ["gatewayId"] = g }).ToArray());
+            throw new InvalidOperationException($"unexpected SPARQL query in test: {q}");
+        };
+
+    private sealed class RecordingPointListUpdatePublisher : IPointListUpdatePublisher
+    {
+        public List<string> GatewayIds { get; } = [];
+
+        public Task PublishAsync(string gatewayId, string revision, CancellationToken cancellationToken = default)
+        {
+            GatewayIds.Add(gatewayId);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task ApplyImport_Replace_PublishesPointListUpdate_ForEveryGatewayInTheTwin()
+    {
+        var publisher = new RecordingPointListUpdatePublisher();
+        var service = Create(ApplyHandler(["GW001", "GW002"]), publisher);
+
+        await service.ApplyImportAsync("ttl", TwinImportMode.Replace);
+
+        Assert.Equal(new[] { "GW001", "GW002" }, publisher.GatewayIds.OrderBy(x => x, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task ApplyImport_Append_PublishesPointListUpdate_ForEveryGatewayInTheTwin()
+    {
+        var publisher = new RecordingPointListUpdatePublisher();
+        var service = Create(ApplyHandler(["GW001"]), publisher);
+
+        await service.ApplyImportAsync("ttl", TwinImportMode.Append);
+
+        Assert.Equal(new[] { "GW001" }, publisher.GatewayIds);
+    }
+
+    [Fact]
+    public async Task ApplyImport_NoPublisherWired_DoesNotThrow_AndSkipsPublish()
+    {
+        var service = Create(ApplyHandler(["GW001"]), pointListUpdatePublisher: null);
+
+        await service.ApplyImportAsync("ttl", TwinImportMode.Replace);
+        // No exception + no publisher to assert against — reaching here is the assertion.
     }
 }
 

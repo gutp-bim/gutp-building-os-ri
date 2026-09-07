@@ -121,7 +121,7 @@ public class OxiGraphSeedHostedServicePointListPushTest
                 body = @"{ ""results"": { ""bindings"": [] } }"; // store is up (#321 startup probe)
             else if (sparql == OxiGraphSeedHostedService.GatewayUniquenessQuery)
                 body = @"{ ""results"": { ""bindings"": [] } }"; // uniqueness check: no violations
-            else if (sparql == OxiGraphSeedHostedService.DistinctGatewayQuery)
+            else if (sparql == PointListUpdateBroadcaster.DistinctGatewayQuery)
                 body = $@"{{ ""results"": {{ ""bindings"": [{string.Join(",", gatewayIds.Select(g =>
                     $@"{{ ""gatewayId"": {{""type"":""literal"",""value"":""{g}""}} }}"))}] }} }}";
             else

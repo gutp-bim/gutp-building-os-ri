@@ -178,9 +178,11 @@ twin の point list 更新を、接続中の gateway に **GatewayEgress スト�
 - subject: `building-os.pointlist.updated.gw.{gatewayId}`（`EgressSubjects.PointListUpdate`）。
   当該 gateway を持つ GatewayBridge replica が購読し `EgressDown{PointListUpdate}` を下流へ流す。
 - publisher: `IPointListUpdatePublisher`（`NatsPointListUpdatePublisher`, Shared）。
-- trigger: `OxiGraphSeedHostedService` が seed 成功後に所有 gateway へ per-gateway 発行（best-effort・
-  publisher 未注入なら skip）。revision は空で、gateway は最後の ETag で `GET .../pointlist` を再検証する
-  （push は最適化、信頼性は ETag ポーリングが担保。取りこぼしても次ポーリングで収束）。
+- trigger: 起動時 seed（`OxiGraphSeedHostedService`）と admin import apply（`OxiGraphTwinAdminService.
+  ApplyImportAsync`、`POST /api/admin/twin/import/apply`、#414）の**両方**が、成功後に twin 上の全
+  gateway へ per-gateway 発行する。両者は共通の `PointListUpdateBroadcaster`（best-effort・gateway 単位・
+  publisher 未注入なら skip）を呼ぶ。revision は空で、gateway は最後の ETag で `GET .../pointlist` を
+  再検証する（push は最適化、信頼性は ETag ポーリングが担保。取りこぼしても次ポーリングで収束）。
 
 ## スコープ外（後続）
 

@@ -25,15 +25,18 @@ public sealed class OxiGraphTwinAdminService : ITwinAdminService
     private readonly OxiGraphClient _client;
     private readonly OxiGraphIngestMaterializer _materializer;
     private readonly ILogger<OxiGraphTwinAdminService> _logger;
+    private readonly ControlRouting.IPointListUpdatePublisher? _pointListUpdatePublisher;
 
     public OxiGraphTwinAdminService(
         OxiGraphClient client,
         OxiGraphIngestMaterializer materializer,
-        ILogger<OxiGraphTwinAdminService>? logger = null)
+        ILogger<OxiGraphTwinAdminService>? logger = null,
+        ControlRouting.IPointListUpdatePublisher? pointListUpdatePublisher = null)
     {
         _client = client;
         _materializer = materializer;
         _logger = logger ?? NullLogger<OxiGraphTwinAdminService>.Instance;
+        _pointListUpdatePublisher = pointListUpdatePublisher;
     }
 
     public async Task<TwinImportPreview> PreviewImportAsync(
@@ -116,6 +119,12 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         {
             await _materializer.MaterializeAppendAsync(turtle, ct).ConfigureAwait(false);
         }
+
+        // #224/push, #414: the twin just changed — signal every gateway to revalidate its point list
+        // rather than leaving it to the next poll cycle (default 10 min). Same best-effort, per-gateway
+        // shape as the startup seed path; never faults the apply itself.
+        await PointListUpdateBroadcaster.PublishAllAsync(
+            _client, _pointListUpdatePublisher, _logger, "after twin admin apply", ct).ConfigureAwait(false);
     }
 
     public async Task<SparqlQueryResult> RunReadOnlyQueryAsync(
