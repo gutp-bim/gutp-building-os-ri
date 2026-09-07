@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using BuildingOS.Shared.Domain.TwinAdmin;
+using BuildingOS.Shared.Infrastructure.ControlRouting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,15 +28,18 @@ public sealed class OxiGraphTwinAdminService : ITwinAdminService
     private readonly OxiGraphClient _client;
     private readonly OxiGraphIngestMaterializer _materializer;
     private readonly ILogger<OxiGraphTwinAdminService> _logger;
+    private readonly IPointListUpdatePublisher? _pointListUpdatePublisher;
 
     public OxiGraphTwinAdminService(
         OxiGraphClient client,
         OxiGraphIngestMaterializer materializer,
-        ILogger<OxiGraphTwinAdminService>? logger = null)
+        ILogger<OxiGraphTwinAdminService>? logger = null,
+        IPointListUpdatePublisher? pointListUpdatePublisher = null)
     {
         _client = client;
         _materializer = materializer;
         _logger = logger ?? NullLogger<OxiGraphTwinAdminService>.Instance;
+        _pointListUpdatePublisher = pointListUpdatePublisher;
     }
 
     public async Task<TwinImportPreview> PreviewImportAsync(
@@ -127,6 +131,13 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         {
             await _materializer.MaterializeAppendAsync(turtle, ct).ConfigureAwait(false);
         }
+
+        // #414: the twin (point-list source of truth) just changed — signal every gateway to
+        // revalidate, the same best-effort push the startup seed does (#224). Without this, an
+        // admin edit is invisible to gateways until their next ETag poll (default 10 minutes).
+        await PointListUpdateBroadcaster
+            .PublishAllAsync(_client, _pointListUpdatePublisher, _logger, ct)
+            .ConfigureAwait(false);
     }
 
     public async Task<SparqlQueryResult> RunReadOnlyQueryAsync(

@@ -71,7 +71,8 @@ namespace BuildingOs.ApiServer
                 sp => new OxiGraphTwinAdminService(
                     sp.GetRequiredService<OxiGraphClient>(),
                     sp.GetRequiredService<OxiGraphIngestMaterializer>(),
-                    sp.GetRequiredService<ILogger<OxiGraphTwinAdminService>>()));
+                    sp.GetRequiredService<ILogger<OxiGraphTwinAdminService>>(),
+                    sp.GetService<IPointListUpdatePublisher>()));
 
             // === Telemetry layer ===
             services.AddSingleton<INatsJSContext>(sp =>
