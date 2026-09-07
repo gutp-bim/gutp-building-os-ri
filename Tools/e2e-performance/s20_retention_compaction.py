@@ -284,7 +284,14 @@ async def run(args) -> int:
         now0 = datetime.now(timezone.utc)
         target_hour = settled_target_hour(now0, args.target_hours_back)
         prefixes = [partition_prefix(b, target_hour) for b in buildings]
-        timestamps = spread_timestamps(target_hour, len(topology))
+        # One base timestamp per point (spread across the target hour); each wave then nudges every
+        # point's timestamp by `wave` milliseconds. Without this, wave 2..N would resend the exact
+        # same (point_id, time) pairs as wave 1 — quality_checker.py's duplicate detection is keyed
+        # on (point_id, time), so identical timestamps across waves would make EVERY row from every
+        # wave after the first look like a duplicate and spike duplicate_rate for no real reason.
+        # A few ms of nudge is negligible against the per-point spacing (~seconds, given 300 points
+        # spread across a full hour) and keeps every wave's timestamps inside the same target hour.
+        base_timestamps = [datetime.fromisoformat(t) for t in spread_timestamps(target_hour, len(topology))]
 
         print(f"[s20] target settled hour={target_hour.isoformat()} (now={now0.isoformat()}, "
               f"{args.target_hours_back}h back); flush~{flush_s}s compaction~{compaction_s}s "
@@ -293,7 +300,8 @@ async def run(args) -> int:
         flush_events: list[dict] = []
         seen_objects = 0
         for wave in range(args.waves):
-            frames = [(p.gateway_id, p.point_id, timestamps[i]) for i, p in enumerate(topology)]
+            frames = [(p.gateway_id, p.point_id, (base_timestamps[i] + timedelta(milliseconds=wave)).isoformat())
+                      for i, p in enumerate(topology)]
             t0 = time.monotonic()
             sent, accepted, err = await stream_wave(pb2, pb2g, args.ingress, frames, args.ack_timeout)
             print(f"[s20] wave {wave + 1}/{args.waves}: sent={sent} accepted={accepted}"
