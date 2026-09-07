@@ -6,9 +6,11 @@ hour boundary, and turning a raw MinIO key listing into retention observations.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 MODULE_PATH = Path(__file__).parents[1] / "s20_retention_compaction.py"
 SPEC = importlib.util.spec_from_file_location("s20_retention_compaction", MODULE_PATH)
@@ -102,3 +104,59 @@ def test_objects_after_compaction_success_when_only_a_single_compact_object_rema
     assert s20.compaction_converged(settled, "building_id=b1/year=2026/month=09/day=08/hour=12/") is True
     assert s20.compaction_converged(unsettled, "building_id=b1/year=2026/month=09/day=08/hour=12/") is False
     assert s20.compaction_converged([], "building_id=b1/year=2026/month=09/day=08/hour=12/") is False
+
+
+def _fake_run(stdout: str = ""):
+    result = mock.Mock()
+    result.stdout = stdout
+    return result
+
+
+def test_resolve_minio_credentials_prefers_the_container_env_over_the_host_shell(monkeypatch):
+    # The MinIO container gets MINIO_ROOT_USER/PASSWORD from Compose's own .env file — this
+    # process's shell may never have them exported, so the host env must not win when the
+    # container itself reports different creds (the #263 review's false-empty-listing bug).
+    monkeypatch.delenv("MINIO_ROOT_USER", raising=False)
+    monkeypatch.delenv("MINIO_ROOT_PASSWORD", raising=False)
+
+    def fake_run(cmd, **kwargs):
+        var = cmd[-1]
+        return _fake_run({"MINIO_ROOT_USER": "custom-user\n",
+                           "MINIO_ROOT_PASSWORD": "custom-pass\n"}[var])
+
+    with mock.patch.object(s20.subprocess, "run", side_effect=fake_run):
+        assert s20._resolve_minio_credentials("building-os.minio") == ("custom-user", "custom-pass")
+
+
+def test_resolve_minio_credentials_falls_back_to_host_env_then_default(monkeypatch):
+    monkeypatch.setenv("MINIO_ROOT_USER", "host-user")
+    monkeypatch.delenv("MINIO_ROOT_PASSWORD", raising=False)
+
+    with mock.patch.object(s20.subprocess, "run", side_effect=lambda *a, **k: _fake_run("")):
+        assert s20._resolve_minio_credentials("building-os.minio") == ("host-user", "buildingos123")
+
+
+def test_resolve_minio_credentials_container_lookup_failure_falls_through(monkeypatch):
+    monkeypatch.delenv("MINIO_ROOT_USER", raising=False)
+    monkeypatch.delenv("MINIO_ROOT_PASSWORD", raising=False)
+
+    with mock.patch.object(s20.subprocess, "run", side_effect=subprocess.SubprocessError("boom")):
+        assert s20._resolve_minio_credentials("building-os.minio") == ("buildingos", "buildingos123")
+
+
+def test_check_ilm_rule_configures_its_own_mc_alias_without_a_prior_listing_call():
+    # #263 review: check_ilm_rule must be self-contained — it must not assume list_lake_keys ran
+    # first and already configured the `mc` alias.
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[3:5] == ["mc", "ilm"]:
+            return _fake_run('{"config": {"ID": "other-rule"}}\n')
+        return _fake_run("")
+
+    with mock.patch.object(s20.subprocess, "run", side_effect=fake_run):
+        s20.check_ilm_rule("building-os.minio", "cold")
+
+    alias_calls = [c for c in calls if c[3:5] == ["mc", "alias"]]
+    assert alias_calls, "check_ilm_rule must configure the mc alias itself"

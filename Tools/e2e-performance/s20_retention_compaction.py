@@ -166,13 +166,46 @@ def compaction_converged(keys: list[str], prefix: str) -> bool:
 # ── thin I/O: MinIO listing + ILM verification (docker exec mc, same approach as
 #    e2e/runner/normalize_storage.py's E7 listing — kept local so this harness has no import
 #    dependency outside Tools/e2e-performance/) ─────────────────────────────────────────────────────
+def _minio_container_env(container: str, var: str) -> str | None:
+    """The value MinIO's own container is actually running `var` with (`docker exec printenv`), not
+    this process's shell env. Compose interpolates MINIO_ROOT_USER/PASSWORD from its own `.env` file
+    into the container at start-up (docker-compose.oss.yaml) without those ever being exported into
+    whatever shell later launches this harness — trusting only `os.environ` here defaults to
+    buildingos/buildingos123 even when the live bucket needs different creds, making every `mc`
+    call below silently fail auth and `list_lake_keys` return an empty listing (a false KPI
+    failure, not a real one)."""
+    try:
+        out = subprocess.run(["docker", "exec", container, "printenv", var],
+                              check=False, capture_output=True, text=True, timeout=10).stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return None
+    return out or None
+
+
+def _resolve_minio_credentials(container: str) -> tuple[str, str]:
+    """Resolve the mc alias creds the *container* is actually running with: prefer the container's
+    own env (authoritative — see `_minio_container_env`), fall back to this process's host env
+    (matches quality_checker.py / s7_resilience_test.py's convention), then the compose default."""
+    user = (_minio_container_env(container, "MINIO_ROOT_USER")
+            or os.environ.get("MINIO_ROOT_USER") or "buildingos")
+    password = (_minio_container_env(container, "MINIO_ROOT_PASSWORD")
+                or os.environ.get("MINIO_ROOT_PASSWORD") or "buildingos123")
+    return user, password
+
+
+def _configure_mc_alias(container: str) -> None:
+    """Self-contained `mc alias set` so every caller below (listing, ILM check) works standalone
+    and in any order — neither depends on the other having run first."""
+    user, password = _resolve_minio_credentials(container)
+    subprocess.run(
+        ["docker", "exec", container, "mc", "alias", "set", "lake", "http://localhost:9000",
+         user, password],
+        check=False, capture_output=True, timeout=30)
+
+
 def list_lake_keys(container: str, bucket: str) -> list[str]:
     try:
-        subprocess.run(
-            ["docker", "exec", container, "mc", "alias", "set", "lake", "http://localhost:9000",
-             os.environ.get("MINIO_ROOT_USER", "buildingos"),
-             os.environ.get("MINIO_ROOT_PASSWORD", "buildingos123")],
-            check=False, capture_output=True, timeout=30)
+        _configure_mc_alias(container)
         out = subprocess.run(
             ["docker", "exec", container, "mc", "ls", "--recursive", f"lake/{bucket}"],
             check=False, capture_output=True, text=True, timeout=60).stdout
@@ -195,6 +228,7 @@ def check_ilm_rule(container: str, bucket: str, rule_id: str = RETENTION_RULE_ID
     changed across MinIO client versions; this tries the modern `--json` form and degrades to None
     if it doesn't understand what came back."""
     try:
+        _configure_mc_alias(container)  # self-contained — do not assume list_lake_keys ran first
         out = subprocess.run(
             ["docker", "exec", container, "mc", "ilm", "rule", "list", f"lake/{bucket}", "--json"],
             check=False, capture_output=True, text=True, timeout=30).stdout
