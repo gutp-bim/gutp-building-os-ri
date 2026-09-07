@@ -14,13 +14,18 @@ Building OS のテレメトリ読み取りは Hot / Warm / Cold の 3 層を `GE
 
 | 読み取り | 経路 | 鮮度（イベント→読める） | 目標 p95 レイテンシ | 用途 |
 |---|---|---|---|---|
-| **最新値** `latest=true` | Hot KV（NATS KV `telemetry-latest`） | **ほぼ即時**（publish 直後に上書き） | < 20ms（実測 latest API p95 ~7–60ms[^m]） | リアルタイムダッシュボード |
+| **最新値** `latest=true` | Hot KV（NATS KV `telemetry-latest`） | **ほぼ即時**（publish 直後に上書き）[^visibility] | < 20ms（実測 latest API p95 ~7–60ms[^m]） | リアルタイムダッシュボード |
 | **直近レンジ**（end が現在に近い） | Warm（Parquet レイク）＋ **tail-merge**（#220） | flush 未到達分を JetStream から補完し**ほぼ即時** | < 2,000ms（実測 warm p95 ~55ms） | 直近のチャート末尾 |
 | **過去レンジ**（end が flush 済み区間） | Warm/Cold（Parquet レイク） | **flush 間隔ぶん遅延**（既定 5 分） | < 2,000ms（warm）/ < 5,000ms（cold） | 履歴チャート |
 | **集計**（Hour/Day 粒度） | rollup（agg_hourly）＋欠落のみ on-read | rollup 生成（compaction）の進行度に依存 | < 3,000ms（実測 agg_hour ~606ms, rollup-backed） | 長期トレンド |
 
 [^m]: 計測条件（ローカル/QUICK）により latest API p95 は 7ms（E3 freshness 専用ハーネス）〜60ms（S5 エンドポイント全体）。
   いずれも目標を大きく下回る。生値は [PERFORMANCE_SUMMARY](../../Tools/e2e-performance/PERFORMANCE_SUMMARY.md) / [evaluation-summary.md](../reference/evaluation-summary.md)。
+[^visibility]: 「ほぼ即時」は当該点が twin の Point List に**継続して可視**だった場合の話（#417）。ある点が
+  一時的に非公開化され、その間の送信元 publish が gateway に point-list miss として捨てられていた場合、
+  再公開後の `latest=true` は非公開化「前」の保存済み行を返しうる——`datetime` が取り込み時刻より古くなり
+  うる。値の新鮮さは応答の `datetime` を実際に見て判定すること（レイテンシは低いままでも、返る値自体が
+  古いことがある）。詳細は `GET /telemetries/query` の `latest` パラメータの API ドキュメントを参照。
 
 **要点**: 「最新値」と「直近レンジ末尾」は即時。「過去レンジ（flush 済み区間）」だけが flush 間隔ぶん遅れます。
 
