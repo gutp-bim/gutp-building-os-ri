@@ -19,8 +19,10 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// <c>docs/architecture/standard-mapping.md</c> are materialized. This includes
 /// <c>rec:Room</c>→<c>sbco:Room</c>, whose formal <c>owl:equivalentClass</c> axiom is supplied by
 /// smartbuilding_datamodels. Partial-match pairs such as <c>brick:Equipment</c>→
-/// <c>sbco:EquipmentExt</c> and <c>brick:Point</c>→<c>sbco:PointExt</c> remain excluded pending
-/// SBCO/GUTP working-group (HITL) sign-off.
+/// <c>sbco:EquipmentExt</c>, <c>brick:Point</c>→<c>sbco:PointExt</c>, and <c>rec:Site</c>→
+/// <c>sbco:Site</c> remain excluded pending SBCO/GUTP working-group (HITL) sign-off — an imported
+/// Site node therefore keeps its materialized property edges (<c>sbco:hasPart</c>/<c>sbco:name</c>)
+/// but is never given an <c>rdf:type</c> here; that is deliberate, not a missed rule (#416).
 ///
 /// <b>Atomicity</b>: every statement for one materialization pass (the graph clear/stage plus every
 /// copy-through/rule INSERT) is sent as a single semicolon-separated SPARQL UPDATE request, not one
