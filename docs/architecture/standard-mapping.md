@@ -156,7 +156,7 @@ Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` を文脈で使�
 
 | 内部モデル | SBCO クラス | 備考 |
 |-----------|------------|------|
-| （最上位コンテナ） | `sbco:Site` | TTL 最上位。内部 C# モデルには未マップ |
+| （最上位コンテナ） | `sbco:Site` | TTL 最上位。内部 C# モデルには未マップ。§1 で「部分一致」（HITL 承認待ち）に分類されているため、`OxiGraphIngestMaterializer` の `ClassRules` にも意図的に含まれず、取り込んだ Site ノードは `sbco:hasPart`/`sbco:name` 等のプロパティは持つが `rdf:type sbco:Site` は付与されない（#416） |
 | `Building` | `sbco:Building` | Architecture→Space サブクラス（Ext なし） |
 | `Floor` | `sbco:Level` | 同上 |
 | `Space` | `sbco:Room` | `sbco:SpaceExt` は存在しないため `Room` を使用 |
