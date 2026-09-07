@@ -29,13 +29,13 @@ public class DeviceDetailController(IDigitalTwinDatabase digitalTwinDatabase, Au
         if (!authContext.IsAdmin)
         {
             var canAccess = await authorizationService.CanAccessAsync(
-                authContext, "building", Uri.UnescapeDataString(buildingDtId), "read", ct).ConfigureAwait(false);
+                authContext, "building", buildingDtId, "read", ct).ConfigureAwait(false);
             if (!canAccess) return Forbid();
         }
 
         try
         {
-            var result = await digitalTwinDatabase.ListDeviceDetails(Uri.UnescapeDataString(buildingDtId));
+            var result = await digitalTwinDatabase.ListDeviceDetails(buildingDtId);
             return Ok(result);
         }
         catch (KeyNotFoundException)

@@ -34,13 +34,13 @@ public class PointDetailController(
         if (!authContext.IsAdmin)
         {
             var canAccess = await authorizationService.CanAccessAsync(
-                authContext, "building", Uri.UnescapeDataString(buildingDtId), "read", ct).ConfigureAwait(false);
+                authContext, "building", buildingDtId, "read", ct).ConfigureAwait(false);
             if (!canAccess) return Forbid();
         }
 
         try
         {
-            var result = await digitalTwinDatabase.ListPointDetails(Uri.UnescapeDataString(buildingDtId));
+            var result = await digitalTwinDatabase.ListPointDetails(buildingDtId);
 
             foreach (var pd in result)
             {
