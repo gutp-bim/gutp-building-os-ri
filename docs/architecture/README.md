@@ -10,6 +10,7 @@
 - [Hot / Warm / Cold アーキテクチャ](oss-tier-architecture.md)
 - [Parquet レイク](oss-warm-parquet-lake.md)
 - [Gateway Point List 同期](oss-gateway-pointlist-sync.md)
+- [gRPC gateway-ingress の受理/拒否ポリシー](oss-ingress-hierarchy-policy.md)
 - [制御系安全分界](oss-control-safety.md)
 - [OxiGraph / SPARQL マッピング](oss-sparql-mapping.md)
 - [標準語彙マッピング](standard-mapping.md)
