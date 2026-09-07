@@ -175,7 +175,14 @@ public class TelemetryController(
     /// <param name="start">開始時刻（latest=true の場合は不要）</param>
     /// <param name="end">終了時刻（latest=true の場合は不要）</param>
     /// <param name="granularity">集計粒度: raw / hour / day（省略時: raw）</param>
-    /// <param name="latest">true の場合は最新値のみ返す</param>
+    /// <param name="latest">
+    /// true の場合は最新値のみ返す。「最新」は twin の可視性でフィルタされた最新行であり、リクエスト
+    /// 時刻に近いとは限らない（#417）：ある点が一時的に twin の Point List から外れ、その間も送信元は
+    /// publish を続けていた場合、非公開だった期間のテレメトリは保存されない（gateway が point-list miss
+    /// として捨てる）。その点を再度公開すると、latest=true は非公開化「前」の保存済み行を返す——
+    /// つまりこのレスポンスの <c>datetime</c> が取り込みより古い時刻になり得る。値の新鮮さを判定する
+    /// 場合は <c>datetime</c> を現在時刻と比較すること。
+    /// </param>
     [HttpGet("query")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
