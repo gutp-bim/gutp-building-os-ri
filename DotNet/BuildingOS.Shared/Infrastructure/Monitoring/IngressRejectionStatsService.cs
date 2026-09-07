@@ -25,7 +25,9 @@ public sealed class IngressRejectionStatsService : IIngressRejectionStatsService
 
         var rejections = samples
             .Where(s => s.Labels.GetValueOrDefault("result") != AcceptedResult)
-            .Select(s => new IngressRejectionCount(s.Labels.GetValueOrDefault("result", "unknown"), (long)s.Value))
+            .Select(s => new IngressRejectionCount(
+                s.Labels.GetValueOrDefault("result", "unknown"),
+                Math.Max(0L, (long)Math.Round(s.Value, MidpointRounding.AwayFromZero))))
             .OrderByDescending(r => r.Count)
             .ThenBy(r => r.Reason, StringComparer.Ordinal)
             .ToList();

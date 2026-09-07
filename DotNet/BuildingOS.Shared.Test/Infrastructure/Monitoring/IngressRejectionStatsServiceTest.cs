@@ -37,6 +37,27 @@ public class IngressRejectionStatsServiceTest
     }
 
     [Fact]
+    public async Task GetAsync_RoundsFractionalSamples_InsteadOfTruncating()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Vectors =
+            {
+                [IngressRejectionStatsService.RejectionsByReasonQuery] =
+                [
+                    new PrometheusSample(new Dictionary<string, string> { ["result"] = "no_building_path" }, 30.9),
+                ],
+            },
+        };
+        var svc = new IngressRejectionStatsService(fake);
+
+        var stats = await svc.GetAsync(CancellationToken.None);
+
+        Assert.Equal(31, stats.Rejections[0].Count);
+    }
+
+    [Fact]
     public async Task GetAsync_DegradesGracefully_WhenPrometheusUnconfigured()
     {
         var fake = new FakePrometheusClient { IsConfigured = false };
