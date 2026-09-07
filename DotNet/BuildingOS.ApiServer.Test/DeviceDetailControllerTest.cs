@@ -14,6 +14,11 @@ public class DeviceDetailControllerTest
         UserId = "admin1", Role = "admin", Permissions = []
     };
 
+    private static AuthorizationContext NonAdminAuth() => new()
+    {
+        UserId = "user1", Role = "operator", Permissions = []
+    };
+
     private static DefaultHttpContext BuildHttpContext(AuthorizationContext auth)
     {
         var ctx = new DefaultHttpContext();
@@ -38,6 +43,36 @@ public class DeviceDetailControllerTest
 
         await controller.List(alreadyDecodedDtId, CancellationToken.None);
 
+        db.Verify(d => d.ListDeviceDetails(alreadyDecodedDtId), Times.Once);
+    }
+
+    // Covers the non-admin branch: the fix touched the authorization check too
+    // (authorizationService.CanAccessAsync), which the admin-path test above never exercises since
+    // admins skip it entirely.
+    [Fact]
+    public async Task List_NonAdmin_ChecksAuthorizationWithBuildingDtIdVerbatim_NotDoubleDecoded()
+    {
+        const string alreadyDecodedDtId = "https://example.org/resource/building%3Asite%3Asite-sim/bldg-sim";
+
+        var db = new Mock<IDigitalTwinDatabase>();
+        db.Setup(d => d.ListDeviceDetails(alreadyDecodedDtId)).ReturnsAsync([]);
+
+        var authorizationService = new Mock<IAuthorizationService>();
+        authorizationService
+            .Setup(a => a.CanAccessAsync(
+                It.IsAny<AuthorizationContext>(), "building", alreadyDecodedDtId, "read", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var controller = new DeviceDetailController(db.Object, authorizationService.Object)
+        {
+            ControllerContext = new() { HttpContext = BuildHttpContext(NonAdminAuth()) },
+        };
+
+        await controller.List(alreadyDecodedDtId, CancellationToken.None);
+
+        authorizationService.Verify(a => a.CanAccessAsync(
+            It.IsAny<AuthorizationContext>(), "building", alreadyDecodedDtId, "read", It.IsAny<CancellationToken>()),
+            Times.Once);
         db.Verify(d => d.ListDeviceDetails(alreadyDecodedDtId), Times.Once);
     }
 }
