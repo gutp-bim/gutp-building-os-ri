@@ -60,6 +60,22 @@ def test_settled_target_hour_rejects_a_non_positive_lookback():
         s20.settled_target_hour(datetime.now(timezone.utc), hours_back=0)
 
 
+def test_guard_target_hours_back_accepts_a_lookback_inside_the_retention_window():
+    s20.guard_target_hours_back(target_hours_back=3, retention_days=1)  # 3h < 24h — no raise
+
+
+def test_guard_target_hours_back_rejects_a_lookback_at_or_past_the_retention_window():
+    # #263 review: past the window, retention_observations' synthetic age_hours would classify
+    # every object this run writes as "expired" while it is genuinely still present (a live run
+    # cannot make MinIO backdate a real object's age) — a spurious expired_but_present leak.
+    import pytest
+
+    with pytest.raises(ValueError):
+        s20.guard_target_hours_back(target_hours_back=24, retention_days=1)  # exactly the boundary
+    with pytest.raises(ValueError):
+        s20.guard_target_hours_back(target_hours_back=30, retention_days=1)  # past the window
+
+
 def test_spread_timestamps_stays_within_the_target_hour_and_is_strictly_increasing():
     target_hour = datetime(2026, 9, 8, 12, 0, 0, tzinfo=timezone.utc)
     timestamps = s20.spread_timestamps(target_hour, 5)

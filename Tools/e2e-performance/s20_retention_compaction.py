@@ -145,12 +145,37 @@ def partition_prefix(building: str, hour: datetime) -> str:
 def retention_observations(keys: list[str], target_hour: datetime, now: datetime,
                             buildings: list[str]) -> list[dict]:
     """One {age_hours, present} observation per building this run seeded, from a raw MinIO key
-    listing. age_hours is measured from the target hour's *end* — when the data stopped being
-    fresh — matching how Expiration.Days counts from an object's creation/last-modified time."""
+    listing. age_hours is measured from the target hour's *end* — the event-time age the partition
+    is *pretending* to have — NOT the object's real MinIO last-modified time. S3/MinIO
+    Expiration.Days actually counts from an object's real creation/last-modified time, and every
+    object this live run writes is created "now": a <10-minute run cannot make MinIO backdate an
+    object's real age, only the event timestamp embedded in its data (see the module docstring's
+    "already settled hour" trick). This proxy is faithful to real Expiration.Days semantics only
+    while the synthetic age stays inside the retention window (still "retained" either way);
+    push `target_hour` past the window and every object this run writes would be classified
+    "expired" while genuinely still present — a spurious `expired_but_present` leak reading that
+    reflects the harness's own settings, not a real one. `guard_target_hours_back` fails the run
+    fast instead of emitting that misleading KPI."""
     prefixes = {b: partition_prefix(b, target_hour) for b in buildings}
     present = {b: any(key.startswith(prefix) for key in keys) for b, prefix in prefixes.items()}
     age_hours = (now - (target_hour + timedelta(hours=1))).total_seconds() / 3600.0
     return [{"key": prefixes[b], "age_hours": age_hours, "present": present[b]} for b in buildings]
+
+
+def guard_target_hours_back(target_hours_back: int, retention_days: float) -> None:
+    """`retention_observations`'s age_hours proxy is only faithful to real Expiration.Days
+    semantics while the synthetic target hour stays inside the retention window: a live run's
+    objects are always genuinely fresh (real MinIO creation time is "now"), so pushing the
+    synthetic age past the retention window would report every object this run writes as an
+    "expired but present" leak — a false positive manufactured by the harness's own settings, not
+    a real one. Raise instead of letting that misleading KPI reach the report."""
+    window_hours = retention_days * 24.0
+    if target_hours_back >= window_hours:
+        raise ValueError(
+            f"--target-hours-back={target_hours_back} must stay strictly inside the retention "
+            f"window (--retention-days={retention_days} => {window_hours:g}h): at or past it, "
+            "every object this run writes would be misclassified as an expired-but-present leak "
+            "since a live run cannot make a real object's age retroactively exceed the window")
 
 
 def compaction_converged(keys: list[str], prefix: str) -> bool:
@@ -509,6 +534,10 @@ def main() -> int:
     ap.add_argument("--bucket", default=os.environ.get("BUCKET", "cold"))
     ap.add_argument("--containers", default=",".join(DEFAULT_CONTAINERS))
     args = ap.parse_args()
+    try:
+        guard_target_hours_back(args.target_hours_back, args.retention_days)
+    except ValueError as e:
+        ap.error(str(e))
     return asyncio.run(run(args))
 
 
