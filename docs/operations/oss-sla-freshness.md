@@ -84,9 +84,18 @@ flush 前の末尾が「過去レンジクエリ」に空くと、直近のチ�
 
 | KPI | 意味 | 健全な状態 |
 |---|---|---|
+| `ingestion.lag`（histogram、#415） | validated-telemetry を Hot KV へ書く時点の `now − row の datetime`。取り込み経路全体（MQTT/AMQP/gRPC いずれも共通）に効く、flush を待たない最も早い鮮度シグナル | p95 が数秒オーダーで安定。**単調増加は投入レートが持続可能な上限を超えているサイン**（#415: 実測で ~13 点/s を超えると増加し続けた） |
+| `ingress.messages`（counter、source×result） | 各 ingress worker（MQTT/AMQP/gRPC）が受け取ったメッセージ数、内訳は `forwarded` / `skipped_*` / `publish_failed` / `error` | `forwarded` 以外の result が有意に増えない |
 | `parquet_writer.freshness_lag`（histogram） | flush 時の `now − max(event time)` | p95 ≤ flush 間隔 + 60s |
 | ParquetLakeWriter の consumer pending（gauge） | writer がレイクへ追従できているか | 持続負荷で**単調増加しない** |
 | `parquet_lake.tail_merge_rows` / `tail_merge_errors`（counter） | tail-merge の補完行数 / デグレード回数 | errors が継続的に増えない |
+
+> `ingestion.lag` は `ingress.messages`/`parquet_writer.freshness_lag` より前段（取り込み直後）で計測するため、
+> どちらより先に劣化が見える。ただし MQTT ブローカーや MQTTnet クライアント自体が Building OS のプロセスに
+> メッセージを渡す前に取りこぼす経路（TCP バッファ・ブローカー側のスロー subscriber 切断等）は対象外 —
+> そこで失われたフレームは `ingress.messages` にも `ingestion.lag` にも現れない。#415 で報告された「エラーも
+> メトリクスも出ないまま遅延する」症状のうち、**取り込み後の遅延**はこれで見えるようになるが、**投入側の
+> 持続可能なレート自体**（今回の実測では既定構成で ~13 点/s）を引き上げる作業ではない。
 
 上記は [oss-warm-parquet-lake.md](../architecture/oss-warm-parquet-lake.md) / [observability-baseline.md](observability-baseline.md) に定義。
 本番スケールでの実測は [#297](https://github.com/takashikasuya/gutp-building-os-oss/issues/297)。

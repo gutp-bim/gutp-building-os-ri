@@ -39,6 +39,19 @@ public static class BuildingOsMetrics
             unit: "{message}",
             description: "Messages received by an ingress transport worker, by source.");
 
+    /// <summary>
+    /// Freshness lag of validated telemetry as it lands in the hot store: now − the row's own
+    /// <c>datetime</c> (#415). Recorded per point on every validated-telemetry write (NatsKvPublisher
+    /// and the gRPC ingress bus both go through ValidatedTelemetryHotStore), so a saturated pipeline —
+    /// received-but-queued frames falling further and further behind — shows up here even though every
+    /// individual request still returns 200 and no other metric ever turns non-zero.
+    /// </summary>
+    public static readonly Histogram<double> IngestionLag =
+        Meter.CreateHistogram<double>(
+            "building_os.ingestion.lag",
+            unit: "s",
+            description: "Seconds between now and the datetime carried by a validated-telemetry row at hot-store write time.");
+
     /// <summary>Device control requests handled. Tags: handler, result.</summary>
     public static readonly Counter<long> ControlRequests =
         Meter.CreateCounter<long>(

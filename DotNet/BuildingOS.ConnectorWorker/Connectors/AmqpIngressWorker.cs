@@ -95,6 +95,7 @@ public sealed class AmqpIngressWorker(
             if (payloadText == null || !TryParseJson(payloadText, out var payloadElement))
             {
                 logger.LogWarning("AmqpIngressWorker: non-JSON payload from device={DeviceId}, skipping", deviceId);
+                Count("skipped_payload");
                 link.Accept(message);
                 return;
             }
@@ -106,7 +107,7 @@ public sealed class AmqpIngressWorker(
             try
             {
                 await publisher.PublishAsync(RawHonoSubject, envelope, ct);
-                BuildingOsMetrics.IngressMessages.Add(1, new KeyValuePair<string, object?>("source", "amqp"));
+                Count("forwarded");
                 link.Accept(message);
                 logger.LogDebug("AMQP→NATS: device={DeviceId} → {Subject}", deviceId, RawHonoSubject);
             }
@@ -114,15 +115,26 @@ public sealed class AmqpIngressWorker(
             {
                 // Release (not Reject) so the broker can redeliver on transient NATS failures
                 logger.LogWarning(ex, "AmqpIngressWorker: NATS publish failed for device={DeviceId}, releasing for redelivery", deviceId);
+                Count("publish_failed");
                 try { link.Release(message); } catch { }
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "AmqpIngressWorker: message handling failed");
+            Count("error");
             try { link.Reject(message); } catch { }
         }
     }
+
+    // #415: every message the AMQP link hands to the application layer is counted here, by outcome —
+    // not only the ones that make it all the way to a NATS publish — so a caller can at least see how
+    // many frames Building OS's own process received, distinct from how many it forwarded.
+    private static void Count(string result) =>
+        BuildingOsMetrics.IngressMessages.Add(
+            1,
+            new KeyValuePair<string, object?>("source", "amqp"),
+            new KeyValuePair<string, object?>("result", result));
 
     private static string ExtractDeviceId(Message message)
     {

@@ -1,5 +1,6 @@
 using BuildingOS.Shared.Entities;
 using BuildingOS.Shared.Infrastructure.Telemetry;
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using Microsoft.Extensions.Logging;
 
 namespace BuildingOS.Shared.Infrastructure.Oss;
@@ -36,6 +37,14 @@ public static class ValidatedTelemetryHotStore
                 // Discriminated value (#152): number → Value, string → ValueText, boolean → ValueBool.
                 TelemetryValueKind.Apply(data, te.Value.AsJsonElement);
                 await hot.PutAsync(pointId, data, cancellationToken);
+
+                // #415: surfaces a saturated/backlogged pipeline (frames still arriving, just later
+                // and later) even though nothing here ever errors. Best-effort — an unparseable
+                // datetime just skips the observation, same as the Parquet writer's freshness lag.
+                if (TelemetryTimestamp.TryParseUtc(data.Datetime, out var eventUtc))
+                {
+                    BuildingOsMetrics.IngestionLag.Record(Math.Max(0, (DateTime.UtcNow - eventUtc).TotalSeconds));
+                }
             }
         }
         catch (Exception ex)

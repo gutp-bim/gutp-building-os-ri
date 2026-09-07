@@ -114,6 +114,7 @@ public sealed class MqttIngressWorker(
         if (string.IsNullOrEmpty(tenant) || string.IsNullOrEmpty(deviceId))
         {
             logger.LogWarning("MqttIngressWorker: topic {Topic} missing tenant or deviceId, skipping", topic);
+            Count("skipped_topic");
             return;
         }
 
@@ -122,6 +123,7 @@ public sealed class MqttIngressWorker(
         if (!TryParseJson(payloadText, out var payloadElement))
         {
             logger.LogWarning("MqttIngressWorker: non-JSON payload on topic {Topic}, skipping", topic);
+            Count("skipped_payload");
             return;
         }
 
@@ -129,9 +131,18 @@ public sealed class MqttIngressWorker(
             new IngressEnvelope(topic, tenant, deviceId, payloadElement, DateTimeOffset.UtcNow));
 
         await publisher.PublishAsync(RawMqttSubject, envelope, ct);
-        BuildingOsMetrics.IngressMessages.Add(1, new KeyValuePair<string, object?>("source", "mqtt"));
+        Count("forwarded");
         logger.LogDebug("MQTT→NATS: {Topic} → {Subject}", topic, RawMqttSubject);
     }
+
+    // #415: every message MQTTnet hands to the application layer is counted here, by outcome — not
+    // only the ones that make it all the way to a NATS publish — so a caller can at least see how many
+    // frames Building OS's own process received, distinct from how many it forwarded.
+    private static void Count(string result) =>
+        BuildingOsMetrics.IngressMessages.Add(
+            1,
+            new KeyValuePair<string, object?>("source", "mqtt"),
+            new KeyValuePair<string, object?>("result", result));
 
     private static bool TryParseJson(string text, out JsonElement element)
     {
