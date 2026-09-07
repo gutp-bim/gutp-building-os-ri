@@ -106,6 +106,12 @@ case "$AXIS" in
       # 別の既定値を設定すると entrypoint によって負荷条件が変わってしまう）。呼び出し元の環境変数
       # はそのまま子プロセスに継承されるので、未設定ならここでは何もしない。
       bash "$PERF/s19_endurance_soak.sh" "$OUT/E10-soak" || true ;;
+  E11) command -v docker >/dev/null || gap "docker 未導入（gRPC ingress を起動できない）"
+      # 大規模継続負荷下の Parquet 保存・compaction・保持期間（#263, capped-run）。フル run-all.sh
+      # には含めない — 個別実行（bash e2e/runner/run-axis.sh E11 --out ...）または
+      # s20_retention_compaction.sh を直接使う。POINTS/BUILDINGS/GATEWAYS/WAVES/RETENTION_DAYS の
+      # 既定値は s20_retention_compaction.sh 側の一箇所でのみ持つ（E10 と同じ理由）。
+      bash "$PERF/s20_retention_compaction.sh" "$OUT/E11-retention" || true ;;
   E9) command -v yarn >/dev/null || gap "yarn 未導入（web-client Playwright を実行できない）"
       # 運用者ユーザビリティ（#159）: web-client の Playwright(route-mock) が axe/鮮度表示時間などを
       # 計測して {axis:E9_operator_usability, metrics} を $OUT/E9.json に出力（docker 不要）。

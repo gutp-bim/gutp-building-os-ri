@@ -61,3 +61,5 @@ docker compose）。CI ではなくローカルまたは専用ベンチ機で実
 | E6 control safety | 🟢 計測済 | `s6`(rtt) + `s12`(safety)。rtt ~23ms / stale_replay 0 / not_writable 1.0 / typed_failure 1.0 ✅。offline_503・success_rate・duplicate_write は SKIP（局所再現不可/要接続GW、unit test + #186 で担保） |
 | E7 storage cost | 🟢 計測済 | objects/building-hour =2 ✅ + bytes/row 比 0.0211 ✅（parquet 2.84 vs TimescaleDB 非圧縮 134.84 B/行, `measure_bytes_per_row`） |
 | E8 resilience | 🟢 計測済 | `s16`（connector 停止→再起動）。data_loss_under_outage 0.0 ✅ / RTO 4.5s（report）。pure 計算 `resilience_metrics` は TDD。graceful degradation は follow-up |
+| E10 endurance soak | 🟡 個別実行のみ | `s19_endurance_soak.py`。数時間かかるため既定 `ONLY` には含まない。[E10 scenario](scenarios/E10-endurance-soak.md) に 24h×2本の実施記録あり |
+| E11 lake retention scale | 🟡 個別実行のみ | `s20_retention_compaction.py`（#263, capped-run）。flush/compaction 成功率・latency、保持境界分類、ILM ルール実適用確認。真の複数日保持ウィンドウは capped-run のスコープ外 — [E11 scenario](scenarios/E11-lake-retention-scale.md) 参照 |
