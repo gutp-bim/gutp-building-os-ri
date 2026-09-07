@@ -113,6 +113,35 @@ axes:
     connector_worker_rss_samples:                             { op: report, unit: count, note: "RSS サンプル総数。上の値との差がそのまま Prometheus 側の欠測" }
     connector_worker_rss_growth_mib_per_hour_paired:          { op: report, unit: "MiB/h", note: "差分と同一 tick 集合で測った RSS スロープ（比較の両辺を揃えるため）" }
 
+  # E11: 大規模継続負荷下の Parquet 保存・compaction・保持期間（#263, #261/#297 follow-up）。
+  # run-all.sh の既定 ONLY には含めない（E10 と同じ理由）— `ONLY=E11 bash e2e/runner/run-axis.sh E11`
+  # または s20_retention_compaction.sh を個別実行する。capped-run（10 分未満）が証明できること／
+  # できないことの詳細は scenarios/E11-lake-retention-scale.md 参照 — 保持境界の分類ロジックは
+  # ここで gate するが、実際の複数日保持ウィンドウでの失効そのものは capped-run のスコープ外。
+  E11_lake_retention_scale:
+    flush_success_rate:         { op: gte, value: 0.99, unit: ratio }
+    flush_latency_p95_ms:       { op: lte, value: null, unit: ms,
+                                  note: "flush 間隔 + マージン。flush 間隔は PARQUET_FLUSH_INTERVAL から動的に算出（dynamic のため SKIP）" }
+    compaction_success_rate:    { op: gte, value: 0.99, unit: ratio }
+    compaction_latency_p95_ms:  { op: lte, value: null, unit: ms,
+                                  note: "compaction 間隔 + マージン。間隔は LAKE_COMPACTION_INTERVAL から動的に算出（dynamic のため SKIP）" }
+    # 「すでに settled な時間」への合成配置により、実際に書かれた object の実測 age に対する
+    # 分類ロジック自体の回帰ガード。完全一致（== 1.0）を要求 — 短時間 run では常にこの値になり
+    # うるが、境界越えの実証ではなく分類パイプラインの正しさの担保として置く（scenario 参照）。
+    retention_boundary_correct_ratio: { op: eq, value: 1.0, unit: ratio }
+    objects_per_building_hour:  { op: lte, value: 2, unit: count }      # E7 と同じ KPI（compaction 後）
+    data_loss_ratio:            { op: lte, value: 0.01, unit: ratio }   # E1 と同じ値を再利用
+    duplicate_rate:              { op: lte, value: 0.005, unit: ratio } # E1 と同じ値を再利用
+    restart_count_total:        { op: eq, value: 0, unit: count }
+    oom_count_total:            { op: eq, value: 0, unit: count }
+    health_probe_success_rate:  { op: gte, value: 0.999, unit: ratio }
+    flush_count:                 { op: report, unit: count }
+    compaction_count:            { op: report, unit: count }
+    retention_boundary_expired_but_present:  { op: report, unit: count, note: "0 のはずのリーク検出（分類上、期限切れなのに残存）" }
+    retention_boundary_retained_but_missing: { op: report, unit: count, note: "0 のはずの早期消失検出（分類上、期限内なのに消失）" }
+    retention_ilm_rule_applied:  { op: report, unit: bool, note: "LAKE_RETENTION_DAYS の ILM ルールが実際に MinIO に適用されているかの確認（#263 の public storage contract ギャップ）。mc の応答が解釈できない場合は SKIP（未適用と誤判定しない）" }
+    retention_ilm_days_configured: { op: report, unit: days }
+
   # E9: 運用者ユーザビリティ（#159）。web-client の Playwright(route-mock)ハーネスが計測して
   # {axis:E9_operator_usability, metrics} を run ディレクトリに出力し、この gate が採点する。
   # docker 不要の route-mock サブセット。実ログイン/実制御まで含む計測はフルスタック E2E（別軸）。

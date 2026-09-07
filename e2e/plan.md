@@ -41,6 +41,7 @@ gRPC 経路を第一とし、MQTT 経路は対照として併記する。
 | **E8** | 障害復旧・可用性 | 部分障害時に Hot/Warm/Cold が graceful degradation し、復旧後に欠損なく回復 | 推奨 |
 | E9 | 運用・可観測性 | OTel で ingest path を end-to-end に追跡でき、point_id/gateway_id/control_id でログ相関 | 補助 |
 | E10 | 長時間ソーク（endurance） | 現実規模の持続負荷を数時間〜数日走らせても、データ整合を保ったままメモリ/consumer pending が発散しない（[#297](https://github.com/gutp-bim/gutp-building-os-ri/issues/297) follow-up） | 推奨 |
+| E11 | 大規模継続負荷下の保存・compaction・保持期間 | 多棟・大規模の継続負荷でも Parquet の flush/compaction が壊れず、保持期間（`LAKE_RETENTION_DAYS`）の ILM ルールが実際に適用される（[#263](https://github.com/gutp-bim/gutp-building-os-ri/issues/263)、[#261](https://github.com/gutp-bim/gutp-building-os-ri/issues/261)/E10 follow-up） | 推奨 |
 
 ## 2. 負荷スケール・マトリクス
 
@@ -106,9 +107,12 @@ gRPC 経路を第一とし、MQTT 経路は対照として併記する。
 | E7 | `measure_lake_storage.sh`, `measure_compression.sh` | TimescaleDB 対照取得・月額コスト推定 |
 | E8 | `s7_resilience.sh`, `s7_resilience_test.py` | RTO 実測・graceful degradation の体系化 |
 | E10 | なし（本 e2e への新規統合。`s19_endurance_soak.py`） | #297 の 24h/MQTT 単発試験を e2e/ 評価軸として反復可能にし、gRPC 経路・現行 API/twin 判別値に追随させる。安全域確定には #297 acceptance criteria の ≥72h 版が別途必要 |
+| E11 | `s17_multibuilding_scale_sweep.py`(#261 の多棟トポロジー), `quality_checker.py`, `normalize_storage.py`(E7 の object-per-partition 計測) | **多棟スケール × 継続 flush/compaction の KPI 化**（`lake_retention_kpi.py` + `s20_retention_compaction.py`）、`LAKE_RETENTION_DAYS` ILM ルールの実 MinIO 適用確認（既存 `LakeRetentionLifecycleTest.cs` は設定オブジェクトの形しか検証しない）。capped-run（10分未満）の限界は scenario 参照 |
 
 各軸の詳細手順・入出力・合否判定は [`scenarios/`](scenarios/) を参照。E10 は
 [`scenarios/E10-endurance-soak.md`](scenarios/E10-endurance-soak.md) に #297 以降の改修点との整合を含めて記載。
+E11 は [`scenarios/E11-lake-retention-scale.md`](scenarios/E11-lake-retention-scale.md)
+に capped-run が証明できること／できないことを含めて記載。
 
 ## 5. 実行方法（概要）
 
@@ -126,6 +130,9 @@ bash e2e/runner/run-axis.sh E1 --scale medium
 
 # 4) 長時間ソーク（E10）。数時間かかるため run-all.sh の既定 ONLY には含まれない — 個別実行のみ。
 DURATION_HOURS=4 RATE=6.2167 POINTS=1865 bash e2e/runner/run-axis.sh E10 --out e2e/results/<run-id>
+
+# 5) 大規模継続負荷下の保存・compaction・保持期間（E11, capped-run）。同じく個別実行のみ。
+POINTS=300 BUILDINGS=3 GATEWAYS=6 WAVES=3 bash e2e/runner/run-axis.sh E11 --out e2e/results/<run-id>
 ```
 
 結果は `e2e/results/<run-id>/` に JSON + サマリで集約し、[`results/report-template.md`](results/report-template.md)
