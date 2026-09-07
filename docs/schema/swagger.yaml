@@ -2410,6 +2410,7 @@ paths:
       tags:
         - Telemetry
       summary: "テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を\n自動選択する。per-tier の `/hot`・`/warm`・`/cold`・`/cold-multi-point` は非推奨。"
+      description: "<b>\n  `latest=true` の意味論（#417）</b>: 返る行は「twin 上で現在アクセス可能な点の、\n            Hot KV に保存済みの最新値」であり、「直近に取り込まれた値」ではない。両者は通常一致するが、\n            ある点が一時的に twin から外れていた（別の import で非公開化された）期間があると、Hot KV は\n            その間 PUT されないため最後に保存された値がそのまま残る。点が再び公開されると、この古い値が\n            返る ── `Datetime` は再公開の瞬間より前の時刻を指しうる。この行が呼び出し時点でどれだけ\n            古いかは BuildingOs.ApiServer.Telemetry.TelemetryReading.IngestedAt（Hot KV への書き込み時刻。`Datetime`\n            とは別物）で判定できる。テレメトリは twin から独立した時系列の事実であり、twin から外すことは\n            「過去の観測を消す」操作ではないため、この挙動は仕様である。"
       parameters:
         - name: pointId
           in: query
@@ -3574,6 +3575,10 @@ components:
               nullable: true
             - type: boolean
           description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359). Replaced the legacy\n`ValueText`/`ValueBool` pair. A non-numeric reading is repeated here rather than left\nnull, so a client reads the state half with a single lookup instead of falling back to\nValue. Batch-latest returns raw samples only, so unlike\nBuildingOs.ApiServer.Telemetry.TelemetryReading.State this never carries a state\nalongside a numeric average — see that type's docs for why the field exists at all."
+        ingestedAt:
+          type: string
+          description: "When this sample was written to the Hot KV store (ISO 8601 UTC), distinct from\nDatetime (the device/simulated clock the row itself carries); `null` when\nthe point has no data. See BuildingOs.ApiServer.Telemetry.TelemetryReading.IngestedAt\nfor why the two can diverge (#417) — a freshness display comparing Datetime\nagainst now can read a re-published-but-stale point as current."
+          nullable: true
       additionalProperties: false
       description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. `State` carries the\nreading's non-numeric half, and `ValueType` describes `Value`; the legacy\n`ValueText`/`ValueBool` pair left the wire in #359. Kept in step with\nBuildingOs.ApiServer.Telemetry.TelemetryReading, whose docs carry the full rationale\n— the client's value decoder is satisfied structurally by both, so a divergence here surfaces only\nas a type error in the generated client.\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
     MyResourcesResponse:
@@ -4095,6 +4100,10 @@ components:
               nullable: true
             - type: boolean
           description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359).\n\nIt exists for the one row shape that carries two readings at once: an aggregate bucket sets\nValue to the average unconditionally (the continuous-aggregate contract), so a\nmixed hour ships the number while its last-in-bucket state has nowhere else to live. That is what\nthe state timeline reads at Hour/Day granularity.\nA raw non-numeric row <b>repeats</b> its reading here rather than leaving this null. The\nduplication is deliberate: it makes this field mean one thing unconditionally, so a client reads\nit with a single lookup instead of falling back to Value — the fallback chain\n#359 exists to delete. Widened to `oneOf: [string, boolean]` by\n`TelemetryValueSchemaFilter`, for the same reason Value is."
+        ingestedAt:
+          type: string
+          description: "When this row was written to the Hot KV store (ISO 8601 UTC), distinct from Datetime\n(the device/simulated clock the row itself carries). Only populated for a `latest=true` read\nserved from Hot — `null` for warm/cold/aggregated reads, which never had a hot-store write\n(#417). A caller that needs to tell \"freshly written\" apart from \"the last value before this point\nwent invisible in the twin and is only now being read again\" should compare this, not\nDatetime, against wall-clock now."
+          nullable: true
       additionalProperties: false
       description: "Response-only wire DTO for telemetry reads (#344).\n            \n\nUntil now the controllers returned BuildingOS.Shared.ValidTelemetryData directly, so the storage\nlayer's discriminated split (`value`/`valueType`/`valueText`/`valueBool`,\n#152) leaked into the HTTP contract and every API consumer had to reassemble it. That split is a\nParquet/EF concern — BuildingOS.Shared.ValidTelemetryData is an EF entity and binds the lake's column\nmodel, so it cannot be retyped in place — while the canonical schema\n(`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic\n`value`. This DTO restores that shape at the boundary.\n<b>#359 removed the legacy payload fields.</b>`valueText`/`valueBool` are gone; the\nnon-numeric half of a reading now travels in BuildingOs.ApiServer.Telemetry.TelemetryReading.State. BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType stays,\nbecause it never duplicated the payload the way those two did — it describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,\nderived from the value actually shipped rather than copied from the stored tag. (Copying the\nstored tag is what made the wire say `{ value: 42, valueType: \"string\" }` for a mixed\naggregate bucket, where the stored tag classifies the bucket's last-in-bucket reading.)"
     TelemetryThresholds:

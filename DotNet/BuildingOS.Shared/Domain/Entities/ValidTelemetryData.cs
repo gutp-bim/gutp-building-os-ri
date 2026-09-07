@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace BuildingOS.Shared;
 
 // ValidTelemetryEntity と同様の型
@@ -22,4 +24,13 @@ public class ValidTelemetryData
     public string? ValueType { get; set; }
     public string? ValueText { get; set; }
     public bool? ValueBool { get; set; }
+
+    // #417: when this row was written to the Hot KV store, distinct from Datetime (the device/simulated
+    // clock the row itself carries). Only NatsKvLatestStore.GetAsync populates this — from the NATS KV
+    // revision's own Created timestamp, not from the stored payload — so it exists only for latest=true
+    // reads served from Hot. Warm/Cold/aggregated rows never had a hot-store write and leave it null.
+    // [NotMapped]: this is a runtime-only signal, never a Parquet or ColdTelemetryContext (Timescale)
+    // column.
+    [NotMapped]
+    public string? IngestedAt { get; set; }
 }

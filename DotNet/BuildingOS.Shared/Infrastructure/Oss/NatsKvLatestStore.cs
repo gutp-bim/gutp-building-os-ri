@@ -59,7 +59,15 @@ public sealed class NatsKvLatestStore : IHotTelemetryStore
         {
             var kv = await GetKvAsync(cancellationToken);
             var entry = await kv.GetEntryAsync<byte[]>(key, cancellationToken: cancellationToken);
-            return entry.Value is null ? null : JsonSerializer.Deserialize<ValidTelemetryData>(entry.Value);
+            if (entry.Value is null) return null;
+
+            var data = JsonSerializer.Deserialize<ValidTelemetryData>(entry.Value);
+            // #417: the KV revision's own Created timestamp — when this exact value was written to the
+            // hot store — not the row's own Datetime (device/simulated clock). Lets a caller tell a
+            // freshly-written value apart from one that has sat unchanged since before, say, its point
+            // went temporarily invisible in the twin and is only now being read again.
+            if (data is not null) data.IngestedAt = entry.Created.UtcDateTime.ToString("O");
+            return data;
         }
         catch (NatsKVKeyNotFoundException)
         {

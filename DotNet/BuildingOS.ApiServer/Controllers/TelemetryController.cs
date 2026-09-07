@@ -171,6 +171,16 @@ public class TelemetryController(
     /// テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を
     /// 自動選択する。per-tier の <c>/hot</c>・<c>/warm</c>・<c>/cold</c>・<c>/cold-multi-point</c> は非推奨。
     /// </summary>
+    /// <remarks>
+    /// <b><c>latest=true</c> の意味論（#417）</b>: 返る行は「twin 上で現在アクセス可能な点の、
+    /// Hot KV に保存済みの最新値」であり、「直近に取り込まれた値」ではない。両者は通常一致するが、
+    /// ある点が一時的に twin から外れていた（別の import で非公開化された）期間があると、Hot KV は
+    /// その間 PUT されないため最後に保存された値がそのまま残る。点が再び公開されると、この古い値が
+    /// 返る ── <c>Datetime</c> は再公開の瞬間より前の時刻を指しうる。この行が呼び出し時点でどれだけ
+    /// 古いかは <see cref="TelemetryReading.IngestedAt"/>（Hot KV への書き込み時刻。<c>Datetime</c>
+    /// とは別物）で判定できる。テレメトリは twin から独立した時系列の事実であり、twin から外すことは
+    /// 「過去の観測を消す」操作ではないため、この挙動は仕様である。
+    /// </remarks>
     /// <param name="pointId">必須. ポイントID</param>
     /// <param name="start">開始時刻（latest=true の場合は不要）</param>
     /// <param name="end">終了時刻（latest=true の場合は不要）</param>
@@ -275,7 +285,7 @@ public class TelemetryController(
             var value = TelemetryValueKind.Resolve(latest);
             return new LatestSample(
                 pointId, latest?.Datetime, value,
-                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest));
+                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest), latest?.IngestedAt);
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
@@ -330,6 +340,13 @@ public sealed record BatchLatestRequest(string[] PointIds);
 /// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading.State"/> this never carries a state
 /// alongside a numeric average — see that type's docs for why the field exists at all.
 /// </param>
+/// <param name="IngestedAt">
+/// When this sample was written to the Hot KV store (ISO 8601 UTC), distinct from
+/// <paramref name="Datetime"/> (the device/simulated clock the row itself carries); <c>null</c> when
+/// the point has no data. See <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading.IngestedAt"/>
+/// for why the two can diverge (#417) — a freshness display comparing <paramref name="Datetime"/>
+/// against now can read a re-published-but-stale point as current.
+/// </param>
 public sealed record LatestSample(
     string PointId, string? Datetime, object? Value,
-    string? ValueType = null, object? State = null);
+    string? ValueType = null, object? State = null, string? IngestedAt = null);

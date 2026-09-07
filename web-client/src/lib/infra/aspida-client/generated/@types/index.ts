@@ -272,6 +272,15 @@ export type LatestSample = {
    * alongside a numeric average — see that type's docs for why the field exists at all.
    */
   state?: string | null | boolean | undefined;
+
+  /**
+   * When this sample was written to the Hot KV store (ISO 8601 UTC), distinct from
+   * Datetime (the device/simulated clock the row itself carries); `null` when
+   * the point has no data. See BuildingOs.ApiServer.Telemetry.TelemetryReading.IngestedAt
+   * for why the two can diverge (#417) — a freshness display comparing Datetime
+   * against now can read a re-published-but-stale point as current.
+   */
+  ingestedAt?: string | null | undefined;
 }
 
 export type MyResourcesResponse = {
@@ -559,6 +568,16 @@ export type TelemetryReading = {
    * `TelemetryValueSchemaFilter`, for the same reason Value is.
    */
   state?: string | null | boolean | undefined;
+
+  /**
+   * When this row was written to the Hot KV store (ISO 8601 UTC), distinct from Datetime
+   * (the device/simulated clock the row itself carries). Only populated for a `latest=true` read
+   * served from Hot — `null` for warm/cold/aggregated reads, which never had a hot-store write
+   * (#417). A caller that needs to tell "freshly written" apart from "the last value before this point
+   * went invisible in the twin and is only now being read again" should compare this, not
+   * Datetime, against wall-clock now.
+   */
+  ingestedAt?: string | null | undefined;
 }
 
 export type TelemetryThresholds = {

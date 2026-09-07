@@ -52,6 +52,14 @@ namespace BuildingOs.ApiServer.Telemetry;
 /// <c>TelemetryValueSchemaFilter</c>, for the same reason <paramref name="Value"/> is.
 /// </para>
 /// </param>
+/// <param name="IngestedAt">
+/// When this row was written to the Hot KV store (ISO 8601 UTC), distinct from <paramref name="Datetime"/>
+/// (the device/simulated clock the row itself carries). Only populated for a <c>latest=true</c> read
+/// served from Hot — <c>null</c> for warm/cold/aggregated reads, which never had a hot-store write
+/// (#417). A caller that needs to tell "freshly written" apart from "the last value before this point
+/// went invisible in the twin and is only now being read again" should compare this, not
+/// <paramref name="Datetime"/>, against wall-clock now.
+/// </param>
 public sealed record TelemetryReading(
     string? PointId,
     string? Datetime,
@@ -62,7 +70,8 @@ public sealed record TelemetryReading(
     string? Data = null,
     string? Id = null,
     string? ValueType = null,
-    object? State = null)
+    object? State = null,
+    string? IngestedAt = null)
 {
     /// <summary>Projects a stored row onto the wire shape. Null in, null out.</summary>
     public static TelemetryReading? From(ValidTelemetryData? row)
@@ -83,7 +92,8 @@ public sealed record TelemetryReading(
             // tags an aggregate bucket by its last-in-bucket reading, so passing it through made the
             // wire say `{ value: 42, valueType: "string" }`.
             TelemetryValueKind.KindOf(value),
-            TelemetryValueKind.ResolveState(row));
+            TelemetryValueKind.ResolveState(row),
+            row.IngestedAt);
     }
 
     /// <summary>Projects a result set, preserving order. Null rows are dropped.</summary>
