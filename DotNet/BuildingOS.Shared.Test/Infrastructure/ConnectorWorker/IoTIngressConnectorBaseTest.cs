@@ -5,7 +5,6 @@ using BuildingOS.Shared.Infrastructure.Messaging;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Module;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace BuildingOS.Shared.Test.Infrastructure.ConnectorWorker;
@@ -34,7 +33,7 @@ public class IoTIngressConnectorBaseTest
         }
         """;
 
-    private static (FakeNatsPublisher publisher, InProcessMessageSubscription sub, MqttConnectorWorker worker)
+    private static (FakeNatsPublisher publisher, InProcessMessageSubscription sub, MqttConnectorWorker worker, RecordingLogger<MqttConnectorWorker> logger)
         CreateWorker(string deviceId)
     {
         var factory = new Mock<IPointIdFactory>();
@@ -42,15 +41,16 @@ public class IoTIngressConnectorBaseTest
                .ReturnsAsync((true, new[] { KnownPointId }));
         var publisher = new FakeNatsPublisher();
         var sub = new InProcessMessageSubscription();
-        var worker = new MqttConnectorWorker(sub, publisher, factory.Object, NullLogger<MqttConnectorWorker>.Instance);
-        return (publisher, sub, worker);
+        var logger = new RecordingLogger<MqttConnectorWorker>();
+        var worker = new MqttConnectorWorker(sub, publisher, factory.Object, logger);
+        return (publisher, sub, worker, logger);
     }
 
     [Fact]
     public async Task MissingTimestamp_IncrementsFallbackMetricAndLogsWarning()
     {
         const string deviceId = "dev-ts-missing";
-        var (publisher, sub, worker) = CreateWorker(deviceId);
+        var (publisher, sub, worker, logger) = CreateWorker(deviceId);
         using var cts = new CancellationTokenSource();
         _ = worker.StartAsync(cts.Token);
 
@@ -62,13 +62,14 @@ public class IoTIngressConnectorBaseTest
 
         Assert.Single(publisher.Published);
         Assert.Equal(1, fallbackCount);
+        Assert.Contains(logger.Warnings, w => w.Contains(deviceId, StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task UnparsableTimestamp_IncrementsFallbackMetric()
     {
         const string deviceId = "dev-ts-bad";
-        var (publisher, sub, worker) = CreateWorker(deviceId);
+        var (publisher, sub, worker, logger) = CreateWorker(deviceId);
         using var cts = new CancellationTokenSource();
         _ = worker.StartAsync(cts.Token);
 
@@ -80,13 +81,14 @@ public class IoTIngressConnectorBaseTest
 
         Assert.Single(publisher.Published);
         Assert.Equal(1, fallbackCount);
+        Assert.Contains(logger.Warnings, w => w.Contains(deviceId, StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task ValidTimestamp_DoesNotIncrementFallbackMetric()
     {
         const string deviceId = "dev-ts-ok";
-        var (publisher, sub, worker) = CreateWorker(deviceId);
+        var (publisher, sub, worker, logger) = CreateWorker(deviceId);
         using var cts = new CancellationTokenSource();
         _ = worker.StartAsync(cts.Token);
 
@@ -98,6 +100,7 @@ public class IoTIngressConnectorBaseTest
 
         Assert.Single(publisher.Published);
         Assert.Equal(0, fallbackCount);
+        Assert.Empty(logger.Warnings);
     }
 
     /// <summary>Same MeterListener-capture pattern as GatewayIngressServiceTest, filtered by the `gateway` tag.</summary>
@@ -123,5 +126,22 @@ public class IoTIngressConnectorBaseTest
 
         await run();
         return count;
+    }
+
+    /// <summary>Minimal ILogger capturing Warning-level messages for assertion, without a mocking lib.
+    /// Same pattern as GatewayIngressServiceTest's RecordingLogger.</summary>
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Warnings { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning) Warnings.Add(formatter(state, exception));
+        }
     }
 }
