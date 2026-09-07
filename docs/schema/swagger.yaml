@@ -1952,6 +1952,36 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/system/ingress-rejections:
+    get:
+      tags:
+        - System
+      summary: "gRPC gateway-ingress の受理/拒否ポリシー（#292）による拒否件数を理由別に取得する。管理者のみ。\nPrometheus 未配線時は graceful degrade（BuildingOS.Shared.Infrastructure.Monitoring.IngressRejectionStats.MetricsAvailable\nが false、件数は空）。"
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/IngressRejectionStats'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngressRejectionStats'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/IngressRejectionStats'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/system/settings:
     get:
       tags:
@@ -3545,6 +3575,25 @@ components:
         description:
           type: string
           nullable: true
+      additionalProperties: false
+    IngressRejectionCount:
+      type: object
+      properties:
+        reason:
+          type: string
+        count:
+          type: integer
+          format: int64
+      additionalProperties: false
+    IngressRejectionStats:
+      type: object
+      properties:
+        rejections:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngressRejectionCount'
+        metricsAvailable:
+          type: boolean
       additionalProperties: false
     LatestSample:
       type: object

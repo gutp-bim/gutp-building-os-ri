@@ -160,6 +160,16 @@ export const HELP_ENTRIES: HelpEntry[] = [
     relatedTerms: ["鮮度切れ閾値"],
   },
   {
+    key: "platform.ingressRejections",
+    title: "取込拒否件数",
+    body: [
+      "gRPC gateway-ingress の受理/拒否ポリシー（Building 階層が未確定なポイントなど）による拒否件数を理由別に表示します。",
+      "拒否は記録・計測されるだけで、キューイングや再送は行いません。twin の階層が修正され次第、ゲートウェイが送り続けているテレメトリーが次回の送信で自然に受理されます。",
+      "サービス up/down と同様、Prometheus 未配線時は件数を表示できません（グレースフルデグレード）。",
+    ],
+    relatedTerms: [],
+  },
+  {
     key: "admin.gateways",
     title: "登録済みゲートウェイ",
     body: [

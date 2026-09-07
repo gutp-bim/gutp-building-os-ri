@@ -51,6 +51,12 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { label: "設定（実効値）", href: "/platform/config", workspace: "platform" },
   { label: "アプリ設定", href: "/platform/settings", workspace: "platform" },
+  // #292: admin-visible ingress rejection counts by reason (Prometheus KPI).
+  {
+    label: "取込拒否件数",
+    href: "/platform/ingress-rejections",
+    workspace: "platform",
+  },
 ];
 
 /**

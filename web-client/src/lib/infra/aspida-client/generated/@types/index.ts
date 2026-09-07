@@ -229,6 +229,16 @@ export type GroupsControllerUpdateGroupRequest = {
   description?: string | null | undefined;
 }
 
+export type IngressRejectionCount = {
+  reason?: string | undefined;
+  count?: number | undefined;
+}
+
+export type IngressRejectionStats = {
+  rejections?: IngressRejectionCount[] | undefined;
+  metricsAvailable?: boolean | undefined;
+}
+
 /**
  * One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).
  * 
