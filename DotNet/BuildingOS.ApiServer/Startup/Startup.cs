@@ -250,6 +250,7 @@ namespace BuildingOs.ApiServer
                 return new HttpServiceHealthProbe(http, targets, logger);
             });
             services.AddSingleton<ISystemStatusService, SystemStatusService>();
+            services.AddSingleton<IIngressRejectionStatsService, IngressRejectionStatsService>();
             services.AddSingleton<IEffectiveConfigService, EffectiveConfigService>();
 
             // === Experimental/optional help assistant (#151) ===

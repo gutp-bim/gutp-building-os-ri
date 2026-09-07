@@ -19,11 +19,16 @@ public class SystemController : ControllerBase
 {
     private readonly ISystemStatusService _statusService;
     private readonly IEffectiveConfigService _configService;
+    private readonly IIngressRejectionStatsService _ingressRejectionStats;
 
-    public SystemController(ISystemStatusService statusService, IEffectiveConfigService configService)
+    public SystemController(
+        ISystemStatusService statusService,
+        IEffectiveConfigService configService,
+        IIngressRejectionStatsService ingressRejectionStats)
     {
         _statusService = statusService;
         _configService = configService;
+        _ingressRejectionStats = ingressRejectionStats;
     }
 
     /// <summary>
@@ -60,5 +65,25 @@ public class SystemController : ControllerBase
         }
 
         return Ok(_configService.GetEffectiveConfig());
+    }
+
+    /// <summary>
+    /// gRPC gateway-ingress の受理/拒否ポリシー（#292）による拒否件数を理由別に取得する。管理者のみ。
+    /// Prometheus 未配線時は graceful degrade（<see cref="IngressRejectionStats.MetricsAvailable"/>
+    /// が false、件数は空）。
+    /// </summary>
+    [HttpGet("ingress-rejections")]
+    [ProducesResponseType(typeof(IngressRejectionStats), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetIngressRejections(CancellationToken ct)
+    {
+        var authContext = HttpContext.GetAuthorizationContext();
+        if (!authContext.IsAdmin)
+        {
+            return Forbid();
+        }
+
+        var stats = await _ingressRejectionStats.GetAsync(ct).ConfigureAwait(false);
+        return Ok(stats);
     }
 }
