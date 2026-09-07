@@ -124,3 +124,47 @@ def test_objects_per_building_hour_groups_by_partition_prefix():
 
 def test_max_objects_per_building_hour_empty_is_zero():
     assert lake_retention_kpi.max_objects_per_building_hour([]) == 0
+
+
+def test_new_keys_under_prefixes_detects_a_fresh_part_file():
+    prefixes = ["building_id=b1/year=2026/month=09/day=08/hour=12/"]
+    seen: set[str] = set()
+    keys_now = ["building_id=b1/year=2026/month=09/day=08/hour=12/part-1-2.parquet"]
+
+    new = lake_retention_kpi.new_keys_under_prefixes(keys_now, prefixes, seen)
+
+    assert new == set(keys_now)
+
+
+def test_new_keys_under_prefixes_ignores_keys_outside_the_prefixes():
+    prefixes = ["building_id=b1/year=2026/month=09/day=08/hour=12/"]
+    keys_now = ["building_id=b2/year=2026/month=09/day=08/hour=12/part-1-2.parquet"]
+
+    assert lake_retention_kpi.new_keys_under_prefixes(keys_now, prefixes, set()) == set()
+
+
+def test_new_keys_under_prefixes_survives_compaction_shrinking_the_object_count():
+    # Regression for the #263 review: a count-based "total_now > seen_objects" check would report
+    # this wave's flush as failed, because compaction merged waves 1+2's two parts into a single
+    # compact object (count went 2 -> 1) and wave 3's new part only brings the count back to 2 —
+    # never past the previous peak of 2. Key-set membership still sees it: "part-3.parquet" is a
+    # name that was never present before, regardless of the running count.
+    prefix = "building_id=b1/year=2026/month=09/day=08/hour=12/"
+    prefixes = [prefix]
+
+    # Wave 1 + wave 2: two parts land (count peaks at 2).
+    after_wave2 = {f"{prefix}part-1.parquet", f"{prefix}part-2.parquet"}
+    seen = lake_retention_kpi.new_keys_under_prefixes(list(after_wave2), prefixes, set())
+    assert seen == after_wave2
+
+    # Compaction runs: the two parts are replaced by one compact object (count drops to 1).
+    after_compaction = {f"{prefix}compact-2026090812.parquet"}
+    new_from_compaction = lake_retention_kpi.new_keys_under_prefixes(list(after_compaction), prefixes, seen)
+    assert new_from_compaction == after_compaction
+    seen |= new_from_compaction
+
+    # Wave 3: a genuinely new part lands. Total count (2) does not exceed the wave-1/2 peak (2),
+    # so the old total_now > seen_objects check would have missed this — key-set tracking does not.
+    after_wave3 = after_compaction | {f"{prefix}part-3.parquet"}
+    new_from_wave3 = lake_retention_kpi.new_keys_under_prefixes(list(after_wave3), prefixes, seen)
+    assert new_from_wave3 == {f"{prefix}part-3.parquet"}

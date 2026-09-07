@@ -134,3 +134,19 @@ def objects_per_building_hour(keys: list[str]) -> dict[str, int]:
 
 def max_objects_per_building_hour(keys: list[str]) -> int:
     return max(objects_per_building_hour(keys).values(), default=0)
+
+
+def new_keys_under_prefixes(keys_now: list[str], prefixes: list[str], seen: set[str]) -> set[str]:
+    """Keys currently under any of `prefixes` that are not yet in `seen` — a wave's flush lands the
+    moment ANY such key appears, whether or not the total object count under the prefix goes up.
+
+    A prior version of this harness detected a flush by `total_now > seen_objects` (a running max
+    of the object count). That breaks once compaction runs mid-harness: compacting a partition
+    merges its several `part-*.parquet` files into one deterministically-named `compact-*.parquet`,
+    which can *lower* the object count back to (or below) a previous peak. A later wave's genuinely
+    new `part-*.parquet` then only restores the count to that same peak — never exceeding it — so
+    the count-based check reports the flush as failed even though new data landed. Tracking key-set
+    *membership* instead is immune to that: a fresh part file is a name that has never been seen
+    under this prefix before, regardless of what the total count does around it."""
+    current = {k for k in keys_now if any(k.startswith(p) for p in prefixes)}
+    return current - seen

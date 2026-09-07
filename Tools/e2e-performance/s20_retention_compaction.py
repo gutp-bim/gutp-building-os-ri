@@ -332,7 +332,13 @@ async def run(args) -> int:
               f"wave_gap={wave_gap_s}s compaction_wait={comp_wait_s}s waves={args.waves}")
 
         flush_events: list[dict] = []
-        seen_objects = 0
+        # Membership, not a running max count: compaction can merge a settled hour's several
+        # part-*.parquet into one deterministically-named compact-*.parquet mid-run, which *lowers*
+        # the object count. A later wave's genuinely new part then only restores the count to a
+        # prior peak — never past it — so a count-based "increased since last wave" check would
+        # misreport that flush as failed. See lake_retention_kpi.new_keys_under_prefixes.
+        seen_keys: set[str] = {k for k in list_lake_keys(args.minio_container, args.bucket)
+                                if any(k.startswith(prefix) for prefix in prefixes)}
         for wave in range(args.waves):
             frames = [(p.gateway_id, p.point_id, (base_timestamps[i] + timedelta(milliseconds=wave)).isoformat())
                       for i, p in enumerate(topology)]
@@ -344,10 +350,9 @@ async def run(args) -> int:
             flushed_at = None
             while True:
                 keys_now = list_lake_keys(args.minio_container, args.bucket)
-                counts = lrk.objects_per_building_hour(keys_now)
-                total_now = sum(counts.get(prefix, 0) for prefix in prefixes)
-                if total_now > seen_objects:
-                    seen_objects = total_now
+                new_keys = lrk.new_keys_under_prefixes(keys_now, prefixes, seen_keys)
+                if new_keys:
+                    seen_keys |= new_keys
                     flushed_at = time.monotonic()
                     break
                 if time.monotonic() >= wave_deadline:
