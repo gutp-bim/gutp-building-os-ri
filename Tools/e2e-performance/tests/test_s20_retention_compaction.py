@@ -8,7 +8,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -67,7 +67,18 @@ def test_spread_timestamps_stays_within_the_target_hour_and_is_strictly_increasi
     parsed = [datetime.fromisoformat(t) for t in timestamps]
     assert len(parsed) == 5
     assert parsed == sorted(parsed)
-    assert all(target_hour <= p < target_hour.replace(hour=target_hour.hour + 1) for p in parsed)
+    # timedelta, not .replace(hour=target_hour.hour + 1) — the latter raises ValueError whenever
+    # target_hour.hour == 23 (hour=24 is not a valid datetime.replace value).
+    assert all(target_hour <= p < target_hour + timedelta(hours=1) for p in parsed)
+
+
+def test_spread_timestamps_stays_within_the_target_hour_across_a_day_rollover():
+    # hour=23 is the edge case .replace(hour=target_hour.hour + 1) cannot express.
+    target_hour = datetime(2026, 9, 8, 23, 0, 0, tzinfo=timezone.utc)
+    timestamps = s20.spread_timestamps(target_hour, 5)
+
+    parsed = [datetime.fromisoformat(t) for t in timestamps]
+    assert all(target_hour <= p < target_hour + timedelta(hours=1) for p in parsed)
 
 
 def test_partition_prefix_matches_the_production_lake_partition_key_layout():
