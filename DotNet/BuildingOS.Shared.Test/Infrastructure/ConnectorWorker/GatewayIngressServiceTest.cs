@@ -8,6 +8,7 @@ using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Module;
 using BuildingOS.Shared.Test.Infrastructure.ConnectorWorker.Fakes;
 using Corvus.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BuildingOS.Shared.Test.Infrastructure.ConnectorWorker;
@@ -687,6 +688,107 @@ public class GatewayIngressServiceTest
 
         var accepted = await run();
         return (accepted, results);
+    }
+
+    // ── Timestamp fallback observability (#418) ───────────────────────────────
+    // A missing/empty/unparsable gateway timestamp silently falls back to real-clock (receive) time,
+    // mixing clock semantics with zero signal that it happened. This must be observable: a warning log
+    // (asserted via a capturing ILogger) plus a dedicated counter distinct from IngressMessages'
+    // `result` tag (a fallback is not a rejection outcome).
+
+    private const string TimestampFallbackInstrumentName = "building_os.ingress.timestamp_fallbacks";
+
+    [Fact]
+    public async Task StreamTelemetry_MissingTimestamp_IncrementsFallbackMetricAndLogsWarning()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-TS-MISSING"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-TS-MISSING", PointId = "PT001", ValueNum = 1.0 }); // no Timestamp set
+        reader.Complete();
+
+        var recordingLogger = new RecordingLogger<GatewayIngressService>();
+        var svc = new GatewayIngressService(
+            bus, cache, new IngressIdentityOptions(), new IngressHierarchyOptions(), recordingLogger);
+
+        var fallbackCount = await RunCapturingFallbackCountAsync("GW-TS-MISSING",
+            () => svc.RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1, fallbackCount);
+        Assert.Contains(recordingLogger.Warnings, w => w.Contains("GW-TS-MISSING", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_UnparsableTimestamp_IncrementsFallbackMetric()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-TS-BAD"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-TS-BAD", PointId = "PT001", ValueNum = 1.0, Timestamp = "not-a-timestamp" });
+        reader.Complete();
+
+        var fallbackCount = await RunCapturingFallbackCountAsync("GW-TS-BAD",
+            () => NewService(bus, cache).RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1, fallbackCount);
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_ValidTimestamp_DoesNotIncrementFallbackMetric()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-TS-OK"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-TS-OK", PointId = "PT001", ValueNum = 1.0, Timestamp = "2025-01-15T12:00:00Z" });
+        reader.Complete();
+
+        var fallbackCount = await RunCapturingFallbackCountAsync("GW-TS-OK",
+            () => NewService(bus, cache).RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(0, fallbackCount);
+    }
+
+    private static async Task<int> RunCapturingFallbackCountAsync(string gatewayId, Func<Task<long>> run)
+    {
+        var count = 0;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == OtelSetup.MeterName && instrument.Name == TimestampFallbackInstrumentName)
+                l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, tags, _) =>
+        {
+            string? gateway = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "gateway") gateway = tag.Value?.ToString();
+            }
+            if (gateway == gatewayId) count += (int)measurement;
+        });
+        listener.Start();
+
+        await run();
+        return count;
+    }
+
+    /// <summary>Minimal ILogger capturing Warning-level messages for assertion, without a mocking lib.</summary>
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Warnings { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning) Warnings.Add(formatter(state, exception));
+        }
     }
 
     private sealed class FakeIngressTelemetryBus : IIngressTelemetryBus
