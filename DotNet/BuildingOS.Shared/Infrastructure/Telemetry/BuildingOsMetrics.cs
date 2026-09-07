@@ -40,6 +40,19 @@ public static class BuildingOsMetrics
             description: "Messages received by an ingress transport worker, by source.");
 
     /// <summary>
+    /// #418: an ingress frame whose timestamp was missing/empty/unparsable and therefore fell back to
+    /// real-clock (receive) time instead of the gateway/device's own clock — the observability signal
+    /// for the clock-mixing gap in that fallback. Distinct from <see cref="IngressMessages"/>'s
+    /// <c>result</c> tag: a timestamp fallback is not a rejection outcome, the frame is still accepted.
+    /// Tags: source (gateway-grpc|mqtt|hono), gateway (gateway/device id, provenance-only).
+    /// </summary>
+    public static readonly Counter<long> IngressTimestampFallbacks =
+        Meter.CreateCounter<long>(
+            "building_os.ingress.timestamp_fallbacks",
+            unit: "{message}",
+            description: "Ingress frames whose timestamp fell back to receive/real-clock time, by source and gateway.");
+
+    /// <summary>
     /// #415: seconds between a raw-subject JetStream message's stream timestamp and the moment a
     /// NatsMessageSubscription consumer dequeues it — the standard consumer-lag signal, rising when
     /// ingestion falls behind publish rate (queueing/backlog) even though every message still arrives
@@ -171,6 +184,18 @@ public static class BuildingOsMetrics
             "building_os.parquet_lake.tail_merge_errors",
             unit: "{error}",
             description: "Tail-merge JetStream fetch errors (degraded to lake-only result).");
+
+    /// <summary>
+    /// #418: control-audit persistence writes (point_control_audit), by result (ok|error). The writer
+    /// swallows every persistence exception/timeout by design (an audit outage must not fail a
+    /// control), which otherwise leaves a persistent DB outage invisible except via log-grepping — a
+    /// control keeps returning 202 while zero audit rows are written. Tag: result (ok|error).
+    /// </summary>
+    public static readonly Counter<long> ControlAuditWrites =
+        Meter.CreateCounter<long>(
+            "building_os.control_audit.writes",
+            unit: "{write}",
+            description: "Control-audit persistence writes, by result (ok|error).");
 
     // Point-list push fan-out after seed (#224/push)
 

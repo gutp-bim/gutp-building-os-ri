@@ -2,6 +2,7 @@ using BuildingOS.Shared.Entities;
 using BuildingOS.Shared.Helpers;
 using BuildingOS.Shared.Infrastructure.ConnectorWorker;
 using BuildingOS.Shared.Infrastructure.Messaging;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Module;
 using Corvus.Json;
 using System.Text.Json;
@@ -68,7 +69,7 @@ public abstract class IoTIngressConnectorBase(
             return null;
         }
 
-        var timestamp = ExtractTimestamp(envelope.Payload, envelope.ReceivedAt);
+        var timestamp = ExtractTimestamp(envelope.Payload, envelope.ReceivedAt, envelope.DeviceId);
         var pointId = pointIds.First();
         var epoch = DateTime.UtcNow.ToUnixTime();
 
@@ -89,7 +90,10 @@ public abstract class IoTIngressConnectorBase(
             new ValidMessage.ValidTelemetryEntityArray([entity.AsAny])).ToString();
     }
 
-    private static string ExtractTimestamp(JsonElement payload, DateTimeOffset receivedAt)
+    // #418: falling back to the envelope's real receive time (or UtcNow) silently mixes clock
+    // semantics with the device's own timestamp on other readings — logged + metered so it is
+    // observable after the fact rather than a silent divergence.
+    private string ExtractTimestamp(JsonElement payload, DateTimeOffset receivedAt, string deviceId)
     {
         if (payload.TryGetProperty("timestamp", out var ts) && ts.ValueKind == JsonValueKind.String)
         {
@@ -97,6 +101,14 @@ public abstract class IoTIngressConnectorBase(
             if (raw != null && DateTimeOffset.TryParse(raw, out var parsed))
                 return parsed.ToString("O");
         }
+
+        logger.LogWarning(
+            "{Worker}: frame timestamp missing/unparsable for device '{DeviceId}', falling back to receive time",
+            GetType().Name, deviceId);
+        BuildingOsMetrics.IngressTimestampFallbacks.Add(
+            1,
+            new KeyValuePair<string, object?>("source", protocolTag),
+            new KeyValuePair<string, object?>("gateway", deviceId));
 
         // Fall back to envelope receivedAt; use UtcNow only if receivedAt was not set
         return (receivedAt != DateTimeOffset.MinValue ? receivedAt : DateTimeOffset.UtcNow).ToString("O");

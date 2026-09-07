@@ -1,4 +1,5 @@
 using BuildingOS.Shared.Domain.PointControl;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingOs.ApiServer.Services;
@@ -113,15 +114,23 @@ public sealed class ControlAuditWriter(
             using var scope = scopeFactory.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<IPointControlRepository>();
             await write(repository, timeout.Token).ConfigureAwait(false);
+            Count("ok");
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             logger.LogError(
                 "Control audit write for {ControlId} timed out after {Seconds}s", controlId, budget.TotalSeconds);
+            Count("error");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to write the control audit trail for {ControlId}", controlId);
+            Count("error");
         }
     }
+
+    // #418: a persistent DB outage otherwise lets control writes keep returning 202 while zero audit
+    // rows are ever written, observable only via log-grepping — this counter makes that visible.
+    private static void Count(string result) =>
+        BuildingOsMetrics.ControlAuditWrites.Add(1, new KeyValuePair<string, object?>("result", result));
 }

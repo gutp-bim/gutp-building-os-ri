@@ -90,6 +90,39 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         Assert.NotNull(entry.CompletedAt);
     }
 
+    /// <summary>
+    /// #418 investigation: the point-id decode ahead of the repository. Both Control (write —
+    /// PointControlInfo.PointId) and ControlAudit (read — ListAuditByPointAsync) apply the identical
+    /// <c>Uri.UnescapeDataString(pointId)</c> to the route value before it reaches the repository, so
+    /// a point id containing characters a client must percent-encode (space, '+', '#', non-ASCII) is
+    /// expected to round-trip identically on both sides — proving there is no write/read decode
+    /// mismatch to fix here (ASP.NET Core routing itself decodes normal %XX pairs once before binding
+    /// the route value; this test feeds the still-percent-encoded form both actions receive).
+    /// </summary>
+    [Fact]
+    public async Task Control_ThenControlAudit_WithUrlEncodableCharacters_DecodeIdentically()
+    {
+        var decodedPointId = $"PT audit+é#{Guid.NewGuid():N}";
+        var routeValue = Uri.EscapeDataString(decodedPointId);
+
+        await using var services = CreateServices();
+        await using var scope = services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<RelationalDbContext>().Database.MigrateAsync();
+
+        var auditWriter = AuditWriter(services);
+        var controller = BuildController(scope, auditWriter, decodedPointId, out var publisher);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        Assert.IsType<AcceptedResult>(await controller.Control(
+            routeValue, new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None));
+
+        var audit = await controller.ControlAudit(routeValue, limit: 10, CancellationToken.None);
+        var entry = Assert.Single(Assert.IsType<PointControlAuditResponse[]>(audit.Value));
+
+        Assert.Equal(decodedPointId, entry.PointId);
+    }
+
     [Fact]
     public async Task GatewayOffline_LeavesAFailedAuditRow_NotAPermanentlyPendingOne()
     {

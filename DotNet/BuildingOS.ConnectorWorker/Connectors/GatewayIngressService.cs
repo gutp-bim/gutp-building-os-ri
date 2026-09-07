@@ -165,9 +165,9 @@ public sealed class GatewayIngressService(
         return true;
     }
 
-    private static string BuildValidatedTelemetry(TelemetryFrame frame, PointMetadata meta)
+    private string BuildValidatedTelemetry(TelemetryFrame frame, PointMetadata meta)
     {
-        var timestamp = NormalizeTimestamp(frame.Timestamp);
+        var timestamp = NormalizeTimestamp(frame.Timestamp, frame.GatewayId);
 
         var dataProps = new List<JsonObjectProperty>
         {
@@ -213,11 +213,26 @@ public sealed class GatewayIngressService(
 
     // A non-empty, parseable timestamp is normalized to round-trip ISO-8601; empty or unparseable
     // falls back to receive time so a malformed gateway timestamp cannot fail downstream date parsing.
-    private static string NormalizeTimestamp(string raw)
-        => !string.IsNullOrEmpty(raw)
-            && DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
-            ? parsed.ToString("O", CultureInfo.InvariantCulture)
-            : DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    // #418: that fallback silently mixes clock semantics (the point's later readings carry the
+    // gateway's own clock, this one carries ours) — logged + metered so it is observable after the
+    // fact rather than a silent divergence.
+    private string NormalizeTimestamp(string raw, string gatewayId)
+    {
+        if (!string.IsNullOrEmpty(raw) &&
+            DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
+        {
+            return parsed.ToString("O", CultureInfo.InvariantCulture);
+        }
+
+        logger.LogWarning(
+            "Ingress: frame timestamp missing/unparsable for gateway '{Gateway}', falling back to receive time",
+            gatewayId);
+        BuildingOsMetrics.IngressTimestampFallbacks.Add(
+            1,
+            new KeyValuePair<string, object?>("source", "gateway-grpc"),
+            new KeyValuePair<string, object?>("gateway", gatewayId));
+        return DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+    }
 
     private static void Count(string gatewayId, string result) =>
         BuildingOsMetrics.IngressMessages.Add(
