@@ -39,6 +39,18 @@ public static class BuildingOsMetrics
             unit: "{message}",
             description: "Messages received by an ingress transport worker, by source.");
 
+    /// <summary>
+    /// #415: seconds between a raw-subject JetStream message's stream timestamp and the moment a
+    /// NatsMessageSubscription consumer dequeues it — the standard consumer-lag signal, rising when
+    /// ingestion falls behind publish rate (queueing/backlog) even though every message still arrives
+    /// with HTTP 200 and no error metric moves. Tag: subject.
+    /// </summary>
+    public static readonly Histogram<double> IngestionLag =
+        Meter.CreateHistogram<double>(
+            "building_os.ingestion.lag",
+            unit: "s",
+            description: "Seconds between a raw-subject message's stream timestamp and consumer dequeue.");
+
     /// <summary>Device control requests handled. Tags: handler, result.</summary>
     public static readonly Counter<long> ControlRequests =
         Meter.CreateCounter<long>(
