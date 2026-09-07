@@ -64,7 +64,7 @@ Building --sbco:hasPart--> Level <--sbco:name / sbco:floor-- EquipmentExt --sbco
 The final form is retained for backward compatibility. In the direct-Level form, point and device
 detail responses contain the Level as `Floor` and leave `Space` empty.
 
-[^site]: `sbco:Site` は SBCO の最上位コンテナ（敷地）。旧 `bos:` 実装には対応クラスがなかった。SBCO ↔ 標準の意味的等価性は HITL 確認対象。
+[^site]: `sbco:Site` は SBCO の最上位コンテナ（敷地）。旧 `bos:` 実装には対応クラスがなかった。SBCO ↔ 標準の意味的等価性は HITL 確認対象。**意図的に internal C# モデル / `OxiGraphIngestMaterializer` の `ClassRules` へは未マップ**（#416 で「バグでは」と確認依頼があったが、下記§5の注記どおり仕様どおり）— Building OS の資源階層は Building を最上位として扱う設計であり、`Site` を返す `IDigitalTwinDatabase` API・`GET /sites`・authorization `resourceType` はいずれも存在しない。標準ツール（SBCO RDF exporter 等）が出力する `rec:Site`/`sbco:Site` ノードは取り込まれた RDF グラフ上には残る（`sbco:hasPart`/`sbco:name` は他の property rule で materialize される）が、rdf:type だけは意図的に付与しない。
 [^1]: IFC の `IfcSpace` は廊下・吹き抜けなど部屋以外の空間も包含する。Brick の `brick:Room` と `brick:Zone` も区別があるが、SBCO の `sbco:Room`（および旧 `bos:Room`）は REC の `rec:Room` に準拠。
 
 ### 機器・ポイント
@@ -156,7 +156,7 @@ Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` を文脈で使�
 
 | 内部モデル | SBCO クラス | 備考 |
 |-----------|------------|------|
-| （最上位コンテナ） | `sbco:Site` | TTL 最上位。内部 C# モデルには未マップ |
+| （最上位コンテナ） | `sbco:Site` | TTL 最上位。内部 C# モデルには未マップ（意図的、[^site] 参照。`OxiGraphIngestMaterializer` の `ClassRules` に `rec:Site`→`sbco:Site` を加えない） |
 | `Building` | `sbco:Building` | Architecture→Space サブクラス（Ext なし） |
 | `Floor` | `sbco:Level` | 同上 |
 | `Space` | `sbco:Room` | `sbco:SpaceExt` は存在しないため `Room` を使用 |
