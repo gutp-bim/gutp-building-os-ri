@@ -30,7 +30,7 @@ public readonly partial struct Dtdl
             if (level > ValidationLevel.Basic)
             {
                 result = result.UsingStack();
-                result = result.PushSchemaLocation("E:/work/u-tokyo/building-os/building_OS_test/DotNet/BuildingOS.Shared/Defines/Schemas/dtdl.json#/definitions/Relationship");
+                result = result.PushSchemaLocation("DotNet/BuildingOS.Shared/Defines/Schemas/dtdl.json#/definitions/Relationship");
             }
 
             result = result.UsingEvaluatedProperties();

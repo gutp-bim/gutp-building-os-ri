@@ -30,7 +30,7 @@ public readonly partial struct ElectricDeviceMessageJson
             if (level > ValidationLevel.Basic)
             {
                 result = result.UsingStack();
-                result = result.PushSchemaLocation("E:/work/u-tokyo/building-os/building_OS_test/DotNet/BuildingOS.Shared/Defines/Schemas/electric-device-message.json#/$defs/electricDeviceTelemetry");
+                result = result.PushSchemaLocation("DotNet/BuildingOS.Shared/Defines/Schemas/electric-device-message.json#/$defs/electricDeviceTelemetry");
             }
 
             result = result.UsingEvaluatedProperties();
