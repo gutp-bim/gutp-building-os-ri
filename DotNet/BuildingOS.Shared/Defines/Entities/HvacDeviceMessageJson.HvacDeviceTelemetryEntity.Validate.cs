@@ -30,7 +30,7 @@ public readonly partial struct HvacDeviceMessageJson
             if (level > ValidationLevel.Basic)
             {
                 result = result.UsingStack();
-                result = result.PushSchemaLocation("E:/work/u-tokyo/building-os/building_OS_test/DotNet/BuildingOS.Shared/Defines/Schemas/hvac-device-message.json#/$defs/hvacDeviceTelemetry");
+                result = result.PushSchemaLocation("DotNet/BuildingOS.Shared/Defines/Schemas/hvac-device-message.json#/$defs/hvacDeviceTelemetry");
             }
 
             result = result.UsingEvaluatedProperties();
