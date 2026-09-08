@@ -7,7 +7,7 @@ workerRole: all
 
 image:
   repository: ghcr.io/gutp-bim/buildingos-connector-worker
-  tag: sha-46cee69
+  tag: sha-1ef0775
   pullPolicy: IfNotPresent
 
 # Credentials for pulling from the registry above. GHCR packages owned by an
