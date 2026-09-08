@@ -112,6 +112,13 @@ case "$AXIS" in
       # s20_retention_compaction.sh を直接使う。POINTS/BUILDINGS/GATEWAYS/WAVES/RETENTION_DAYS の
       # 既定値は s20_retention_compaction.sh 側の一箇所でのみ持つ（E10 と同じ理由）。
       bash "$PERF/s20_retention_compaction.sh" "$OUT/E11-retention" || true ;;
+  E12) command -v docker >/dev/null || gap "docker 未導入（gRPC ingress を起動できない）"
+      command -v k6 >/dev/null || gap "k6 未導入（control 負荷を生成できない）"
+      # 混在負荷ベンチマーク（#401, #399 子②, capped-run）。フル run-all.sh には含めない —
+      # 個別実行（bash e2e/runner/run-axis.sh E12 --out ...）または
+      # s21_mixed_load_benchmark.sh を直接使う。ROLE_MODE/DURATION_S/INGEST_RATE 等の既定値は
+      # s21_mixed_load_benchmark.sh 側の一箇所でのみ持つ（E10/E11 と同じ理由）。
+      bash "$PERF/s21_mixed_load_benchmark.sh" "$OUT/E12-mixed-load" || true ;;
   E9) command -v yarn >/dev/null || gap "yarn 未導入（web-client Playwright を実行できない）"
       # 運用者ユーザビリティ（#159）: web-client の Playwright(route-mock) が axe/鮮度表示時間などを
       # 計測して {axis:E9_operator_usability, metrics} を $OUT/E9.json に出力（docker 不要）。

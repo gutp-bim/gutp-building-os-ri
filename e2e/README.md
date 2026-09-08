@@ -63,3 +63,4 @@ docker compose）。CI ではなくローカルまたは専用ベンチ機で実
 | E8 resilience | 🟢 計測済 | `s16`（connector 停止→再起動）。data_loss_under_outage 0.0 ✅ / RTO 4.5s（report）。pure 計算 `resilience_metrics` は TDD。graceful degradation は follow-up |
 | E10 endurance soak | 🟡 個別実行のみ | `s19_endurance_soak.py`。数時間かかるため既定 `ONLY` には含まない。[E10 scenario](scenarios/E10-endurance-soak.md) に 24h×2本の実施記録あり |
 | E11 lake retention scale | 🟡 個別実行のみ | `s20_retention_compaction.py`（#263, capped-run）。flush/compaction 成功率・latency、保持境界分類、ILM ルール実適用確認。真の複数日保持ウィンドウは capped-run のスコープ外 — [E11 scenario](scenarios/E11-lake-retention-scale.md) 参照 |
+| E12 mixed-load benchmark | 🟡 個別実行のみ | `s21_mixed_load_benchmark.py`（#401, #399 子②, capped-run）。compaction 中/非中の ingest latency 劣化比、並行 telemetry 負荷での control RTT 劣化比、`WORKER_ROLE` all/split の #399 判定。クライアント/サーバ同一ホストの交絡は disclosed — [E12 scenario](scenarios/E12-mixed-load-benchmark.md) 参照 |
