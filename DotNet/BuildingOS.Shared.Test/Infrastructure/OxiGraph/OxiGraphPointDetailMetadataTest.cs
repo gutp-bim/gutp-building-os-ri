@@ -85,7 +85,7 @@ public class OxiGraphPointDetailMetadataTest
       ""ptName"": {""type"":""literal"",""value"":""On/Off Status""},
       ""ptSpec"": {""type"":""literal"",""value"":""Status""},
       ""ptType"": {""type"":""literal"",""value"":""On_Off_Status""},
-      ""ptGw"": {""type"":""literal"",""value"":""GW-THX-001""} }
+      ""ptGw"": {""type"":""literal"",""value"":""GW-EXAMPLE-001""} }
   ]}}");
 
         var point = await db.GetPoint("172_31_105_17-3002");
@@ -93,7 +93,7 @@ public class OxiGraphPointDetailMetadataTest
         Assert.NotNull(point);
         Assert.Equal("Status", point!.Specification);
         Assert.Equal("On_Off_Status", point.Type);
-        Assert.Equal("GW-THX-001", point.GatewayName);
+        Assert.Equal("GW-EXAMPLE-001", point.GatewayName);
     }
 
     [Fact]
@@ -157,13 +157,13 @@ public class OxiGraphPointDetailMetadataTest
       ""devDt"": {""type"":""uri"",""value"":""urn:dtid:dev1""},
       ""devId"": {""type"":""literal"",""value"":""AHU-1""},
       ""devName"": {""type"":""literal"",""value"":""AHU 1""},
-      ""devBuilding"": {""type"":""literal"",""value"":""THX""} }
+      ""devBuilding"": {""type"":""literal"",""value"":""EXAMPLE-BLDG""} }
   ]}}");
 
         var detail = await db.GetPointDetailByPointId("PT001");
 
         Assert.NotNull(detail);
-        Assert.Equal("THX", detail!.Device?.BuildingName);
+        Assert.Equal("EXAMPLE-BLDG", detail!.Device?.BuildingName);
     }
 
     // ListPointDetails is queried BY building, so the name is known without extra reachability
@@ -179,14 +179,14 @@ public class OxiGraphPointDetailMetadataTest
       ""devDt"": {""type"":""uri"",""value"":""urn:dtid:dev1""},
       ""devId"": {""type"":""literal"",""value"":""AHU-1""},
       ""devName"": {""type"":""literal"",""value"":""AHU 1""},
-      ""devBuilding"": {""type"":""literal"",""value"":""THX""} }
+      ""devBuilding"": {""type"":""literal"",""value"":""EXAMPLE-BLDG""} }
   ]}}");
 
         var details = await db.ListPointDetails("urn:dtid:b1");
 
         Assert.Contains("devBuilding", SentSparql(handler.LastRequestBody!));
         Assert.Single(details);
-        Assert.Equal("THX", details[0].Device?.BuildingName);
+        Assert.Equal("EXAMPLE-BLDG", details[0].Device?.BuildingName);
     }
 
     // The alarm/warn thresholds were projected by the device→points list only, so the same point

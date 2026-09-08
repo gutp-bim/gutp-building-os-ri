@@ -53,7 +53,7 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
     // Why this is three queries and must not be merged back into one (#371).
     //
     // The single bulk query this replaces was QUADRATIC in point count: 0.25 s at 100 points, 7.6 s
-    // at 1,000, 23 s at 1,865 (the THX scale), 57 s at 3,000 — far enough that under load it reached
+    // at 1,000, 23 s at 1,865 (#297's target scale), 57 s at 3,000 — far enough that under load it reached
     // the HttpClient 100 s default and the load failed outright, stalling every ingress stream parked
     // behind the shared cache load.
     //

@@ -167,7 +167,7 @@ POINT_IDS=... DURATION=20s VUS=5 ONLY=E2,E3,E4,E5,E6,E7 SCALE=small \
 |---|---|
 | run id | `soak-20260823223433`（gRPC GatewayIngress 経路） |
 | 期間 | 2026-08-23 22:34 UTC 〜 2026-08-24 03:37 UTC（5.0h） |
-| 負荷 | 1,865 点 / 約 6.22 pt/s（#297 の THX スケール踏襲）、flush/compaction はアプリ既定値のまま |
+| 負荷 | 1,865 点 / 約 6.22 pt/s（#297 の想定スケール踏襲）、flush/compaction はアプリ既定値のまま |
 | API Server | 経路外のため未起動（gRPC ingress は connector-worker → NATS → Parquet writer で完結し、
   API Server を経由しない。ローカルの macOS AirPlay Receiver がポート 5000 を占有していたため実務上も好都合） |
 

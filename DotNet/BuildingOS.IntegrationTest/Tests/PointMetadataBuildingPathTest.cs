@@ -42,18 +42,18 @@ public class PointMetadataBuildingPathTest(OxiGraphFixture oxiGraph)
         <urn:test:pt-1> a sbco:PointExt ; sbco:id "PT001" ; sbco:name "Room Temp" .
         """;
 
-    // Path B: no Room anywhere; equipment joins its Level through the sbco:floor literal. This is the
-    // THX shape, and the one the old literal-based gate rejected outright — note the point carries no
+    // Path B: no Room anywhere; equipment joins its Level through the sbco:floor literal. This is
+    // the shape the old literal-based gate rejected outright — note the point carries no
     // sbco:building.
     private const string FloorJoinTtl = """
         @prefix sbco: <https://www.sbco.or.jp/ont/> .
-        <urn:test:bldg-thx> a sbco:Building ; sbco:id "THX" ; sbco:name "THX" ;
+        <urn:test:bldg-example> a sbco:Building ; sbco:id "EXAMPLE" ; sbco:name "EXAMPLE" ;
           sbco:hasPart <urn:test:level-7f> .
         <urn:test:level-7f> a sbco:Level ; sbco:id "7F" ; sbco:name "7F" .
-        <urn:test:dev-thx> a sbco:EquipmentExt ; sbco:id "172_31_105_17" ; sbco:name "AHU" ;
+        <urn:test:dev-example> a sbco:EquipmentExt ; sbco:id "172_31_105_17" ; sbco:name "AHU" ;
           sbco:floor "7F" ;
-          sbco:hasPoint <urn:test:pt-thx> .
-        <urn:test:pt-thx> a sbco:PointExt ; sbco:id "172_31_105_17-3002" ; sbco:name "On/Off Status" .
+          sbco:hasPoint <urn:test:pt-example> .
+        <urn:test:pt-example> a sbco:PointExt ; sbco:id "172_31_105_17-3002" ; sbco:name "On/Off Status" .
         """;
 
     // A stale/mistyped literal naming a building that contains nothing. The old gate accepted this.

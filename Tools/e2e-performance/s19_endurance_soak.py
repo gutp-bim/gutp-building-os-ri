@@ -1128,8 +1128,8 @@ def main() -> int:
     ap.add_argument("--out", default="results/E10")
     ap.add_argument("--duration-hours", type=float, default=4.0)
     ap.add_argument("--rate", type=float, default=6.2167,
-                     help="target frames/sec (aggregate; default matches #297's 1865pt/300s THX cadence)")
-    ap.add_argument("--points", type=int, default=1865, help="distinct points (default: #297 THX scale)")
+                     help="target frames/sec (aggregate; default matches #297's 1865pt/300s target cadence)")
+    ap.add_argument("--points", type=int, default=1865, help="distinct points (default: #297 target scale)")
     ap.add_argument("--chunk-seconds", type=int, default=300,
                      help="gRPC stream re-open cadence; 0 = one single stream for the whole run "
                           "(the #370 A/B control against the 300s re-open cadence)")

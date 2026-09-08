@@ -189,25 +189,25 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.Equal("bldg-1", detail!.Device?.BuildingName);
     }
 
-    // The THX shape: Building → Level, equipment joined to the level by the sbco:floor literal, and
-    // no Room anywhere. This repository treats Room/locatedIn as optional (ListPointDetails already
-    // joins through the literal), so requiring the spatial chain would leave BuildingName null for
-    // every twin modelled this way — which is most of them.
+    // The floor-literal-only shape: Building → Level, equipment joined to the level by the
+    // sbco:floor literal, and no Room anywhere. This repository treats Room/locatedIn as optional
+    // (ListPointDetails already joins through the literal), so requiring the spatial chain would
+    // leave BuildingName null for every twin modelled this way — which is most of them.
     [Fact]
     public async Task GetPointDetailByPointId_ResolvesBuildingWithoutRooms()
     {
         const string roomlessTtl = """
             @prefix sbco: <https://www.sbco.or.jp/ont/> .
-            <https://www.sbco.or.jp/ont/resource/bldg-thx> a sbco:Building ;
-              sbco:id "THX" ; sbco:name "THX" ;
-              sbco:hasPart <https://www.sbco.or.jp/ont/resource/level-thx-7f> .
-            <https://www.sbco.or.jp/ont/resource/level-thx-7f> a sbco:Level ;
+            <https://www.sbco.or.jp/ont/resource/bldg-example> a sbco:Building ;
+              sbco:id "EXAMPLE" ; sbco:name "EXAMPLE" ;
+              sbco:hasPart <https://www.sbco.or.jp/ont/resource/level-example-7f> .
+            <https://www.sbco.or.jp/ont/resource/level-example-7f> a sbco:Level ;
               sbco:id "7F" ; sbco:name "7F" .
-            <https://www.sbco.or.jp/ont/resource/dev-thx-1> a sbco:EquipmentExt ;
+            <https://www.sbco.or.jp/ont/resource/dev-example-1> a sbco:EquipmentExt ;
               sbco:id "172_31_105_17" ; sbco:name "AHU" ;
               sbco:floor "7F" ;
-              sbco:hasPoint <https://www.sbco.or.jp/ont/resource/pt-thx-3002> .
-            <https://www.sbco.or.jp/ont/resource/pt-thx-3002> a sbco:PointExt ;
+              sbco:hasPoint <https://www.sbco.or.jp/ont/resource/pt-example-3002> .
+            <https://www.sbco.or.jp/ont/resource/pt-example-3002> a sbco:PointExt ;
               sbco:id "172_31_105_17-3002" ; sbco:name "On/Off Status" ;
               sbco:pointType "On_Off_Status" ; sbco:pointSpecification "Status" ;
               sbco:writable "false" .
@@ -220,10 +220,10 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         var detail = await db.GetPointDetailByPointId("172_31_105_17-3002");
 
         Assert.NotNull(detail);
-        Assert.Equal("THX", detail!.Device?.BuildingName);
+        Assert.Equal("EXAMPLE", detail!.Device?.BuildingName);
         Assert.Equal("7F", detail.Floor?.Name);
         // The same point's type/specification must survive the detail path too — this is the exact
-        // point from the THX report.
+        // point shape that motivated this fix.
         Assert.Equal("On_Off_Status", detail.Point.Type);
         Assert.Equal("Status", detail.Point.Specification);
         // No Room in this twin: Space stays blank rather than the query returning nothing at all.
@@ -235,16 +235,16 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
     {
         const string directLevelTtl = """
             @prefix sbco: <https://www.sbco.or.jp/ont/> .
-            <https://www.sbco.or.jp/ont/resource/bldg-thx> a sbco:Building ;
-              sbco:id "THX" ; sbco:name "THX" ;
-              sbco:hasPart <https://www.sbco.or.jp/ont/resource/level-thx-3f> .
-            <https://www.sbco.or.jp/ont/resource/level-thx-3f> a sbco:Level ;
+            <https://www.sbco.or.jp/ont/resource/bldg-example> a sbco:Building ;
+              sbco:id "EXAMPLE" ; sbco:name "EXAMPLE" ;
+              sbco:hasPart <https://www.sbco.or.jp/ont/resource/level-example-3f> .
+            <https://www.sbco.or.jp/ont/resource/level-example-3f> a sbco:Level ;
               sbco:id "3F" ; sbco:name "3F" .
-            <https://www.sbco.or.jp/ont/resource/dev-thx-1> a sbco:EquipmentExt ;
+            <https://www.sbco.or.jp/ont/resource/dev-example-1> a sbco:EquipmentExt ;
               sbco:id "dev-1" ; sbco:name "Light" ;
-              sbco:locatedIn <https://www.sbco.or.jp/ont/resource/level-thx-3f> ;
-              sbco:hasPoint <https://www.sbco.or.jp/ont/resource/pt-thx-1> .
-            <https://www.sbco.or.jp/ont/resource/pt-thx-1> a sbco:PointExt ;
+              sbco:locatedIn <https://www.sbco.or.jp/ont/resource/level-example-3f> ;
+              sbco:hasPoint <https://www.sbco.or.jp/ont/resource/pt-example-1> .
+            <https://www.sbco.or.jp/ont/resource/pt-example-1> a sbco:PointExt ;
               sbco:id "pt-1" ; sbco:name "Energy" ; sbco:writable "false" .
             """;
         await oxiGraph.Client.ReplaceDefaultGraphAsync(directLevelTtl);
@@ -254,7 +254,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         var detail = await db.GetPointDetailByPointId("pt-1");
 
         Assert.NotNull(detail);
-        Assert.Equal("THX", detail!.Device?.BuildingName);
+        Assert.Equal("EXAMPLE", detail!.Device?.BuildingName);
         Assert.Equal("3F", detail.Floor?.Name);
         Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
     }

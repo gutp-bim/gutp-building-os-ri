@@ -22,8 +22,8 @@ public class OxiGraphIngestMaterializerTest(OxiGraphFixture oxiGraph)
     public Task InitializeAsync() => oxiGraph.ClearAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    // Mirrors the existing "THX shape" fixture in OxiGraphImportTest.cs (Building → Level, equipment
-    // joined by the sbco:floor literal, no Room) but with the hierarchy classes/relations expressed in
+    // Mirrors the existing floor-literal-only fixture in OxiGraphImportTest.cs (Building → Level,
+    // equipment joined by the sbco:floor literal, no Room) but with the hierarchy classes/relations expressed in
     // REC vocabulary — exactly what the canonical pipeline actually emits today. EquipmentExt/PointExt
     // and their SBCO-specific fields stay sbco: (the pipeline emits those as sbco: directly; they are
     // not part of the REC/Brick materialization gap). sbco:building is the denormalized literal #292's

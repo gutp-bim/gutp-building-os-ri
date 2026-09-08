@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { PointInfo } from "./point-info";
 
-// THX で実際に観測された形: twin にメタデータはあるのに、API が返さないので UI には届かない。
+// 実運用で実際に観測された形: twin にメタデータはあるのに、API が返さないので UI には届かない。
 // このフィクスチャが手で `buildingName` / `kind` / `specification` を与えていたため、
 // バックエンドが null を返している事実をフロントのテストは一切捕捉できていなかった (#294)。
 //
