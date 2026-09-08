@@ -130,7 +130,8 @@ def test_build_kpi_summary_shapes_the_canonical_axis_metrics_envelope():
     ingress_metrics = {"ingest_e2e_during_compaction_p95_ms": 10.0, "ingest_e2e_not_during_compaction_p95_ms": 5.0}
     control_metrics = {"control_rtt_baseline_p95_ms": 20.0, "control_rtt_concurrent_p95_ms": 25.0}
     resource_metrics = {"ingest_cpu_high_ratio": 0.5, "consumer_pending_slope_per_sec": 0.1}
-    decision = {"split_recommended": False, "conditions": {}}
+    decision = {"split_recommended": False, "measurable_conditions_met": 0,
+                "measurable_conditions_evaluated": 4, "conditions": {}}
 
     result = s21.build_kpi_summary(config, ingress_metrics, control_metrics, resource_metrics, decision)
 
@@ -141,18 +142,27 @@ def test_build_kpi_summary_shapes_the_canonical_axis_metrics_envelope():
     assert result["metrics"]["control_rtt_baseline_p95_ms"] == 20.0
     assert result["metrics"]["ingest_cpu_high_ratio"] == 0.5
     assert result["split_decision"] == decision
+    # gate.py (e2e/runner/gate.py) only ever reads a result JSON's `metrics` dict — kpi-thresholds.yaml
+    # gates the split-decision summary too, so it must also be flattened in there, not left reachable
+    # only via the richer `split_decision` object.
+    assert result["metrics"]["split_decision_split_recommended"] is False
+    assert result["metrics"]["split_decision_measurable_conditions_met"] == 0
+    assert result["metrics"]["split_decision_measurable_conditions_evaluated"] == 4
 
 
 def test_build_kpi_summary_metric_dicts_do_not_collide():
-    # A regression guard: the four metric sources must merge into one namespace without one
-    # silently overwriting another (they use disjoint key prefixes by construction).
+    # A regression guard: the metric sources must merge into one namespace without one silently
+    # overwriting another (they use disjoint key prefixes by construction).
     config = {}
-    result = s21.build_kpi_summary(
-        config,
-        {"a": 1}, {"b": 2}, {"c": 3},
-        {"split_recommended": None, "conditions": {}},
-    )
-    assert result["metrics"] == {"a": 1, "b": 2, "c": 3}
+    decision = {"split_recommended": None, "measurable_conditions_met": 0,
+                "measurable_conditions_evaluated": 0, "conditions": {}}
+    result = s21.build_kpi_summary(config, {"a": 1}, {"b": 2}, {"c": 3}, decision)
+    assert result["metrics"] == {
+        "a": 1, "b": 2, "c": 3,
+        "split_decision_split_recommended": None,
+        "split_decision_measurable_conditions_met": 0,
+        "split_decision_measurable_conditions_evaluated": 0,
+    }
 
 
 # ── Markdown report rendering ────────────────────────────────────────────────────────────────────────
