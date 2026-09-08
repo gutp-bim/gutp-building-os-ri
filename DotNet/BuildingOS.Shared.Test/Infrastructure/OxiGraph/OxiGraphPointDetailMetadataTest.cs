@@ -104,7 +104,7 @@ public class OxiGraphPointDetailMetadataTest
     { ""ptDt"": {""type"":""uri"",""value"":""urn:dtid:pt1""},
       ""ptId"": {""type"":""literal"",""value"":""PT-MQTT-001""},
       ""ptName"": {""type"":""literal"",""value"":""Room Temperature""},
-      ""ptLocalId"": {""type"":""literal"",""value"":""takenaka.co.jp/Tokyo/THX/HVAC/temp/R""},
+      ""ptLocalId"": {""type"":""literal"",""value"":""example-hvac-gw/floor1/HVAC/temp/R""},
       ""ptUnit"": {""type"":""literal"",""value"":""Cel""},
       ""ptInterval"": {""type"":""literal"",""value"":""300""} }
   ]}}");
@@ -112,7 +112,7 @@ public class OxiGraphPointDetailMetadataTest
         var point = await db.GetPoint("PT-MQTT-001");
 
         Assert.NotNull(point);
-        Assert.Equal("takenaka.co.jp/Tokyo/THX/HVAC/temp/R", point!.LocalId);
+        Assert.Equal("example-hvac-gw/floor1/HVAC/temp/R", point!.LocalId);
         Assert.Equal("mqtt", point.Protocol); // inferred from the concrete local-id shape
         Assert.Equal("Cel", point.Unit);
         Assert.Equal(300, point.Interval);
