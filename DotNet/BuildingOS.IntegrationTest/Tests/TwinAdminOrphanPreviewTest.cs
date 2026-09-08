@@ -54,9 +54,9 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
     private const string NoHierarchyTtl = """
         @prefix sbco: <https://www.sbco.or.jp/ont/> .
 
-        <urn:test:thx-eq> a sbco:EquipmentExt ; sbco:id "THX-EQ" ; sbco:name "THX" ;
-          sbco:hasPoint <urn:test:thx-pt> .
-        <urn:test:thx-pt> a sbco:PointExt ; sbco:id "THX-PT" ; sbco:name "THX Point" .
+        <urn:test:example-eq> a sbco:EquipmentExt ; sbco:id "EXAMPLE-EQ" ; sbco:name "EXAMPLE" ;
+          sbco:hasPoint <urn:test:example-pt> .
+        <urn:test:example-pt> a sbco:PointExt ; sbco:id "EXAMPLE-PT" ; sbco:name "Example Point" .
         """;
 
     // Standard upstream input: hierarchy and containment use REC, while Building OS-specific
@@ -135,7 +135,7 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
 
         Assert.Equal(1, preview.OrphanCount);
         var orphan = Assert.Single(preview.Orphans);
-        Assert.Equal("urn:test:thx-pt", orphan.ResourceId);
+        Assert.Equal("urn:test:example-pt", orphan.ResourceId);
         Assert.Equal(TwinOrphanReasons.NoRoom, orphan.Reason);
         Assert.False(preview.Valid);
     }

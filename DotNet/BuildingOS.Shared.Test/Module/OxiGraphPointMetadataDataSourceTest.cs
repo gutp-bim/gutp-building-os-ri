@@ -262,8 +262,8 @@ public class OxiGraphPointMetadataDataSourceTest
 
     /// <summary>
     /// Mirrors <c>PointMetadataBuildingPathTest.FloorLiteralJoin_IsReachable_EvenWithoutTheBuildingLiteral</c>
-    /// — the THX shape. Reachable through the <c>sbco:floor</c> literal join with no <c>sbco:building</c>
-    /// literal to show for it: HasBuildingPath must be true and Building must stay empty.
+    /// — the floor-literal-only shape. Reachable through the <c>sbco:floor</c> literal join with no
+    /// <c>sbco:building</c> literal to show for it: HasBuildingPath must be true and Building must stay empty.
     /// </summary>
     [Fact]
     public void Merge_ReachableWithoutABuildingLiteral_IsStillABuildingPath()
@@ -332,7 +332,7 @@ public class OxiGraphPointMetadataDataSourceTest
 
     /// <summary>
     /// All three #291/#292 reachability branches must survive the split: the Room spatial chain, the
-    /// direct Level location (#319), and the <c>sbco:floor</c> literal join (the THX shape). Any path
+    /// direct Level location (#319), and the <c>sbco:floor</c> literal join (the floor-literal-only shape). Any path
     /// counts, so losing one silently turns reachable points into orphans at strict ingress.
     /// </summary>
     [Fact]
