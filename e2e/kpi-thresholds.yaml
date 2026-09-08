@@ -142,6 +142,60 @@ axes:
     retention_ilm_rule_applied:  { op: report, unit: bool, note: "LAKE_RETENTION_DAYS の ILM ルールが実際に MinIO に適用されているかの確認（#263 の public storage contract ギャップ）。mc の応答が解釈できない場合は SKIP（未適用と誤判定しない）" }
     retention_ilm_days_configured: { op: report, unit: days }
 
+  # E12: 混在負荷ベンチマーク（#401, #399 子②）。compaction 中/非中で分けた ingress p95/p99 と、
+  # telemetry 負荷あり/なしでの control RTT を比較し、role 分割（WORKER_ROLE, docker-compose.roles.yaml）
+  # の要否を #399 の 6 条件（測定可能な 1-4 のみ）に対して判定する。run-all.sh の既定 ONLY には含めない
+  # （E10/E11 と同じ理由 — 数分かかる）— `ONLY=E12 bash e2e/runner/run-axis.sh E12` または
+  # s21_mixed_load_benchmark.sh を個別実行する。クライアント/サーバ同一ホストの交絡は
+  # scenarios/E12-mixed-load-benchmark.md に明記（worker-role-split-measurement.md と同じ限界）。
+  E12_mixed_load_benchmark:
+    # 本軸の核心測定（#399 条件 2）。compaction 中/非中の ingress p95・p99 の比率。しきい値は
+    # 「明確な劣化」の目安として 1.5 倍（非中の 1.5 倍を超えたら劣化ありと見る）。
+    ingest_e2e_compaction_p95_degradation_ratio: { op: lte, value: 1.5, unit: ratio,
+      note: "compaction 中 p95 ÷ 非中 p95。両バケットにサンプルが無ければ SKIP" }
+    ingest_e2e_compaction_p99_degradation_ratio: { op: lte, value: 1.5, unit: ratio,
+      note: "compaction 中 p99 ÷ 非中 p99" }
+    ingest_e2e_during_compaction_p50_ms:        { op: report, unit: ms }
+    ingest_e2e_during_compaction_p95_ms:        { op: report, unit: ms }
+    ingest_e2e_during_compaction_p99_ms:        { op: report, unit: ms }
+    ingest_e2e_during_compaction_samples:       { op: report, unit: count }
+    ingest_e2e_not_during_compaction_p50_ms:    { op: report, unit: ms }
+    ingest_e2e_not_during_compaction_p95_ms:    { op: report, unit: ms }
+    ingest_e2e_not_during_compaction_p99_ms:    { op: report, unit: ms }
+    ingest_e2e_not_during_compaction_samples:   { op: report, unit: count }
+    # #399 条件 4。telemetry 負荷ありでの control RTT が、無負荷の何倍まで許容できるかの単一ゲート
+    # （p95）。p99 は参考値として report のみに留める。
+    control_rtt_p95_degradation_ratio:          { op: lte, value: 1.5, unit: ratio,
+      note: "並行 telemetry 負荷あり p95 ÷ 無負荷 p95。両側にサンプルが無ければ SKIP" }
+    control_rtt_p99_degradation_ratio:          { op: report, unit: ratio }
+    control_rtt_baseline_p50_ms:                { op: report, unit: ms }
+    control_rtt_baseline_p95_ms:                { op: report, unit: ms }
+    control_rtt_baseline_p99_ms:                { op: report, unit: ms }
+    control_rtt_baseline_samples:               { op: report, unit: count }
+    control_rtt_concurrent_p50_ms:              { op: report, unit: ms }
+    control_rtt_concurrent_p95_ms:              { op: report, unit: ms }
+    control_rtt_concurrent_p99_ms:              { op: report, unit: ms }
+    control_rtt_concurrent_samples:              { op: report, unit: count }
+    # #399 条件 1・3 の裏付け系列（GC ではなく CPU/JetStream writer lag だが、E10 の GC/lag 系列と
+    # 同じ「情報値として記録、gate は不変条件のみ」という置き方を踏襲）。
+    ingest_cpu_high_ratio:                       { op: report, unit: ratio,
+      note: "ingest ロール CPU が --ingest-cpu-threshold-pct（既定65%）以上だったサンプルの割合" }
+    ingest_cpu_samples:                          { op: report, unit: count }
+    consumer_pending_slope_per_sec:               { op: report, unit: "count/s",
+      note: "JetStream BUILDING_OS_VALIDATED consumer pending（writer lag）の後半回帰スロープ。#399 条件3" }
+    consumer_pending_max:                         { op: report, unit: count }
+    compaction_converged:                         { op: report, unit: bool }
+    compaction_converged_at_s:                     { op: report, unit: s }
+    # 不変条件（E10/E11 と同じ）。role 分割で 2〜3 プロセスに増えても壊れていないことの最低保証。
+    restart_count_total:                          { op: eq, value: 0, unit: count }
+    oom_count_total:                              { op: eq, value: 0, unit: count }
+    # #399 の判定結果そのもの。0/1 の bool を report として残す — 単一 run の判定は補助情報であり、
+    # 「分割すべき」を機械的に FAIL/PASS へ倒すものではない（#399 条件 5・6 は本軸で測定不能なため）。
+    split_decision_split_recommended:             { op: report, unit: bool,
+      note: "#399 条件1-4のみの判定（5-6 は not_applicable_from_this_run）。kpi-summary.json の split_decision.split_recommended をそのまま報告" }
+    split_decision_measurable_conditions_met:     { op: report, unit: count }
+    split_decision_measurable_conditions_evaluated: { op: report, unit: count }
+
   # E9: 運用者ユーザビリティ（#159）。web-client の Playwright(route-mock)ハーネスが計測して
   # {axis:E9_operator_usability, metrics} を run ディレクトリに出力し、この gate が採点する。
   # docker 不要の route-mock サブセット。実ログイン/実制御まで含む計測はフルスタック E2E（別軸）。

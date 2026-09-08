@@ -42,6 +42,7 @@ gRPC 経路を第一とし、MQTT 経路は対照として併記する。
 | E9 | 運用・可観測性 | OTel で ingest path を end-to-end に追跡でき、point_id/gateway_id/control_id でログ相関 | 補助 |
 | E10 | 長時間ソーク（endurance） | 現実規模の持続負荷を数時間〜数日走らせても、データ整合を保ったままメモリ/consumer pending が発散しない（[#297](https://github.com/gutp-bim/gutp-building-os-ri/issues/297) follow-up） | 推奨 |
 | E11 | 大規模継続負荷下の保存・compaction・保持期間 | 多棟・大規模の継続負荷でも Parquet の flush/compaction が壊れず、保持期間（`LAKE_RETENTION_DAYS`）の ILM ルールが実際に適用される（[#263](https://github.com/gutp-bim/gutp-building-os-ri/issues/263)、[#261](https://github.com/gutp-bim/gutp-building-os-ri/issues/261)/E10 follow-up） | 推奨 |
+| E12 | 混在負荷ベンチマーク（compaction 中の ingress/control tail latency、role 分割の要否判定） | compaction 実行中/非実行中で ingest p95/p99 が劣化しないか、並行 telemetry 負荷で control RTT が引きずられないかを実測し、`WORKER_ROLE` の role 分割（[#400](https://github.com/gutp-bim/gutp-building-os-ri/issues/400)）が必要かを [#399](https://github.com/gutp-bim/gutp-building-os-ri/issues/399) の判定条件に対して評価する（[#401](https://github.com/gutp-bim/gutp-building-os-ri/issues/401)、#399 子②） | 推奨 |
 
 ## 2. 負荷スケール・マトリクス
 
@@ -86,6 +87,9 @@ gRPC 経路を第一とし、MQTT 経路は対照として併記する。
 | E7 | 1 building-hour あたり object 数（compaction 後） | ≤ 2 |
 | E8 | data loss under outage（復旧後） | ≤ 1% |
 | E8 | RTO 実測 / backlog drain time | 計測・記録（回帰監視） |
+| E12 | ingest E2E p95/p99 の compaction 中/非中 劣化比 | ≤ 1.5 倍 |
+| E12 | control RTT の並行 telemetry 負荷 / 無負荷 劣化比（p95） | ≤ 1.5 倍 |
+| E12 | ingest CPU 高稼働率 / writer lag スロープ / #399 判定 | 計測・記録（情報値） |
 
 ### 論文ヘッドライン 5 指標
 1. **Ingest E2E p95 latency**（E2）
@@ -108,11 +112,14 @@ gRPC 経路を第一とし、MQTT 経路は対照として併記する。
 | E8 | `s7_resilience.sh`, `s7_resilience_test.py` | RTO 実測・graceful degradation の体系化 |
 | E10 | なし（本 e2e への新規統合。`s19_endurance_soak.py`） | #297 の 24h/MQTT 単発試験を e2e/ 評価軸として反復可能にし、gRPC 経路・現行 API/twin 判別値に追随させる。安全域確定には #297 acceptance criteria の ≥72h 版が別途必要 |
 | E11 | `s17_multibuilding_scale_sweep.py`(#261 の多棟トポロジー), `quality_checker.py`, `normalize_storage.py`(E7 の object-per-partition 計測) | **多棟スケール × 継続 flush/compaction の KPI 化**（`lake_retention_kpi.py` + `s20_retention_compaction.py`）、`LAKE_RETENTION_DAYS` ILM ルールの実 MinIO 適用確認（既存 `LakeRetentionLifecycleTest.cs` は設定オブジェクトの形しか検証しない）。capped-run（10分未満）の限界は scenario 参照 |
+| E12 | `s11_ingest_latency.py`(ingest E2E 計測の作法), `s15_ingest_throughput.py`(sustained 負荷), `s6_point_control.sh`/`k6/s6_point_control.js`(control 負荷、無改変), `s20_retention_compaction.py`(強制 compaction 技法一式), `s19_endurance_soak.py`(RSS/再起動監視), `kpi_sampler.py`(consumer lag + 回帰スロープ), `docker-compose.roles.yaml`(role 分割オーバーレイ、#400) | **compaction 窓（実行中/非実行中）で分けた ingest latency バケット化と劣化比**（`mixed_load_kpi.py` + `s21_mixed_load_benchmark.py`）、**control RTT の無負荷/並行負荷比較**、role 構成（all/split）を CLI で切り替えて同一シナリオを走らせるオーケストレーション、#399 の 6 条件に対する構造化判定（`split_decision`、うち 5・6 は測定不能として明示） |
 
 各軸の詳細手順・入出力・合否判定は [`scenarios/`](scenarios/) を参照。E10 は
 [`scenarios/E10-endurance-soak.md`](scenarios/E10-endurance-soak.md) に #297 以降の改修点との整合を含めて記載。
 E11 は [`scenarios/E11-lake-retention-scale.md`](scenarios/E11-lake-retention-scale.md)
-に capped-run が証明できること／できないことを含めて記載。
+に capped-run が証明できること／できないことを含めて記載。E12 は
+[`scenarios/E12-mixed-load-benchmark.md`](scenarios/E12-mixed-load-benchmark.md)
+にクライアント/サーバ同一ホストの交絡（disclosed）を含めて記載。
 
 ## 5. 実行方法（概要）
 
@@ -133,6 +140,9 @@ DURATION_HOURS=4 RATE=6.2167 POINTS=1865 bash e2e/runner/run-axis.sh E10 --out e
 
 # 5) 大規模継続負荷下の保存・compaction・保持期間（E11, capped-run）。同じく個別実行のみ。
 POINTS=300 BUILDINGS=3 GATEWAYS=6 WAVES=3 bash e2e/runner/run-axis.sh E11 --out e2e/results/<run-id>
+
+# 6) 混在負荷ベンチマーク（E12, capped-run）。同じく個別実行のみ。role 構成は ROLE_MODE=all|split。
+ROLE_MODE=split DURATION_S=300 bash e2e/runner/run-axis.sh E12 --out e2e/results/<run-id>
 ```
 
 結果は `e2e/results/<run-id>/` に JSON + サマリで集約し、[`results/report-template.md`](results/report-template.md)
