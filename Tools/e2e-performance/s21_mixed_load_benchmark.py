@@ -209,12 +209,24 @@ def build_kpi_summary(config: dict, ingress_metrics: dict, control_metrics: dict
     """Shapes the three independently-computed metric dicts (ingress compaction-window comparison,
     control RTT comparison, resource/CPU/lag summary — disjoint key prefixes by construction, so a
     plain merge cannot silently drop anything) plus the #399 verdict into the canonical
-    ``{axis, metrics}`` envelope ``e2e/runner/gate.py`` expects."""
+    ``{axis, metrics}`` envelope ``e2e/runner/gate.py`` expects.
+
+    ``e2e/runner/gate.py`` only ever reads a result JSON's flat ``metrics`` dict (never the richer
+    ``split_decision`` object this function also attaches at the top level for report.md / manual
+    inspection), so the three summary numbers kpi-thresholds.yaml's E12 block gates
+    (``split_decision_*``) are flattened into ``metrics`` too — otherwise the gate would silently
+    SKIP them as absent even though the harness computed them."""
     return {
         "axis": "E12_mixed_load_benchmark",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "config": config,
-        "metrics": {**ingress_metrics, **control_metrics, **resource_metrics},
+        "metrics": {
+            **ingress_metrics, **control_metrics, **resource_metrics,
+            "split_decision_split_recommended": decision.get("split_recommended"),
+            "split_decision_measurable_conditions_met": decision.get("measurable_conditions_met"),
+            "split_decision_measurable_conditions_evaluated":
+                decision.get("measurable_conditions_evaluated"),
+        },
         "split_decision": decision,
     }
 
