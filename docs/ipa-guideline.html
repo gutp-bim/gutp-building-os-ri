@@ -365,8 +365,11 @@
               <td><span class="req--must">必要</span></td>
               <td><span class="status status--partial">△ 部分対応</span></td>
               <td>
-                管理者による Twin import(replace/append、<code>/admin/twin</code>、
-                <code>[AuthorizeFilter]</code> で管理者限定)は実装済み。ただしガイドラインが想定する
+                管理者による Twin import(replace/append)は実装済み。UI ルートは web-client の
+                <code>/admin/twin</code>、実体は API の <code>POST /api/admin/twin/import/preview</code> /
+                <code>POST /api/admin/twin/import/apply</code>(<code>TwinAdminController</code>、
+                <code>[AuthorizeFilter]</code> ＋ 各アクションの <code>IsAdmin()</code> で管理者限定)。
+                ただしガイドラインが想定する
                 「アプリケーション層のシステムのリクエストに応じた自動更新」経路は無く、常に管理者操作が起点です
               </td>
             </tr>

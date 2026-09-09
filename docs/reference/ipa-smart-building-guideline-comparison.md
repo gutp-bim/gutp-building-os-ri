@@ -78,7 +78,7 @@ ConnectorWorker の ingress 側。
 | # | 機能 | 必要/推奨 | 状態 | 実装 |
 |---|---|---|---|---|
 | 1 | 建物アセットデータ参照機能 | 必要 | ✅ | OxiGraph SPARQL + REST API（`/resources`、`GetPointDetailByPointId` 等） |
-| 2 | 建物データモデル管理機能 | 必要 | △ | 管理者による Twin import（replace/append、`/admin/twin`、`[AuthorizeFilter]` で管理者限定）は実装済み。ただしガイドラインが想定する「アプリケーション層のシステムのリクエストに応じた自動更新」経路は無く、常に管理者操作が起点 |
+| 2 | 建物データモデル管理機能 | 必要 | △ | 管理者による Twin import（replace/append）は実装済み。UI ルートは web-client の `/admin/twin`、実体は API の `POST /api/admin/twin/import/preview` / `POST /api/admin/twin/import/apply`（`TwinAdminController`、`[AuthorizeFilter]` ＋ 各アクションの `IsAdmin()` で管理者限定）。ただしガイドラインが想定する「アプリケーション層のシステムのリクエストに応じた自動更新」経路は無く、常に管理者操作が起点 |
 
 ## 表8: データ連携モジュール
 
