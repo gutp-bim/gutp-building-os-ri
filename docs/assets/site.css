@@ -508,6 +508,120 @@ code {
   stroke: #6fd3ba;
 }
 
+/* ---- 原典の書誌情報ブロック (ipa-guideline.html) ----
+   出典を本文の段落に埋めず、誰の・どの文書の・いつ時点かを一目で追えるようにするための枠。 */
+.source-cite {
+  background: var(--green-050);
+  border-left: 4px solid var(--green-700);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 1rem 1.25rem;
+  font-size: 0.92rem;
+}
+.source-cite dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+.source-cite dt {
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.source-cite dd {
+  margin: 0;
+  color: var(--gray-600);
+  /* 原典 PDF の URL は1語として長いので、折り返せないと横スクロールが出る */
+  overflow-wrap: anywhere;
+}
+
+/* ---- 充足状況サマリ (ipa-guideline.html) ---- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.stat {
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+}
+.stat-num {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--green-700);
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 700;
+}
+.stat-note {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--gray-600);
+}
+
+/* ---- 対応表 (ipa-guideline.html) ----
+   「実装」列だけが長文になるため、他の4列は詰めて折り返さず、幅をそちらへ寄せる。 */
+.conf-table th:first-child,
+.conf-table td:first-child {
+  width: 2.5rem;
+  color: var(--gray-600);
+  font-variant-numeric: tabular-nums;
+}
+.conf-table td:nth-child(2) {
+  min-width: 11rem;
+}
+.conf-table th:nth-child(3),
+.conf-table td:nth-child(3),
+.conf-table th:nth-child(4),
+.conf-table td:nth-child(4) {
+  white-space: nowrap;
+}
+.conf-table td:last-child {
+  min-width: 22rem;
+  font-size: 0.88rem;
+  color: var(--gray-600);
+}
+/* 識別子の途中で折り返すと別のシンボルに読めてしまう */
+.conf-table code {
+  white-space: nowrap;
+}
+.status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+/* 記号だけに意味を持たせない (色覚・スクリーンリーダー): 記号＋語を必ず併記する */
+.status--ok {
+  background: var(--green-050);
+  color: var(--green-800);
+}
+.status--partial {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.status--none {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+.req--must {
+  font-weight: 700;
+  color: var(--green-800);
+}
+.req--should {
+  color: var(--gray-600);
+}
+
 /* ---- responsive ---- */
 @media (max-width: 768px) {
   .nav-toggle {
@@ -557,6 +671,16 @@ code {
   }
   .diagram-scroll .svg-diagram {
     min-width: 680px;
+  }
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .source-cite dl {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .source-cite dd {
+    margin-bottom: 0.6rem;
   }
 }
 
