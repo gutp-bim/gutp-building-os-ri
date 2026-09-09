@@ -179,6 +179,18 @@ public static class BuildingOsMetrics
             unit: "{failure}",
             description: "Compaction failures; source parts are retained for a later retry.");
 
+    /// <summary>
+    /// Compaction targets abandoned because a planned source object was gone by the time it was read
+    /// (#447) — a second lake replica compacting the same hour, or retention expiring the object. Not a
+    /// failure: the rows live in whatever replaced the sources, and the next cycle re-plans. A steady
+    /// non-zero rate means more than one replica is running the lake role, which buys nothing.
+    /// </summary>
+    public static readonly Counter<long> CompactionSkipped =
+        Meter.CreateCounter<long>(
+            "building_os.compaction.skipped",
+            unit: "{partition}",
+            description: "Compaction targets skipped because a source object vanished mid-cycle.");
+
     // Rollup metrics (#222)
     public static readonly Counter<long> CompactionRollupsWritten =
         Meter.CreateCounter<long>(

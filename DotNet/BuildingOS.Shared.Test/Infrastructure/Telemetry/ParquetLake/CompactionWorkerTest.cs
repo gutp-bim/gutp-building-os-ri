@@ -87,13 +87,83 @@ public class CompactionWorkerTest
         Assert.Equal(new double?[] { 1, 2, 3 }, rows.Select(r => r.Value)); // a,b,c all present
     }
 
+    // ── two lake replicas compacting the same hour (#447) ────────────────────
+
+    [Fact]
+    public async Task RunOnce_WhenAnotherReplicaCompactedTheHourMidCycle_DoesNotDropItsRows()
+    {
+        var s = new InMemoryBlobStorage();
+        await PutPartAsync(s, 1, 2, Row("a", Hour.AddMinutes(5), 1));
+        await PutPartAsync(s, 3, 4, Row("b", Hour.AddMinutes(10), 2));
+
+        // Deterministic interleave, no threads: this replica has already planned [part-1-2, part-3-4]
+        // and read the first of them when the other replica runs its whole cycle — writing the compact
+        // object and deleting both parts — inside the hook. Only one of the two is ever executing, so
+        // the fake's plain Dictionary stays sound.
+        var other = NewWorker(s);
+        var gets = 0;
+        s.BeforeGet = async _ =>
+        {
+            if (++gets != 2) return;
+            s.BeforeGet = null; // fire once — the other replica must not re-enter the hook
+            await other.RunOnceAsync(default);
+        };
+
+        await NewWorker(s).RunOnceAsync(default);
+
+        // Merging the surviving subset over the deterministic compact key would silently drop the rows
+        // the other replica already folded in (here: b, whose part vanished before this replica read it).
+        var rows = await NewStore(s).QueryAsync("p1", Hour, Hour.AddHours(1));
+        Assert.Equal(new double?[] { 1, 2 }, rows.Select(r => r.Value));
+
+        // Abandoning the target is only safe because the partition is already in its final shape and the
+        // next cycle re-plans from the current listing rather than getting stuck on the stale one.
+        await NewWorker(s).RunOnceAsync(default);
+        Assert.Single(await s.ListAsync("cold", "building_id=b1/"));
+        Assert.Equal(
+            new double?[] { 1, 2 },
+            (await NewStore(s).QueryAsync("p1", Hour, Hour.AddHours(1))).Select(r => r.Value));
+    }
+
+    [Fact]
+    public async Task RunOnce_WhenBothReplicasReadEverySourceFirst_ConvergesOnTheSameContent()
+    {
+        // Characterization (#447): the harmless half of the race — this replica has read every source
+        // before the other one deletes anything, so the two merges see the same set. The compact key is
+        // deterministic and the merge is a union of the same sources, so the later write is an
+        // idempotent overwrite, not a lost update. Holds before and after the fix.
+        var s = new InMemoryBlobStorage();
+        await PutPartAsync(s, 1, 2, Row("a", Hour.AddMinutes(5), 1));
+        await PutPartAsync(s, 3, 4, Row("b", Hour.AddMinutes(10), 2));
+
+        var other = NewWorker(s);
+        s.BeforePut = async _ =>
+        {
+            s.BeforePut = null; // fire once, on the compact write — after every source has been read
+            await other.RunOnceAsync(default);
+        };
+
+        await NewWorker(s).RunOnceAsync(default);
+
+        Assert.Single(await s.ListAsync("cold", "building_id=b1/"));
+        var rows = await NewStore(s).QueryAsync("p1", Hour, Hour.AddHours(1));
+        Assert.Equal(new double?[] { 1, 2 }, rows.Select(r => r.Value));
+    }
+
     private sealed class InMemoryBlobStorage : IBlobStorage
     {
         private readonly Dictionary<string, byte[]> _objects = new();
         public void Set(string container, string key, byte[] bytes) => _objects[$"{container}/{key}"] = bytes;
 
-        public Task<Stream?> GetAsync(string c, string k, CancellationToken ct = default)
-            => Task.FromResult(_objects.TryGetValue($"{c}/{k}", out var b) ? (Stream?)new MemoryStream(b) : null);
+        /// <summary>Optional hooks run before a read/write, so a test can interleave a second compactor (#447).</summary>
+        public Func<string, Task>? BeforeGet { get; set; }
+        public Func<string, Task>? BeforePut { get; set; }
+
+        public async Task<Stream?> GetAsync(string c, string k, CancellationToken ct = default)
+        {
+            if (BeforeGet is { } hook) await hook(k);
+            return _objects.TryGetValue($"{c}/{k}", out var b) ? new MemoryStream(b) : null;
+        }
 
         public Task<IReadOnlyList<string>> ListAsync(string container, string prefix = "", CancellationToken ct = default)
         {
@@ -103,12 +173,12 @@ public class CompactionWorkerTest
             return Task.FromResult<IReadOnlyList<string>>(keys);
         }
 
-        public Task PutAsync(string c, string k, Stream content, string ct2 = "application/octet-stream", CancellationToken ct = default)
+        public async Task PutAsync(string c, string k, Stream content, string ct2 = "application/octet-stream", CancellationToken ct = default)
         {
+            if (BeforePut is { } hook) await hook(k);
             using var ms = new MemoryStream();
-            content.CopyTo(ms);
+            await content.CopyToAsync(ms, ct);
             _objects[$"{c}/{k}"] = ms.ToArray();
-            return Task.CompletedTask;
         }
 
         public Task<bool> ExistsAsync(string c, string k, CancellationToken ct = default) => Task.FromResult(_objects.ContainsKey($"{c}/{k}"));

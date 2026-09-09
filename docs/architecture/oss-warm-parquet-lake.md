@@ -206,6 +206,7 @@ ADR 0001 の at-most-once）。validated→レイクは at-least-once + 三重 d
 | MinIO 可用性が read のクリティカルパス化 | latest は Hot KV で独立。Router の tier 別 degrade（空配列 + メトリクス）は既存踏襲。MinIO を system-status の health target に追加 |
 | 大範囲スキャンのメモリ | ファイル単位 streaming + row group 単位処理 + `PARQUET_QUERY_MAX_FILES` ガード |
 | 重複行 | 三重防御: 決定的命名（再配信）/ 読み出し id dedup / compaction dedup。publish 側 `Nats-Msg-Id` 付与（コネクタ再起動の重複 publish 対策）は後続改善 |
+| lake ロールの複数 replica による compaction 競合（[#447](https://github.com/gutp-bim/gutp-building-os-ri/issues/447)） | leader lock は入れない。compact キーは building-hour 決定的で、マージはその hour のオブジェクトの**和集合**（既存 compact も source に含む）なので、同じ listing を見た 2 パスは同じ内容を書く＝後勝ちでも冪等。**壊れるのは「計画した source を読み切れなかったパス」だけ**（先に完了した側が part を消した後に読むと、部分集合——最悪は空——で完全な compact を上書きし、書いた分を読み直すだけの verify では検出できない）。よって `ParquetLakeScan.ReadAllRowsAsync` は消えた source を報告し、`CompactionWorker` はその target を**破棄して次サイクルで再計画**する（`building_os.compaction.skipped`）。retention は `LAKE_RETENTION_DAYS` のみから固定 rule id で組む ILM PUT なので同時適用も収束する |
 | stream 溢れによる取りこぼし | `BUILDING_OS_VALIDATED` の MaxAge/MaxBytes 明示 + AckWait/flush 整合（#213 必須要件） |
 | continuous aggregate 喪失 | aggregate-on-read は time_bucket と同義。性能は Router キャッシュで吸収、必要なら #222 |
 | 既定 parquet 化の挙動変更 | breaking change 明記（#216）、ロールバックは env 1 つ |
