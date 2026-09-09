@@ -22,7 +22,7 @@ namespace BuildingOS.ConnectorWorker.Startup;
 /// lockstep: a check whose dependency is absent throws on resolution and turns <c>/health/ready</c>
 /// into a 500 — worse than the missing check. It also means this must be called AFTER
 /// <see cref="ConnectorWorkerServiceCollectionExtensions.AddConnectorWorkerCapabilities"/>, as
-/// Program.cs does.</para>
+/// Program.cs does — which is checked, not assumed (see the ordering guard below).</para>
 ///
 /// <para><b>How severely (blast radius, with one deliberate exception).</b> A dependency whose loss
 /// stops this role's only job gates readiness (Unhealthy → 503); anything the role degrades through
@@ -66,9 +66,21 @@ public static class ConnectorWorkerHealthChecks
     public static IHostApplicationBuilder AddConnectorWorkerHealthChecks(
         this IHostApplicationBuilder builder, WorkerRole role)
     {
+        // Ordering guard. Called before the capability graph, every gate below reads an empty
+        // collection: readiness would silently revert to its pre-#399 NATS-only meaning, with a
+        // healthy-looking endpoint and no symptom anywhere. The twin client is the reliable witness —
+        // it is registered for exactly the roles RunsTwinClient() names, unconditionally.
+        if (role.RunsTwinClient() != IsRegistered<OxiGraphClient>(builder))
+            throw new InvalidOperationException(
+                $"{nameof(AddConnectorWorkerHealthChecks)} must be called after " +
+                $"{nameof(ConnectorWorkerServiceCollectionExtensions.AddConnectorWorkerCapabilities)}: the " +
+                $"dependency checks are gated on the clients that registration adds, and role " +
+                $"'{role.ToString().ToLowerInvariant()}' does not match what is registered.");
+
         var checks = builder.Services.AddHealthChecks();
 
-        // Every role consumes or publishes on NATS, and messaging is registered unconditionally.
+        // Every role consumes or publishes on NATS, and messaging is registered unconditionally. No
+        // probe budget: the check reads a connection-state property, it does not call out.
         checks.AddCheck<NatsReadinessHealthCheck>(NatsCheckName, tags: [ReadyTag]);
 
         if (IsRegistered<OxiGraphClient>(builder))

@@ -176,6 +176,20 @@ public class ConnectorWorkerHealthCheckTest
         }
     }
 
+    [Theory]
+    [InlineData(WorkerRole.All)]
+    [InlineData(WorkerRole.Ingest)]
+    [InlineData(WorkerRole.Control)]
+    public void CalledBeforeTheCapabilityGraph_FailsFastInsteadOfSilentlySkippingItsChecks(WorkerRole role)
+    {
+        // The dependency gates read the service collection, so calling this first would register only
+        // the NATS check — readiness would quietly revert to its pre-#399 meaning with no symptom at
+        // all. Fail the way WorkerRoles.Parse and AddParquetLakeWriter do: at startup, loudly.
+        var builder = NewBuilder(FullyGatedEnv());
+        var ex = Assert.Throws<InvalidOperationException>(() => builder.AddConnectorWorkerHealthChecks(role));
+        Assert.Contains(nameof(ConnectorWorkerServiceCollectionExtensions.AddConnectorWorkerCapabilities), ex.Message);
+    }
+
     // ── how severely a failure is reported ───────────────────────────────────
     //
     // Characterization tests: added once the registration tests above were green, not to drive the
