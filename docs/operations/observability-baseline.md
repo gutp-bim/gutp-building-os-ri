@@ -27,6 +27,37 @@ Instead:
 - Store point-level detail in **TimescaleDB** (Warm tier) or **Parquet** (Cold tier), not in Prometheus.
 - For per-point debugging, use **Loki** log lines (not labels).
 
+**Fixed-vocabulary tags are fine.** A tag whose values come from a closed set in the code adds a
+bounded number of series, unlike an identifier. The ingest signals below use only such tags:
+
+| Metric | Tag | Values |
+|--------|-----|--------|
+| `building_os.ingress.messages` | `source` | `mqtt`, `amqp`, `gateway-grpc` |
+| `building_os.ingress.messages` | `result` | transports: `published`, `bad_topic` (MQTT only), `bad_payload`; gRPC ingress: `published`, `missing_id`, `identity_missing`, `identity_mismatch`, `unknown_point`, `gateway_mismatch`, `no_building_path`, `no_device_link`, `publish_failed` |
+| `building_os.ingress.messages` | `gateway` | gateway id, `source=gateway-grpc` only — bounded by the number of gateways, not points |
+| `building_os.ingress.event_lag` | `source` | `connector`, `gateway-grpc` |
+| `building_os.ingestion.lag` | `subject` | the `building-os.raw.*` subject the consumer reads |
+
+`building_os.ingress.event_lag` deliberately carries **no** point or gateway tag: it is recorded per
+telemetry entity, so either would reintroduce exactly the per-point series this section forbids.
+
+## Ingest Lag Signals (#415)
+
+Ingest saturation produces no errors — every reading is still accepted, no error counter moves, and
+readings simply arrive later and later. Two histograms make that visible:
+
+| Signal | What it measures |
+|--------|------------------|
+| `building_os.ingress.event_lag` | Seconds between a reading's own event time (the telemetry `datetime`) and its arrival in the hot store. Recorded at the point every validated-telemetry producer converges, so it covers connectors and the gRPC ingress alike. |
+| `building_os.ingestion.lag` | Seconds a JetStream consumer trails its own raw-subject stream (consumer lag). |
+
+`building_os.ingress.messages` also carries a `result` tag, so a message a transport refuses
+(malformed topic or non-JSON payload) is counted rather than only logged.
+
+Which of the two rising means what, the `building_os.ingress.timestamp_fallbacks` caveat on
+`event_lag`, and how to measure a deployment's sustainable ingest rate are in
+[`oss-sla-freshness.md`](oss-sla-freshness.md) §5–§6 — not duplicated here.
+
 ## Recording Rules
 
 Pre-aggregated metrics in `oss-stack/prometheus/recording_rules.yml`:

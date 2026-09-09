@@ -109,6 +109,11 @@ stream / retry 設計の詳細は
   を安定させます。
 - source protocol から deduplication に十分な field が得られる場合は、
   deterministic な `id` を使います。
+- MQTT / AMQP の transport ingress（`MqttIngressWorker` / `AmqpIngressWorker`）は、connector に渡す前段で
+  形式不正を skip します。MQTT は topic が `telemetry/{tenant}/{deviceId}` でない場合に `bad_topic`、
+  payload が JSON parse できない場合に `bad_payload`（AMQP は payload 欠落／非 JSON の `bad_payload` のみ）。
+  skip は log だけでなく `building_os.ingress.messages` に `source`（`mqtt` / `amqp`）と `result`
+  タグ付きで計上されます（#415）。
 
 ## 永続化保証（#187）
 
