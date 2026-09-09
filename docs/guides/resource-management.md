@@ -16,6 +16,7 @@ Building OS は **SBCO オントロジー**（`sbco:`）をリソース記述に
 ```turtle
 @prefix sbco: <https://www.sbco.or.jp/ont/> .
 @prefix bos:  <http://buildingos.gutp.jp/ontology#> .
+@prefix bot:  <https://w3id.org/bot#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 # ── ビル ──────────────────────────────────────────────────────────────────
@@ -32,6 +33,14 @@ Building OS は **SBCO オントロジー**（`sbco:`）をリソース記述に
 <https://example.com/room/rm-1> a sbco:Room ;
     sbco:name  "会議室 A" ;
     sbco:level <https://example.com/level/lv-1> .
+
+<https://example.com/room/rm-2> a sbco:Room ;
+    sbco:name  "会議室 B" ;
+    sbco:level <https://example.com/level/lv-1> .
+
+# ── 部屋の隣接関係（BOT） ─────────────────────────────────────────────────
+# 片方向だけ書けばよい（取り込み時に逆向きも生成される）
+<https://example.com/room/rm-1> bot:adjacentZone <https://example.com/room/rm-2> .
 
 # ── 機器（EquipmentExt） ──────────────────────────────────────────────────
 <https://example.com/equip/eq-1> a sbco:EquipmentExt ;
@@ -81,6 +90,19 @@ Building OS は **SBCO オントロジー**（`sbco:`）をリソース記述に
 >
 > `&&` 区切りの文字列は JSON として解釈できず、enum 検証が**素通り**します。正本は
 > [oss-control-safety.md](../architecture/oss-control-safety.md) を参照してください。
+
+> **部屋間の隣接（`bot:adjacentZone`）は片方向だけ書けば足ります。** 取り込み時に正規形
+> `bos:adjacentZone` へ書き換えられ、逆向き（例の `rm-2` → `rm-1`）のトリプルも同時に生成されます
+> （`OxiGraphIngestMaterializer` の対称ルール）。同じ TTL を再取り込みしてもトリプルは増えません（冪等）。
+> すでに `bos:adjacentZone` で書かれた入力も同様に対称化されるので、片方向のままで構いません。
+> `bot:` の prefix 宣言（`https://w3id.org/bot#`）を忘れないでください。
+>
+> 読み取り（`GET /spaces/{spaceDtId}/adjacent-spaces`）が返すのは **`sbco:Room` 型で `sbco:id` と
+> `sbco:name` を持つ隣室のみ**です。`sbco:Level` など Room 以外のゾーンを `bot:adjacentZone` で
+> 結んでも結果には現れません（上の最小サンプルは `sbco:id` を省略しているため、API から読む場合は
+> 各部屋に `sbco:id` を付けてください）。書き込み API は未提供で、隣接関係は TTL の取り込みでのみ
+> 登録します。語彙対応の正本は
+> [standard-mapping.md](../architecture/standard-mapping.md) §2.5 を参照してください。
 
 ---
 

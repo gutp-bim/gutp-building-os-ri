@@ -591,4 +591,55 @@ public class OxiGraphDigitalTwinDatabaseTest
 
         Assert.Null(handler.LastRequestBody);
     }
+
+    // ── Room adjacency (#440) ─────────────────────────────────────────────────
+    //
+    // bos:adjacentZone is deliberately NOT in WiredPointPredicates / WiredDevicePredicates above:
+    // those two arrays are "predicates every point/device read path must SELECT", and adjacency is
+    // an independent read path on sbco:Room (not a point/device projection). Adding it there would
+    // assert that GetPoint/ListDevices/… request a predicate they have no reason to touch — the
+    // opposite of the drift those arrays guard against. The adjacency predicate is pinned by
+    // ListAdjacentSpaces_QueryRequestsAdjacentZoneAndRoomType instead.
+
+    [Fact]
+    public async Task ListAdjacentSpaces_QueryRequestsAdjacentZoneAndRoomType()
+    {
+        var (db, handler) = BuildCapturingDb();
+
+        await db.ListAdjacentSpaces("urn:dtid:room-a");
+
+        Assert.NotNull(handler.LastRequestBody);
+        var query = Uri.UnescapeDataString(handler.LastRequestBody!);
+        // The canonical adjacency predicate is bos:, not bot: — the materializer rewrites the raw
+        // BOT vocabulary at ingest so the default graph stays sbco:/bos:-only.
+        Assert.Contains($"<{BosNs}adjacentZone>", query);
+        // Only sbco:Room neighbours are returned; a BOT twin may declare adjacency between Levels.
+        Assert.Contains($"<{SbcoNs}Room>", query);
+        Assert.Contains("urn:dtid:room-a", query);
+    }
+
+    [Fact]
+    public async Task ListAdjacentSpaces_MapsNeighbouringSpaces()
+    {
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""dt"": {""type"":""uri"",""value"":""urn:dtid:room-b""},
+      ""id"": {""type"":""literal"",""value"":""ROOM-B""},
+      ""name"": {""type"":""literal"",""value"":""Room B""} }
+  ]}}");
+
+        var neighbours = await db.ListAdjacentSpaces("urn:dtid:room-a");
+
+        Assert.Single(neighbours);
+        Assert.Equal("urn:dtid:room-b", neighbours[0].DtId);
+        Assert.Equal("ROOM-B", neighbours[0].Id);
+        Assert.Equal("Room B", neighbours[0].Name);
+    }
+
+    [Fact]
+    public async Task ListAdjacentSpaces_ReturnsEmpty_WhenNoBindings()
+    {
+        var db = BuildDb(@"{ ""results"": { ""bindings"": [] } }");
+        Assert.Empty(await db.ListAdjacentSpaces("urn:dtid:room-a"));
+    }
 }

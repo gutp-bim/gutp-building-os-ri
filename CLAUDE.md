@@ -351,6 +351,10 @@ and the equipment attributes are one shared `DeviceAttrOptionals(...)` used by `
 one query** — `OxiGraphDigitalTwinDatabaseTest` asserts by predicate that every read path requests
 the full set.
 
+Room adjacency (`ListAdjacentSpaces`, #440) is the one read path deliberately *outside* those shared
+projections — it is its own two-pattern query over `bos:adjacentZone`, uncached, and needs no `UNION`
+because the symmetry is materialized at ingest (`OxiGraphIngestMaterializer`).
+
 `sbco:deviceType` / `supplier` / `owner` / `site` are read from the `EquipmentExt` first and fall
 back to one of its `PointExt` rows (an aggregating subquery, so the join stays 1:1): CSV-derived
 twins repeat them on every point row because the point list is the import unit.

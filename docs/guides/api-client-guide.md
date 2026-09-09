@@ -76,6 +76,31 @@ curl -H "Authorization: Bearer $TOKEN" \
 `dtId` は OxiGraph に登録されたリソースの識別子（例: `urn:nexus:building:site-a`）です。
 URL クエリパラメータとして渡す際は `encodeURIComponent` でエンコードしてください。
 
+### 隣接スペースの取得
+
+部屋（`sbco:Room`）に隣接する部屋の一覧です。隣接関係は取り込み時に双方向へ正規化されているため、
+どちら側の部屋から引いても同じ隣接関係が返ります。
+
+```bash
+# 隣接スペース一覧（dtId はパスセグメントなのでエンコードする）
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/spaces/urn%3Anexus%3Aroom%3Arm-1/adjacent-spaces"
+```
+
+- `spaceDtId` はパスセグメントに入るため `encodeURIComponent` 相当のエンコードが必要です
+  （`:` → `%3A`、`/` → `%2F`）。サーバ側は `Uri.UnescapeDataString` で元の dtId に戻します。
+- 読み取り権限のない隣室は結果から**除外**されます（エラーにはならず、配列から消えます）。
+- 起点の部屋自体を読む権限がない場合は `403`（隣室の件数も漏らさないため）。
+- 起点の部屋が twin に存在しない場合は `404`（隣室ゼロの `200 []` とは区別されます）。
+
+レスポンス例:
+
+```json
+[
+  { "dtId": "urn:nexus:room:rm-2", "id": "rm-2", "name": "会議室 B" }
+]
+```
+
 ### リソース横断検索
 
 ```bash
@@ -259,6 +284,7 @@ npx @openapitools/openapi-generator-cli generate \
 | 建物一覧 | `GET /api/buildings` |
 | フロア一覧 | `GET /api/floors?buildingDtId=` |
 | スペース一覧 | `GET /api/spaces?floorDtId=` |
+| 隣接スペース一覧 | `GET /spaces/{spaceDtId}/adjacent-spaces` |
 | デバイス一覧 | `GET /api/devices?spaceDtId=` |
 | ポイント一覧 | `GET /api/points?deviceDtId=` |
 | リソース検索 | `GET /resources/search?q=` |

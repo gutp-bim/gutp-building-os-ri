@@ -41,6 +41,10 @@ public sealed class OxiGraphIngestMaterializer
     private const string SbcoNs = "https://www.sbco.or.jp/ont/";
     private const string BosNs = "http://buildingos.gutp.jp/ontology#";
     private const string RecNs = "https://w3id.org/rec/";
+    // BOT (Building Topology Ontology, W3C LBD CG) — the source vocabulary for room-to-room
+    // adjacency (#440). Note it is *not* added to the copy-through prefix filter below: bot: triples
+    // reach the default graph only through an explicit rule, as bos:adjacentZone.
+    private const string BotNs = "https://w3id.org/bot#";
 
     // A fixed (not per-call GUID) graph URI, kept in place (not dropped) after materialization — it is
     // the audit copy of the last-imported pre-materialization RDF, in whatever vocabulary the source
@@ -57,12 +61,23 @@ public sealed class OxiGraphIngestMaterializer
         (RecNs + "Room", OxiGraphOntology.Cls_Space),
     };
 
-    private static readonly (string From, string To)[] PropertyRules =
+    // Symmetric:true additionally writes the reverse edge (?o To ?s). Symmetry is a property of the
+    // *vocabulary*, not of any one query, so it is resolved once here rather than by a UNION in
+    // every consumer's SPARQL — #294/#298 are what happens when a read-path obligation lives in N
+    // hand-written queries. Resolving it at ingest also means Replace, Append and the import-preview
+    // projection all get it for free, since they share AppendMaterializationStatements.
+    private static readonly (string From, string To, bool Symmetric)[] PropertyRules =
     {
-        (RecNs + "locatedIn", OxiGraphOntology.Prop_LocatedIn),
-        (RecNs + "name", OxiGraphOntology.Prop_Name),
-        (RecNs + "hasPart", OxiGraphOntology.Prop_HasPart),
-        (RecNs + "hasPoint", OxiGraphOntology.Prop_HasPoint),
+        (RecNs + "locatedIn", OxiGraphOntology.Prop_LocatedIn, false),
+        (RecNs + "name", OxiGraphOntology.Prop_Name, false),
+        (RecNs + "hasPart", OxiGraphOntology.Prop_HasPart, false),
+        (RecNs + "hasPoint", OxiGraphOntology.Prop_HasPoint, false),
+        // #440: BOT room adjacency → the bos: canonical form.
+        (BotNs + "adjacentZone", OxiGraphOntology.Prop_AdjacentZone, true),
+        // …and the symmetric closure for input that is already canonical. The forward half is a
+        // no-op (the copy-through above already wrote it) and the FILTER NOT EXISTS keeps it so;
+        // the reverse half is what this row exists for.
+        (OxiGraphOntology.Prop_AdjacentZone, OxiGraphOntology.Prop_AdjacentZone, true),
     };
 
     private readonly OxiGraphClient _client;
@@ -180,14 +195,22 @@ WHERE {{
 }}");
         }
 
-        foreach (var (from, to) in PropertyRules)
-        {
-            statements.Add($@"
-{Insert($"?s <{to}> ?o")}
+        // One property rule contributes the forward edge, plus the reverse one when symmetric. The
+        // FILTER NOT EXISTS must test the triple actually being inserted (the reverse statement asks
+        // about ?o <to> ?s), otherwise the reverse edge is written on every pass and the import
+        // stops being idempotent.
+        void AddPropertyRule(string subject, string predicate, string obj, string sourcePattern)
+            => statements.Add($@"
+{Insert($"{subject} <{predicate}> {obj}")}
 WHERE {{
-  GRAPH <{sourceGraph}> {{ ?s <{from}> ?o }}
-  FILTER NOT EXISTS {{ {TargetPattern($"?s <{to}> ?o")} }}
+  GRAPH <{sourceGraph}> {{ {sourcePattern} }}
+  FILTER NOT EXISTS {{ {TargetPattern($"{subject} <{predicate}> {obj}")} }}
 }}");
+
+        foreach (var (from, to, symmetric) in PropertyRules)
+        {
+            AddPropertyRule("?s", to, "?o", $"?s <{from}> ?o");
+            if (symmetric) AddPropertyRule("?o", to, "?s", $"?s <{from}> ?o");
         }
     }
 }

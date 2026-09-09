@@ -236,6 +236,125 @@ public class OxiGraphIngestMaterializerTest(OxiGraphFixture oxiGraph)
         Assert.Equal("0", rows[0]["c"]);
     }
 
+    // ── BOT room adjacency (#440) ─────────────────────────────────────────────
+    //
+    // bot:adjacentZone is symmetric by definition, but a source twin routinely declares it once
+    // (A → B). Symmetry is resolved HERE, at ingest, rather than by a UNION in every consumer's
+    // SPARQL: #294/#298 are what happens when a read-path obligation lives in N hand-written
+    // queries instead of one place. Room-A → Room-B only, on purpose — the reverse edge must come
+    // from the materializer.
+    private const string BotAdjacencyTtl = """
+        @prefix bot: <https://w3id.org/bot#> .
+        @prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+        <urn:test:bldg-bot> a sbco:Building ; sbco:id "BOT-BLDG" ; sbco:name "BOT Tower" ;
+          sbco:hasPart <urn:test:level-bot> .
+        <urn:test:level-bot> a sbco:Level ; sbco:id "BOT-LVL" ; sbco:name "5F" ;
+          sbco:hasPart <urn:test:room-bot-a> , <urn:test:room-bot-b> .
+        <urn:test:room-bot-a> a sbco:Room ; sbco:id "BOT-ROOM-A" ; sbco:name "Room A" ;
+          bot:adjacentZone <urn:test:room-bot-b> .
+        <urn:test:room-bot-b> a sbco:Room ; sbco:id "BOT-ROOM-B" ; sbco:name "Room B" .
+        """;
+
+    [Fact]
+    public async Task MaterializeAsync_BotAdjacentZone_IsMaterializedSymmetrically()
+    {
+        await Seed(BotAdjacencyTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        // Forward edge: the declared direction, rewritten from bot: to the bos: canonical form.
+        Assert.Equal(
+            "urn:test:room-bot-b",
+            Assert.Single(await db.ListAdjacentSpaces("urn:test:room-bot-a")).DtId);
+        // Reverse edge: never declared in the source — proof the read query needs no UNION.
+        Assert.Equal(
+            "urn:test:room-bot-a",
+            Assert.Single(await db.ListAdjacentSpaces("urn:test:room-bot-b")).DtId);
+    }
+
+    [Fact]
+    public async Task MaterializeAsync_BotAdjacentZone_CalledTwice_TripleCountIsStable()
+    {
+        var materializer = new OxiGraphIngestMaterializer(oxiGraph.Client);
+
+        await materializer.MaterializeAsync(BotAdjacencyTtl);
+        var countFirst = await CountDefaultGraphTriplesAsync();
+
+        await materializer.MaterializeAsync(BotAdjacencyTtl);
+        var countSecond = await CountDefaultGraphTriplesAsync();
+
+        Assert.True(countFirst > 0, "should have materialized triples");
+        Assert.Equal(countFirst, countSecond);
+    }
+
+    // A twin that already speaks the canonical vocabulary still only declares the edge once, so the
+    // symmetric closure has to apply to bos:adjacentZone input too — not just to the bot: rewrite.
+    [Fact]
+    public async Task MaterializeAsync_CanonicalBosAdjacency_IsSymmetrized()
+    {
+        const string canonicalTtl = """
+            @prefix bos: <http://buildingos.gutp.jp/ontology#> .
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+            <urn:test:room-bos-a> a sbco:Room ; sbco:id "BOS-ROOM-A" ; sbco:name "Room A" ;
+              bos:adjacentZone <urn:test:room-bos-b> .
+            <urn:test:room-bos-b> a sbco:Room ; sbco:id "BOS-ROOM-B" ; sbco:name "Room B" .
+            """;
+
+        await Seed(canonicalTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        Assert.Equal(
+            "urn:test:room-bos-a",
+            Assert.Single(await db.ListAdjacentSpaces("urn:test:room-bos-b")).DtId);
+    }
+
+    // #313 is the precedent: the Append path once passed raw source vocabulary straight through,
+    // invisible to the sbco:-only read side. Adjacency has to be covered on both paths.
+    [Fact]
+    public async Task MaterializeAppendAsync_BotAdjacentZone_MergesSymmetrically()
+    {
+        var materializer = new OxiGraphIngestMaterializer(oxiGraph.Client);
+        await materializer.MaterializeAsync(RecVocabularyTtl);
+        await materializer.MaterializeAppendAsync(BotAdjacencyTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        Assert.Equal(
+            "urn:test:room-bot-a",
+            Assert.Single(await db.ListAdjacentSpaces("urn:test:room-bot-b")).DtId);
+    }
+
+    // BOT models adjacency between any two bot:Zone (Levels included). The read path is scoped to
+    // sbco:Room, so a non-Room neighbour must not leak into a "which rooms are next door" answer.
+    [Fact]
+    public async Task ListAdjacentSpaces_OmitsNeighboursThatAreNotRooms()
+    {
+        const string zoneAdjacencyTtl = """
+            @prefix bot: <https://w3id.org/bot#> .
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+            <urn:test:room-zone-a> a sbco:Room ; sbco:id "ZONE-ROOM-A" ; sbco:name "Room A" ;
+              bot:adjacentZone <urn:test:room-zone-b> , <urn:test:level-zone> .
+            <urn:test:room-zone-b> a sbco:Room ; sbco:id "ZONE-ROOM-B" ; sbco:name "Room B" .
+            <urn:test:level-zone> a sbco:Level ; sbco:id "ZONE-LVL" ; sbco:name "6F" .
+            """;
+
+        await Seed(zoneAdjacencyTtl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        Assert.Equal(
+            "urn:test:room-zone-b",
+            Assert.Single(await db.ListAdjacentSpaces("urn:test:room-zone-a")).DtId);
+    }
+
     private async Task Seed(string turtle)
     {
         var tmp = Path.GetTempFileName();

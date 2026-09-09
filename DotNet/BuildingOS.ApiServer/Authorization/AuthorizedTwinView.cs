@@ -1,6 +1,7 @@
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Infrastructure;
+using BuildingOS.Shared.Infrastructure.OxiGraph;
 
 namespace BuildingOs.ApiServer.Authorization;
 
@@ -77,6 +78,46 @@ public sealed class AuthorizedTwinView(
         }
         var resource = await db.GetSpace(spaceDtId);
         return resource is null ? new TwinGetResult<Space>.NotFound() : new TwinGetResult<Space>.Ok(resource);
+    }
+
+    public async Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
+        AuthorizationContext auth, string spaceDtId, CancellationToken ct)
+    {
+        // The controller percent-unescapes the route value, and the twin interpolates it into a
+        // SPARQL IRI reference (<{spaceDtId}>) which has no escape mechanism — so a value that is
+        // not a well-formed absolute IRI is rejected here, before the twin (or the authorization
+        // service) is touched at all. NotFound rather than Forbidden or BadRequest: a value that
+        // cannot be an IRI can never name a room, and answering 404 keeps a probe from telling a
+        // rejected id apart from an id that is simply absent from the twin.
+        if (!SparqlIriValidator.IsValidAbsoluteIri(spaceDtId))
+            return new TwinGetResult<Space[]>.NotFound();
+
+        if (!auth.IsAdmin)
+        {
+            if (!await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false))
+                return new TwinGetResult<Space[]>.Forbidden();
+        }
+
+        // "No such room" and "no neighbours" are the same empty adjacency list, so the subject's
+        // existence is established separately.
+        if (await db.GetSpace(spaceDtId).ConfigureAwait(false) is null)
+            return new TwinGetResult<Space[]>.NotFound();
+
+        var neighbours = await db.ListAdjacentSpaces(spaceDtId).ConfigureAwait(false);
+        if (auth.IsAdmin) return new TwinGetResult<Space[]>.Ok(neighbours);
+
+        // One CanAccessAsync per neighbour rather than a hash match against
+        // GetAccessibleResourceIdsAsync("space"): CanAccessAsync already resolves the ancestor chain
+        // (a building/floor grant covers its rooms) and group permissions, so the id-set shortcut
+        // would hide neighbours the caller can read through GET /spaces/{id}. Adjacency degree is a
+        // handful of rooms, so the extra calls are not worth optimizing away.
+        var readable = new List<Space>();
+        foreach (var neighbour in neighbours)
+        {
+            if (await authService.CanAccessAsync(auth, "space", neighbour.DtId, "read", ct).ConfigureAwait(false))
+                readable.Add(neighbour);
+        }
+        return new TwinGetResult<Space[]>.Ok(readable.ToArray());
     }
 
     // ── Device ────────────────────────────────────────────────────────────────

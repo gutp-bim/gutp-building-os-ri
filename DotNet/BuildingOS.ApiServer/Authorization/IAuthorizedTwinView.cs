@@ -14,6 +14,20 @@ public interface IAuthorizedTwinView
     Task<Space[]> ListSpacesAsync(AuthorizationContext auth, string? floorDtId, CancellationToken ct);
     Task<TwinGetResult<Space>> GetSpaceAsync(AuthorizationContext auth, string spaceDtId, CancellationToken ct);
 
+    /// <summary>
+    /// Rooms adjacent to <paramref name="spaceDtId"/> (#440), filtered by read authorization in two
+    /// stages: the subject room must itself be readable (otherwise Forbidden — an unreadable room
+    /// must not disclose how many neighbours it has), then each neighbour is kept only if it is
+    /// readable on its own. NotFound when the subject room is not in the twin, which an empty
+    /// adjacency list would otherwise be indistinguishable from. Admins bypass both stages.
+    ///
+    /// A <paramref name="spaceDtId"/> that is not a well-formed absolute IRI is also NotFound, and is
+    /// rejected before either the twin or the authorization service is consulted — the id lands in a
+    /// SPARQL IRI reference, which cannot be escaped. See <c>SparqlIriValidator</c>.
+    /// </summary>
+    Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
+        AuthorizationContext auth, string spaceDtId, CancellationToken ct);
+
     Task<Device[]> ListDevicesAsync(AuthorizationContext auth, string? spaceDtId, CancellationToken ct);
     Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct);
 
