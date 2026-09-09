@@ -351,6 +351,16 @@ and the equipment attributes are one shared `DeviceAttrOptionals(...)` used by `
 one query** — `OxiGraphDigitalTwinDatabaseTest` asserts by predicate that every read path requests
 the full set.
 
+**dtId は SPARQL の IRI 参照に入る（#444 / #446）。** `<{dtId}>` にはエスケープ機構が無いので、
+`SparqlIriValidator.IsValidAbsoluteIri` を通らない値は**弾く**しかない。検証は二層:
+`AuthorizedTwinView`（正本 — twin にも認可サービスにも触れる前に fail closed。単体取得は 404、
+一覧は空配列で、拒否した ID と twin に無い ID を区別させない）と `OxiGraphDigitalTwinDatabase`
+（多層防御 — `PointDetailController` / `DeviceDetailController` / `ResourceMetadataController` の
+PATCH は認可層を通さず `IDigitalTwinDatabase` を直接呼ぶ）。読み取りは「無かった」ことにし、
+`UpdateResourceMetadataAsync`（唯一の書き込み）だけは throw する。**空文字は「絞り込み無し」で
+不正値ではない** — `ListFloors("")` などの非スコープ分岐は検証前に返る。ポイントの業務 ID は IRI
+ではなく文字列リテラル照合（`EscapeStringLiteral`）なので対象外。
+
 Room adjacency (`ListAdjacentSpaces`, #440) is the one read path deliberately *outside* those shared
 projections — it is its own two-pattern query over `bos:adjacentZone`, uncached, and needs no `UNION`
 because the symmetry is materialized at ingest (`OxiGraphIngestMaterializer`).

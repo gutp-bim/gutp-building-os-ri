@@ -9,6 +9,28 @@ public sealed class AuthorizedTwinView(
     IDigitalTwinDatabase db,
     IAuthorizationService authService) : IAuthorizedTwinView
 {
+    // ── dtId guard (#446) ─────────────────────────────────────────────────────
+    //
+    // Every dtId below is interpolated by the twin into a SPARQL IRI reference (<{dtId}>), which has
+    // no escape mechanism — the controllers percent-unescape the route value first, so a hostile
+    // "%3E" arrives here as a raw ">" that would end the token and let the rest be read as query
+    // syntax. So a value that is not a well-formed absolute IRI is rejected here, before the twin
+    // *and* before the authorization service: asking the ACL first would answer Forbidden for one
+    // malformed id and NotFound for another, which is the very oracle the uniform "not found" denies.
+    // #444 established this on ListAdjacentSpacesAsync; the rest of the read paths follow it.
+    //
+    // Point ids are deliberately not guarded: they are matched as SPARQL string literals
+    // (FILTER(?ptId = "…"), escaped by EscapeStringLiteral) and a business id like "PT001" is not an
+    // IRI at all. Nor is CanWriteResourceAsync, whose resourceId is a dtId for four types and a
+    // point business id for the fifth — the metadata write path is guarded in the twin
+    // implementation instead (see OxiGraphDigitalTwinDatabase).
+    private static bool IsUsableDtId(string? dtId) => SparqlIriValidator.IsValidAbsoluteIri(dtId);
+
+    // A blank scope id is the documented "no filter" input of the list reads, not a malformed IRI —
+    // it never reaches an interpolation, so only a non-blank value is validated.
+    private static bool IsUnusableScopeId(string? scopeDtId)
+        => !string.IsNullOrEmpty(scopeDtId) && !IsUsableDtId(scopeDtId);
+
     // ── Building ──────────────────────────────────────────────────────────────
 
     public async Task<Building[]> ListBuildingsAsync(AuthorizationContext auth, CancellationToken ct)
@@ -21,6 +43,7 @@ public sealed class AuthorizedTwinView(
 
     public async Task<TwinGetResult<Building>> GetBuildingAsync(AuthorizationContext auth, string buildingDtId, CancellationToken ct)
     {
+        if (!IsUsableDtId(buildingDtId)) return new TwinGetResult<Building>.NotFound();
         if (!auth.IsAdmin)
         {
             if (!await authService.CanAccessAsync(auth, "building", buildingDtId, "read", ct).ConfigureAwait(false))
@@ -36,6 +59,7 @@ public sealed class AuthorizedTwinView(
     {
         if (string.IsNullOrEmpty(buildingDtId))
             return auth.IsAdmin ? await db.ListFloors("") : [];
+        if (IsUnusableScopeId(buildingDtId)) return [];
 
         var all = await db.ListFloors(buildingDtId);
         if (auth.IsAdmin) return all;
@@ -46,6 +70,7 @@ public sealed class AuthorizedTwinView(
 
     public async Task<TwinGetResult<Floor>> GetFloorAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct)
     {
+        if (!IsUsableDtId(floorDtId)) return new TwinGetResult<Floor>.NotFound();
         if (!auth.IsAdmin)
         {
             if (!await authService.CanAccessAsync(auth, "floor", floorDtId, "read", ct).ConfigureAwait(false))
@@ -61,6 +86,7 @@ public sealed class AuthorizedTwinView(
     {
         if (string.IsNullOrEmpty(floorDtId))
             return auth.IsAdmin ? await db.ListSpaces("") : [];
+        if (IsUnusableScopeId(floorDtId)) return [];
 
         var all = await db.ListSpaces(floorDtId);
         if (auth.IsAdmin) return all;
@@ -71,6 +97,7 @@ public sealed class AuthorizedTwinView(
 
     public async Task<TwinGetResult<Space>> GetSpaceAsync(AuthorizationContext auth, string spaceDtId, CancellationToken ct)
     {
+        if (!IsUsableDtId(spaceDtId)) return new TwinGetResult<Space>.NotFound();
         if (!auth.IsAdmin)
         {
             if (!await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false))
@@ -83,14 +110,10 @@ public sealed class AuthorizedTwinView(
     public async Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
         AuthorizationContext auth, string spaceDtId, CancellationToken ct)
     {
-        // The controller percent-unescapes the route value, and the twin interpolates it into a
-        // SPARQL IRI reference (<{spaceDtId}>) which has no escape mechanism — so a value that is
-        // not a well-formed absolute IRI is rejected here, before the twin (or the authorization
-        // service) is touched at all. NotFound rather than Forbidden or BadRequest: a value that
-        // cannot be an IRI can never name a room, and answering 404 keeps a probe from telling a
-        // rejected id apart from an id that is simply absent from the twin.
-        if (!SparqlIriValidator.IsValidAbsoluteIri(spaceDtId))
-            return new TwinGetResult<Space[]>.NotFound();
+        // NotFound rather than Forbidden or BadRequest: a value that cannot be an IRI can never name
+        // a room, and answering 404 keeps a probe from telling a rejected id apart from an id that
+        // is simply absent from the twin. See the dtId guard note at the top of this class.
+        if (!IsUsableDtId(spaceDtId)) return new TwinGetResult<Space[]>.NotFound();
 
         if (!auth.IsAdmin)
         {
@@ -126,6 +149,7 @@ public sealed class AuthorizedTwinView(
     {
         if (string.IsNullOrEmpty(spaceDtId))
             return auth.IsAdmin ? await db.ListDevices("") : [];
+        if (IsUnusableScopeId(spaceDtId)) return [];
 
         var all = await db.ListDevices(spaceDtId);
         if (auth.IsAdmin) return all;
@@ -136,6 +160,7 @@ public sealed class AuthorizedTwinView(
 
     public async Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct)
     {
+        if (!IsUsableDtId(deviceDtId)) return new TwinGetResult<Device>.NotFound();
         if (!auth.IsAdmin)
         {
             if (!await authService.CanAccessAsync(auth, "device", deviceDtId, "read", ct).ConfigureAwait(false))
@@ -151,6 +176,10 @@ public sealed class AuthorizedTwinView(
     {
         if (string.IsNullOrEmpty(deviceDtId))
             return auth.IsAdmin ? await db.ListPoints("") : [];
+        // The device scope reaches SPARQL as VALUES ?dev { <deviceDtId> } (BuildPointSelect) rather
+        // than as a triple pattern, which is why it reads as an exception at a glance — it is not:
+        // that is an IRI reference like every other dtId here.
+        if (IsUnusableScopeId(deviceDtId)) return [];
 
         var all = await db.ListPoints(deviceDtId);
         if (auth.IsAdmin) return all;
@@ -202,6 +231,13 @@ public sealed class AuthorizedTwinView(
         AuthorizationContext auth, string? q, string? type, string? buildingDtId,
         IReadOnlyList<string> tags, int limit, int offset, CancellationToken ct)
     {
+        // ?buildingDtId= is user input that ResourceSearchQueryBuilder interpolates into an IRI
+        // reference in every UNION branch (FILTER(?dt = <…>), <…> sbco:hasPart ?dt, …). The builder
+        // is pure and has no way to report a rejection, so the scope is validated here; q and the
+        // tags are string literals and stay on EscapeStringLiteral. An unusable scope names no
+        // building, so the search finds nothing — the same answer an unknown building gets.
+        if (IsUnusableScopeId(buildingDtId)) return [];
+
         var hits = await db.SearchResources(q, type, buildingDtId, tags, limit, offset).ConfigureAwait(false);
         if (auth.IsAdmin) return hits;
 
