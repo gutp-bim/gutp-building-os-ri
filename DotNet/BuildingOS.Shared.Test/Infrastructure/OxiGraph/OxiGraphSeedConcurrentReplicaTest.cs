@@ -13,8 +13,9 @@ namespace BuildingOS.Shared.Test.Infrastructure.OxiGraph;
 /// reason is a property of *this* code rather than of OxiGraph's concurrency: the whole rebuild is sent
 /// as one SPARQL UPDATE request, which OxiGraph commits in a single transaction. Split it into a
 /// request per statement — an entirely natural-looking refactor — and the guarantee is gone with no
-/// test to notice, which is what these characterization tests exist to prevent. They passed before
-/// #447; nothing in that change made them pass.
+/// test to notice, which is what these characterization tests exist to prevent. The behaviour they
+/// pin predates #447 — that change added the tests, not the property — so they are a guard against
+/// future refactors rather than proof of a fix.
 ///
 /// The remaining cost of a duplicate seed (importing the same file twice, pushing the point-list
 /// update twice) is convergent, not corrupting — see <see cref="OxiGraphSeedHostedService"/>.
@@ -54,8 +55,12 @@ public class OxiGraphSeedConcurrentReplicaTest
         await BuildService(handler).RunAsync(seed.Path, templatePath: null, ct: default);
         await BuildService(handler).RunAsync(seed.Path, templatePath: null, ct: default);
 
+        // Both halves of the claim: the same graph URI (so imports overwrite instead of accumulating)
+        // AND the same bytes (so whichever replica lands second leaves the staged RDF unchanged).
+        // Comparing only the URI would let a per-replica payload through.
         Assert.Equal(2, handler.Puts.Count);
-        Assert.Equal(handler.Puts[0], handler.Puts[1]);
+        Assert.Equal(handler.Puts[0].Uri, handler.Puts[1].Uri);
+        Assert.Equal(handler.Puts[0].Body, handler.Puts[1].Body);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
@@ -96,8 +101,9 @@ public class OxiGraphSeedConcurrentReplicaTest
         /// <summary>The <c>update=</c> bodies POSTed to /update, in order.</summary>
         public List<string> Updates { get; } = [];
 
-        /// <summary>The request URIs of the staging PUTs, in order.</summary>
-        public List<string> Puts { get; } = [];
+        /// <summary>The staging PUTs, in order. The body is kept too, so a test can assert that a
+        /// repeat import writes the same bytes and not merely to the same place.</summary>
+        public List<(string Uri, string Body)> Puts { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
         {
@@ -106,7 +112,8 @@ public class OxiGraphSeedConcurrentReplicaTest
 
             if (req.Method == HttpMethod.Put)
             {
-                Puts.Add(uri);
+                var staged = req.Content is null ? "" : await req.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                Puts.Add((uri, staged));
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
 
