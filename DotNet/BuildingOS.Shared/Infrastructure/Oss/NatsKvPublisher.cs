@@ -16,11 +16,14 @@ public sealed class NatsKvPublisher(
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
+    /// <summary>#415: event-lag provenance — every connector-normalised publish routes through here.</summary>
+    private const string LagSource = "connector";
+
     public async Task PublishAsync(string subject, string message, CancellationToken cancellationToken = default)
     {
         await inner.PublishAsync(subject, message, cancellationToken);
 
         if (subject != ValidatedSubject) return;
-        await ValidatedTelemetryHotStore.WriteAsync(hot, message, logger, cancellationToken);
+        await ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken);
     }
 }

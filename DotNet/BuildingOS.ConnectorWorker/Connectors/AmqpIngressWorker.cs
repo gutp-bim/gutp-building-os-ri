@@ -94,6 +94,9 @@ public sealed class AmqpIngressWorker(
 
             if (payloadText == null || !TryParseJson(payloadText, out var payloadElement))
             {
+                // #415: counted, not just logged — a refused payload is a drop and must be visible
+                // in building_os.ingress.messages like the MQTT transport's refusals.
+                Count(IngressTransportResults.BadPayload);
                 logger.LogWarning("AmqpIngressWorker: non-JSON payload from device={DeviceId}, skipping", deviceId);
                 link.Accept(message);
                 return;
@@ -106,7 +109,7 @@ public sealed class AmqpIngressWorker(
             try
             {
                 await publisher.PublishAsync(RawHonoSubject, envelope, ct);
-                BuildingOsMetrics.IngressMessages.Add(1, new KeyValuePair<string, object?>("source", "amqp"));
+                Count(IngressTransportResults.Published);
                 link.Accept(message);
                 logger.LogDebug("AMQP→NATS: device={DeviceId} → {Subject}", deviceId, RawHonoSubject);
             }
@@ -123,6 +126,12 @@ public sealed class AmqpIngressWorker(
             try { link.Reject(message); } catch { }
         }
     }
+
+    private static void Count(string result) =>
+        BuildingOsMetrics.IngressMessages.Add(
+            1,
+            new KeyValuePair<string, object?>("source", "amqp"),
+            new KeyValuePair<string, object?>("result", result));
 
     private static string ExtractDeviceId(Message message)
     {
