@@ -20,6 +20,8 @@ Building OS OSS の主要依存（NATS / MinIO / PostgreSQL / Keycloak / ゲー�
 | API 生存 | `GET http://<api>:5000/health`（匿名） |
 | ConnectorWorker readiness | `GET http://<worker>:8081/health/ready`（**role 依存**, #145/#399 — 下表） |
 | サービス別 up/down | `GET /api/system/status`（`SYSTEM_STATUS_HEALTH_TARGETS` の `/health` ファンアウト） |
+| NATS 状態 | `http://<nats>:8222/varz`・`/jsz`（JetStream） |
+| メトリクス（任意） | Prometheus/Grafana（`--profile observability` 時のみ。既定では無し） |
 
 **ConnectorWorker の readiness は `WORKER_ROLE` で意味が変わる（#399）。**
 role の capability set が実際に必要とする依存だけを報告する。**503 を返す（＝readiness を落とす）のは、
@@ -45,8 +47,6 @@ role の capability set が実際に必要とする依存だけを報告する�
   **レスポンスボディ**（`Healthy` / `Degraded` / `Unhealthy`）を直接見ること。
   起動ログの `readiness:` フィールド（例 `nats(gating), twin(signal)`）でどの check が
   有効かも確認できる。
-| NATS 状態 | `http://<nats>:8222/varz`・`/jsz`（JetStream） |
-| メトリクス（任意） | Prometheus/Grafana（`--profile observability` 時のみ。既定では無し） |
 
 **依存の効き方（要点）:**
 - **テレメトリ取り込み**は NATS 経由。NATS/MinIO が落ちても **JetStream が未 ack 分を保持**するため、
