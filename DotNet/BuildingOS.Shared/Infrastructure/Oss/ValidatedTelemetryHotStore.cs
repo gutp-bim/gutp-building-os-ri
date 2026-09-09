@@ -8,6 +8,8 @@ namespace BuildingOS.Shared.Infrastructure.Oss;
 /// Writes the latest value per point_id from a validated-telemetry message to the hot store. Shared by
 /// the <see cref="NatsKvPublisher"/> decorator and the gRPC ingress bus so both keep the hot store in
 /// sync identically. KV errors are caught and logged — they must never fail the telemetry publish.
+/// Cancellation of <paramref name="cancellationToken"/> is not one of those errors: it stops the write
+/// quietly instead of reporting a hot-store failure per entity on the way down.
 ///
 /// #415: because every validated-telemetry producer converges here, this is also where the
 /// end-to-end event-time lag (<c>building_os.ingress.event_lag</c>) is measured — from the
@@ -59,6 +61,15 @@ public static class ValidatedTelemetryHotStore
                     TelemetryValueKind.Apply(data, te.Value.AsJsonElement);
                     await hot.PutAsync(pointId, data, cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Shutdown, not a hot-store failure: stop quietly rather than logging one warning
+                    // per remaining entity and going on writing to a store we are done with. Filtered
+                    // on the token, so an OperationCanceledException raised for an unrelated reason
+                    // (a KV client's own request timeout under saturation) still falls through to the
+                    // warning below and leaves the per-entity isolation intact.
+                    return;
+                }
                 catch (Exception ex)
                 {
                     // This guards the whole per-entity path — projection and value mapping as well
@@ -70,6 +81,10 @@ public static class ValidatedTelemetryHotStore
                         source);
                 }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Same reason as the per-entity handler: a cancel is not unreadable telemetry.
         }
         catch (Exception ex)
         {

@@ -1,6 +1,7 @@
 using System.Diagnostics.Metrics;
 using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.Shared.Infrastructure.Telemetry;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BuildingOS.Shared.Test.Infrastructure.Oss;
@@ -18,14 +19,19 @@ public class ValidatedTelemetryHotStoreTest
 {
     private const string EventLagInstrument = "building_os.ingress.event_lag";
 
-    /// <summary>Records what was put; optionally throws for a chosen point id to simulate a stalled KV.</summary>
-    private sealed class FakeHotStore(string? throwForPointId = null) : IHotTelemetryStore
+    /// <summary>
+    /// Records what was put; optionally throws for a chosen point id to simulate a stalled KV.
+    /// Observes the token the way a real store does, so a cancelled token surfaces as an
+    /// <see cref="OperationCanceledException"/> out of the put.
+    /// </summary>
+    private sealed class FakeHotStore(string? throwForPointId = null, Exception? throwWith = null) : IHotTelemetryStore
     {
         public List<string> Put { get; } = new();
 
         public Task PutAsync(string pointId, ValidTelemetryData data, CancellationToken cancellationToken = default)
         {
-            if (pointId == throwForPointId) throw new InvalidOperationException("KV put failed");
+            cancellationToken.ThrowIfCancellationRequested();
+            if (pointId == throwForPointId) throw throwWith ?? new InvalidOperationException("KV put failed");
             Put.Add(pointId);
             return Task.CompletedTask;
         }
@@ -116,6 +122,65 @@ public class ValidatedTelemetryHotStoreTest
 
         Assert.Equal(2, values.Count);
         Assert.Equal(new[] { "p2" }, hot.Put);
+    }
+
+    [Fact]
+    public async Task WriteAsync_Cancelled_StopsQuietlyWithoutReportingAHotStoreFailure()
+    {
+        // Shutdown is not a hot-store failure: a cancelled token must not produce one
+        // "hot store sync failed" warning per entity, nor keep walking the remaining entities.
+        const string source = "test-hotstore-cancelled";
+        var hot = new FakeHotStore();
+        var logger = new RecordingLogger();
+        var now = DateTimeOffset.UtcNow;
+        var message = Message(("p1", now.AddSeconds(-60)), ("p2", now.AddSeconds(-120)));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var values = await CaptureAsync(source, () =>
+            ValidatedTelemetryHotStore.WriteAsync(hot, message, source, logger, cts.Token));
+
+        Assert.Empty(logger.Warnings);
+        Assert.Empty(hot.Put);
+        // p1's lag is recorded before its put, so it survives; p2 is never reached.
+        Assert.Single(values);
+    }
+
+    [Fact]
+    public async Task WriteAsync_CancellationFromElsewhere_IsStillReportedAndDoesNotStopTheLoop()
+    {
+        // Only a cancellation of *our* token is a shutdown. An OperationCanceledException raised for an
+        // unrelated reason (a KV client's own request timeout, say) is a hot-store failure like any
+        // other and must keep the per-entity isolation the metric depends on.
+        const string source = "test-hotstore-foreign-cancel";
+        var hot = new FakeHotStore(throwForPointId: "p1", throwWith: new OperationCanceledException("KV timed out"));
+        var logger = new RecordingLogger();
+        var now = DateTimeOffset.UtcNow;
+        var message = Message(("p1", now.AddSeconds(-60)), ("p2", now.AddSeconds(-120)));
+
+        var values = await CaptureAsync(source, () =>
+            ValidatedTelemetryHotStore.WriteAsync(hot, message, source, logger, CancellationToken.None));
+
+        Assert.Single(logger.Warnings);
+        Assert.Equal(new[] { "p2" }, hot.Put);
+        Assert.Equal(2, values.Count);
+    }
+
+    /// <summary>Minimal ILogger capturing Warning-level messages for assertion, without a mocking lib.
+    /// Same pattern as IoTIngressConnectorBaseTest's RecordingLogger.</summary>
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<string> Warnings { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning) Warnings.Add(formatter(state, exception));
+        }
     }
 
     /// <summary>MeterListener capture narrowed to one source tag; see the class remarks on parallelism.</summary>
