@@ -340,6 +340,6 @@ SBCO に等価語彙がないため `bos:` 名前空間に残している概念�
 
 ---
 
-*更新: 2026-09-10（§2.5 空間トポロジー・§6 BOT 語彙の受け入れ・§7 `bos:adjacentZone` を追加 — #440）/
+*更新: 2026-09-09（§2.5 空間トポロジー・§6 BOT 語彙の受け入れ・§7 `bos:adjacentZone` を追加 — #440）/
 2026-08-10（`rec:Room` → `sbco:Room` を上流の正式な `owl:equivalentClass` 定義に基づき materialize 対象へ追加）/
 HITL レビュー: SBCO ↔ 外部標準の意味的等価性は確認対象（§6 の部分一致行、および §2.5 の BOT 由来 `bos:adjacentZone` は特に要レビュー）*
