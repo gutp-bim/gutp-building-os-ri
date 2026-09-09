@@ -181,9 +181,11 @@ public static class BuildingOsMetrics
 
     /// <summary>
     /// Compaction targets abandoned because a planned source object was gone by the time it was read
-    /// (#447) — a second lake replica compacting the same hour, or retention expiring the object. Not a
-    /// failure: the rows live in whatever replaced the sources, and the next cycle re-plans. A steady
-    /// non-zero rate means more than one replica is running the lake role, which buys nothing.
+    /// (#447). Not a failure, and for two different reasons: another lake replica compacting the same
+    /// hour has already merged those rows into the compact object, while retention expiry deleted them
+    /// on purpose. Either way this pass must not write its survivors over the deterministic compact key,
+    /// and the next cycle re-plans from the current listing. A steady non-zero rate means more than one
+    /// replica is running the lake role, which buys nothing.
     /// </summary>
     public static readonly Counter<long> CompactionSkipped =
         Meter.CreateCounter<long>(

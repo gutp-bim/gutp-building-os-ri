@@ -101,10 +101,12 @@ public sealed class CompactionWorker : BackgroundService
             {
                 // A planned source disappeared between the listing and the read, so this plan no longer
                 // describes the partition (#447). Writing the survivors to the deterministic compact key
-                // would overwrite whatever deleted them — another lake replica compacting the same hour,
-                // which has already merged those rows in — and the verify below could not tell, because
-                // it only re-reads what this pass itself wrote. Abandon the target: the object that
-                // replaced them holds the rows, and the next cycle re-plans from the current listing.
+                // would overwrite whatever deleted them, and the verify below could not tell, because it
+                // only re-reads what this pass itself wrote. Abandoning the target is safe under both
+                // causes, for different reasons: another lake replica compacting this hour has already
+                // merged those rows into the compact object, and retention expiry removed them on
+                // purpose (there is no replacement object, and none should be recreated). Either way the
+                // next cycle re-plans from the current listing.
                 BuildingOsMetrics.CompactionSkipped.Add(1);
                 _logger.LogInformation(
                     "CompactionWorker: skipping {Key} — {Missing} of {Sources} source object(s) vanished mid-cycle "
