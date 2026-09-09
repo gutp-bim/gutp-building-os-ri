@@ -37,7 +37,7 @@ HTML、CSS、画像は GitHub Pages の公開サイト用資産です。
 - [バックアップ・リストア](operations/oss-backup-restore-runbook.md)
 - [障害対応](operations/oss-incident-runbook.md)
 - [総合性能評価](reference/performance-evaluation-report.md)
-- [IPA スマートビル ガイドライン対応表](reference/ipa-smart-building-guideline-comparison.md)
+- [IPA スマートビル システムアーキテクチャガイドライン対応表](reference/ipa-smart-building-guideline-comparison.md)
 
 ## OpenAPI 定義
 
