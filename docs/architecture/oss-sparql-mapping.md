@@ -2,7 +2,8 @@
 
 This document maps Azure Digital Twins (ADT) queries to their OxiGraph SPARQL equivalents.
 The resource graph uses the **SBCO ontology** (`https://www.sbco.or.jp/ont/`) as its primary
-vocabulary; `bos:` is retained only for the `ControlSchema` extension, which has no SBCO equivalent.
+vocabulary; `bos:` is retained for the `ControlSchema` extension and for `bos:adjacentZone` (room
+adjacency, #440) — the concepts that have no SBCO equivalent.
 
 The implementation of record is
 `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphOntology.cs` (namespace / class / property
@@ -13,7 +14,8 @@ constants), `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphDigitalTwi
 
 ```
 sbco: = https://www.sbco.or.jp/ont/                ← primary
-bos:  = http://buildingos.gutp.jp/ontology#        ← ControlSchema extension only
+bos:  = http://buildingos.gutp.jp/ontology#        ← ControlSchema extension + bos:adjacentZone
+bot:  = https://w3id.org/bot#                      ← source vocabulary only; rewritten to bos: at ingest
 rdf:  = http://www.w3.org/1999/02/22-rdf-syntax-ns#
 
 Node URI = DtId  (no transformation; the node IRI itself IS the DtId)
@@ -47,6 +49,12 @@ Node URI = DtId  (no transformation; the node IRI itself IS the DtId)
 | `locatedIn` | `sbco:locatedIn` | EquipmentExt→Room or EquipmentExt→Level |
 | `hasPoint` | `sbco:hasPoint` | EquipmentExt→PointExt |
 | (building scoping) | `sbco:floor` | EquipmentExt → Level **name** (string literal join) |
+| (none; BOT `bot:adjacentZone`) | `bos:adjacentZone` | Room↔Room, symmetric — both directions written at ingest |
+
+`bos:adjacentZone` is the canonical form of BOT's `bot:adjacentZone`, rewritten by
+`OxiGraphIngestMaterializer` (see `standard-mapping.md` §2.5 / §6). Symmetry is materialized, not
+queried: a source twin usually declares the edge once, and the materializer inserts the reverse
+triple, so read paths match one direction and need no `UNION`.
 
 `sbco:floor` is a legacy string literal on `sbco:EquipmentExt` matched against a Level's `sbco:name`.
 Building-scoped reads accept it alongside the Room path and direct EquipmentExt→Level placement.
@@ -116,6 +124,35 @@ SELECT ?dt ?id ?name WHERE {
 
 > The current SBCO TTL may not include `sbco:Room` nodes or `sbco:hasPart` to them; in that case this
 > query returns empty and space fields in detail responses are empty.
+
+---
+
+### List Adjacent Spaces
+
+**ADT:** no equivalent — room-to-room adjacency is not part of the ADT query set; it enters the twin
+from BOT (#440).
+
+**SPARQL** (`{spaceDtId}` is the node IRI, inserted directly):
+```sparql
+PREFIX sbco: <https://www.sbco.or.jp/ont/>
+PREFIX bos:  <http://buildingos.gutp.jp/ontology#>
+SELECT ?dt ?id ?name WHERE {
+  <{spaceDtId}> bos:adjacentZone ?dt .
+  ?dt a sbco:Room ; sbco:id ?id ; sbco:name ?name .
+}
+ORDER BY ?id
+```
+
+> Only one direction is matched: the reverse edge already exists in the default graph because
+> `OxiGraphIngestMaterializer` materializes the symmetry at ingest. The neighbour must be an
+> `sbco:Room` with `sbco:id` and `sbco:name` — a `bot:adjacentZone` to a Level or any other BOT zone
+> is dropped here. Unlike `ListBuildings()` / `ListFloors(null)` this read is **not** cached: the
+> cache key would be the subject room, i.e. unbounded keys for a two-pattern query.
+
+`AuthorizedTwinView.ListAdjacentSpacesAsync` then filters the result per neighbour
+(`CanAccessAsync("space", …, "read")`), after establishing the subject room's own readability and
+existence — otherwise "room you may not read" and "room with no neighbours" would be the same empty
+array. `GET /spaces/{spaceDtId}/adjacent-spaces` is the REST surface.
 
 ---
 
