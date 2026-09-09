@@ -1,3 +1,4 @@
+using BuildingOS.ConnectorWorker.Connectors;
 using BuildingOS.Shared.Infrastructure.Monitoring;
 
 namespace BuildingOS.Shared.Test.Infrastructure.Monitoring;
@@ -55,6 +56,38 @@ public class IngressRejectionStatsServiceTest
         var stats = await svc.GetAsync(CancellationToken.None);
 
         Assert.Equal(31, stats.Rejections[0].Count);
+    }
+
+    [Fact]
+    public async Task GetAsync_CannotReportMqttOrAmqpIngressResults_AsGatewayRejections()
+    {
+        // #415 put a `result` tag on the MQTT/AMQP transport counters, which share the
+        // building_os.ingress.messages instrument with the gRPC ingress. Two things keep the two
+        // vocabularies apart and both are pinned here rather than left to prose:
+        //  1. the PromQL is scoped to source="gateway-grpc", so bad_topic/bad_payload never reach it;
+        //  2. an accepted transport message uses the same word ("published") the service filters out,
+        //     so even a future widening of the selector cannot turn an accepted message into a rejection.
+        Assert.Contains("source=\"gateway-grpc\"", IngressRejectionStatsService.RejectionsByReasonQuery);
+
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Vectors =
+            {
+                [IngressRejectionStatsService.RejectionsByReasonQuery] =
+                [
+                    new PrometheusSample(
+                        new Dictionary<string, string> { ["result"] = IngressTransportResults.Published }, 900),
+                    new PrometheusSample(
+                        new Dictionary<string, string> { ["result"] = "unknown_point" }, 7),
+                ],
+            },
+        };
+        var svc = new IngressRejectionStatsService(fake);
+
+        var stats = await svc.GetAsync(CancellationToken.None);
+
+        Assert.Equal("unknown_point", Assert.Single(stats.Rejections).Reason);
     }
 
     [Fact]

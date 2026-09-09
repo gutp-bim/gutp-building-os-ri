@@ -64,6 +64,26 @@ public static class BuildingOsMetrics
             unit: "s",
             description: "Seconds between a raw-subject message's stream timestamp and consumer dequeue.");
 
+    /// <summary>
+    /// #415: seconds between a reading's own event time (the accepted telemetry's <c>datetime</c>) and
+    /// the moment it reaches the hot store — the end-to-end freshness signal, recorded at the one point
+    /// every validated-telemetry producer (connectors and gRPC ingress alike) passes through.
+    ///
+    /// Distinct from the two neighbours above:
+    /// <see cref="IngestionLag"/> measures only how far a NATS consumer trails its own stream, so it
+    /// stays flat when the delay is upstream of NATS (a saturated gateway buffer), while this one keeps
+    /// rising. <see cref="IngressTimestampFallbacks"/> is its caveat, not a sibling measurement: a frame
+    /// whose timestamp fell back to receive time reports an event lag of ~0 by construction, so this
+    /// histogram under-reports delay exactly as far as that counter is moving — read the two together.
+    /// Tag: source (connector|gateway-grpc); deliberately no point/gateway tag (cardinality policy in
+    /// docs/operations/observability-baseline.md).
+    /// </summary>
+    public static readonly Histogram<double> IngressEventLag =
+        Meter.CreateHistogram<double>(
+            "building_os.ingress.event_lag",
+            unit: "s",
+            description: "Seconds between a reading's own event time and its arrival in the hot store.");
+
     /// <summary>Device control requests handled. Tags: handler, result.</summary>
     public static readonly Counter<long> ControlRequests =
         Meter.CreateCounter<long>(

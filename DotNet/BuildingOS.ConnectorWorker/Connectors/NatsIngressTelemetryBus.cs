@@ -30,6 +30,9 @@ public sealed class NatsIngressTelemetryBus(
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
+    /// <summary>#415: event-lag provenance; same vocabulary GatewayIngressService tags its counters with.</summary>
+    private const string LagSource = "gateway-grpc";
+
     private readonly SemaphoreSlim _ensureLock = new(1, 1);
     private readonly ConcurrentDictionary<string, bool> _ensuredStreams = new(StringComparer.Ordinal);
 
@@ -44,7 +47,7 @@ public sealed class NatsIngressTelemetryBus(
         ack.EnsureSuccess();
 
         if (subject == ValidatedSubject)
-            await ValidatedTelemetryHotStore.WriteAsync(hot, message, logger, cancellationToken).ConfigureAwait(false);
+            await ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task EnsureStreamExistsAsync(string subject, CancellationToken ct)

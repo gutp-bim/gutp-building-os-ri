@@ -106,47 +106,32 @@ public sealed class MqttIngressWorker(
     private async Task HandleMessageAsync(MqttApplicationMessage msg, CancellationToken ct)
     {
         var topic = msg.Topic;
-        var parts = topic.Split('/', 3);
-        var tenant = parts.Length > 1 ? parts[1] : string.Empty;
-        var deviceId = parts.Length > 2 ? parts[2] : string.Empty;
-
-        // Require telemetry/{tenant}/{deviceId} — skip ambiguous topics like "telemetry/{tenant}"
-        if (string.IsNullOrEmpty(tenant) || string.IsNullOrEmpty(deviceId))
-        {
-            logger.LogWarning("MqttIngressWorker: topic {Topic} missing tenant or deviceId, skipping", topic);
-            return;
-        }
-
         var payloadText = Encoding.UTF8.GetString(msg.PayloadSegment.ToArray());
 
-        if (!TryParseJson(payloadText, out var payloadElement))
+        // Requires telemetry/{tenant}/{deviceId} and a JSON payload; anything else is refused.
+        // #415: every outcome is counted, so a refusal is a visible drop rather than only a log line.
+        var classified = MqttIngressMessageClassifier.Classify(topic, payloadText);
+        if (!classified.IsPublishable)
         {
-            logger.LogWarning("MqttIngressWorker: non-JSON payload on topic {Topic}, skipping", topic);
+            Count(classified.Result);
+            logger.LogWarning(
+                "MqttIngressWorker: skipping message on topic {Topic}, reason {Reason}", topic, classified.Result);
             return;
         }
 
-        var envelope = JsonSerializer.Serialize(
-            new IngressEnvelope(topic, tenant, deviceId, payloadElement, DateTimeOffset.UtcNow));
+        var envelope = JsonSerializer.Serialize(new IngressEnvelope(
+            topic, classified.Tenant, classified.DeviceId, classified.Payload, DateTimeOffset.UtcNow));
 
         await publisher.PublishAsync(RawMqttSubject, envelope, ct);
-        BuildingOsMetrics.IngressMessages.Add(1, new KeyValuePair<string, object?>("source", "mqtt"));
+        Count(classified.Result);
         logger.LogDebug("MQTT→NATS: {Topic} → {Subject}", topic, RawMqttSubject);
     }
 
-    private static bool TryParseJson(string text, out JsonElement element)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(text);
-            element = doc.RootElement.Clone();
-            return true;
-        }
-        catch (JsonException)
-        {
-            element = default;
-            return false;
-        }
-    }
+    private static void Count(string result) =>
+        BuildingOsMetrics.IngressMessages.Add(
+            1,
+            new KeyValuePair<string, object?>("source", "mqtt"),
+            new KeyValuePair<string, object?>("result", result));
 
     private async Task EnsureStreamExistsAsync(CancellationToken ct)
     {

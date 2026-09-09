@@ -73,13 +73,7 @@ public class NatsMessageSubscription : IMessageSubscription, IAsyncDisposable
             {
                 // #415: how far behind the raw stream this consumer is running — the queueing/backlog
                 // signal the ingestion path had no way to expose before (see BuildingOsMetrics.IngestionLag).
-                var streamTimestamp = msg.Metadata?.Timestamp;
-                if (streamTimestamp is not null)
-                {
-                    var lagSeconds = (DateTimeOffset.UtcNow - streamTimestamp.Value).TotalSeconds;
-                    BuildingOsMetrics.IngestionLag.Record(
-                        Math.Max(0, lagSeconds), new KeyValuePair<string, object?>("subject", _subject));
-                }
+                IngestLagRecorder.RecordConsumerLag(_subject, msg.Metadata?.Timestamp, DateTimeOffset.UtcNow);
 
                 foreach (var handler in _handlers)
                 {
