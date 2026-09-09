@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IPA ガイドライン対応 | Building OS — OSS Edition</title>
+  <meta name="description" content="IPA「スマートビル システムアーキテクチャガイドライン」が必要／推奨として挙げる全27項目と、Building OS OSS Edition の実装との対応表。必要要件15項目は未対応ゼロ、推奨要件の充足状況と、その差がスコープの絞り込みに由来する理由を、原典への参照つきで示します。">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+  <script defer src="assets/site.js"></script>
+</head>
+<body>
+
+<!-- ===== SITE CHROME (header) — 全7ページで同一に保つこと(aria-current のみページごとに変更)。
+     例外: index-en.html だけは nav ラベルと「メニュー」ボタンの文言を英訳している ===== -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">Building OS <span class="brand-sub">OSS Edition</span></a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">メニュー</button>
+    <nav id="site-nav" class="site-nav" aria-label="サイト内ナビゲーション">
+      <a href="index.html">ホーム</a>
+      <a href="product.html">プロダクト</a>
+      <a href="quickstart.html">クイックスタート</a>
+      <a href="architecture.html">アーキテクチャ</a>
+      <a href="ecosystem.html">エコシステム</a>
+      <a href="ipa-guideline.html" aria-current="page">IPA ガイドライン対応</a>
+      <a href="index-en.html">EN</a>
+      <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+<!-- ===== /SITE CHROME (header) ===== -->
+
+<main>
+
+  <section class="hero">
+    <div class="container">
+      <h1>IPA ガイドライン対応</h1>
+      <p class="hero-tagline">
+        国が示すスマートビルの要件に、この実装はどこまで届いているか — 27 項目を1件ずつ。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 原典 ===== -->
+  <section class="section">
+    <div class="container">
+      <h2>何と突き合わせたか</h2>
+      <p>
+        IPA(独立行政法人情報処理推進機構)デジタルアーキテクチャ・デザインセンターの
+        スマートビルプロジェクトが公開する<strong>「スマートビル システムアーキテクチャ ガイドライン」</strong>が
+        <strong>必要</strong>／<strong>推奨</strong>と明記する機能要件・概念モデル要件の全27項目を、
+        Building OS OSS Edition の実コード(コントローラ・クラス・SPARQL 等)と1件ずつ突き合わせた結果です。
+      </p>
+
+      <div class="source-cite">
+        <dl>
+          <dt>原典</dt>
+          <dd>スマートビル システムアーキテクチャ ガイドライン(全66ページ)</dd>
+          <dt>発行者</dt>
+          <dd>独立行政法人情報処理推進機構(IPA) デジタルアーキテクチャ・デザインセンター スマートビルプロジェクト</dd>
+          <dt>原典 PDF</dt>
+          <dd><a href="https://www.ipa.go.jp/digital/architecture/Individual-link/ps6vr70000016bq2-att/smartbuilding_system-architecture_guideline.pdf" rel="noopener">smartbuilding_system-architecture_guideline.pdf</a></dd>
+          <dt>一覧ページ</dt>
+          <dd><a href="https://www.ipa.go.jp/digital/architecture/guidelines/smartbuilding-guideline.html" rel="noopener">IPA スマートビルガイドライン</a></dd>
+          <dt>参照日</dt>
+          <dd>2026-09-09(版数・発行日は PDF 本体に明示が無いため、URL と参照日で特定します)</dd>
+          <dt>照合対象</dt>
+          <dd>gutp-building-os-ri <code>main</code>(コミット <code>aae4830</code> 時点)</dd>
+        </dl>
+      </div>
+
+      <p>
+        原典のうち必要／推奨が明記された表をすべて特定しました(表3「要請の程度を表す語句」で
+        <strong>必要</strong> =「設計原則を満たすために必要」、<strong>推奨</strong> =「目的や用途に応じて
+        選択的に採用」と定義)。該当するのは<strong>表4〜表9 の6つ・全27項目</strong>で、これが原典に存在する
+        必要／推奨項目の全数です(文書内 grep で確認済み、他に該当表なし)。
+      </p>
+
+      <div class="callout-warn">
+        <strong>これは自己申告の対応表です。</strong>
+        IPA その他の第三者による適合認証・監査を受けたものではありません。判定はいずれも本リポジトリの
+        実コードを根拠にしていますが、ガイドライン本文の解釈には幅があり、特に「部分対応(△)」の
+        線引きは記述者の判断です。各行の「実装」列に挙げたクラス名・エンドポイントから、
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">ソース</a>を直接確認できます。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== サマリ ===== -->
+  <section class="section section--alt">
+    <div class="container">
+      <h2>一目でわかる充足状況</h2>
+      <ul class="stat-grid">
+        <li class="stat">
+          <span class="stat-num">15 / 15</span>
+          <span class="stat-label">必要要件</span>
+          <span class="stat-note">未対応(❌)はゼロ。対応 13・部分対応 2。</span>
+        </li>
+        <li class="stat">
+          <span class="stat-num">5 / 12</span>
+          <span class="stat-label">推奨要件</span>
+          <span class="stat-note">対応 4・部分対応 1。未対応 7 の大半は意図的なスコープ外。</span>
+        </li>
+        <li class="stat">
+          <span class="stat-num">27</span>
+          <span class="stat-label">全項目</span>
+          <span class="stat-note">✅対応 17 / △部分対応 3 / ❌未対応 7。</span>
+        </li>
+      </ul>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>区分</th><th>項目数</th><th>✅ 対応</th><th>△ 部分対応</th><th>❌ 未対応</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>必要</td><td>15</td><td>13 (87%)</td><td>2 (13%)</td><td>0 (0%)</td></tr>
+            <tr><td>推奨</td><td>12</td><td>4 (33%)</td><td>1 (8%)</td><td>7 (58%)</td></tr>
+            <tr><td><strong>合計</strong></td><td><strong>27</strong></td><td><strong>17</strong></td><td><strong>3</strong></td><td><strong>7</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        ガイドラインが<strong>必須</strong>と明記する最低要件は、15項目すべてを満たしています
+        (△の2件も、管理者操作を起点とした運用で機能自体は達成できています)。一方で推奨要件は
+        12項目中7項目が未対応で、充足率が大きく落ちます。この差の理由は次節のとおりです。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 位置づけ ===== -->
+  <section class="section">
+    <div class="container">
+      <h2>なぜ「推奨」だけ落ちるのか — Building OS の位置づけ</h2>
+      <p>
+        ガイドラインはスマートビルを<strong>フィールド層 / データ共有・管理層 / アプリケーション層</strong>に
+        分けて記述します。Building OS OSS Edition はこのうち
+        <strong>「データ共有・管理層の中間基盤」</strong>に相当し、上下の層は意図的に持ちません。
+      </p>
+      <div class="cards">
+        <div class="card">
+          <h3>フィールド層 — 持たない</h3>
+          <p>
+            連携ゲートウェイ(連携GW)そのものは実装しません。GW 実装は
+            <a href="ecosystem.html">nexus-gateway 等の隣接リポジトリ</a>の責務で、本リポジトリが持つのは
+            その<strong>受け口</strong>(gRPC GatewayIngress / GatewayEgress、MQTT / Hono コネクタ)です。
+          </p>
+        </div>
+        <div class="card">
+          <h3>データ共有・管理層 — ここ</h3>
+          <p>
+            取り込み・正規化・保存(Hot / Warm / Cold)・デジタルツイン・API・認可までを担います。
+            必要要件が全項目埋まっているのはこの層に集中しているためです。
+          </p>
+        </div>
+        <div class="card">
+          <h3>アプリケーション層 — 持たない</h3>
+          <p>
+            BEMS アプリや分析アプリのユースケースは実装しません。REST / gRPC API と権限モデルを提供し、
+            その上に載るアプリは利用者側の責務です。
+          </p>
+        </div>
+      </div>
+      <p>
+        未対応の推奨要件(連携システムのデータガバナンス、汎用ブローカー機能、位置情報、機器間関係、
+        ゾーングルーピング等)は、この境界の外側か将来拡張に委ねた設計判断です。
+        <strong>実装の抜けというより、スコープの絞り込みが表に出たもの</strong>と読んでください。
+      </p>
+      <p class="fineprint">
+        ※ 全体構成は <a href="architecture.html">アーキテクチャ</a>、層構造の詳細は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/architecture/oss-tier-architecture.md" rel="noopener">oss-tier-architecture.md</a>、
+        オントロジーの標準対応は
+        <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/architecture/standard-mapping.md" rel="noopener">standard-mapping.md</a> を参照。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 対応表 ===== -->
+  <section class="section section--alt">
+    <div class="container">
+      <h2>凡例</h2>
+      <ul class="link-list">
+        <li><span class="status status--ok">✅ 対応</span> <span class="note">— 実装済み</span></li>
+        <li><span class="status status--partial">△ 部分対応</span> <span class="note">— 機能は達成できるが、ガイドラインが想定する経路・粒度と差がある</span></li>
+        <li><span class="status status--none">❌ 未対応</span> <span class="note">— 相当する実装が無い、またはスコープ外</span></li>
+      </ul>
+      <p class="fineprint">
+        ※ 「必要/推奨」列の<span class="req--must">必要</span>／<span class="req--should">推奨</span>は原典表3の定義に従います。
+        表は横スクロールします。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>表4: ビルOS連携ゲートウェイ(連携GW)</h2>
+      <p>
+        フィールド層の機能。<strong>Building OS 自体は連携GWを実装しません</strong>(連携GW実装は
+        nexus-gateway 等の隣接リポジトリの責務)。ここでは Building OS 側の受け口を示します。
+      </p>
+      <div class="table-wrap">
+        <table class="conf-table">
+          <thead>
+            <tr><th>#</th><th>機能</th><th>必要/推奨</th><th>状態</th><th>実装</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>設備稼働データ送信機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>GatewayIngress gRPC(client-stream telemetry)、MQTT/Hono コネクタが受信側として対応</td>
+            </tr>
+            <tr>
+              <td>2</td><td>コマンド送受信機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>GatewayBridge の GatewayEgress(bidi stream)が制御コマンドを GW へ中継</td>
+            </tr>
+            <tr>
+              <td>3</td><td>遠隔アップデート機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td>GW 自体のソフトウェア更新は Building OS の管轄外</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>表5: データ送受信モジュール</h2>
+      <p>ConnectorWorker の ingress 側。</p>
+      <div class="table-wrap">
+        <table class="conf-table">
+          <thead>
+            <tr><th>#</th><th>機能</th><th>必要/推奨</th><th>状態</th><th>実装</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>デバイス通信(受信)機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>GatewayIngress gRPC、<code>MqttIngressWorker</code>、<code>AmqpIngressWorker</code></td>
+            </tr>
+            <tr>
+              <td>2</td><td>データルーティング機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>NATS <code>building-os.raw.*</code> → 正規化 → <code>building-os.validated.telemetry</code> → 各 Writer</td>
+            </tr>
+            <tr>
+              <td>3</td><td>データフィルタリング機能(異常値判定)</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td>
+                ingestion 時の値レンジ検証はありません。<code>bos:alarmHigh</code> / <code>warnHigh</code> /
+                <code>alarmLow</code> は UI 表示用の閾値のみで、取り込み経路のフィルタには使われていません
+                (<code>ProtocolConnectorBase.ProcessAsync</code> は値をそのまま通します)。正本経路である
+                gRPC GatewayIngress も同様で、<code>GatewayIngressService</code> の skip 条件は識別子・
+                同一性・所有権・階層接続の判定のみです(下の「追加検証 1」)
+              </td>
+            </tr>
+            <tr>
+              <td>4</td><td>デバイス通信(送信)機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>GatewayEgress、<code>NatsPointControlWorker</code></td>
+            </tr>
+            <tr>
+              <td>5</td><td>連携GW遠隔アップデート機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td>表4-3 と同じ理由</td>
+            </tr>
+            <tr>
+              <td>6</td><td>デバイス認証機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td><code>GRPC_INGRESS_REQUIRE_GATEWAY_IDENTITY</code>(mTLS trusted header 検証)、MQTT/Hono 資格情報</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>表6: データ管理モジュール</h2>
+      <div class="table-wrap">
+        <table class="conf-table">
+          <thead>
+            <tr><th>#</th><th>機能</th><th>必要/推奨</th><th>状態</th><th>実装</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>リアルタイムデータ管理機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>
+                NATS KV(<code>telemetry-latest</code>、<code>history=1</code> = 監視点ごとの最新値、
+                <code>NatsKvLatestStore</code>)に集約・保存し、<code>GET /telemetries/query?latest=true</code> で
+                監視点 ID から特定可能。<strong>注釈</strong>: (a) 原文の「時刻…を指定した問い合わせ」は
+                この hot 層単体では不可(<code>IHotTelemetryStore.GetAsync</code> に時刻引数がなく、
+                <code>OssTelemetryQueryRouter</code> は時刻範囲指定時は常に warm/cold へルーティング)
+                —— 時刻指定問い合わせは隣接する表6-2(アーカイブ)が担う役割分担です。
+                (b) 「受信日時」は独立したメタデータではなく、デバイス時刻と受信時刻フォールバックが
+                単一の <code>Datetime</code> フィールドに混在します
+                (<code>GatewayIngressService.NormalizeTimestamp</code>、既知の課題として
+                <a href="https://github.com/gutp-bim/gutp-building-os-ri/issues/418" rel="noopener">#418</a> で言及済み)
+              </td>
+            </tr>
+            <tr>
+              <td>2</td><td>アーカイブデータ管理機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>Parquet レイク(MinIO、warm/cold)、CompactionWorker / LakeRetention</td>
+            </tr>
+            <tr>
+              <td>3</td><td>連携システム情報管理機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--partial">△ 部分対応</span></td>
+              <td>
+                フィールド層 GW の接続情報レジストリ(<code>IGatewayConnectionRegistry</code>)はありますが、
+                <strong>アプリケーション/プラットフォーム側</strong>の接続先・認証情報を管理する専用レジストリは
+                ありません。近い機能として OIDC クライアント管理(<code>OidcClientsController</code>)がありますが、
+                これは Building OS へ「入ってくる」認証の管理であり、ガイドラインが指す
+                「連携システムの一覧・接続先」とは向きが異なります
+              </td>
+            </tr>
+            <tr>
+              <td>4</td><td>連携システムデータ管理機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td>外部アプリ/プラットフォームが保有するデータを Building OS 側に保存・管理する仕組みはありません</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>表7: 建物デジタルツインモジュール</h2>
+      <div class="table-wrap">
+        <table class="conf-table">
+          <thead>
+            <tr><th>#</th><th>機能</th><th>必要/推奨</th><th>状態</th><th>実装</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>建物アセットデータ参照機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>OxiGraph SPARQL + REST API(<code>/resources</code>、<code>GetPointDetailByPointId</code> 等)</td>
+            </tr>
+            <tr>
+              <td>2</td><td>建物データモデル管理機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--partial">△ 部分対応</span></td>
+              <td>
+                管理者による Twin import(replace/append)は実装済み。UI ルートは web-client の
+                <code>/admin/twin</code>、実体は API の <code>POST /api/admin/twin/import/preview</code> /
+                <code>POST /api/admin/twin/import/apply</code>(<code>TwinAdminController</code>、
+                <code>[AuthorizeFilter]</code> ＋ 各アクションの <code>IsAdmin()</code> で管理者限定)。
+                ただしガイドラインが想定する
+                「アプリケーション層のシステムのリクエストに応じた自動更新」経路は無く、常に管理者操作が起点です
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>表8: データ連携モジュール</h2>
+      <div class="table-wrap">
+        <table class="conf-table">
+          <thead>
+            <tr><th>#</th><th>機能</th><th>必要/推奨</th><th>状態</th><th>実装</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>データ提供機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>REST/gRPC(<code>GET /telemetries/query</code>、resource API)</td>
+            </tr>
+            <tr>
+              <td>2</td><td>遠隔制御コマンド送信機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td><code>POST /points/{id}/control</code></td>
+            </tr>
+            <tr>
+              <td>3</td><td>ブローカー機能</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--partial">△ 部分対応</span></td>
+              <td>
+                <code>POST /api/assistant/chat</code> が外部 LLM へプロキシする例のみ
+                (<a href="https://github.com/gutp-bim/gutp-building-os-ri/issues/151" rel="noopener">#151</a>、
+                既定オフの実験的機能、chat 専用)。リクエスト内容に応じて連携システムへ動的に振り分ける
+                汎用ブローカーはありません
+              </td>
+            </tr>
+            <tr>
+              <td>4</td><td>アプリケーション認証機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>Keycloak OIDC/JWT(<code>JwtBearerDefaults</code>)</td>
+            </tr>
+            <tr>
+              <td>5</td><td>権限管理機能</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>
+                <code>AuthorizationContext</code> / <code>IAuthorizationService.CanAccessAsync</code>、
+                <code>{resourceType}:{resourceId}:{actions}</code> 形式の権限文字列。ガイドラインが想定する
+                「連携アプリごと」の権限というよりは「ユーザー・ロールごと」の権限として実装されている点に留意
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--alt">
+    <div class="container">
+      <h2>表9: 概念モデルの要件(建物データモデル)</h2>
+      <div class="table-wrap">
+        <table class="conf-table">
+          <thead>
+            <tr><th>#</th><th>要件</th><th>必要/推奨</th><th>状態</th><th>実装</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>空間・物体・監視点の3概念＋関係性を表現できること</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td><code>sbco:Room</code>(空間)/ <code>EquipmentExt</code>(物体)/ <code>PointExt</code>(監視点)+ <code>locatedIn</code> / <code>hasPoint</code></td>
+            </tr>
+            <tr>
+              <td>2</td><td>空間同士の関係性を表現できること</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>
+                ガイドライン本文が示す具体例(図14)は「建物→フロア→部屋」の<strong>木構造</strong>
+                (空間トポロジー)であり、<code>sbco:hasPart</code>(Site→Building→Level→Room)が満たします。
+                「間仕切り変更等に応じた動的な変更」は本文でも「望ましい」(推奨相当)止まりで、
+                Twin import(replace/append)で対応可能。なお、部屋同士の<strong>隣接</strong>関係
+                (ドアで繋がっている等の横方向トポロジー)はこの要件の対象外で、ガイドラインの最低要件を
+                超える拡張として
+                <a href="https://github.com/gutp-bim/gutp-building-os-ri/issues/440" rel="noopener">#440</a>
+                で別途提案しています
+              </td>
+            </tr>
+            <tr>
+              <td>3</td><td>空間と物体の関係性を動的に変更できること</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td>Twin import(replace/append)により <code>locatedIn</code> の再構成が可能</td>
+            </tr>
+            <tr>
+              <td>4</td><td>オブジェクトはプロパティ(データ項目)を持つこと</td>
+              <td><span class="req--must">必要</span></td>
+              <td><span class="status status--ok">✅ 対応</span></td>
+              <td><code>sbco:id</code> / <code>name</code> / <code>pointType</code> 等、<code>bos:dataType</code> 等</td>
+            </tr>
+            <tr>
+              <td>5</td><td>空間・物体・監視点のグループ化(グラフ構造が推奨)</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td><code>Zone</code> / <code>Area</code> に相当するクラスがありません。関係はすべて木構造(<code>hasPart</code> / <code>locatedIn</code>)です</td>
+            </tr>
+            <tr>
+              <td>6</td><td>物体同士の関係性を表現できること</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td>Equipment ↔ Equipment の関係述語(Brick の <code>feeds</code> / <code>isFedBy</code> 相当)が存在しません</td>
+            </tr>
+            <tr>
+              <td>7</td><td>オブジェクトが「位置情報」プロパティを持つこと</td>
+              <td><span class="req--should">推奨</span></td>
+              <td><span class="status status--none">❌ 未対応</span></td>
+              <td>
+                生きているモデルには存在しません。自動生成 DTDL エンティティ(<code>Dtdl.Site.*.cs</code>)に
+                <code>RefLatitude</code> / <code>RefLongitude</code> がありますが、リポジトリ全体で
+                どこからも参照されない未使用コードです(下の「追加検証 2」)
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 追加検証 ===== -->
+  <section class="section">
+    <div class="container">
+      <h2>作成時の追加検証</h2>
+      <p>
+        対応表を実コードで裏取りする際に見つかった、根拠の精度に関する補足です。
+        判定(✅/△/❌)はいずれも変わりません。
+      </p>
+
+      <h3>1. 表5-3 の根拠には <code>GatewayIngressService</code> も併記されるべき</h3>
+      <p>
+        表の「実装」列が挙げる <code>ProtocolConnectorBase</code> は、それ自身の doc comment のとおり
+        <code>HvacConnectorWorker</code> / <code>ElectricConnectorWorker</code> にのみ適用されるもので、
+        <strong>取り込みの正本経路である gRPC GatewayIngress はこの基底クラスを通りません</strong>。
+        その GatewayIngress 側の skip 条件は「gateway_id/point_id 欠落」「ゲートウェイ ID 同一性(#296)」
+        「未知の point_id」「ツイン上の所有権」「建物階層への接続(#292)」の5つのみで、
+        <strong>値レンジ検証は存在しません</strong>。つまり ❌ 判定は正本経路でも同様に成り立ち、
+        根拠としてはこちらを挙げる方が正確です。
+      </p>
+
+      <h3>2. 表9-7 は「プロパティが未参照」より強く言える</h3>
+      <p>
+        <code>RefLatitude</code> / <code>RefLongitude</code> の出現箇所は JSON Schema
+        (<code>Defines/Schemas/dtdl.json</code>)と、そこから生成された
+        <code>Defines/Entities/Dtdl.Site.Properties.cs</code> / <code>Dtdl.Site.Validate.Object.cs</code> のみで、
+        <code>latitude</code> / <code>longitude</code> は DotNet・web-client・fixtures のいずれにも
+        他に現れません。さらに正確には、<strong>生成された <code>Dtdl.Site.*</code> 型そのものが
+        <code>Defines/Entities/</code> の外から一切参照されていません</strong>。加えて当該2プロパティは
+        dtdl.json 上 <code>required</code> 指定であり、スキーマ上は必須でありながら実行時にはどの経路からも
+        使われていない、という状態にあります。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 参照 ===== -->
+  <section class="section section--alt">
+    <div class="container">
+      <h2>参照</h2>
+
+      <h3>ガイドライン原典(IPA)</h3>
+      <ul class="link-list">
+        <li><a href="https://www.ipa.go.jp/digital/architecture/Individual-link/ps6vr70000016bq2-att/smartbuilding_system-architecture_guideline.pdf" rel="noopener">スマートビル システムアーキテクチャ ガイドライン(PDF)</a> <span class="note">— 本ページが突き合わせた原典。表4〜表9 が必要／推奨項目の全数</span></li>
+        <li><a href="https://www.ipa.go.jp/digital/architecture/guidelines/smartbuilding-guideline.html" rel="noopener">IPA スマートビルガイドライン 一覧ページ</a> <span class="note">— 構築・運用／データガバナンス／総合など他のガイドラインも公開されている(本ページの対象外)</span></li>
+        <li><a href="https://www.ipa.go.jp/digital/architecture/index.html" rel="noopener">IPA デジタルアーキテクチャ・デザインセンター</a> <span class="note">— 発行元</span></li>
+      </ul>
+
+      <h3>本リポジトリの関連文書</h3>
+      <ul class="link-list">
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/reference/ipa-smart-building-guideline-comparison.md" rel="noopener">ipa-smart-building-guideline-comparison.md</a> <span class="note">— 本ページと同じ内容の Markdown 版(リポジトリ内の正本)</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/architecture/standard-mapping.md" rel="noopener">standard-mapping.md</a> <span class="note">— SBCO / <code>bos:</code> ↔ Brick / REC / IFC / DTDL の語彙対応</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/architecture/system-architecture.md" rel="noopener">system-architecture.md</a> <span class="note">— 全体構成・データ/制御フロー・セキュリティ</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/architecture/oss-tier-architecture.md" rel="noopener">oss-tier-architecture.md</a> <span class="note">— Hot / Warm / Cold の層構造</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/architecture/oss-control-safety.md" rel="noopener">oss-control-safety.md</a> <span class="note">— 制御の安全性設計(表8-2 の背景)</span></li>
+        <li><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/docs/reference/oss-feature-comparison.md" rel="noopener">oss-feature-comparison.md</a> <span class="note">— Azure / OSS 機能比較(同型の対応表)</span></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== SITE CHROME (footer) — 全7ページで同一に保つこと ===== -->
+<footer class="site-footer">
+  <div class="container">
+    <p class="footer-brand">Building OS — OSS Edition</p>
+    <p>東京大学グリーン ICT プロジェクト(GUTP)の研究成果物を基にした派生プロダクトです。東京大学・GUTP・原著者らによる公式な提供・保証・サポートを意味するものではありません。</p>
+    <p>本ソフトウェアは現状有姿(AS IS)・無保証で提供されます。ビル設備の制御を含む利用は、利用者自身の責任で十分に検証のうえ行ってください。詳細: <a href="https://github.com/gutp-bim/gutp-building-os-ri#免責事項-disclaimer" rel="noopener">免責事項</a></p>
+    <p><a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/LICENSE" rel="noopener">Apache License 2.0</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri" rel="noopener">GitHub</a> ・ <a href="https://github.com/gutp-bim/gutp-building-os-ri/blob/main/SECURITY.md" rel="noopener">SECURITY</a></p>
+  </div>
+</footer>
+<!-- ===== /SITE CHROME (footer) ===== -->
+
+</body>
+</html>

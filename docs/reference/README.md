@@ -7,4 +7,5 @@
 - [DuckDB 性能評価](oss-duckdb-spike.md)
 - [OSS 技術スタック分析](oss-tech-stack-analysis.md)
 - [Azure / OSS 機能比較](oss-feature-comparison.md)
+- [IPA スマートビル システムアーキテクチャガイドライン対応表](ipa-smart-building-guideline-comparison.md)
 - [性能評価レポートテンプレート](e2e-performance-report-template.md)
