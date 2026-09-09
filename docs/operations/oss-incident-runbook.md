@@ -18,8 +18,33 @@ Building OS OSS の主要依存（NATS / MinIO / PostgreSQL / Keycloak / ゲー�
 | 見るもの | どこ |
 |---|---|
 | API 生存 | `GET http://<api>:5000/health`（匿名） |
-| ConnectorWorker readiness | `GET http://<worker>:8081/health/ready`（`ready`=NATS 接続 Open, #145） |
+| ConnectorWorker readiness | `GET http://<worker>:8081/health/ready`（**role 依存**, #145/#399 — 下表） |
 | サービス別 up/down | `GET /api/system/status`（`SYSTEM_STATUS_HEALTH_TARGETS` の `/health` ファンアウト） |
+
+**ConnectorWorker の readiness は `WORKER_ROLE` で意味が変わる（#399）。**
+role の capability set が実際に必要とする依存だけを報告する。**503 を返す（＝readiness を落とす）のは、
+その依存が失われるとその role の仕事が丸ごと止まる場合だけ**で、それ以外は Degraded＝**HTTP 200** の
+シグナルにとどめる（`curl -sf` は通る）。
+
+| WORKER_ROLE | check | NATS | twin (OxiGraph) | object store (MinIO) |
+|---|---|---|---|---|
+| `all`（既定） | nats + twin + objectstore | **503** | 200 Degraded | 200 Degraded |
+| `ingest` | nats + twin | **503** | 200 Degraded | — |
+| `lake` | nats + objectstore | **503** | — | **503** |
+| `control` | nats + twin | **503** | 200 Degraded | — |
+
+- **twin 断はどの role でも 503 にしない**のは意図的。ingest/control は twin を TTL キャッシュ越しに
+  読む（`PointMetadataCache` は warm なら stale-while-revalidate）ので OxiGraph 断でも動き続ける。
+  ここで 503 にすると全 ingest replica が**同時に** Service から外れ、キャッシュが吸収できている
+  劣化を全面停止に変えてしまう。
+- `all` で MinIO 断も 200 なのは、同一プロセスが ingest/control でもあり（どちらも MinIO 不要）、
+  かつ `make wait-oss-stack` がこのエンドポイントを `curl -sf` で待つため。
+- ⚠️ **`/api/system/status` は 2xx をすべて `up` に潰す**（`HttpServiceHealthProbe`）。したがって
+  **`connector-worker=up` は「依存が全部健全」を意味しない** — Degraded も up に見える。
+  同じ表の **`oxigraph` / `minio` 行を必ず併読**するか、worker の `/health/ready` の
+  **レスポンスボディ**（`Healthy` / `Degraded` / `Unhealthy`）を直接見ること。
+  起動ログの `readiness:` フィールド（例 `nats(gating), twin(signal)`）でどの check が
+  有効かも確認できる。
 | NATS 状態 | `http://<nats>:8222/varz`・`/jsz`（JetStream） |
 | メトリクス（任意） | Prometheus/Grafana（`--profile observability` 時のみ。既定では無し） |
 
@@ -52,9 +77,12 @@ operator-home が全 Point stale/missing 化。
 ## 2. MinIO（Parquet レイク）が落ちた
 
 **症状**: range/履歴クエリが 5xx、`ParquetLakeWriterWorker` の flush が失敗しログにリトライ。**最新値
-（Hot KV）と制御は生存**（MinIO 非依存）。
+（Hot KV）と制御は生存**（MinIO 非依存）。ConnectorWorker の readiness は role 次第（#399）:
+`WORKER_ROLE=lake` の worker は `/health/ready` が **503**（objectstore check が落ちる）、既定の
+`all` は **200 + Degraded** のまま。
 
-**切り分け**: `GET http://<minio>:9000/minio/health/live` 応答なし。
+**切り分け**: `GET http://<minio>:9000/minio/health/live` 応答なし。`all` 構成では
+`/api/system/status` の `connector-worker` は up のままなので、同表の `minio` 行を見ること。
 
 **一次対応 / 復旧**:
 1. MinIO を復旧（再起動 / ストレージ確認 / ディスク空き）。データは `minio_data`（S3 バケット `cold`）。
@@ -112,6 +140,11 @@ API の JWT 検証は JWKS キャッシュがある限り継続しうる。
 
 ## 6. 部分障害と縮退
 
+- **OxiGraph（デジタルツイン）が落ちても取り込みは即座には止まらない**。ingest は
+  `IPointMetadataCache` の TTL キャッシュ（warm なら stale-while-revalidate）で enrich を続ける。
+  ConnectorWorker の `/health/ready` は **200 + Degraded**（twin check、#399）で、replica は
+  Service から外れない。ただし**キャッシュに載っていない新規 point は解決できず skip** されるため、
+  復旧は急ぐこと。resource 系 API / 画面は OxiGraph 依存なので先に失敗する。
 - **可観測性（Prometheus/Grafana/OTLP）が落ちても本体は動く**（既定スタック外・no-op 設計）。KPI が
   null 化するだけ。
 - API 障害・NATS 断時の **UI 縮退表示（degraded view）ポリシー**は未整備で、#163 の別項目
