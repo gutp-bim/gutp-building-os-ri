@@ -47,8 +47,11 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 // Readiness + overall /health: the ready-tagged checks. Default status codes are kept on purpose —
 // Healthy/Degraded → 200, Unhealthy → 503 — which is what makes a "signal" check reportable without
 // evicting the replica (see ConnectorWorkerHealthChecks).
-app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
-app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
+// The tag comes from ConnectorWorkerHealthChecks, which is what applies it at registration: a
+// literal here would let the two drift on a rename, and the selector silently matching nothing
+// turns readiness into an unconditional 200 rather than an error.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(ConnectorWorkerHealthChecks.ReadyTag) });
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.Contains(ConnectorWorkerHealthChecks.ReadyTag) });
 if (grpcIngressPort is not null)
     app.MapGrpcService<GatewayIngressService>();
 LogStartup(app.Services, workerRole, grpcIngressPort);
