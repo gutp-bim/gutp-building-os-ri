@@ -25,6 +25,27 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
         _cache = cache;
     }
 
+    // ── dtId guard (#446) ─────────────────────────────────────────────────────
+    //
+    // Every caller-supplied dtId below lands in a SPARQL IRI reference (<{dtId}>), which has no
+    // escape mechanism the way a string literal has EscapeStringLiteral — a ">" in the value ends
+    // the token and the remainder is parsed as query syntax, and a merely malformed value makes
+    // OxiGraph answer 400, which EnsureSuccessStatusCode turns into a 500 for the client. A
+    // relative reference is worse than either: it is legal SPARQL and silently resolves against the
+    // query's base IRI, so it answers about a resource the caller never named.
+    //
+    // AuthorizedTwinView already refuses such a value before it gets here, and that stays the
+    // primary gate (it can answer 404 without the twin being touched at all). This is the second
+    // layer, and it is not hypothetical: PointDetailController.List and DeviceDetailController.List
+    // pass ?buildingDtId straight to ListPointDetails/ListDeviceDetails, and
+    // ResourceMetadataController.PatchAsync calls the Get* probes and UpdateResourceMetadataAsync
+    // directly — three user-reachable paths that never pass through the authorization view.
+    //
+    // Reads answer as if the resource were absent, matching the 404 the authorization layer gives,
+    // so neither layer becomes an oracle for which ids were rejected. Only the metadata write
+    // throws: returning quietly there would tell the caller a change succeeded that never happened.
+    private static bool IsUsableDtId(string? dtId) => SparqlIriValidator.IsValidAbsoluteIri(dtId);
+
     public async Task<Building[]> ListBuildings()
         => await CachedQueryAsync("buildings", () => QueryEntitiesAsync(
             $"{Prefixes} SELECT ?dt ?id ?name WHERE {{ ?dt a <{Cls_Building}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name . }}",
@@ -32,6 +53,7 @@ public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
 
     public async Task<Building?> GetBuilding(string dtId)
     {
+        if (!IsUsableDtId(dtId)) return null;
         var sparql = $@"{Prefixes}
 SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
   <{dtId}> a <{Cls_Building}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
@@ -61,6 +83,7 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
                 $"{Prefixes} SELECT ?dt ?id ?name WHERE {{ ?dt a <{Cls_Level}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name . }}",
                 r => new Floor { DtId = r["dt"], Id = r.GetValueOrDefault("id", ""), Name = r.GetValueOrDefault("name", "") }));
 
+        if (!IsUsableDtId(buildingDtId)) return [];
         return await QueryEntitiesAsync(
             $"{Prefixes} SELECT ?dt ?id ?name WHERE {{ <{buildingDtId}> <{Prop_HasPart}> ?dt . ?dt a <{Cls_Level}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name . }}",
             r => new Floor { DtId = r["dt"], Id = r.GetValueOrDefault("id", ""), Name = r.GetValueOrDefault("name", "") });
@@ -68,6 +91,7 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
 
     public async Task<Floor?> GetFloor(string dtId)
     {
+        if (!IsUsableDtId(dtId)) return null;
         var sparql = $@"{Prefixes}
 SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
   <{dtId}> a <{Cls_Level}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
@@ -97,6 +121,7 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
                 $"{Prefixes} SELECT ?dt ?id ?name WHERE {{ ?dt a <{Cls_Space}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name . }}",
                 r => new Space { DtId = r["dt"], Id = r.GetValueOrDefault("id", ""), Name = r.GetValueOrDefault("name", "") });
 
+        if (!IsUsableDtId(floorDtId)) return [];
         return await QueryEntitiesAsync(
             $"{Prefixes} SELECT ?dt ?id ?name WHERE {{ <{floorDtId}> <{Prop_HasPart}> ?dt . ?dt a <{Cls_Space}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name . }}",
             r => new Space { DtId = r["dt"], Id = r.GetValueOrDefault("id", ""), Name = r.GetValueOrDefault("name", "") });
@@ -104,6 +129,7 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
 
     public async Task<Space?> GetSpace(string dtId)
     {
+        if (!IsUsableDtId(dtId)) return null;
         var sparql = $@"{Prefixes}
 SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
   <{dtId}> a <{Cls_Space}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
@@ -136,7 +162,9 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
     /// way round.
     /// </summary>
     public async Task<Space[]> ListAdjacentSpaces(string spaceDtId)
-        => await QueryEntitiesAsync(
+    {
+        if (!IsUsableDtId(spaceDtId)) return [];
+        return await QueryEntitiesAsync(
             $@"{Prefixes}
 SELECT ?dt ?id ?name WHERE {{
   <{spaceDtId}> <{Prop_AdjacentZone}> ?dt .
@@ -144,6 +172,7 @@ SELECT ?dt ?id ?name WHERE {{
 }}
 ORDER BY ?id",
             r => new Space { DtId = r["dt"], Id = r.GetValueOrDefault("id", ""), Name = r.GetValueOrDefault("name", "") });
+    }
 
     public async Task<Device[]> ListDevices(string? spaceDtId)
     {
@@ -162,6 +191,7 @@ GROUP BY ?devDt ?devId ?devName");
             return rows.Select(MapDevice).ToArray();
         }
 
+        if (!IsUsableDtId(spaceDtId)) return [];
         var spaceRows = await _client.QueryAsync($@"{Prefixes}
 SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
 WHERE {{
@@ -175,6 +205,7 @@ GROUP BY ?devDt ?devId ?devName");
 
     public async Task<Device?> GetDevice(string dtId)
     {
+        if (!IsUsableDtId(dtId)) return null;
         // Single-resource query; SAMPLE not needed — DistinctBy handles any cross-product from OPTIONALs
         // and FirstBound picks the descriptive attributes the same way SAMPLE does for the list queries.
         var sparql = $@"{Prefixes}
@@ -220,6 +251,8 @@ SELECT ?devId ?devName ?devGw {DeviceAttrRawVars} ?identKey ?identVal ?tagKey ?t
         if (string.IsNullOrEmpty(deviceDtId))
             return await QueryEntitiesAsync(BuildPointSelect(null), r => MapPoint(r));
 
+        // BuildPointSelect scopes on VALUES ?dev { <deviceDtId> } — an IRI reference like the rest.
+        if (!IsUsableDtId(deviceDtId)) return [];
         return await QueryEntitiesAsync(BuildPointSelect(deviceDtId), r => MapPoint(r));
     }
 
@@ -330,6 +363,7 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
 
     public async Task<PointDetail[]> ListPointDetails(string buildingDtId)
     {
+        if (!IsUsableDtId(buildingDtId)) return [];
         // A device belongs to the selected Building through one of three supported paths: a Room
         // under the Level, direct sbco:locatedIn Level, or the legacy sbco:floor name join. FILTER
         // EXISTS preserves that scope without multiplying rows when a device declares more than one.
@@ -388,6 +422,7 @@ GROUP BY {PointVars} ?devBuilding
 
     public async Task<DeviceDetail[]> ListDeviceDetails(string buildingDtId)
     {
+        if (!IsUsableDtId(buildingDtId)) return [];
         // A device belongs to the selected Building through one of three supported paths: a Room
         // under the Level, direct sbco:locatedIn Level, or the legacy sbco:floor name join. FILTER
         // EXISTS preserves that scope without multiplying rows when a device declares more than one.
@@ -551,6 +586,10 @@ ORDER BY ?gw";
 
     public async Task<ResourceSearchHit[]> SearchResources(string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags, int limit, int offset)
     {
+        // The builder is pure and interpolates the scope into an IRI reference in every UNION
+        // branch, so an unusable scope is refused before it is handed over.
+        if (!string.IsNullOrEmpty(buildingDtId) && !IsUsableDtId(buildingDtId)) return [];
+
         var sparql = ResourceSearchQueryBuilder.Build(q, type, buildingDtId, tags, limit, offset);
         var rows = await _client.QueryAsync(sparql);
         return rows.Select(r => new ResourceSearchHit
@@ -809,6 +848,16 @@ WHERE {{
         Dictionary<string, bool?>? customTags,
         CancellationToken ct)
     {
+        // The one write on this class, and the only guard here that throws: the dtId is the subject
+        // of a DELETE/INSERT, so an injected value could rewrite triples the caller does not own,
+        // and a silent no-op would report a 204 for a change that never happened. Callers reach this
+        // only after an existence probe that already refuses an unusable dtId, so a throw here is an
+        // assertion about a caller that skipped it, not an error path the API can produce.
+        if (!IsUsableDtId(dtId))
+            throw new ArgumentException(
+                "dtId must be a well-formed absolute IRI; it is interpolated into a SPARQL IRI reference.",
+                nameof(dtId));
+
         var sb = new System.Text.StringBuilder();
         var nodeIdx = 0;
 

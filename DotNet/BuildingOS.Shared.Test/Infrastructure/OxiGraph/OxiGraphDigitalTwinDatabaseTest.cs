@@ -54,7 +54,7 @@ public class OxiGraphDigitalTwinDatabaseTest
       ""name"": {""type"":""literal"",""value"":""1F""} }
   ]}}");
 
-        var floors = await db.ListFloors("building-001");
+        var floors = await db.ListFloors("urn:dtid:b1");
         Assert.Single(floors);
         Assert.Equal("urn:dtid:f1", floors[0].DtId);
         Assert.Equal("1F", floors[0].Name);
@@ -71,7 +71,7 @@ public class OxiGraphDigitalTwinDatabaseTest
       ""devGw"": {""type"":""literal"",""value"":""gw-001""} }
   ]}}");
 
-        var devices = await db.ListDevices("space-001");
+        var devices = await db.ListDevices("urn:dtid:s1");
         Assert.Single(devices);
         Assert.Equal("urn:dtid:dev1", devices[0].DtId);
         Assert.Equal("gw-001", devices[0].GatewayId);
@@ -88,7 +88,7 @@ public class OxiGraphDigitalTwinDatabaseTest
       ""ptWritable"": {""type"":""literal"",""value"":""true""} }
   ]}}");
 
-        var points = await db.ListPoints("dev-001");
+        var points = await db.ListPoints("urn:dtid:dev1");
         Assert.Single(points);
         Assert.Equal("PT001", points[0].Id);
         Assert.True(points[0].Writable);
@@ -99,7 +99,7 @@ public class OxiGraphDigitalTwinDatabaseTest
     public async Task GetBuilding_ReturnsNullWhenNotFound()
     {
         var db = BuildDb(@"{ ""results"": { ""bindings"": [] } }");
-        var result = await db.GetBuilding("unknown");
+        var result = await db.GetBuilding("urn:dtid:unknown");
         Assert.Null(result);
     }
 

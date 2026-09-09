@@ -3,6 +3,17 @@ using BuildingOS.Shared.Domain.Authorization;
 
 namespace BuildingOs.ApiServer.Authorization;
 
+/// <summary>
+/// Read/write authorization over the digital twin.
+///
+/// <para><b>dtId contract (#446).</b> Every <c>*DtId</c> parameter here is interpolated by the twin
+/// into a SPARQL IRI reference, which has no escape mechanism. A value that is not a well-formed
+/// absolute IRI is therefore rejected before the twin and before the authorization service are
+/// consulted, and reported as "not found" — <c>NotFound</c> for a single-resource read, an empty
+/// array for a collection — so a probe cannot tell a rejected id apart from one that is simply
+/// absent from the twin. A blank scope id keeps its documented "no filter" meaning. Point ids are
+/// not dtIds: they are matched as escaped string literals and are excluded from this rule.</para>
+/// </summary>
 public interface IAuthorizedTwinView
 {
     Task<Building[]> ListBuildingsAsync(AuthorizationContext auth, CancellationToken ct);
