@@ -11,7 +11,10 @@ namespace BuildingOS.Shared.Infrastructure.Oss;
 ///
 /// #415: because every validated-telemetry producer converges here, this is also where the
 /// end-to-end event-time lag (<c>building_os.ingress.event_lag</c>) is measured — from the
-/// <c>datetime</c> the message already carries, so the measurement costs no extra parse.
+/// <c>datetime</c> the message already carries, so nothing has to be threaded down from the
+/// producers. It is not free: the string is already read for the KV payload, but turning it into an
+/// instant costs one <c>DateTimeOffset.TryParse</c> per entity on this hot path (see
+/// <see cref="Telemetry.IngestLagRecorder.RecordEventLag"/>).
 /// <paramref name="source"/> says which producer it came through (<c>connector</c> for the
 /// NatsKvPublisher decorator, <c>gateway-grpc</c> for the ingress bus).
 /// </summary>
@@ -31,10 +34,13 @@ public static class ValidatedTelemetryHotStore
                 // is failing (or timing out under saturation) is exactly the situation the lag metric
                 // exists to expose, so one bad put must neither skip the remaining entities nor stop
                 // them being measured.
+                // Read outside the try so the handler below can name the point it lost. Still null
+                // when the failure came before it was read — which is itself the diagnostic.
+                string? pointId = null;
                 try
                 {
                     var te = entity.As<ValidMessage.ValidTelemetryEntity>();
-                    var pointId = te.PointId.GetString();
+                    pointId = te.PointId.GetString();
                     if (string.IsNullOrEmpty(pointId)) continue;
 
                     var datetime = te.Datetime.GetString();
@@ -55,7 +61,13 @@ public static class ValidatedTelemetryHotStore
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "ValidatedTelemetryHotStore: KV put failed for source {Source}", source);
+                    // This guards the whole per-entity path — projection and value mapping as well
+                    // as the KV put — so it must not claim the put is what failed.
+                    logger.LogWarning(
+                        ex,
+                        "ValidatedTelemetryHotStore: hot store sync failed for point {PointId} from source {Source}",
+                        pointId,
+                        source);
                 }
             }
         }
