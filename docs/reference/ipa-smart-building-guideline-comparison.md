@@ -6,6 +6,11 @@
 参照日: 2026-09-09
 照合対象: gutp-building-os-ri `main`（コミット `aae4830` 時点）
 
+> 同じ内容を GitHub Pages でも公開しています:
+> <https://gutp-bim.github.io/gutp-building-os-ri/ipa-guideline.html>
+> （ソースは [`docs/ipa-guideline.html`](../ipa-guideline.html)。本ファイルが内容の正本で、
+> 表を変更したときは両方を更新してください）
+
 ガイドライン原典（全66ページ）のうち、必要／推奨が明記された表をすべて特定し（表3「要請の程度を
 表す語句」で **必要** =「設計原則を満たすために必要」、**推奨** =「目的や用途に応じて選択的に採用」
 と定義）、その全27項目を gutp-building-os-ri の実コード（コントローラ・クラス・SPARQL 等）と
