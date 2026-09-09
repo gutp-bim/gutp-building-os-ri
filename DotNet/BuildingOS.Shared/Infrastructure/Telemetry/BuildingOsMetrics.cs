@@ -179,6 +179,20 @@ public static class BuildingOsMetrics
             unit: "{failure}",
             description: "Compaction failures; source parts are retained for a later retry.");
 
+    /// <summary>
+    /// Compaction targets abandoned because a planned source object was gone by the time it was read
+    /// (#447). Not a failure, and for two different reasons: another lake replica compacting the same
+    /// hour has already merged those rows into the compact object, while retention expiry deleted them
+    /// on purpose. Either way this pass must not write its survivors over the deterministic compact key,
+    /// and the next cycle re-plans from the current listing. A steady non-zero rate means more than one
+    /// replica is running the lake role, which buys nothing.
+    /// </summary>
+    public static readonly Counter<long> CompactionSkipped =
+        Meter.CreateCounter<long>(
+            "building_os.compaction.skipped",
+            unit: "{partition}",
+            description: "Compaction targets skipped because a source object vanished mid-cycle.");
+
     // Rollup metrics (#222)
     public static readonly Counter<long> CompactionRollupsWritten =
         Meter.CreateCounter<long>(

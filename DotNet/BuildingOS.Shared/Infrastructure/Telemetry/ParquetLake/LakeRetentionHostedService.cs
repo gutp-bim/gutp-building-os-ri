@@ -10,6 +10,14 @@ namespace BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 /// objects in the cold bucket expire after the configured number of days (the parquet-mode replacement
 /// for TimescaleDB's <c>drop_chunks</c>). A non-positive value means unlimited retention (no rule
 /// applied). Failure is logged, not fatal — retention is best-effort and re-applied on the next restart.
+///
+/// <para><b>Concurrent replicas (#447)</b> need no exclusion here. <c>PutLifecycleConfiguration</c>
+/// replaces the bucket's entire rule set (it is a PUT, not an append) and
+/// <see cref="LakeRetentionLifecycle.Build"/> derives that set from <c>LAKE_RETENTION_DAYS</c> alone,
+/// under a fixed rule id — so N replicas applying it at startup converge on the one rule the first of
+/// them wrote, in any order. The one way to break that is to make the rule identity per-process; a
+/// characterization test pins it. Two replicas configured with *different* retention days would of
+/// course flap, but that is a misconfiguration, not a race.</para>
 /// </summary>
 public sealed class LakeRetentionHostedService : IHostedService
 {

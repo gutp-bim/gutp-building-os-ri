@@ -8,8 +8,18 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// On startup: (1) imports a Turtle seed file into OxiGraph when OXIGRAPH_SEED_TTL_PATH is set
 /// and the store is empty; (2) validates device templates against OxiGraph when
 /// OXIGRAPH_DEVICE_TEMPLATE_PATH is set — throws InvalidOperationException on mismatch to stop startup.
-/// Note: designed for single-instance deployments. Multiple simultaneous instances may
-/// each observe an empty store and import concurrently; add a distributed lock if needed.
+///
+/// <para><b>Two instances seeding at once (#447)</b> — the case a second <c>WORKER_ROLE=all</c> replica
+/// creates — is convergent rather than corrupting, and deliberately carries no distributed lock. The
+/// import replaces the default graph, but <see cref="OxiGraphIngestMaterializer"/> sends the whole
+/// clear-and-rebuild as a single SPARQL UPDATE request, which OxiGraph commits in one transaction: a
+/// reader (including the other replica's own uniqueness check) sees the twin either wholly before or
+/// wholly after, never half-cleared. Two replicas seeding the same file therefore write the same
+/// content, and the loser's work is simply redundant — plus one extra point-list push, which gateways
+/// absorb as an ETag 304. What is *not* covered is two replicas seeding *different* files: they would
+/// overwrite each other on every restart. That is a misconfiguration to detect in deployment, not a
+/// race to lock against — a startup lock would buy nothing for the identical-file case and would add a
+/// hard NATS dependency to a path the single-container OSS stack must be able to run without.</para>
 /// </summary>
 public sealed class OxiGraphSeedHostedService(
     OxiGraphClient client,

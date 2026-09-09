@@ -113,13 +113,22 @@ internal sealed class ParquetLakeScan
         return listed.Where(k => k.EndsWith(".parquet", StringComparison.Ordinal)).ToList();
     }
 
-    /// <summary>Reads every row from the given objects (all points, all times) — for compaction.</summary>
-    public async Task<List<ValidTelemetryData>> ReadAllRowsAsync(IEnumerable<string> keys, CancellationToken ct)
+    /// <summary>
+    /// Reads every row from the given objects (all points, all times) — for compaction — and reports
+    /// the keys that were already gone when the read reached them (#447). Every other read path treats
+    /// a vanished object as "no rows", which is right for a query; for a merge it is not. The compact
+    /// key is deterministic, so writing the surviving subset to it would overwrite the object whoever
+    /// deleted those sources has just written from the full set. The caller must therefore treat a
+    /// non-empty <c>Missing</c> as "this plan is stale, abandon the target", not as a smaller merge.
+    /// </summary>
+    public async Task<(List<ValidTelemetryData> Rows, IReadOnlyList<string> Missing)> ReadAllRowsAsync(
+        IEnumerable<string> keys, CancellationToken ct)
     {
         var rows = new List<ValidTelemetryData>();
+        var missing = new List<string>();
         await ForEachObjectAsync(keys, DateTime.MinValue, DateTime.MaxValue,
-            _ => true, (_, row) => rows.Add(row), ct).ConfigureAwait(false);
-        return rows;
+            _ => true, (_, row) => rows.Add(row), ct, missing.Add).ConfigureAwait(false);
+        return (rows, missing);
     }
 
     /// <summary>Serializes the rows and PUTs them to <paramref name="key"/>; returns the byte length.</summary>
@@ -156,15 +165,23 @@ internal sealed class ParquetLakeScan
     /// <summary>
     /// Streams each object once and emits every in-range row whose point id passes <paramref name="want"/>.
     /// The decode lives here so the single- and multi-point readers share exactly one Parquet code path.
+    /// <paramref name="onMissing"/> reports a key that no longer exists; read paths leave it null and
+    /// keep skipping such a key silently (an object listed a moment ago and expired since is simply no
+    /// rows for a query), while compaction uses it to detect a stale plan (#447).
     /// </summary>
     private async Task ForEachObjectAsync(
         IEnumerable<string> keys, DateTime start, DateTime end,
-        Func<string?, bool> want, Action<string, ValidTelemetryData> emit, CancellationToken ct)
+        Func<string?, bool> want, Action<string, ValidTelemetryData> emit, CancellationToken ct,
+        Action<string>? onMissing = null)
     {
         foreach (var key in keys)
         {
             var stream = await _storage.GetAsync(Bucket, key, ct).ConfigureAwait(false);
-            if (stream is null) continue;
+            if (stream is null)
+            {
+                onMissing?.Invoke(key);
+                continue;
+            }
             try
             {
                 await ReadObjectAsync(stream, start, end, want, emit, ct).ConfigureAwait(false);

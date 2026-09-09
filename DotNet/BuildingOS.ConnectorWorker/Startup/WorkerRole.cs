@@ -47,7 +47,10 @@ public static class WorkerRoles
 
     /// <summary>
     /// The twin seed replaces the default graph, so it runs only in the all-in-one worker. A split
-    /// deployment seeds from the API server (or an operator task) instead — see #400.
+    /// deployment seeds from the API server (or an operator task) instead — see #400. Scaling
+    /// <see cref="WorkerRole.All"/> past one replica does not corrupt the twin (#447): the rebuild is
+    /// one transactional UPDATE and two replicas seeding the same file converge — it is just duplicated
+    /// work, which is why the seed stays here rather than behind a startup lock.
     /// </summary>
     public static bool RunsTwinSeed(this WorkerRole role) => role is WorkerRole.All;
 
@@ -64,5 +67,13 @@ public static class WorkerRoles
 
     public static bool RunsTelemetryIngress(this WorkerRole role) => role is WorkerRole.All or WorkerRole.Ingest;
 
+    /// <summary>
+    /// Telemetry persistence: the Parquet lake writer plus its maintenance (compaction, retention), or
+    /// the legacy cold export. Deployed single-replica, but by preference rather than by necessity
+    /// (#447): the writer shares a durable JetStream consumer, retention is an idempotent ILM PUT, and
+    /// the compactor abandons a target whose sources another compactor removed instead of overwriting
+    /// its work. A second replica is therefore safe and simply wasteful — it re-reads and re-writes the
+    /// same hours to throw the result away.
+    /// </summary>
     public static bool RunsLake(this WorkerRole role) => role is WorkerRole.All or WorkerRole.Lake;
 }

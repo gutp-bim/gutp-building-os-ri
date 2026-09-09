@@ -24,6 +24,21 @@ public sealed record CompactionWorkerOptions
 /// overwrite of a deterministic key and the parts are deleted only after a successful verify, so an
 /// interrupted run re-converges on the next cycle without loss or duplication. The reader already
 /// prefers the compact object over the parts (#214), so queries are unaffected mid-compaction.
+///
+/// <para><b>Two compactors, one hour (#447).</b> Nothing stops a second <c>WORKER_ROLE=lake</c> (or
+/// <c>all</c>) replica from planning the same building-hour, and the deterministic compact key means
+/// both write to the same object — so the safety of that case is decided entirely by whether the later
+/// write is a superset of the earlier one. It is, as long as each pass reads every source it planned:
+/// the merge is a union of that hour's objects (the pre-existing compact included), so two passes over
+/// the same listing produce the same content and the second write is an idempotent overwrite. What
+/// breaks the property is a pass reading *fewer* sources than it planned, which happens exactly when
+/// the other replica finished first and deleted the parts in between — the surviving subset would then
+/// overwrite the complete object, and the round-trip verify below could not catch it because it only
+/// re-reads what this pass itself just wrote (in the limit, an empty merge verifies as a perfectly
+/// good empty object and the hour is gone). So a vanished source is treated as a stale plan and the
+/// target is abandoned, not merged: see <see cref="ParquetLakeScan.ReadAllRowsAsync"/>. Concurrency is
+/// therefore safe but pointless — both replicas do the whole read/write and one throws it away — which
+/// is why the lake role is still deployed single-replica.</para>
 /// </summary>
 public sealed class CompactionWorker : BackgroundService
 {
@@ -81,7 +96,25 @@ public sealed class CompactionWorker : BackgroundService
     {
         try
         {
-            var rows = await _scan.ReadAllRowsAsync(target.SourceKeys, ct).ConfigureAwait(false);
+            var (rows, missing) = await _scan.ReadAllRowsAsync(target.SourceKeys, ct).ConfigureAwait(false);
+            if (missing.Count > 0)
+            {
+                // A planned source disappeared between the listing and the read, so this plan no longer
+                // describes the partition (#447). Writing the survivors to the deterministic compact key
+                // would overwrite whatever deleted them, and the verify below could not tell, because it
+                // only re-reads what this pass itself wrote. Abandoning the target is safe under both
+                // causes, for different reasons: another lake replica compacting this hour has already
+                // merged those rows into the compact object, and retention expiry removed them on
+                // purpose (there is no replacement object, and none should be recreated). Either way the
+                // next cycle re-plans from the current listing.
+                BuildingOsMetrics.CompactionSkipped.Add(1);
+                _logger.LogInformation(
+                    "CompactionWorker: skipping {Key} — {Missing} of {Sources} source object(s) vanished mid-cycle "
+                    + "(another lake replica compacting this hour, or retention expiry); re-planning next cycle",
+                    target.CompactKey, missing.Count, target.SourceKeys.Count);
+                return;
+            }
+
             var deduped = ParquetLakeReadPlanner.DedupById(rows);
 
             // Idempotent overwrite of the deterministic compact key.
@@ -89,7 +122,7 @@ public sealed class CompactionWorker : BackgroundService
 
             // Verify the written object round-trips before deleting any source — never lose data on a
             // bad write; the parts stay and the next cycle retries.
-            var check = await _scan.ReadAllRowsAsync(new[] { target.CompactKey }, ct).ConfigureAwait(false);
+            var (check, _) = await _scan.ReadAllRowsAsync(new[] { target.CompactKey }, ct).ConfigureAwait(false);
             if (check.Count != deduped.Length)
             {
                 BuildingOsMetrics.CompactionFailures.Add(1);
