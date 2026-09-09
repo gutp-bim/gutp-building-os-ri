@@ -67,7 +67,13 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 15
           readinessProbe:
-            # Readiness = NATS connection Open (the worker can actually consume/publish).
+            # Readiness depends on workerRole (#399): NATS always, plus the twin (OxiGraph) for the
+            # roles that run the twin client and the object store (MinIO/S3) for the roles that run the
+            # lake. Only NATS — and, on workerRole=lake, the object store — actually FAIL this probe;
+            # a twin outage (and an object-store outage on workerRole=all) reports Degraded, which is
+            # still HTTP 200. That is deliberate: ingest reads the twin through a TTL cache and keeps
+            # publishing across an OxiGraph blip, so failing here would drop every ingest pod out of
+            # its Service at once and turn a degradation into an outage.
             httpGet:
               path: /health/ready
               port: 8081

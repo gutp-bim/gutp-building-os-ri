@@ -127,6 +127,38 @@
 - **制御**は deadline-bounded な request-reply。オフライン GW は即時 503（#186）で、復旧後の stale 実行なし（E6 stale-replay 0）。
 - 自動スケール（KEDA）・GitOps（ArgoCD）の on-cluster 検証は HITL（[#116](https://github.com/takashikasuya/gutp-building-os-oss/issues/116) / [#117](https://github.com/takashikasuya/gutp-building-os-oss/issues/117)）。
 
+**`WORKER_ROLE` は readiness の意味も変える（#399）。** ConnectorWorker の `/health/ready`（:8081、
+readinessProbe の対象）は、その role の capability set が実際に必要とする依存だけを報告する。
+**503（Unhealthy）にするのは、その依存が失われると role の仕事が丸ごと止まる場合だけ**で、それ以外は
+Degraded＝**HTTP 200** のシグナルに留める（probe は成功し、Pod は Service に残る）。liveness
+（`/health/live`）は依存を一切見ない（#145）。
+
+| `WORKER_ROLE` | 登録される check | NATS | twin（OxiGraph） | object store（MinIO/S3） |
+|---|---|---|---|---|
+| `all`（既定） | `nats` + `twin` + `objectstore` | **503** | 200 Degraded | 200 Degraded |
+| `ingest` | `nats` + `twin` | **503** | 200 Degraded | — |
+| `lake` | `nats` + `objectstore` | **503** | — | **503** |
+| `control` | `nats` + `twin` | **503** | 200 Degraded | — |
+
+- `twin` check は twin クライアントを持つ role（`all`/`ingest`/`control`）にだけ登録され、**どの role でも
+  503 にしない**。ingest/control は twin を TTL キャッシュ越しに読む（`PointMetadataCache` は warm なら
+  stale-while-revalidate）ので OxiGraph 断でも publish を続けられ、ここで 503 にすると全 ingest Pod が
+  **同時に** Service から外れ、キャッシュが吸収できている劣化を全面停止に変えてしまう。
+- `objectstore` check は lake を走らせる role（`all`/`lake`）で、かつ MinIO クライアントが実際に登録される
+  構成（parquet モード、または timescale モードの cold export）でだけ登録される。503 にするのは `lake` のみ
+  — lake worker は Service の背後にいないので 503 でトラフィックを失わず、ロールアウト/アラートの
+  シグナルとして使える。
+- **既定の `all` は twin / object store で 503 にしない**ため、role を分けない構成の readiness の挙動は
+  #399 前（NATS のみ）と実質変わらない。
+- 依存プローブは 1 つあたり 3 秒でタイムアウトする（`ConnectorWorkerHealthChecks.ProbeTimeout`）。
+  readinessProbe に `timeoutSeconds` を書かないと Kubernetes 既定の 1 秒になり、依存がハングしたときに
+  Degraded の 200 を受け取る前に probe 側が先にタイムアウトして NotReady になる。3 秒以上を明示すること
+  （`kubernetes/helm/connector-worker/templates/deployment.yaml` は現状 `initialDelaySeconds` /
+  `periodSeconds` のみ指定）。
+- どの check がどちらで効いているかは起動ログの `readiness:` フィールド（例: `nats(gating), twin(signal)`）で
+  確認できる。Degraded かどうかは `/health/ready` のレスポンスボディで判別する
+  （`GET /api/system/status` からは判別できない — [oss-incident-runbook.md](oss-incident-runbook.md) §0）。
+
 ---
 
 ## 6. リソースサイジング（暫定）

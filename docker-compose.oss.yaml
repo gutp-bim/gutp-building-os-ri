@@ -377,7 +377,10 @@ services:
       # Prometheus query API for KPIs — unset → KPIs degrade to null (Grafana not required).
       PROMETHEUS_URL: http://building-os.prometheus:9090
       # Per-service up/down via /health fan-out (Prometheus-independent). "name=healthUrl" CSV.
-      # ConnectorWorker's /health/ready was added by #145 and is wired here (#127). GatewayBridge has
+      # ConnectorWorker's /health/ready was added by #145 and is wired here (#127). NOTE (#399): the
+      # fan-out collapses any 2xx to "up", so a connector-worker reporting Degraded (twin or object
+      # store unreachable — still 200 on WORKER_ROLE=all) shows here as up. The oxigraph= and minio=
+      # rows below are what surfaces those; read them together. GatewayBridge has
       # no HTTP health surface yet (gRPC h2c only) — a follow-up, not included here. Prometheus is
       # intentionally NOT in this default list: it's --profile observability only (A-7), so probing it
       # here would always report "down" on the default stack. Running with --profile observability?
@@ -514,8 +517,15 @@ services:
       # graph, and CompactionWorker / LakeRetentionHostedService have no cross-replica exclusion.
       # `ingest` and `control` are safe to scale (both consume via durable NATS consumers).
       WORKER_ROLE: ${WORKER_ROLE:-all}
-      # Internal /health surface (#145): liveness (/health/live), readiness (/health/ready = NATS
-      # connection Open), overall (/health). Does not open the external gRPC ingest surface.
+      # Internal /health surface (#145): liveness (/health/live, no checks), readiness (/health/ready)
+      # and overall (/health). Does not open the external gRPC ingest surface.
+      # Readiness is role-dependent since #399. On WORKER_ROLE=all (this service) it reports on NATS,
+      # the twin (OxiGraph) and the object store (MinIO), but only NATS *gates* it: a twin or MinIO
+      # outage reports Degraded, which is still HTTP 200. That is deliberate — `make wait-oss-stack`
+      # polls this endpoint with a plain `curl -sf` (there is no Docker healthcheck on this service:
+      # the chiseled runtime image has no shell/curl), and the same process is also the ingest and
+      # control path, neither of which needs MinIO. Split roles gate harder — see
+      # docker-compose.roles.yaml.
       HEALTH_PORT: "8081"
       # gRPC GatewayIngress telemetry ingest (#181). Unset by default → no gRPC listener (OSS/local is
       # NATS/MQTT-driven). Set to a port (e.g. 5051) to expose the canonical point-id ingest path; the

@@ -1,8 +1,9 @@
 using BuildingOS.ConnectorWorker.Connectors;
-using BuildingOS.ConnectorWorker.Infrastructure.Health;
 using BuildingOS.ConnectorWorker.Startup;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 // ── Host ────────────────────────────────────────────────────────────────────
 // The worker always runs on a WebApplication so it can expose a /health surface (liveness +
@@ -33,17 +34,24 @@ ConfigureKestrelListeners(builder, healthPort, grpcIngressPort);
 // WORKER_ROLE unset / "all" registers exactly what the worker registered before the switch existed.
 builder.AddConnectorWorkerCapabilities(workerRole, grpcIngressPort);
 
-// Health (#145): liveness = the process serves HTTP (no checks); readiness = the NATS connection is
-// Open so the worker can actually consume/publish. The system-status fan-out (#144) targets /health.
-builder.Services.AddHealthChecks()
-    .AddCheck<NatsReadinessHealthCheck>("nats", tags: ["ready"]);
+// Health (#145/#399): liveness = the process serves HTTP (no checks); readiness = NATS plus whichever
+// dependency THIS role's capability set actually needs (twin / object store) — see
+// ConnectorWorkerHealthChecks for the per-role severity policy. Must follow the capability
+// registration above: the dependency checks are gated on the client that registration put in DI.
+// The system-status fan-out (#144) targets /health.
+builder.AddConnectorWorkerHealthChecks(workerRole);
 
 var app = builder.Build();
 // Liveness: no checks — 200 as long as the process serves HTTP (orchestrator restart signal).
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
-// Readiness + overall /health: the ready-tagged checks (NATS connection Open).
-app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
-app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
+// Readiness + overall /health: the ready-tagged checks. Default status codes are kept on purpose —
+// Healthy/Degraded → 200, Unhealthy → 503 — which is what makes a "signal" check reportable without
+// evicting the replica (see ConnectorWorkerHealthChecks).
+// The tag comes from ConnectorWorkerHealthChecks, which is what applies it at registration: a
+// literal here would let the two drift on a rename, and the selector silently matching nothing
+// turns readiness into an unconditional 200 rather than an error.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(ConnectorWorkerHealthChecks.ReadyTag) });
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.Contains(ConnectorWorkerHealthChecks.ReadyTag) });
 if (grpcIngressPort is not null)
     app.MapGrpcService<GatewayIngressService>();
 LogStartup(app.Services, workerRole, grpcIngressPort);
@@ -119,11 +127,18 @@ void LogStartup(IServiceProvider services, WorkerRole role, int? ingressGrpcPort
         : string.IsNullOrWhiteSpace(host) ? unsetReason
         : $"enabled host={host}";
 
+    // #399: which dependencies this role's /health/ready actually reports on, and whether a failure of
+    // each gates readiness (503) or only signals (200) — so "the listener is up but nothing is checked"
+    // is visible in the log instead of only by probing.
+    var readiness = ConnectorWorkerHealthChecks.DescribeReadiness(
+        services.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations);
+
     services.GetRequiredService<ILoggerFactory>()
         .CreateLogger("BuildingOS.ConnectorWorker.Startup")
         .LogInformation(
-            "Connector role: {Role} — gRPC ingress: {Grpc}, MQTT: {Mqtt}, Hono/AMQP: {Hono} (HONO_AMQP_HOST='{HonoHostRaw}')",
+            "Connector role: {Role} — readiness: {Readiness}, gRPC ingress: {Grpc}, MQTT: {Mqtt}, Hono/AMQP: {Hono} (HONO_AMQP_HOST='{HonoHostRaw}')",
             role.ToString().ToLowerInvariant(),
+            readiness,
             grpcDesc,
             IngressDesc(mqttHost, "disabled (MQTT_HOST unset)"),
             IngressDesc(honoHost, "disabled (HONO_AMQP_HOST unset)"),

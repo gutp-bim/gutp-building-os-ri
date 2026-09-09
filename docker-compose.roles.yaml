@@ -32,6 +32,17 @@
 # no cross-replica exclusion — two of them would compact the same building-hour concurrently). `ingest`
 # and `control` consume through durable NATS consumers and are safe to scale. The twin seed runs in
 # neither: with the roles split, seeding is the API server's job (OXIGRAPH_SEED_TTL_PATH there).
+#
+# Readiness (#399): each role's /health/ready reports on the dependencies its capability set needs, so
+# the three surfaces below no longer mean the same thing.
+#   ingest  (host 8081) — NATS (gates, 503) + twin/OxiGraph (signals, Degraded → 200)
+#   lake    (host 8082) — NATS (gates) + object store/MinIO (GATES: a lake worker that cannot reach the
+#                         lake can do nothing, and it serves no traffic, so 503 costs nothing)
+#   control (host 8083) — NATS (gates) + twin/OxiGraph (signals; only the Hono handler reads it)
+# The twin only ever signals: ingest and control read it through TTL caches and keep working across an
+# OxiGraph blip, so failing readiness would evict every scaled replica at once for a degradation the
+# caches already absorb. Curling these tells you which: 200 with a "Degraded" body is a live worker
+# with a sick dependency, 503 is a worker that cannot do its job.
 
 services:
   # Demote the stack's worker to the ingest half. Compose merges `environment` maps key by key across
