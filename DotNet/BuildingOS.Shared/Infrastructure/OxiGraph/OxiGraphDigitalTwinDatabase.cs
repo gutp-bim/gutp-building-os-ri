@@ -126,6 +126,25 @@ SELECT ?id ?name ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
         });
     }
 
+    /// <summary>
+    /// #440. Deliberately its own small query rather than a variant of ListSpaces: adjacency has no
+    /// hasPart parent to hang off, and the point/device shared projections (PointVars /
+    /// DeviceAttrOptionals) have nothing to do with rooms. Uncached — the cache key would be the
+    /// subject room, so an unbounded number of keys for a query this cheap.
+    /// The reverse edge is materialized at ingest (OxiGraphIngestMaterializer's symmetric rule), so
+    /// matching only <c>subject bos:adjacentZone ?dt</c> already finds neighbours declared the other
+    /// way round.
+    /// </summary>
+    public async Task<Space[]> ListAdjacentSpaces(string spaceDtId)
+        => await QueryEntitiesAsync(
+            $@"{Prefixes}
+SELECT ?dt ?id ?name WHERE {{
+  <{spaceDtId}> <{Prop_AdjacentZone}> ?dt .
+  ?dt a <{Cls_Space}> ; <{Prop_Id}> ?id ; <{Prop_Name}> ?name .
+}}
+ORDER BY ?id",
+            r => new Space { DtId = r["dt"], Id = r.GetValueOrDefault("id", ""), Name = r.GetValueOrDefault("name", "") });
+
     public async Task<Device[]> ListDevices(string? spaceDtId)
     {
         // SBCO TTL may not have sbco:locatedIn; space-filtered queries return empty in that case.

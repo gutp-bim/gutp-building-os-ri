@@ -25,6 +25,7 @@ sbco: = https://www.sbco.or.jp/ont/                       ← 主オントロジ
 bos:  = http://buildingos.gutp.jp/ontology#               ← Building OS 固有拡張（SBCO に等価なし）
 brick: = https://brickschema.org/schema/Brick#
 rec:   = https://w3id.org/rec#
+bot:   = https://w3id.org/bot#                            ← Building Topology Ontology (W3C LBD CG)
 ifc:   = https://standards.buildingsmart.org/IFC/DEV/IFC4_1/OWL#
 dtdl:  = dtmi: (Azure Digital Twins Definition Language)
 ```
@@ -101,6 +102,39 @@ Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` を文脈で使�
 [^loc]: SBCO サンプルデータ（TTL）によっては `sbco:Room` ノードや `sbco:locatedIn` 関係を含まない場合がある。その際、空間でフィルタするクエリは空を返し、詳細応答の space フィールドは空になる。
 [^hasPoint]: **訂正（2026-08）**: 本表は以前 REC 側を「直接対応なし」としていたが誤り。LinkML 正本の `hasPoint` slot は `slot_uri: rec:hasPoint` を持つ（Brick の `brick:hasPoint` と併記されているわけではなく、REC 側の直接対応として定義されている）。
 [^floor]: `sbco:floor` は EquipmentExt 上の**文字列リテラル**で、Level の `sbco:name` と突合して機器を階に紐づける（SBCO サンプルでは building → equipment の唯一の経路）。RDF リレーションシップではなく命名規約による結合のため独自。
+
+---
+
+## 2.5. 空間トポロジー（部屋間隣接）
+
+§2 の関係はすべて**縦方向**（包含・設置）であり、部屋と部屋を横に結ぶ関係が SBCO には存在しない。
+空調ゾーニング・避難経路・来訪者ナビゲーション等はこれを必要とするため、W3C LBD CG の
+**BOT (Building Topology Ontology)** から隣接関係を取り込む（#440）。
+
+| SBCO / `bos:` プロパティ | 方向 | BOT | Brick | REC | IFC | ラベル |
+|-------------------------|------|-----|-------|-----|-----|--------|
+| `bos:adjacentZone` | Room↔Room（対称） | `bot:adjacentZone` | — | —[^botrec] | `IfcRelSpaceBoundary`（部分） | **独自（BOT 由来・HITL レビュー未了）**[^bot] |
+
+[^bot]: **HITL レビュー未了**。SBCO には部屋間隣接の語彙がないため、正規形は `bos:` 名前空間に新設した
+（§7 の判断基準「SBCO に等価語彙がなければ `bos:`」に従う。SBCO/GUTP ワーキングが `sbco:` 側への
+新語追加を選ぶ場合、変更は `OxiGraphOntology.Prop_AdjacentZone` の定数1行と本表で完結する）。
+`bot:adjacentZone` は「共通の境界を共有して隣接する」対称関係で、`bos:adjacentZone` はその定義を
+そのまま採る（独立に定義された2語彙の意味的等価性の主張ではないため §6 の HITL 承認事項とは性質が異なるが、
+オントロジー概念の新規導入であること自体はレビュー対象である）。
+ドア種別・向きを表す `bot:Interface` / `bot:interfaceOf`、3D 範囲の重なり `bot:intersectsZone`、
+ジオメトリ `bot:has3DModel` はいずれも本対応の対象外。
+[^botrec]: BOT は公式の RealEstateCore Alignment Module を持ち、本リポジトリが既に採用している
+REC 由来の階層（`rec:hasPart` 等）と併用できるよう設計されている（Brick / IFC 向けの整合モジュールも別途提供）。
+`rec:` 自体には Room↔Room の隣接語彙がない。
+
+> **対称性はデータ側で解決する。** `bot:adjacentZone` は対称関係だが、元データは片方向しか宣言しない
+> ことが多い。BuildingOS は**取り込み時に両方向のトリプルを生成**し（§6 の BOT 受け入れを参照）、
+> 読み取りクエリは片方向 SELECT のみとする。クエリ側 `UNION` に委ねると、隣接を読む全ての利用者
+> （API・将来の経路探索・検索）が UNION を書き忘れうる — #294 / #298 で実際に起きた
+> 「読み取りパスごとのドリフト」と同型の事故になるため。
+
+読み取り API は `GET /spaces/{spaceDtId}/adjacent-spaces`（`SpaceController`）。返すのは
+`sbco:Room` の隣室のみで、BOT が許す Level 同士等のゾーン隣接は対象外。書き込み API は未提供。
 
 ---
 
@@ -184,7 +218,7 @@ Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` を文脈で使�
 
 ---
 
-## 6. REC/Brick 語彙の受け入れ（マテリアライズ）
+## 6. REC/Brick/BOT 語彙の受け入れ（マテリアライズ）
 
 上流パイプライン（smartbuilding_datamodels → smartbuilding_datamodel_builder）は建物階層を
 REC/Brick（`rec:`/`brick:`）を正規語彙として出力する。一方 `OxiGraphOntology.cs` および
@@ -244,6 +278,29 @@ SPARQL UPDATE リクエスト（セミコロン区切りの複数ステートメ
 > `sbco:Room owl:equivalentClass rec:Room` を根拠に materialize 対象とする。IFC/Brick 側には
 > 粒度差が残るため、これらを根拠とした別クラスの自動マッピングは引き続き HITL 承認待ちとする。
 
+### BOT 語彙の受け入れ（#440）
+
+本節は当初「マテリアライズ対象は REC/Brick からの変換のみ」と規定していたが、`bot:` を第3の
+受け入れ語彙として**明示的に追加**する（黙って逸脱させない）。
+
+| BOT | → | 正規形 | 備考 |
+|-----|---|--------|------|
+| `bot:adjacentZone` | → | `bos:adjacentZone` | 対称関係。逆方向トリプルも同時に生成 |
+
+- **正規形は `bos:`**（`sbco:` でも `bot:` でもない）。理由は §2.5 の脚注のとおり
+  「SBCO に等価語彙がなければ `bos:`」という §7 の既存規約に従うため。加えて、`bot:` をそのまま
+  正規形にするとコピースルーの前缀フィルタ（`sbco:`/`bos:` のみ通す）を第3の名前空間へ広げることになり、
+  「デフォルトグラフは常に `sbco:`/`bos:` 正規形」という不変条件が緩む（任意の外部語彙が漏れる余地ができる）。
+  `bos:` を正規形とすれば、コピースルーも `Prefixes` 定義も無改造で済む。
+- **対称性はここで解決する。** `PropertyRules` の各行は `Symmetric` フラグを持ち、真のとき
+  `?o <正規形> ?s` の逆方向 INSERT を追加生成する。逆方向文の `FILTER NOT EXISTS` は
+  逆方向パターン自身を検査するため、再取り込みしても冪等（`MaterializeAsync_BotAdjacentZone_CalledTwice_TripleCountIsStable`）。
+  既に `bos:adjacentZone` で入ってきた入力も対称閉包の対象（`bos:adjacentZone` → `bos:adjacentZone`
+  の対称ルール1行）。
+- **HITL レビュー未了。** BOT の導入は新規オントロジー概念の追加であり、SBCO/GUTP ワーキングによる
+  レビューを前提とする暫定実装。レビュー結果によって正規形の名前空間を変える場合、影響は
+  `OxiGraphOntology.Prop_AdjacentZone` の定数1行・`PropertyRules` の2行・本表に限られる。
+
 ### 元RDFの保持
 
 名前付きグラフ `urn:bos:twin-source` はマテリアライズ完了後も**破棄せず保持**する。次回の取り込み時に
@@ -263,6 +320,7 @@ SBCO に等価語彙がないため `bos:` 名前空間に残している概念�
 | `bos:ControlSchema` | DTDL Command / Brick Tag | デバイス制御 API のペイロード検証と UI 生成に必要な `enumLabels` を保持する概念が SBCO・既存標準にないため |
 | `bos:dataType` | DTDL schema / Brick Tag | 制御値のデータ型（`boolean` / `number` / `enum`）を ControlSchema に保持するための拡張 |
 | `bos:enumLabels` | — | 制御列挙値のラベル（例: `{"1":"冷房","2":"暖房"}`）を保持する Building OS 固有概念 |
+| `bos:adjacentZone` | BOT `bot:adjacentZone` | 部屋間隣接（空間トポロジー）。SBCO に等価語彙がなく、自分たちが管理していない `sbco:` へ新語を鋳造しないため `bos:` に置く。定義は BOT のものをそのまま採る（§2.5・§6、HITL レビュー未了） |
 
 > 機器種別は SBCO 単一クラス（`sbco:EquipmentExt`）+ `sbco:deviceType` で表現し、Brick のサブクラス体系
 > （`HVAC_Equipment` 等）は採用していない。点種別も同様に `sbco:PointExt` + `sbco:pointType` /
@@ -277,10 +335,11 @@ SBCO に等価語彙がないため `bos:` 名前空間に残している概念�
 | [`oss-sparql-mapping.md`](oss-sparql-mapping.md) | ADT クエリ → SBCO SPARQL 変換対照表 | ADT DTMI → SBCO クラス/プロパティのマッピング実装詳細 |
 | [`telemetry-specification.md`](telemetry-specification.md) | NATS 正規化済みメッセージ仕様 | §4 テレメトリフィールドの正本 |
 | `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphOntology.cs` | SBCO 名前空間・クラス・プロパティ定数 | 主オントロジーの実装正本 |
-| `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphIngestMaterializer.cs` | REC/Brick → SBCO マテリアライズルール | §6 の実装正本 |
+| `DotNet/BuildingOS.Shared/Infrastructure/OxiGraph/OxiGraphIngestMaterializer.cs` | REC/Brick/BOT → SBCO/`bos:` マテリアライズルール | §6 の実装正本 |
 | `DotNet/BuildingOS.Shared/Defines/Schemas/` | JSON Schema（テレメトリエンティティの source of truth） | テレメトリ payload の実装形 |
 
 ---
 
-*更新: 2026-08-10（`rec:Room` → `sbco:Room` を上流の正式な `owl:equivalentClass` 定義に基づき materialize 対象へ追加）/
-HITL レビュー: SBCO ↔ 外部標準の意味的等価性は確認対象（§6 の部分一致行は特に要レビュー）*
+*更新: 2026-09-10（§2.5 空間トポロジー・§6 BOT 語彙の受け入れ・§7 `bos:adjacentZone` を追加 — #440）/
+2026-08-10（`rec:Room` → `sbco:Room` を上流の正式な `owl:equivalentClass` 定義に基づき materialize 対象へ追加）/
+HITL レビュー: SBCO ↔ 外部標準の意味的等価性は確認対象（§6 の部分一致行、および §2.5 の BOT 由来 `bos:adjacentZone` は特に要レビュー）*

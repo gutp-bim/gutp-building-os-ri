@@ -1861,6 +1861,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  '/spaces/{spaceDtId}/adjacent-spaces':
+    get:
+      tags:
+        - Space
+      summary: 隣接スペースの取得
+      description: "指定した部屋に隣接する部屋（`sbco:Room`）の一覧。隣接関係は BOT の対称関係\n`bot:adjacentZone` に由来し、取り込み時に双方向へ正規化されている。\n読み取り権限のない隣室は結果から除外される。部屋自体が存在しない場合は 404。"
+      parameters:
+        - name: spaceDtId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /spaces:
     get:
       tags:

@@ -80,6 +80,17 @@ internal static class OxiGraphOntology
     internal const string Prop_WarnHigh   = BosNs + "warnHigh";
     internal const string Prop_WarnLow    = BosNs + "warnLow";
 
+    // Room-to-room spatial topology (#440). The canonical form of BOT's symmetric
+    // <c>bot:adjacentZone</c> (https://w3id.org/bot#adjacentZone), rewritten at ingest by
+    // OxiGraphIngestMaterializer. bos: rather than sbco: because SBCO has no room-adjacency
+    // vocabulary and this codebase does not mint new terms in a namespace it does not own — the
+    // same rule that put bos:protocol and bos:alarmHigh here. Keeping the canonical form inside
+    // sbco:/bos: also leaves the materializer's copy-through prefix filter untouched, so the
+    // default graph stays "sbco:/bos: only" (see standard-mapping.md §6).
+    // Symmetry is materialized (both directions are written at ingest), so a read path queries one
+    // direction only — no UNION.
+    internal const string Prop_AdjacentZone = BosNs + "adjacentZone";
+
     // SBCO map-entry types/properties (#332). customTags is map(string -> boolean), identifiers is
     // map(string -> string); each entry is a resource/blank node carrying key + value.
     internal const string Cls_KeyBoolMapEntry   = SbcoNs + "KeyBoolMapEntry";

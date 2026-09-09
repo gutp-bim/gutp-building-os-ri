@@ -43,6 +43,12 @@ public class OssDigitalTwinDatabase(ILogger<OssDigitalTwinDatabase> logger) : ID
         return Task.FromResult<Space?>(null);
     }
 
+    public Task<Space[]> ListAdjacentSpaces(string spaceDtId)
+    {
+        logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListAdjacentSpaces({SpaceDtId}) — no-op placeholder", spaceDtId);
+        return Task.FromResult(Array.Empty<Space>());
+    }
+
     public Task<Device[]> ListDevices(string? spaceDtId)
     {
         logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListDevices — no-op placeholder");

@@ -79,6 +79,37 @@ public sealed class AuthorizedTwinView(
         return resource is null ? new TwinGetResult<Space>.NotFound() : new TwinGetResult<Space>.Ok(resource);
     }
 
+    public async Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
+        AuthorizationContext auth, string spaceDtId, CancellationToken ct)
+    {
+        if (!auth.IsAdmin)
+        {
+            if (!await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false))
+                return new TwinGetResult<Space[]>.Forbidden();
+        }
+
+        // "No such room" and "no neighbours" are the same empty adjacency list, so the subject's
+        // existence is established separately.
+        if (await db.GetSpace(spaceDtId).ConfigureAwait(false) is null)
+            return new TwinGetResult<Space[]>.NotFound();
+
+        var neighbours = await db.ListAdjacentSpaces(spaceDtId).ConfigureAwait(false);
+        if (auth.IsAdmin) return new TwinGetResult<Space[]>.Ok(neighbours);
+
+        // One CanAccessAsync per neighbour rather than a hash match against
+        // GetAccessibleResourceIdsAsync("space"): CanAccessAsync already resolves the ancestor chain
+        // (a building/floor grant covers its rooms) and group permissions, so the id-set shortcut
+        // would hide neighbours the caller can read through GET /spaces/{id}. Adjacency degree is a
+        // handful of rooms, so the extra calls are not worth optimizing away.
+        var readable = new List<Space>();
+        foreach (var neighbour in neighbours)
+        {
+            if (await authService.CanAccessAsync(auth, "space", neighbour.DtId, "read", ct).ConfigureAwait(false))
+                readable.Add(neighbour);
+        }
+        return new TwinGetResult<Space[]>.Ok(readable.ToArray());
+    }
+
     // ── Device ────────────────────────────────────────────────────────────────
 
     public async Task<Device[]> ListDevicesAsync(AuthorizationContext auth, string? spaceDtId, CancellationToken ct)

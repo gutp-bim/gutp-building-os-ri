@@ -55,6 +55,7 @@ import type { Methods as Methods_mu5l1t } from './points/_pointId@string/metadat
 import type { Methods as Methods_v8c4mg } from './resources/search';
 import type { Methods as Methods_kbl8x1 } from './spaces';
 import type { Methods as Methods_zlb8ev } from './spaces/_spaceDtId@string';
+import type { Methods as Methods_1f7z7oa } from './spaces/_spaceDtId@string/adjacent-spaces';
 import type { Methods as Methods_1pv2qv1 } from './spaces/_spaceDtId@string/metadata';
 import type { Methods as Methods_8ytsl6 } from './telemetries/query';
 import type { Methods as Methods_1dmkv0v } from './telemetries/query/batch-latest';
@@ -101,8 +102,9 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
   const PATH37 = '/control-audit';
   const PATH38 = '/resources/search';
   const PATH39 = '/spaces';
-  const PATH40 = '/telemetries/query';
-  const PATH41 = '/telemetries/query/batch-latest';
+  const PATH40 = '/adjacent-spaces';
+  const PATH41 = '/telemetries/query';
+  const PATH42 = '/telemetries/query/batch-latest';
   const GET = 'GET';
   const POST = 'POST';
   const PUT = 'PUT';
@@ -927,6 +929,25 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
         const prefix1 = `${PATH39}/${val1}`;
 
         return {
+          adjacent_spaces: {
+            /**
+             * 指定した部屋に隣接する部屋（`sbco:Room`）の一覧。隣接関係は BOT の対称関係
+             * `bot:adjacentZone` に由来し、取り込み時に双方向へ正規化されている。
+             * 読み取り権限のない隣室は結果から除外される。部屋自体が存在しない場合は 404。
+             * @returns OK
+             */
+            get: (option?: { config?: T | undefined } | undefined) =>
+              fetch<Methods_1f7z7oa['get']['resBody'], BasicHeaders, Methods_1f7z7oa['get']['status']>(prefix, `${prefix1}${PATH40}`, GET, option).json(),
+            /**
+             * 指定した部屋に隣接する部屋（`sbco:Room`）の一覧。隣接関係は BOT の対称関係
+             * `bot:adjacentZone` に由来し、取り込み時に双方向へ正規化されている。
+             * 読み取り権限のない隣室は結果から除外される。部屋自体が存在しない場合は 404。
+             * @returns OK
+             */
+            $get: (option?: { config?: T | undefined } | undefined) =>
+              fetch<Methods_1f7z7oa['get']['resBody'], BasicHeaders, Methods_1f7z7oa['get']['status']>(prefix, `${prefix1}${PATH40}`, GET, option).json().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH40}`,
+          },
           metadata: {
             /**
              * @returns OK
@@ -977,26 +998,26 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
            * @returns OK
            */
           post: (option: { body: Methods_1dmkv0v['post']['reqBody'], config?: T | undefined }) =>
-            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH41, POST, option).json(),
+            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH42, POST, option).json(),
           /**
            * @returns OK
            */
           $post: (option: { body: Methods_1dmkv0v['post']['reqBody'], config?: T | undefined }) =>
-            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH41, POST, option).json().then(r => r.body),
-          $path: () => `${prefix}${PATH41}`,
+            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH42, POST, option).json().then(r => r.body),
+          $path: () => `${prefix}${PATH42}`,
         },
         /**
          * @returns OK
          */
         get: (option?: { query?: Methods_8ytsl6['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH40, GET, option).json(),
+          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH41, GET, option).json(),
         /**
          * @returns OK
          */
         $get: (option?: { query?: Methods_8ytsl6['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH40, GET, option).json().then(r => r.body),
+          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH41, GET, option).json().then(r => r.body),
         $path: (option?: { method?: 'get' | undefined; query: Methods_8ytsl6['get']['query'] } | undefined) =>
-          `${prefix}${PATH40}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+          `${prefix}${PATH41}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
       },
     },
   };

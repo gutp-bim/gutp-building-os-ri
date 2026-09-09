@@ -10,6 +10,17 @@ public interface IDigitalTwinDatabase
     public Task<Floor?> GetFloor(string dtId);
     public Task<Space[]> ListSpaces(string? floorDtId);
     public Task<Space?> GetSpace(string dtId);
+
+    /// <summary>
+    /// Rooms directly adjacent to <paramref name="spaceDtId"/> (#440, BOT <c>bot:adjacentZone</c>
+    /// materialized to the <c>bos:adjacentZone</c> canonical form at ingest). Adjacency is symmetric
+    /// and both directions are written at ingest, so this is a one-direction SELECT — no UNION.
+    /// Only <c>sbco:Room</c> neighbours are returned: BOT models adjacency between any two zones,
+    /// but this read path answers "which rooms are next door". Empty when nothing is adjacent, and
+    /// also when the room does not exist — callers that must tell those apart check the room first.
+    /// </summary>
+    public Task<Space[]> ListAdjacentSpaces(string spaceDtId);
+
     public Task<Device[]> ListDevices(string? spaceDtId);
     public Task<Device?> GetDevice(string dtId);
     public Task<Point[]> ListPoints(string? deviceDtId);

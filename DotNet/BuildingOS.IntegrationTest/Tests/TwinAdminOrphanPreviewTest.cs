@@ -180,4 +180,44 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
         Assert.Equal(TwinOrphanReasons.NoRoom, reasons["urn:test:pt-anchorless"]);
         Assert.Equal(TwinOrphanReasons.NoBuildingPath, reasons["urn:test:pt-unknown-floor"]);
     }
+
+    /// <summary>
+    /// Characterization test for #440, added after the feature was green — NOT a TDD RED. The orphan
+    /// check starts from PointExt and walks the containment chain, so a new room-to-room predicate
+    /// should be invisible to it; this pins that expectation rather than having driven the design.
+    /// The two TTLs differ only by the bot:adjacentZone triple, so any difference in the verdict is
+    /// the new vocabulary leaking into the hierarchy judgement.
+    /// </summary>
+    [Fact]
+    public async Task PreviewImport_BotAdjacentZoneTriples_DoNotChangeTheOrphanVerdict()
+    {
+        const string withoutAdjacencyTtl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+            <urn:test:bldg-adj> a sbco:Building ; sbco:id "bldg-adj" ; sbco:name "Adjacency Building" ;
+              sbco:hasPart <urn:test:floor-adj> .
+            <urn:test:floor-adj> a sbco:Level ; sbco:id "floor-adj" ; sbco:name "floor-adj" ;
+              sbco:hasPart <urn:test:room-adj-a> , <urn:test:room-adj-b> .
+            <urn:test:room-adj-a> a sbco:Room ; sbco:id "room-adj-a" ; sbco:name "Room A" .
+            <urn:test:room-adj-b> a sbco:Room ; sbco:id "room-adj-b" ; sbco:name "Room B" .
+            <urn:test:eq-adj> a sbco:EquipmentExt ; sbco:id "EQ-ADJ" ; sbco:name "AHU" ;
+              sbco:locatedIn <urn:test:room-adj-a> ; sbco:hasPoint <urn:test:pt-adj> .
+            <urn:test:pt-adj> a sbco:PointExt ; sbco:id "PT-ADJ" ; sbco:name "Adjacency Point" .
+            """;
+        const string withAdjacencyTtl = """
+            @prefix bot: <https://w3id.org/bot#> .
+            """ + "\n" + withoutAdjacencyTtl + """
+
+            <urn:test:room-adj-a> bot:adjacentZone <urn:test:room-adj-b> .
+            """;
+
+        var baseline = await Service().PreviewImportAsync(withoutAdjacencyTtl, TwinImportMode.Replace);
+        await oxiGraph.ClearAsync();
+        var withAdjacency = await Service().PreviewImportAsync(withAdjacencyTtl, TwinImportMode.Replace);
+
+        Assert.Equal(0, baseline.OrphanCount);
+        Assert.Equal(baseline.OrphanCount, withAdjacency.OrphanCount);
+        Assert.Equal(baseline.Valid, withAdjacency.Valid);
+        Assert.Equal(baseline.ControlSchemaIssues.Count, withAdjacency.ControlSchemaIssues.Count);
+    }
 }
