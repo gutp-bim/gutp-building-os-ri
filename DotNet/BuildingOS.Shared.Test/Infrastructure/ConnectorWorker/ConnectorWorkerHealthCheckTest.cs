@@ -60,11 +60,16 @@ public class ConnectorWorkerHealthCheckTest
     }
 
     private static IReadOnlyList<HealthCheckRegistration> ReadinessChecks(IServiceCollection services)
-        => services.BuildServiceProvider()
+    {
+        // The registrations are materialized here, so the provider built only to read them out of
+        // options owns nothing the caller still needs — dispose it instead of leaking one per call.
+        using var provider = services.BuildServiceProvider();
+        return provider
             .GetRequiredService<IOptions<HealthCheckServiceOptions>>()
             .Value.Registrations
             .Where(r => r.Tags.Contains(ConnectorWorkerHealthChecks.ReadyTag))
             .ToList();
+    }
 
     private static string[] CheckNames(WorkerRole role, Dictionary<string, string?>? env = null)
         => ReadinessChecks(BuildRole(role, env).Services)
@@ -359,8 +364,9 @@ public class ConnectorWorkerHealthCheckTest
             tags: [ConnectorWorkerHealthChecks.ReadyTag],
             timeout: budget));
 
+        using var provider = services.BuildServiceProvider();
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var report = await services.BuildServiceProvider()
+        var report = await provider
             .GetRequiredService<HealthCheckService>()
             .CheckHealthAsync(CancellationToken.None);
         sw.Stop();
