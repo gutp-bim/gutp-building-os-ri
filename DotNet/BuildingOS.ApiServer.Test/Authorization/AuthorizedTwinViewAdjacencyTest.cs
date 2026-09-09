@@ -83,6 +83,26 @@ public class AuthorizedTwinViewAdjacencyTest
             await view.ListAdjacentSpacesAsync(AdminAuth(), Subject, default));
     }
 
+    [Theory]
+    // The route value is percent-unescaped by the controller, so a hostile "%3E" reaches the view as
+    // a raw ">" that would terminate the SPARQL <...> token. The dtId is interpolated as an IRI and
+    // nothing escapes an IRI, so the guard has to run before the twin is touched at all.
+    [InlineData("urn:test:room-a> } INSERT DATA { <urn:x> <urn:y> <urn:z>")]
+    [InlineData("urn:test:room a")]
+    [InlineData("room-a")]
+    [InlineData("")]
+    public async Task ListAdjacentSpaces_MalformedDtId_IsNotFound_AndNeverTouchesTheTwin(string dtId)
+    {
+        var (view, db, auth) = Build([Room("urn:test:room-b", "ROOM-B", "Room B")]);
+        Grant(auth, dtId);
+
+        Assert.IsType<TwinGetResult<Space[]>.NotFound>(
+            await view.ListAdjacentSpacesAsync(AdminAuth(), dtId, default));
+
+        db.Verify(d => d.GetSpace(It.IsAny<string>()), Times.Never);
+        db.Verify(d => d.ListAdjacentSpaces(It.IsAny<string>()), Times.Never);
+    }
+
     [Fact]
     public async Task ListAdjacentSpaces_User_ReturnsOnlyReadableNeighbours()
     {

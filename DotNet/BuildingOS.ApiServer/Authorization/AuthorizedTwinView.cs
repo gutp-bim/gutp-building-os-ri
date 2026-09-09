@@ -1,6 +1,7 @@
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Infrastructure;
+using BuildingOS.Shared.Infrastructure.OxiGraph;
 
 namespace BuildingOs.ApiServer.Authorization;
 
@@ -82,6 +83,15 @@ public sealed class AuthorizedTwinView(
     public async Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
         AuthorizationContext auth, string spaceDtId, CancellationToken ct)
     {
+        // The controller percent-unescapes the route value, and the twin interpolates it into a
+        // SPARQL IRI reference (<{spaceDtId}>) which has no escape mechanism — so a value that is
+        // not a well-formed absolute IRI is rejected here, before the twin (or the authorization
+        // service) is touched at all. NotFound rather than Forbidden or BadRequest: a value that
+        // cannot be an IRI can never name a room, and answering 404 keeps a probe from telling a
+        // rejected id apart from an id that is simply absent from the twin.
+        if (!SparqlIriValidator.IsValidAbsoluteIri(spaceDtId))
+            return new TwinGetResult<Space[]>.NotFound();
+
         if (!auth.IsAdmin)
         {
             if (!await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false))
