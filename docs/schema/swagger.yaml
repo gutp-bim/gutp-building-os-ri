@@ -2676,6 +2676,172 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/telemetry/health:
+    get:
+      tags:
+        - TelemetryHealth
+      summary: 判定済みの Point 健全性一覧。認可された建物の台帳だけを読む。
+      parameters:
+        - name: buildingDtId
+          in: query
+          description: 建物 dtId でスコープ。省略時は認可された全建物
+          schema:
+            type: string
+        - name: floorDtId
+          in: query
+          description: 階 dtId で絞り込み（完全一致）
+          schema:
+            type: string
+        - name: deviceDtId
+          in: query
+          description: 機器 dtId で絞り込み（完全一致）
+          schema:
+            type: string
+        - name: gatewayId
+          in: query
+          description: gateway ID で絞り込み（大小無視）
+          schema:
+            type: string
+        - name: freshness
+          in: query
+          description: 鮮度で絞り込み（Fresh/Stale/Missing/Unknown）。複数指定は OR、未知の値は無視
+          schema:
+            type: array
+            items:
+              type: string
+        - name: alarm
+          in: query
+          description: 警報で絞り込み（Normal/Warn/Critical/Unknown/Suppressed）。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: healthStatus
+          in: query
+          description: 総合ステータスで絞り込み。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: olderThan
+          in: query
+          description: この秒数以上受信が無いものだけ。**未受信の Point は齢 ∞ として必ず含む**
+          schema:
+            type: integer
+            format: int32
+        - name: tag
+          in: query
+          description: customTags で絞り込み。複数指定は AND、大小無視
+          schema:
+            type: array
+            items:
+              type: string
+        - name: q
+          in: query
+          description: pointId / 名前の部分一致（大小無視）
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: 並べ替え（worst（既定）/ lastSeen / name）
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: 最大件数（1..500、既定 100）
+          schema:
+            type: integer
+            format: int32
+            default: 100
+        - name: offset
+          in: query
+          description: オフセット（既定 0）
+          schema:
+            type: integer
+            format: int32
+            default: 0
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointHealthListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/telemetry/health/summary:
+    get:
+      tags:
+        - TelemetryHealth
+      summary: "一覧と同じ母集団の軸別集計。ヘッダの KPI 用なので、受けるスコープ条件も一覧のうち\n階層・タグ・フリーワードだけに絞ってある（鮮度などで絞った集計は意味を成さない）。"
+      parameters:
+        - name: buildingDtId
+          in: query
+          description: 建物 dtId でスコープ。省略時は認可された全建物
+          schema:
+            type: string
+        - name: floorDtId
+          in: query
+          description: 階 dtId で絞り込み（完全一致）
+          schema:
+            type: string
+        - name: deviceDtId
+          in: query
+          description: 機器 dtId で絞り込み（完全一致）
+          schema:
+            type: string
+        - name: gatewayId
+          in: query
+          description: gateway ID で絞り込み（大小無視）
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: customTags で絞り込み。複数指定は AND、大小無視
+          schema:
+            type: array
+            items:
+              type: string
+        - name: q
+          in: query
+          description: pointId / 名前の部分一致（大小無視）
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointHealthSummaryResponse'
   /api/admin/twin/query:
     post:
       tags:
@@ -3210,6 +3376,21 @@ components:
           format: date-time
       additionalProperties: false
       description: API レスポンス DTO。監査ドメイン型をそのまま露出せず、result 文字列化して返す。
+    AlarmBound:
+      enum:
+        - AlarmHigh
+        - AlarmLow
+        - WarnHigh
+        - WarnLow
+      type: string
+    AlarmStatus:
+      enum:
+        - Normal
+        - Warn
+        - Critical
+        - Unknown
+        - Suppressed
+      type: string
     AssistantChatRequest:
       type: object
       properties:
@@ -3438,6 +3619,13 @@ components:
           additionalProperties:
             type: boolean
       additionalProperties: false
+    FreshnessStatus:
+      enum:
+        - Fresh
+        - Stale
+        - Missing
+        - Unknown
+      type: string
     GatewayAdminView:
       type: object
       properties:
@@ -3615,6 +3803,15 @@ components:
           type: string
           nullable: true
       additionalProperties: false
+    HealthStatus:
+      enum:
+        - Critical
+        - Warn
+        - Missing
+        - Stale
+        - Unknown
+        - Fresh
+      type: string
     IngressRejectionCount:
       type: object
       properties:
@@ -3664,6 +3861,12 @@ components:
           description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359). Replaced the legacy\n`ValueText`/`ValueBool` pair. A non-numeric reading is repeated here rather than left\nnull, so a client reads the state half with a single lookup instead of falling back to\nValue. Batch-latest returns raw samples only, so unlike\nBuildingOs.ApiServer.Telemetry.TelemetryReading.State this never carries a state\nalongside a numeric average — see that type's docs for why the field exists at all."
       additionalProperties: false
       description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. `State` carries the\nreading's non-numeric half, and `ValueType` describes `Value`; the legacy\n`ValueText`/`ValueBool` pair left the wire in #359. Kept in step with\nBuildingOs.ApiServer.Telemetry.TelemetryReading, whose docs carry the full rationale\n— the client's value decoder is satisfied structurally by both, so a divergence here surfaces only\nas a type error in the generated client.\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
+    MissingReason:
+      enum:
+        - NeverReceived
+        - GatewayDisconnected
+        - Unknown
+      type: string
     MyResourcesResponse:
       type: object
       properties:
@@ -3870,6 +4073,18 @@ components:
           additionalProperties:
             type: boolean
       additionalProperties: false
+    PointAlarmResult:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/AlarmStatus'
+        value:
+          type: number
+          format: double
+          nullable: true
+        violated:
+          $ref: '#/components/schemas/AlarmBound'
+      additionalProperties: false
     PointControlAuditResponse:
       type: object
       properties:
@@ -3925,6 +4140,154 @@ components:
         controlSchema:
           $ref: '#/components/schemas/ControlSchema'
       additionalProperties: false
+    PointFreshnessResult:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/FreshnessStatus'
+        lastSeen:
+          type: string
+          format: date-time
+          nullable: true
+        ageSeconds:
+          type: integer
+          format: int64
+          nullable: true
+        expectedIntervalSeconds:
+          type: number
+          format: double
+          nullable: true
+        thresholdSeconds:
+          type: number
+          format: double
+        thresholdSource:
+          $ref: '#/components/schemas/ThresholdSource'
+        reason:
+          $ref: '#/components/schemas/MissingReason'
+      additionalProperties: false
+    PointGatewayInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        connected:
+          type: boolean
+      additionalProperties: false
+    PointHealthItem:
+      type: object
+      properties:
+        pointId:
+          type: string
+        pointDtId:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        freshness:
+          $ref: '#/components/schemas/PointFreshnessResult'
+        alarm:
+          $ref: '#/components/schemas/PointAlarmResult'
+        gateway:
+          $ref: '#/components/schemas/PointGatewayInfo'
+        healthStatus:
+          $ref: '#/components/schemas/HealthStatus'
+        deviceDtId:
+          type: string
+          nullable: true
+        deviceName:
+          type: string
+          nullable: true
+        spaceDtId:
+          type: string
+          nullable: true
+        spaceName:
+          type: string
+          nullable: true
+        floorDtId:
+          type: string
+          nullable: true
+        floorName:
+          type: string
+          nullable: true
+        buildingDtId:
+          type: string
+          nullable: true
+        buildingName:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    PointHealthListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointHealthItem'
+          description: この頁ぶんの行
+        total:
+          type: integer
+          description: 絞り込み後・ページング前の件数
+          format: int32
+        limit:
+          type: integer
+          description: 実際に適用した最大件数（1..500 に丸めた後の値）
+          format: int32
+        offset:
+          type: integer
+          description: 実際に適用したオフセット
+          format: int32
+        dataComplete:
+          type: boolean
+          description: 最終受信インデックスが Ready で、全 Point ぶんの判定材料が揃っていたか
+        indexState:
+          $ref: '#/components/schemas/PointLastSeenIndexState'
+      additionalProperties: false
+      description: データ健全性一覧の応答。`Total` はページング前の該当件数。
+    PointHealthSummaryResponse:
+      type: object
+      properties:
+        totalPoints:
+          type: integer
+          format: int32
+        fresh:
+          type: integer
+          format: int32
+        stale:
+          type: integer
+          format: int32
+        missing:
+          type: integer
+          format: int32
+        unknown:
+          type: integer
+          format: int32
+        alarmWarn:
+          type: integer
+          format: int32
+        alarmCritical:
+          type: integer
+          format: int32
+        dataComplete:
+          type: boolean
+        indexState:
+          $ref: '#/components/schemas/PointLastSeenIndexState'
+      additionalProperties: false
+      description: データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。
+    PointLastSeenIndexState:
+      enum:
+        - Warming
+        - Ready
+        - Degraded
+      type: string
     ProblemDetails:
       type: object
       properties:
@@ -4195,6 +4558,13 @@ components:
           type: number
           format: double
       additionalProperties: false
+    ThresholdSource:
+      enum:
+        - Point
+        - Device
+        - Gateway
+        - System
+      type: string
     TwinAdminControllerSparqlQueryRequest:
       type: object
       properties:
@@ -4347,5 +4717,6 @@ tags:
   - name: SystemConfig
   - name: Telemetry
   - name: TelemetryConfig
+  - name: TelemetryHealth
   - name: TwinAdmin
   - name: Users

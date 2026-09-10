@@ -34,6 +34,7 @@ import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
 import { CONTROL_AUDIT_ANCHOR_ID } from "./components/control-audit-anchor";
 import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
+import { PointHealthPanel } from "./components/point-health-panel";
 import { PointInfo } from "./components/point-info";
 import { TelemetryHotData } from "./components/telemetry-hot-data";
 import { TelemetryStateTimeline } from "./components/telemetry-state-timeline";
@@ -295,6 +296,25 @@ export default function PointDetailPageComponent({
             }
             staleThresholdSeconds={telemetryConfig?.staleThresholdSeconds}
             staleIntervalMultiplier={telemetryConfig?.staleIntervalMultiplier}
+          />
+          {/* 鮮度バッジの「なぜ」を出す健全性パネル（#457）。追加の API 呼び出しはせず、
+              すでに取得済みの pointDetail と telemetryConfig だけで組み立てる。
+              now は毎レンダー現在時刻（hotData の再取得ごとに評価し直される）。 */}
+          <PointHealthPanel
+            latest={hotData}
+            now={new Date()}
+            scale={pointDetail.point.scale ?? undefined}
+            unit={pointDetail.point.unit}
+            expectedIntervalSeconds={pointDetail.point.expectedIntervalSeconds}
+            staleThresholdSeconds={telemetryConfig?.staleThresholdSeconds}
+            staleIntervalMultiplier={telemetryConfig?.staleIntervalMultiplier}
+            alarmThresholds={{
+              alarmHigh: pointDetail.point.alarmHigh,
+              alarmLow: pointDetail.point.alarmLow,
+              warnHigh: pointDetail.point.warnHigh,
+              warnLow: pointDetail.point.warnLow,
+            }}
+            deviceName={pointDetail.device?.name}
           />
         </div>
       </div>

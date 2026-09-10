@@ -37,3 +37,28 @@ export const unitLabelMap: Record<string, string> = {
   "http://qudt.org/vocab/unit/DEG_De": "°De",
   "http://qudt.org/vocab/unit/DEG_Re": "°Ré",
 };
+
+/**
+ * QUDT IRI ではなく短縮コード（`degC` など）で twin に入っている単位の別名表。
+ * CSV 由来のポイントリストは IRI ではなくこの短縮表記を持ち込むことがあるため、
+ * IRI 表を引けなかった場合の 2 段目として引く。
+ */
+const unitAliasMap: Record<string, string> = {
+  degC: "°C",
+  degF: "°F",
+  degK: "K",
+  degRe: "°Ré",
+  percent: "%",
+  pct: "%",
+};
+
+/**
+ * 表示用の単位ラベルを解決する（QUDT IRI → 短縮コード別名 → 生値の順）。
+ * 未設定（null / 空文字）は「単位なし」として null を返すので、呼び出し側は単位を付けない。
+ */
+export function resolveUnitLabel(
+  unit: string | null | undefined,
+): string | null {
+  if (!unit) return null;
+  return unitLabelMap[unit] ?? unitAliasMap[unit] ?? unit;
+}

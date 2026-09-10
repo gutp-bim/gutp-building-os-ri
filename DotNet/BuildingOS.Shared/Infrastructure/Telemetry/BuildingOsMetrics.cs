@@ -13,6 +13,15 @@ namespace BuildingOS.Shared.Infrastructure.Telemetry;
 /// Instrument names use dots; the OTLP→Prometheus mapping renders them as
 /// <c>building_os_connector_messages_processed_total</c> etc. (dots→underscores, counters
 /// gain a <c>_total</c> suffix), which is what the Grafana dashboards query.
+///
+/// <para><b>Tag cardinality.</b> Every tag here must come from a closed set fixed in the code
+/// (connector, protocol, source, subject, result) or from a set bounded by deployment size
+/// (gateway). <b>Never tag an instrument with <c>point_id</c> or <c>device_id</c></b> — one series
+/// per point does not survive a 100k-point twin. Per-point state (last seen, freshness, alarm) is a
+/// Building OS domain concern served from the twin plus the NATS KV latest store, not a metric; a
+/// Point-count-independent aggregate (e.g. how many points are stale) may be emitted here.
+/// See <c>docs/operations/observability-baseline.md</c> §Cardinality Policy for the operational
+/// rules and <c>docs/adr/0007-observability-domain-health-boundary.md</c> for the decision.</para>
 /// </summary>
 public static class BuildingOsMetrics
 {

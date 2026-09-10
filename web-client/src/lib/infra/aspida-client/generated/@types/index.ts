@@ -12,6 +12,10 @@ export type AdminAuditResponse = {
   createdAt?: string | undefined;
 }
 
+export type AlarmBound = 'AlarmHigh' | 'AlarmLow' | 'WarnHigh' | 'WarnLow'
+
+export type AlarmStatus = 'Normal' | 'Warn' | 'Critical' | 'Unknown' | 'Suppressed'
+
 export type AssistantChatRequest = {
   messages?: ChatMessage[] | undefined;
   context?: AssistantHelpContext | undefined;
@@ -127,6 +131,8 @@ export type Floor = {
   } | undefined;
 }
 
+export type FreshnessStatus = 'Fresh' | 'Stale' | 'Missing' | 'Unknown'
+
 /**
  * Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived
  * BuildingOs.ApiServer.Controllers.GatewayAdminView.LastTelemetryAt last-seen signal (#181 Phase 2), the live egress
@@ -229,6 +235,8 @@ export type GroupsControllerUpdateGroupRequest = {
   description?: string | null | undefined;
 }
 
+export type HealthStatus = 'Critical' | 'Warn' | 'Missing' | 'Stale' | 'Unknown' | 'Fresh'
+
 export type IngressRejectionCount = {
   reason?: string | undefined;
   count?: number | undefined;
@@ -283,6 +291,8 @@ export type LatestSample = {
    */
   state?: string | null | boolean | undefined;
 }
+
+export type MissingReason = 'NeverReceived' | 'GatewayDisconnected' | 'Unknown'
 
 export type MyResourcesResponse = {
   isAdmin?: boolean | undefined;
@@ -378,6 +388,12 @@ export type Point = {
   } | undefined;
 }
 
+export type PointAlarmResult = {
+  status?: AlarmStatus | undefined;
+  value?: number | null | undefined;
+  violated?: AlarmBound | undefined;
+}
+
 /**
  * 制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`
  * （"success" / "failed" / "pending"）に正規化して返す。`Request` は送信時のコマンド JSON。
@@ -406,6 +422,71 @@ export type PointDetail = {
   device?: Device | undefined;
   controlSchema?: ControlSchema | undefined;
 }
+
+export type PointFreshnessResult = {
+  status?: FreshnessStatus | undefined;
+  lastSeen?: string | null | undefined;
+  ageSeconds?: number | null | undefined;
+  expectedIntervalSeconds?: number | null | undefined;
+  thresholdSeconds?: number | undefined;
+  thresholdSource?: ThresholdSource | undefined;
+  reason?: MissingReason | undefined;
+}
+
+export type PointGatewayInfo = {
+  id?: string | null | undefined;
+  connected?: boolean | undefined;
+}
+
+export type PointHealthItem = {
+  pointId?: string | undefined;
+  pointDtId?: string | null | undefined;
+  name?: string | null | undefined;
+  unit?: string | null | undefined;
+  freshness?: PointFreshnessResult | undefined;
+  alarm?: PointAlarmResult | undefined;
+  gateway?: PointGatewayInfo | undefined;
+  healthStatus?: HealthStatus | undefined;
+  deviceDtId?: string | null | undefined;
+  deviceName?: string | null | undefined;
+  spaceDtId?: string | null | undefined;
+  spaceName?: string | null | undefined;
+  floorDtId?: string | null | undefined;
+  floorName?: string | null | undefined;
+  buildingDtId?: string | null | undefined;
+  buildingName?: string | null | undefined;
+  tags?: string[] | undefined;
+}
+
+/** データ健全性一覧の応答。`Total` はページング前の該当件数。 */
+export type PointHealthListResponse = {
+  /** この頁ぶんの行 */
+  items?: PointHealthItem[] | undefined;
+  /** 絞り込み後・ページング前の件数 */
+  total?: number | undefined;
+  /** 実際に適用した最大件数（1..500 に丸めた後の値） */
+  limit?: number | undefined;
+  /** 実際に適用したオフセット */
+  offset?: number | undefined;
+  /** 最終受信インデックスが Ready で、全 Point ぶんの判定材料が揃っていたか */
+  dataComplete?: boolean | undefined;
+  indexState?: PointLastSeenIndexState | undefined;
+}
+
+/** データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。 */
+export type PointHealthSummaryResponse = {
+  totalPoints?: number | undefined;
+  fresh?: number | undefined;
+  stale?: number | undefined;
+  missing?: number | undefined;
+  unknown?: number | undefined;
+  alarmWarn?: number | undefined;
+  alarmCritical?: number | undefined;
+  dataComplete?: boolean | undefined;
+  indexState?: PointLastSeenIndexState | undefined;
+}
+
+export type PointLastSeenIndexState = 'Warming' | 'Ready' | 'Degraded'
 
 export type ProblemDetails = {
   type?: string | null | undefined;
@@ -575,6 +656,8 @@ export type TelemetryThresholds = {
   staleThresholdSeconds?: number | undefined;
   staleIntervalMultiplier?: number | undefined;
 }
+
+export type ThresholdSource = 'Point' | 'Device' | 'Gateway' | 'System'
 
 export type TwinAdminControllerSparqlQueryRequest = {
   query?: string | undefined;

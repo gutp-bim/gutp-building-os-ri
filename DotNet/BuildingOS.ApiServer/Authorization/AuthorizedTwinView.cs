@@ -7,7 +7,8 @@ namespace BuildingOs.ApiServer.Authorization;
 
 public sealed class AuthorizedTwinView(
     IDigitalTwinDatabase db,
-    IAuthorizationService authService) : IAuthorizedTwinView
+    IAuthorizationService authService,
+    PointDetailInventoryCache? inventory = null) : IAuthorizedTwinView
 {
     // ── dtId guard (#446) ─────────────────────────────────────────────────────
     //
@@ -209,6 +210,40 @@ public sealed class AuthorizedTwinView(
         }
         var resource = await db.GetPointDetailByPointId(pointId);
         return resource is null ? new TwinGetResult<PointDetail>.NotFound() : new TwinGetResult<PointDetail>.Ok(resource);
+    }
+
+    public async Task<PointDetail[]> ListPointDetailsAsync(
+        AuthorizationContext auth, string buildingDtId, CancellationToken ct)
+    {
+        if (!IsUsableDtId(buildingDtId)) return [];
+
+        // 認可の判定を**台帳を読む前に**済ませる。buildingDtId は呼び出し元がクエリで自由に指定できるので、
+        // 先に読み込んでから絞ると「1 件も読めない利用者」でも建物全件の SPARQL と認可前キャッシュの
+        // 充填を誘発できてしまう（データは漏れないが、存在しない ID を並べるだけで台帳キャッシュを
+        // 太らせられる）。読める見込みがゼロなら台帳に触れずに空を返す。
+        IReadOnlyList<string> pointIds = [];
+        IReadOnlyList<string> deviceIds = [];
+        var readsWholeBuilding = auth.IsAdmin
+            || await authService.CanAccessAsync(auth, "building", buildingDtId, "read", ct).ConfigureAwait(false);
+        if (!readsWholeBuilding)
+        {
+            // 建物の権限が無ければ、直接付与された point / device のぶんだけ見せる（ListPointsAsync の
+            // 「device の read 権があればその配下の Point は読める」を建物スコープに写したもの）。
+            pointIds = await authService.GetAccessibleResourceIdsAsync(auth, "point", "read", ct).ConfigureAwait(false);
+            deviceIds = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
+            if (pointIds.Count == 0 && deviceIds.Count == 0) return [];
+        }
+
+        // キャッシュに載るのは**認可前**の twin データ。絞り込みは毎リクエストこの下で適用する。
+        var all = inventory is null
+            ? await db.ListPointDetails(buildingDtId).ConfigureAwait(false)
+            : await inventory.GetAsync(buildingDtId, _ => db.ListPointDetails(buildingDtId), ct).ConfigureAwait(false);
+
+        if (readsWholeBuilding) return all;
+        return all.Where(d =>
+                pointIds.Contains(PermissionHelper.HashResourceId(d.Point.Id))
+                || (d.Device is not null && deviceIds.Contains(PermissionHelper.HashResourceId(d.Device.DtId))))
+            .ToArray();
     }
 
     public async Task<bool> CanWritePointAsync(AuthorizationContext auth, string pointId, CancellationToken ct)
