@@ -14,8 +14,10 @@ namespace BuildingOS.Shared.Infrastructure.Oss;
 /// このクラスは「watch イベント → Apply / Remove」「初期リプレイ完了 → MarkReady」
 /// 「切断 → MarkDegraded して張り直し」の対応付けしか持たない（だから単体テストの対象は store）。
 ///
-/// <para>初期リプレイの完了は <c>NatsKVEntry.Delta == 0</c>（残り 0 件）で判る。空バケットは
-/// watch がそもそも 1 件も流さないので、<c>GetStatusAsync</c> のメッセージ数 0 を見て即 Ready にする。</para>
+/// <para>初期リプレイの完了は <c>NatsKVEntry.Delta == 0</c>（残り 0 件）で判る。空バケットは watch が
+/// そもそも 1 件も流さないので <c>Delta == 0</c> が来ない。そこだけ <c>GetStatusAsync</c> のメッセージ数で
+/// 判断するが、**即 Ready にはしない** — 猶予を置き、明けにもう一度件数を読んで 0 のままのときだけ
+/// Ready にする（<see cref="MarkReadyIfStillEmptyAsync"/>）。</para>
 ///
 /// <para>例外・切断では <c>MarkDegraded()</c> して再試行する。**プロセスは落とさない** — 健全性画面が
 /// 見られなくなるだけで、テレメトリの取り込みや制御には影響しないため。</para>
@@ -25,24 +27,29 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
     private const string BucketName = "telemetry-latest";
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
 
-    /// <summary>空バケットを Ready と決めるまでの猶予（watch が張られて既存値が流れ切るのを待つ）。</summary>
-    private static readonly TimeSpan EmptyBucketReadyGrace = TimeSpan.FromSeconds(2);
+    /// <summary>空バケットを Ready と決めるまでの既定の猶予（watch が張られて既存値が流れ切るのを待つ）。</summary>
+    internal static readonly TimeSpan DefaultEmptyBucketReadyGrace = TimeSpan.FromSeconds(2);
 
     private readonly INatsJSContext _js;
     private readonly PointLastSeenIndexStore _store;
     private readonly ILogger<NatsKvPointLastSeenIndexWorker> _logger;
     private readonly TimeProvider _clock;
+    private readonly TimeSpan _emptyBucketReadyGrace;
 
     public NatsKvPointLastSeenIndexWorker(
         INatsJSContext js,
         PointLastSeenIndexStore store,
         ILogger<NatsKvPointLastSeenIndexWorker> logger,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        TimeSpan? emptyBucketReadyGrace = null)
     {
         _js = js;
         _store = store;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
+        _emptyBucketReadyGrace = emptyBucketReadyGrace is { } g && g > TimeSpan.Zero
+            ? g
+            : DefaultEmptyBucketReadyGrace;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -89,7 +96,9 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
         // 空バケットは watch が 1 件も流さないので Delta == 0 が来ない。別経路で Ready にする必要がある。
         var status = await kv.GetStatusAsync(ct).ConfigureAwait(false);
         var emptyBucketReady = status.Info.State.Messages == 0
-            ? MarkReadyIfStillEmptyAsync(ct)
+            ? MarkReadyIfStillEmptyAsync(
+                async token => (long)(await kv.GetStatusAsync(token).ConfigureAwait(false)).Info.State.Messages,
+                ct)
             : Task.CompletedTask;
 
         try
@@ -129,11 +138,44 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
     ///
     /// <para>猶予中に 1 件でも流れれば <c>Delta == 0</c> 側が先に Ready にするので、ここは
     /// <see cref="PointLastSeenIndexState.Warming"/> のままのときだけ効く。</para>
+    ///
+    /// <para><b>猶予明けにバケットの件数を読み直す。</b>「まだ Warming」だけでは足りない —
+    /// 猶予中に書き込みが入り、その watch 配信がまだ届いていない状態も Warming のままだからだ。
+    /// そこで Ready にすると、index は空なのに <c>dataComplete=true</c> で全 Point が
+    /// <c>Missing / NeverReceived</c> と確定表示される。件数が 0 でなくなっていたら Ready にせず、
+    /// 配信された <c>Delta == 0</c> に判断を譲る（#460 レビュー）。</para>
     /// </summary>
-    private async Task MarkReadyIfStillEmptyAsync(CancellationToken ct)
+    /// <param name="readMessageCount">バケットの現在のメッセージ数を読む。テストで差し替える。</param>
+    /// <param name="ct">停止トークン。</param>
+    internal async Task MarkReadyIfStillEmptyAsync(
+        Func<CancellationToken, Task<long>> readMessageCount, CancellationToken ct)
     {
-        await Task.Delay(EmptyBucketReadyGrace, ct).ConfigureAwait(false);
+        await Task.Delay(_emptyBucketReadyGrace, ct).ConfigureAwait(false);
         if (_store.State != PointLastSeenIndexState.Warming) return;
+
+        long messages;
+        try
+        {
+            messages = await readMessageCount(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // 読み直せないなら Ready にしない。Warming のままなら「判定できない」と出るだけで、
+            // 誤って欠測を確定表示するより安全。watch 側が動き出せばそちらが Ready にする。
+            _logger.LogWarning(ex,
+                "Point last-seen index: could not re-check bucket {Bucket} after the ready grace; staying warm",
+                BucketName);
+            return;
+        }
+
+        if (messages != 0)
+        {
+            _logger.LogInformation(
+                "Point last-seen index: bucket {Bucket} received {Messages} message(s) during the ready grace; "
+                + "waiting for the watch replay instead",
+                BucketName, messages);
+            return;
+        }
 
         _store.MarkReady(_clock.GetUtcNow());
         _logger.LogInformation("Point last-seen index: bucket {Bucket} is empty, marked ready", BucketName);

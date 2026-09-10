@@ -231,16 +231,20 @@ public sealed class AuthorizedTwinView(
         // 先に読み込んでから絞ると「1 件も読めない利用者」でも建物全件の SPARQL と認可前キャッシュの
         // 充填を誘発できてしまう（データは漏れないが、存在しない ID を並べるだけで台帳キャッシュを
         // 太らせられる）。読める見込みがゼロなら台帳に触れずに空を返す。
-        IReadOnlyList<string> pointIds = [];
-        IReadOnlyList<string> deviceIds = [];
+        HashSet<string> pointIds = [];
+        HashSet<string> deviceIds = [];
         var readsWholeBuilding = auth.IsAdmin
             || await authService.CanAccessAsync(auth, "building", buildingDtId, "read", ct).ConfigureAwait(false);
         if (!readsWholeBuilding)
         {
             // 建物の権限が無ければ、直接付与された point / device のぶんだけ見せる（ListPointsAsync の
             // 「device の read 権があればその配下の Point は読める」を建物スコープに写したもの）。
-            pointIds = await authService.GetAccessibleResourceIdsAsync(auth, "point", "read", ct).ConfigureAwait(false);
-            deviceIds = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
+            // HashSet に移す。台帳は建物 1 棟で数千 Point になり得るので、IReadOnlyList の Contains
+            // （線形探索）のままだと絞り込みが O(Point 数 × 許可 ID 数) になる（#460 レビュー）。
+            pointIds = (await authService.GetAccessibleResourceIdsAsync(auth, "point", "read", ct)
+                .ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+            deviceIds = (await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct)
+                .ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
             if (pointIds.Count == 0 && deviceIds.Count == 0) return [];
         }
 
