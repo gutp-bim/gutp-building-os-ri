@@ -33,6 +33,7 @@ import {
 import type { HealthPage, HealthSummary } from "@/lib/health/repository";
 import type { ResourceRef } from "@/lib/resources/types";
 import { formatDurationJa } from "@/lib/telemetry/threshold-explain";
+import { resolveUnitLabel } from "@/lib/utils/helper/telemetry-helper";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HealthFilterBar } from "./health-filter-bar";
@@ -334,10 +335,16 @@ function HealthTableRow({ row }: { row: HealthRow }) {
   );
 }
 
-/** 値の表示。単位があれば添える。値が無い（欠測など）行はダッシュ。 */
+/**
+ * 値の表示。単位があれば添える。値が無い（欠測など）行はダッシュ。
+ *
+ * 単位は twin に QUDT IRI でも短縮コード（`degC`）でも入るので、Point 詳細と同じ
+ * `resolveUnitLabel` で解決する。生値のまま出すと一覧だけ "degC"、詳細は "°C" になる。
+ */
 function valueText(row: HealthRow): string {
   if (row.value === null) return DASH;
-  return row.unit ? `${row.value} ${row.unit}` : `${row.value}`;
+  const unit = resolveUnitLabel(row.unit);
+  return unit ? `${row.value} ${unit}` : `${row.value}`;
 }
 
 function errMsg(e: unknown, fallback: string): string {

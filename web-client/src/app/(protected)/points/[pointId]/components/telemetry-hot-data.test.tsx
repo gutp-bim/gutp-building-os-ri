@@ -70,6 +70,13 @@ describe("TelemetryHotData non-numeric value display (#152)", () => {
     expect(screen.getByText(/21\.5/)).toBeInTheDocument();
   });
 
+  it("単位は表示ラベルに解決する（同じページの健全性パネルと割れないこと）", () => {
+    // twin は単位を QUDT IRI でも短縮コード（degC）でも持つ。ここだけ IRI 表を直接引いていたため、
+    // 最新値カードが "degC"、健全性パネルが "°C" と出て同じページで表記が割れていた（#460 レビュー）。
+    renderHot(numeric(21.5));
+    expect(screen.getByText(/21\.5\s*°C/)).toBeInTheDocument();
+  });
+
   it("shows a string reading as text", () => {
     renderHot(sample({ kind: "string", value: "auto" }));
     expect(screen.getByText("auto")).toBeInTheDocument();

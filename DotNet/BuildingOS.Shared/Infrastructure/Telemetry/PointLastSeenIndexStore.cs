@@ -14,8 +14,17 @@ namespace BuildingOS.Shared.Infrastructure.Telemetry;
 ///
 /// <para><b>キーの罠</b>: <c>NatsKvLatestStore.SanitizeKey</c> は pointId の使えない文字を
 /// <c>_</c> に潰す**非可逆**変換で、KV キーから pointId は復元できない。そこでこの index は
-/// 値 JSON の <c>PointId</c> を正本として載せ（無ければ KV キーで代用）、
-/// <see cref="TryGet"/> は生の pointId で引いて外れたら sanitize してもう一度引く。</para>
+/// 値 JSON の <c>PointId</c> を正本として載せる（無ければ KV キーで代用）。</para>
+///
+/// <para><b><see cref="TryGet"/> は完全一致だけを見る。</b>sanitize したキーで引き直すと、
+/// 同じキーに潰れる別の pointId（<c>SOS/PT-1</c> と <c>SOS:PT-1</c>）の値を取り違え、
+/// 一度もデータを送っていない Point が別 Point の値と時刻で Fresh に見えてしまう
+/// ——しかもその値で警報まで判定される。引けない側（Missing / Unknown）に倒せば画面に見える
+/// 形で出るだけなので、安全側はこちら。現行の書き込み経路は値に pointId を必ず入れるため、
+/// 生の pointId で完全一致する。</para>
+///
+/// <para>削除だけは事情が違う。KV の削除イベントは sanitize 済みキーしか運ばないので、
+/// <see cref="Remove"/> は <c>_rawBySanitized</c> を使って実際に載っている pointId を引き当てる。</para>
 /// </summary>
 public sealed class PointLastSeenIndexStore : IPointLastSeenIndex
 {

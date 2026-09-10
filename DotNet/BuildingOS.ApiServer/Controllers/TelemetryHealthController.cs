@@ -65,6 +65,11 @@ public class TelemetryHealthController : ControllerBase
     private readonly IGatewayConnectionStatusStore _gatewayStatus;
     private readonly TimeProvider _clock;
 
+    /// <param name="twinView">認可済みの台帳読み取り。認可はここが毎リクエスト適用する。</param>
+    /// <param name="index">最終受信インデックス（プロセス内。1 Point 1 回のメモリ参照）。</param>
+    /// <param name="settings">鮮度閾値の実効値（既定 + 管理者 override）。</param>
+    /// <param name="gatewayStatus">gateway 接続状態。gateway ごとに 1 回だけ引く。</param>
+    /// <param name="clock">時計。齢の計算を決定的にするためにテストで差し替える。</param>
     public TelemetryHealthController(
         IAuthorizedTwinView twinView,
         IPointLastSeenIndex index,

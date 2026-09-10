@@ -25,6 +25,7 @@ namespace BuildingOs.ApiServer.Authorization;
 /// </summary>
 public sealed class PointDetailInventoryCache
 {
+    /// <summary>既定の保持時間。<c>HEALTH_INVENTORY_TTL_SEC</c> が無効なときに使う。</summary>
     public static readonly TimeSpan DefaultTtl = TimeSpan.FromSeconds(60);
 
     /// <summary>保持する建物スナップショットの上限。実在する建物数を十分上回る値。</summary>
@@ -37,6 +38,8 @@ public sealed class PointDetailInventoryCache
 
     private sealed record Snapshot(PointDetail[] Points, DateTimeOffset LoadedAt);
 
+    /// <param name="ttl">スナップショットの保持時間。null / 非正なら <see cref="DefaultTtl"/>。</param>
+    /// <param name="clock">時計。テストで TTL の経過を決定的に動かすために差し替える。</param>
     public PointDetailInventoryCache(TimeSpan? ttl = null, TimeProvider? clock = null)
     {
         _ttl = ttl is { } t && t > TimeSpan.Zero ? t : DefaultTtl;

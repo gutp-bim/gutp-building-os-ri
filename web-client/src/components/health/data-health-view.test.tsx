@@ -149,7 +149,9 @@ describe("DataHealthView", () => {
     expect(within(row).getByTestId("health-freshness-stale").textContent).toBe(
       "鮮度切れ",
     );
-    expect(within(row).getByText("23.4 degC")).toBeTruthy();
+    // 単位は twin の短縮コード（degC）ではなく表示ラベル（°C）で出す。Point 詳細と同じ
+    // resolveUnitLabel を通すので、一覧と詳細で "degC" / "°C" に割れない（#460 レビュー）。
+    expect(within(row).getByText("23.4 °C")).toBeTruthy();
     expect(within(row).getByText("18分前")).toBeTruthy();
     // 期待周期 5分 / 判定閾値 15分（= 5分 × 3）。
     expect(within(row).getByText("5分")).toBeTruthy();
@@ -296,6 +298,60 @@ describe("DataHealthView", () => {
     await userEvent.click(screen.getByTestId("health-chip-alarm"));
 
     expect(lastUrl(onQueryChange)).toBe("alarm=warn%2Ccritical");
+  });
+
+  it("値異常で絞ったまま欠測チップを押しても alarm 軸は残る", async () => {
+    // 鮮度と値異常は独立した軸。片方を触るともう片方が消えるのでは、補足文の
+    // 「別の軸です」と操作が矛盾する（#460 Copilot レビュー）。
+    const onQueryChange = queryChangeMock();
+    await renderView({
+      onQueryChange,
+      query: { ...DEFAULT_HEALTH_QUERY, alarm: ["warn", "critical"] },
+    });
+
+    await userEvent.click(screen.getByTestId("health-chip-missing"));
+
+    expect(lastUrl(onQueryChange)).toBe(
+      "freshness=missing&alarm=warn%2Ccritical",
+    );
+  });
+
+  it("鮮度で絞ったまま値異常チップを押しても freshness 軸は残る", async () => {
+    const onQueryChange = queryChangeMock();
+    await renderView({
+      onQueryChange,
+      query: { ...DEFAULT_HEALTH_QUERY, freshness: ["stale"] },
+    });
+
+    await userEvent.click(screen.getByTestId("health-chip-alarm"));
+
+    expect(lastUrl(onQueryChange)).toBe(
+      "freshness=stale&alarm=warn%2Ccritical",
+    );
+  });
+
+  it("同じ鮮度チップをもう一度押すと外れる", async () => {
+    const onQueryChange = queryChangeMock();
+    await renderView({
+      onQueryChange,
+      query: { ...DEFAULT_HEALTH_QUERY, freshness: ["missing"] },
+    });
+
+    await userEvent.click(screen.getByTestId("health-chip-missing"));
+
+    expect(lastUrl(onQueryChange)).toBe("");
+  });
+
+  it("鮮度チップは重ねられる（欠測と鮮度切れの OR）", async () => {
+    const onQueryChange = queryChangeMock();
+    await renderView({
+      onQueryChange,
+      query: { ...DEFAULT_HEALTH_QUERY, freshness: ["missing"] },
+    });
+
+    await userEvent.click(screen.getByTestId("health-chip-stale"));
+
+    expect(lastUrl(onQueryChange)).toBe("freshness=missing%2Cstale");
   });
 
   it("「すべて」で軸の絞り込みを外す（他の条件は残す）", async () => {

@@ -5,6 +5,16 @@ using BuildingOS.Shared.Infrastructure.OxiGraph;
 
 namespace BuildingOs.ApiServer.Authorization;
 
+/// <summary>
+/// 読み取り認可を通した twin ビュー。controller は必ずこれ越しに台帳を読む。
+/// </summary>
+/// <param name="db">twin（OxiGraph）の読み取り。</param>
+/// <param name="authService">リソース単位の認可判定。</param>
+/// <param name="inventory">
+/// 建物ごとの Point 台帳の短 TTL キャッシュ（#452）。**認可前**の twin データだけを保持し、
+/// 絞り込みは <see cref="ListPointDetailsAsync"/> がキャッシュヒットでも毎回やり直す。
+/// null なら毎回 twin を読む（データ健全性以外の経路は従来どおり）。
+/// </param>
 public sealed class AuthorizedTwinView(
     IDigitalTwinDatabase db,
     IAuthorizationService authService,

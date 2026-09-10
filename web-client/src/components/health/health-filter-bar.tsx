@@ -56,6 +56,22 @@ export function HealthFilterBar({
   const alarmActive =
     query.alarm.includes("warn") || query.alarm.includes("critical");
 
+  /**
+   * 鮮度チップの ON/OFF。**alarm 軸には触らない** — 2 つは独立した軸なので、値異常で絞ったまま
+   * 鮮度を切り替えられないと、補足文で「別の軸です」と言っていることと操作が矛盾する。
+   * 押すたびに ON/OFF するので、欠測と鮮度切れを両方立てて OR で見ることもできる。
+   */
+  const toggleFreshness = (value: HealthQuery["freshness"][number]) =>
+    onChange({
+      freshness: query.freshness.includes(value)
+        ? query.freshness.filter((v) => v !== value)
+        : [...query.freshness, value],
+    });
+
+  /** 値異常チップの ON/OFF。warn と critical をまとめて扱い、**鮮度軸には触らない**。 */
+  const toggleAlarm = () =>
+    onChange({ alarm: alarmActive ? [] : ["warn", "critical"] });
+
   /** チップの件数表記。暫定なら数を出さず、未取得ならダッシュ。 */
   const count = (value: number | undefined): string => {
     if (!dataComplete) return "（集計中）";
@@ -77,14 +93,14 @@ export function HealthFilterBar({
         <Chip
           testId="health-chip-missing"
           active={query.freshness.includes("missing")}
-          onClick={() => onChange({ freshness: ["missing"], alarm: [] })}
+          onClick={() => toggleFreshness("missing")}
         >
           {`欠測${count(summary?.missing)}`}
         </Chip>
         <Chip
           testId="health-chip-stale"
           active={query.freshness.includes("stale")}
-          onClick={() => onChange({ freshness: ["stale"], alarm: [] })}
+          onClick={() => toggleFreshness("stale")}
         >
           {`鮮度切れ${count(summary?.stale)}`}
         </Chip>
@@ -95,9 +111,7 @@ export function HealthFilterBar({
         <Chip
           testId="health-chip-alarm"
           active={alarmActive}
-          onClick={() =>
-            onChange({ alarm: ["warn", "critical"], freshness: [] })
-          }
+          onClick={toggleAlarm}
         >
           {`値異常${count(
             summary === null
