@@ -47,22 +47,21 @@ public sealed class PointLastSeenIndexStore : IPointLastSeenIndex
 
     public bool TryGet(string pointId, out PointLastSeenEntry entry)
     {
-        if (!string.IsNullOrEmpty(pointId))
+        // **完全一致だけを見る。sanitize したキーで引き直さない。**
+        //
+        // `NatsKvLatestStore.SanitizeKey` は使えない文字を `_` に潰す非可逆変換なので、
+        // 別々の pointId（`SOS/PT-1` と `SOS:PT-1`）が同じ KV キー `SOS_PT-1` に落ちる。
+        // 値 JSON に pointId を持たない古いエントリはその潰れたキーで載るため、sanitize して
+        // 引き直すと「一度もデータを送っていない Point」に別 Point の値と時刻を返してしまう
+        // ——死んでいる Point が Fresh に見え、その値で警報まで判定される。
+        //
+        // 引けなければ Missing（index が Warming なら Unknown）に倒れるだけで、誤りは画面に
+        // 見える形で出る。取り違えは見えない。安全側はこちら。
+        // 現行の書き込み経路は値に pointId を必ず入れるので、生の pointId で完全一致する。
+        if (!string.IsNullOrEmpty(pointId) && _entries.TryGetValue(pointId, out var exact))
         {
-            // 完全一致が正。sanitize 後に衝突する別 Point の値を取り違えないよう先に見る。
-            if (_entries.TryGetValue(pointId, out var exact))
-            {
-                entry = exact;
-                return true;
-            }
-
-            var sanitized = NatsKvLatestStore.SanitizeKey(pointId);
-            if (!string.Equals(sanitized, pointId, StringComparison.Ordinal)
-                && _entries.TryGetValue(sanitized, out var fallback))
-            {
-                entry = fallback;
-                return true;
-            }
+            entry = exact;
+            return true;
         }
 
         entry = null!;

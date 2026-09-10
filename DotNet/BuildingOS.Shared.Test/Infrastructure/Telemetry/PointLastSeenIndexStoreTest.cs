@@ -239,25 +239,32 @@ public class PointLastSeenIndexStoreTest
     // KV キー sanitize の罠（NatsKvLatestStore.SanitizeKey は非可逆）
     // ---------------------------------------------------------------------
 
+    /// <summary>
+    /// sanitize したキーで引き直さない。`SanitizeKey` は非可逆なので `SOS/PT-1` と `SOS:PT-1` が
+    /// 同じ KV キー `SOS_PT-1` に落ちる。引き直すと、一度もデータを送っていない Point に
+    /// 別 Point の値と時刻を返してしまう（死んだ Point が Fresh に見え、その値で警報も判定される）。
+    /// 引けない側に倒せば Missing／Unknown として画面に出るだけで済む。
+    /// </summary>
     [Fact]
-    public void TryGet_FallsBackToSanitizedKey()
+    public void TryGet_DoesNotBorrowAnotherPointsEntryViaTheSanitizedKey()
     {
-        // 値 JSON に pointId が無い古いエントリは KV キー（sanitize 済み）で載る。
-        // 台帳側は生の pointId で引くので、外れたら sanitize してもう一度引く。
         var store = new PointLastSeenIndexStore();
+        // 値 JSON に pointId が無い古いエントリは KV キー（sanitize 済み）で載る。
         store.Apply(Entry("SOS_PT-1"), T0);
         store.MarkReady(T0);
 
-        Assert.True(store.TryGet("SOS/PT-1", out var entry));
+        // 別綴りの Point がそれを借りない。
+        Assert.False(store.TryGet("SOS/PT-1", out _));
+        Assert.False(store.TryGet("SOS:PT-1", out _));
+        // 潰れたキーそのもので引けば当然引ける。
+        Assert.True(store.TryGet("SOS_PT-1", out var entry));
         Assert.Equal("SOS_PT-1", entry.PointId);
-        Assert.True(store.TryGet("SOS_PT-1", out _));
     }
 
     [Fact]
-    public void TryGet_PrefersExactPointIdOverSanitizedFallback()
+    public void TryGet_MatchesTheExactPointIdEvenWhenASanitizedTwinExists()
     {
-        // 生の pointId で載っているエントリが正。sanitize 後に衝突する別 Point の値を
-        // 取り違えないよう、完全一致を先に見る。
+        // 生の pointId で載っているエントリが正。sanitize 後に衝突する別エントリがあっても取り違えない。
         var store = new PointLastSeenIndexStore();
         store.Apply(Entry("SOS/PT-1", value: 1), T0);
         store.Apply(Entry("SOS_PT-1", value: 2), T0);
@@ -276,7 +283,7 @@ public class PointLastSeenIndexStoreTest
 
         store.Remove("SOS_PT-1", T0.AddSeconds(1));
 
-        Assert.False(store.TryGet("SOS/PT-1", out _));
+        Assert.False(store.TryGet("SOS_PT-1", out _));
         Assert.Equal(0, store.Count);
     }
 }

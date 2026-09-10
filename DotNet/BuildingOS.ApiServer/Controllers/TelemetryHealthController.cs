@@ -1,3 +1,4 @@
+using System.Globalization;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
@@ -223,11 +224,12 @@ public class TelemetryHealthController : ControllerBase
                     PointId = point.Id,
                     LastSeen = hasEntry ? entry.LastSeen : null,
                     HasIndexEntry = hasEntry,
-                    Value = hasEntry ? entry.Value : null,
+                    Value = hasEntry ? ResolveNumericValue(entry, point.Scale) : null,
                     // 台帳が持つ期待間隔は Point の sbco:interval だけ（device / gateway 既定は未導入）。
                     Expected = new ExpectedIntervals(Point: point.Interval),
                     Thresholds = new PointAlarmThresholds(
-                        point.AlarmHigh, point.AlarmLow, point.WarnHigh, point.WarnLow),
+                        ToJsonDouble(point.AlarmHigh), ToJsonDouble(point.AlarmLow),
+                        ToJsonDouble(point.WarnHigh), ToJsonDouble(point.WarnLow)),
                     GatewayId = gatewayId,
                     GatewayConnected = connected,
                 };
@@ -299,6 +301,52 @@ public class TelemetryHealthController : ControllerBase
         };
 
     /// <summary>未知の値は無視する（絞り込み値が 1 つも解釈できなければ「その軸で絞らない」になる）。</summary>
+    /// <summary>
+    /// 警報判定に使う数値を決める。**数値以外は数値として扱わない** — `ValueType` が
+    /// `string` / `boolean` の読み取りに古い数値が同居していることがあり（ADR-0006 の判別子）、
+    /// それで閾値判定をすると「読み取りではない数」で警報が出る。フロントの
+    /// `freshness.ts` の `PointLastSeen.value` も同じ規則で null に倒している。
+    ///
+    /// <para>数値のときは <c>sbco:scale</c> を掛けて**工学単位**に直す。KV に載るのは生値で、
+    /// `bos:alarmHigh` などの閾値は工学単位で書かれているため、掛けないと桁がずれたまま比較して
+    /// しまう（scale=0.1 の Point で生値 250 が「25.0 ℃」ではなく 250 として critical になる）。
+    /// Point 詳細の表示も同じ換算をしているので、画面と判定がここで一致する。</para>
+    /// </summary>
+    private static double? ResolveNumericValue(PointLastSeenEntry entry, float? scale)
+    {
+        if (entry.Value is not { } raw) return null;
+        if (!string.IsNullOrEmpty(entry.ValueType)
+            && !string.Equals(entry.ValueType, "number", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        // scale も閾値と同じで、float を素直に広げると 0.1f が 0.10000000149… になる。
+        // 画面は JSON 経由の正確な 0.1 を掛けるので、ここも往復変換で揃える。
+        if (ToJsonDouble(scale) is not { } s || s == 1d) return raw;
+        return RoundToSignificantDigits(raw * s, 12);
+    }
+
+    /// <summary>
+    /// scale を掛けた後の 2 進浮動小数点の端数を落とす（250 × 0.1 = 25.000000000000004 → 25）。
+    /// web-client の <c>applyScale</c> が <c>toPrecision(12)</c> でやっているのと同じ丸め。
+    /// </summary>
+    private static double RoundToSignificantDigits(double value, int digits)
+    {
+        if (value == 0 || !double.IsFinite(value)) return value;
+        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(Math.Abs(value))) + 1);
+        return magnitude * Math.Round(value / magnitude, digits, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// 台帳の <c>float</c> を、**JSON を経由したときと同じ <c>double</c>** に直す。
+    /// 単純な暗黙変換だと <c>0.1f</c> が <c>0.10000000149011612</c> に広がり、同じ値を JSON で
+    /// 受け取るフロント（`alarm.ts` / Point 詳細）は正確な <c>0.1</c> を使うので、境界ちょうどの
+    /// 判定や scale 換算が画面とサーバで割れる。閾値の境界は inclusive という約束を守るための往復変換。
+    /// </summary>
+    private static double? ToJsonDouble(float? value) =>
+        value is { } v && float.IsFinite(v)
+            ? double.Parse(v.ToString("R", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture)
+            : null;
+
     private static IReadOnlyList<T> ParseEnums<T>(string[]? values) where T : struct, Enum
     {
         if (values is null || values.Length == 0) return [];

@@ -92,13 +92,18 @@ public static class PointHealthClassifier
             };
         }
 
-        // クロックずれで未来の timestamp が来ても Stale にはせず 0 で下限クリップ。端数は floor。
+        // クロックずれで未来の timestamp が来ても Stale にはせず 0 で下限クリップ。
         var elapsed = (now - lastSeen).TotalSeconds;
-        var age = elapsed <= 0 ? 0L : (long)Math.Floor(elapsed);
+        var elapsedClamped = elapsed <= 0 ? 0d : elapsed;
+        // 表示用の齢だけ秒に floor する。**比較は floor 前の値で行う** —
+        // 先に丸めると閾値 300 秒に対して 300.7 秒経過が Fresh になり、ミリ秒で比較する
+        // フロント（freshness.ts の classifyPointFreshness）と同じ Point が逆の判定になる。
+        // 期待周期由来の閾値は小数になり得る（2.5 秒 × 3 = 7.5 秒）ので、なおさら丸めてはいけない。
+        var age = (long)Math.Floor(elapsedClamped);
 
         return new PointFreshnessResult
         {
-            Status = age > threshold.ThresholdSeconds ? FreshnessStatus.Stale : FreshnessStatus.Fresh,
+            Status = elapsedClamped > threshold.ThresholdSeconds ? FreshnessStatus.Stale : FreshnessStatus.Fresh,
             LastSeen = lastSeen,
             AgeSeconds = age,
             ExpectedIntervalSeconds = threshold.ExpectedIntervalSeconds,

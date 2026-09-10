@@ -99,6 +99,36 @@ public class PointHealthClassifierTest
         Assert.Equal(42, r.AgeSeconds);
     }
 
+    /// <summary>
+    /// 表示用の齢は秒に floor するが、**比較は floor 前の値**で行う。先に丸めると閾値 300 秒に対して
+    /// 300.7 秒経過が Fresh になり、ミリ秒で比較するフロント（<c>freshness.ts</c>）と同じ Point が
+    /// 逆の判定になる。「/home では鮮度切れ、/health では正常」はこの 1 行から生まれる。
+    /// </summary>
+    [Fact]
+    public void ClassifyFreshness_FractionalSecondPastThreshold_IsStale()
+    {
+        var r = PointHealthClassifier.ClassifyFreshness(
+            Input(Now.AddMilliseconds(-300_700)), Defaults, indexReady: true, Now);
+
+        Assert.Equal(FreshnessStatus.Stale, r.Status);
+        Assert.Equal(300, r.AgeSeconds); // 表示は floor したまま
+    }
+
+    /// <summary>
+    /// 期待周期由来の閾値は小数になり得る（2.5 秒 × 3 = 7.5 秒）。齢を丸めてから比べると
+    /// 7.9 秒経過が「7 &gt; 7.5 は偽」で Fresh になってしまう。
+    /// </summary>
+    [Fact]
+    public void ClassifyFreshness_FractionalThreshold_ComparesWithoutRounding()
+    {
+        var input = Input(Now.AddMilliseconds(-7_900), expected: new ExpectedIntervals(Point: 2.5));
+
+        var r = PointHealthClassifier.ClassifyFreshness(input, Defaults, indexReady: true, Now);
+
+        Assert.Equal(7.5, r.ThresholdSeconds);
+        Assert.Equal(FreshnessStatus.Stale, r.Status);
+    }
+
     [Fact]
     public void ClassifyFreshness_FutureTimestamp_IsFreshWithAgeClippedToZero()
     {

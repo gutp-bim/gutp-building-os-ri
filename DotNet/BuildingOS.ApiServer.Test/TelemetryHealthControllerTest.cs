@@ -49,8 +49,9 @@ public class TelemetryHealthControllerTest
         public DateTimeOffset? LastSyncAt { get; set; }
         public int Count => _entries.Count;
 
-        public void Set(string pointId, DateTimeOffset? lastSeen, double? value = 23.4) =>
-            _entries[pointId] = new PointLastSeenEntry(pointId, lastSeen, value, "number");
+        public void Set(
+            string pointId, DateTimeOffset? lastSeen, double? value = 23.4, string? valueType = "number") =>
+            _entries[pointId] = new PointLastSeenEntry(pointId, lastSeen, value, valueType);
 
         public bool TryGet(string pointId, out PointLastSeenEntry entry)
         {
@@ -128,6 +129,7 @@ public class TelemetryHealthControllerTest
         string? gatewayId = null,
         float? interval = null,
         float? alarmHigh = null,
+        float? scale = null,
         string[]? tags = null,
         string deviceDtId = "urn:dtid:d1",
         string deviceName = "AHU-01") => new()
@@ -139,6 +141,7 @@ public class TelemetryHealthControllerTest
                 Name = name,
                 Unit = "Cel",
                 Interval = interval,
+                Scale = scale,
                 GatewayName = gatewayId,
                 AlarmHigh = alarmHigh,
                 CustomTags = (tags ?? Array.Empty<string>()).ToDictionary(t => t, _ => true),
@@ -595,5 +598,74 @@ public class TelemetryHealthControllerTest
             tag: null, q: null, ct: default));
 
         Assert.Equal(1, body.TotalPoints);
+    }
+
+    // -------------------------------------------------------------------------
+    // 値の解釈 — 画面（Point 詳細）と同じ数を見て判定していること
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// KV に載るのは生値で、<c>bos:alarmHigh</c> は工学単位。<c>sbco:scale</c> を掛けずに比べると、
+    /// scale=0.1 の Point で生値 250（＝25.0 ℃）が閾値 30 を超えたことになり、Point 詳細では
+    /// 正常なのに一覧だけ Critical、という食い違いになる。
+    /// </summary>
+    [Fact]
+    public async Task Get_AppliesPointScaleBeforeComparingWithAlarmThresholds()
+    {
+        var h = Build(Detail("PT-1", alarmHigh: 30f, scale: 0.1f));
+        h.Index.Set("PT-1", Now.AddSeconds(-10), value: 250);
+
+        var item = Assert.Single(Body(await Get(h)).Items);
+
+        Assert.Equal(AlarmStatus.Normal, item.Alarm.Status);
+        Assert.Equal(25d, item.Alarm.Value);
+    }
+
+    [Fact]
+    public async Task Get_ScaledValue_StillAlarmsWhenItActuallyExceeds()
+    {
+        var h = Build(Detail("PT-1", alarmHigh: 30f, scale: 0.1f));
+        h.Index.Set("PT-1", Now.AddSeconds(-10), value: 350);
+
+        var item = Assert.Single(Body(await Get(h)).Items);
+
+        Assert.Equal(AlarmStatus.Critical, item.Alarm.Status);
+        Assert.Equal(35d, item.Alarm.Value);
+    }
+
+    /// <summary>
+    /// 台帳の閾値は <c>float</c>。素直に <c>double</c> へ広げると 0.1f が 0.10000000149… になり、
+    /// JSON で同じ閾値を受け取るフロント（正確な 0.1 と比較）と境界ちょうどで判定が割れる。
+    /// 「境界は到達で違反」という約束はサーバでも成り立たなければならない。
+    /// </summary>
+    [Fact]
+    public async Task Get_FloatThreshold_KeepsTheBoundaryInclusive()
+    {
+        var h = Build(Detail("PT-1", alarmHigh: 0.1f));
+        h.Index.Set("PT-1", Now.AddSeconds(-10), value: 0.1);
+
+        var item = Assert.Single(Body(await Get(h)).Items);
+
+        Assert.Equal(AlarmStatus.Critical, item.Alarm.Status);
+    }
+
+    /// <summary>
+    /// 非数値の読み取り（ADR-0006 の判別子）に古い数値が同居していても、それで警報判定しない。
+    /// フロントの <c>PointLastSeen.value</c> も同じ規則で null に倒している。
+    /// </summary>
+    [Theory]
+    [InlineData("string")]
+    [InlineData("boolean")]
+    public async Task Get_NonNumericReading_IsNotAlarmClassified(string valueType)
+    {
+        var h = Build(Detail("PT-1", alarmHigh: 10f));
+        h.Index.Set("PT-1", Now.AddSeconds(-10), value: 999, valueType: valueType);
+
+        var item = Assert.Single(Body(await Get(h)).Items);
+
+        Assert.Equal(AlarmStatus.Unknown, item.Alarm.Status);
+        Assert.Null(item.Alarm.Value);
+        // 到着そのものは起きているので鮮度は Fresh のまま（軸を混ぜない）。
+        Assert.Equal(FreshnessStatus.Fresh, item.Freshness.Status);
     }
 }
