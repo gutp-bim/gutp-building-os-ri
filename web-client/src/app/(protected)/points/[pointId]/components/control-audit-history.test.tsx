@@ -11,6 +11,8 @@ const entries: ControlAuditEntry[] = [
     status: "success",
     createdAt: "2026-07-15T00:00:00Z",
     completedAt: "2026-07-15T00:00:01Z",
+    actorSub: "kc-sub-42",
+    actorName: "Yamada",
   },
   {
     controlId: "c2",
@@ -19,6 +21,8 @@ const entries: ControlAuditEntry[] = [
     status: "failed",
     createdAt: "2026-07-14T00:00:00Z",
     completedAt: "2026-07-14T00:00:02Z",
+    actorSub: "kc-sub-7",
+    actorName: null,
   },
   {
     controlId: "c3",
@@ -27,10 +31,21 @@ const entries: ControlAuditEntry[] = [
     status: "pending",
     createdAt: "2026-07-13T00:00:00Z",
     completedAt: null,
+    actorSub: "unknown",
+    actorName: null,
   },
 ];
 
 describe("ControlAuditHistory", () => {
+  it("names who issued each control (#461)", async () => {
+    // 「深夜に設定温度が変えられた」が残っても、実行者が読めなければ責任追跡にならない。
+    const load = vi.fn().mockResolvedValue(entries);
+    render(<ControlAuditHistory pointId="PT001" load={load} />);
+
+    const actors = await screen.findAllByTestId("control-audit-actor");
+    expect(actors.map((a) => a.textContent)).toEqual(["Yamada", "kc-sub-7", "不明"]);
+  });
+
   it("refetches when reloadKey changes, so a control just issued appears without a reload", async () => {
     // The audit row is written server-side while the operator is still on the page (#333), so the
     // panel must be told to look again — otherwise it stays frozen at page-load state.

@@ -397,14 +397,25 @@ export type PointAlarmResult = {
 /**
  * 制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`
  * （"success" / "failed" / "pending"）に正規化して返す。`Request` は送信時のコマンド JSON。
+ * `ActorSub` / `ActorName` は制御を実行した principal（#461）で、`admin_audit` と同じ形。
  */
 export type PointControlAuditResponse = {
+  /** 制御コマンドの id。 */
   controlId?: string | undefined;
+  /** 制御対象ポイント。 */
   pointId?: string | null | undefined;
+  /** 送信時のコマンド JSON。 */
   request?: string | undefined;
+  /** "success" / "failed" / "pending"。 */
   status?: string | undefined;
+  /** 監査行を開いた時刻。 */
   createdAt?: string | undefined;
+  /** 結果が確定した時刻（未確定なら null）。 */
   completedAt?: string | null | undefined;
+  /** 制御を実行した principal の識別子（JWT sub）。 */
+  actorSub?: string | undefined;
+  /** principal の表示名（無ければ null）。 */
+  actorName?: string | null | undefined;
 }
 
 export type PointControllerControlAcceptedResponse = {

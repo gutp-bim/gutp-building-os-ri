@@ -99,6 +99,9 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.Result).HasColumnName("result").HasColumnType("jsonb");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").IsRequired();
             entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
+            // #461: same column names / types as admin_audit below, so the two audit trails join.
+            entity.Property(e => e.ActorSub).HasColumnName("actor_sub").IsRequired().HasMaxLength(200);
+            entity.Property(e => e.ActorName).HasColumnName("actor_name").HasMaxLength(200);
             entity.HasIndex(e => new { e.PointId, e.CreatedAt }).HasDatabaseName("IX_point_control_audit_point_id_created_at");
         });
 

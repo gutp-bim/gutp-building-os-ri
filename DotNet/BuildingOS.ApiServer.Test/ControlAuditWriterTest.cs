@@ -34,25 +34,50 @@ public class ControlAuditWriterTest
         var (writer, repo) = Build();
         var info = new PointControlInfo { id = Guid.NewGuid(), PointId = "PT001", Type = "BacnetSim", Body = "{}" };
         PointControlInfo? persisted = null;
-        repo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
-            .Callback<PointControlInfo, CancellationToken>((i, _) => persisted = i)
+        repo.Setup(r => r.CreatePointControlInfoAsync(
+                It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
+            .Callback<PointControlInfo, ControlActor, CancellationToken>((i, _, _) => persisted = i)
             .Returns(Task.CompletedTask);
 
-        await writer.RecordRequestAsync(info, CancellationToken.None);
+        await writer.RecordRequestAsync(info, ControlActor.From("kc-sub-1"), CancellationToken.None);
 
         Assert.Same(info, persisted);
+    }
+
+    [Fact]
+    public async Task RecordRequestAsync_CarriesTheActorToThePersistedRow()
+    {
+        // #461: the authenticated principal exists at the control entry point; the audit row is
+        // where it has to land, or the trail records what was done but not who did it.
+        var (writer, repo) = Build();
+        ControlActor? persisted = null;
+        repo.Setup(r => r.CreatePointControlInfoAsync(
+                It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
+            .Callback<PointControlInfo, ControlActor, CancellationToken>((_, a, _) => persisted = a)
+            .Returns(Task.CompletedTask);
+
+        await writer.RecordRequestAsync(
+            new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" },
+            ControlActor.From("kc-sub-7", "Yamada"),
+            CancellationToken.None);
+
+        Assert.Equal("kc-sub-7", persisted!.Sub);
+        Assert.Equal("Yamada", persisted.Name);
     }
 
     [Fact]
     public async Task RecordRequestAsync_Swallows_PersistenceFailure()
     {
         var (writer, repo) = Build();
-        repo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+        repo.Setup(r => r.CreatePointControlInfoAsync(
+                It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("audit store is down"));
 
         // Availability over auditability: this runs on the control hot path.
         await writer.RecordRequestAsync(
-            new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" }, CancellationToken.None);
+            new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" },
+            ControlActor.From("kc-sub-1"),
+            CancellationToken.None);
     }
 
     [Theory]
@@ -146,12 +171,15 @@ public class ControlAuditWriterTest
     public async Task RecordRequestAsync_PersistenceFailure_IncrementsErrorMetric()
     {
         var (writer, repo) = Build();
-        repo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+        repo.Setup(r => r.CreatePointControlInfoAsync(
+                It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("audit store is down"));
 
         var results = await RunCapturingWriteResultsAsync(() =>
             writer.RecordRequestAsync(
-                new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" }, CancellationToken.None));
+                new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" },
+                ControlActor.From("kc-sub-1"),
+                CancellationToken.None));
 
         Assert.Contains("error", results);
         Assert.DoesNotContain("ok", results);
@@ -161,12 +189,15 @@ public class ControlAuditWriterTest
     public async Task RecordRequestAsync_Success_IncrementsOkMetric()
     {
         var (writer, repo) = Build();
-        repo.Setup(r => r.CreatePointControlInfoAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+        repo.Setup(r => r.CreatePointControlInfoAsync(
+                It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var results = await RunCapturingWriteResultsAsync(() =>
             writer.RecordRequestAsync(
-                new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" }, CancellationToken.None));
+                new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}" },
+                ControlActor.From("kc-sub-1"),
+                CancellationToken.None));
 
         Assert.Contains("ok", results);
         Assert.DoesNotContain("error", results);

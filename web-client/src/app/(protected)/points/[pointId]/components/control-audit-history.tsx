@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  controlActorLabel,
   controlStatusLabel,
   formatControlRequest,
 } from "@/lib/control-audit/mapping";
@@ -113,6 +114,7 @@ export function ControlAuditHistory({
             <thead>
               <tr className="border-b border-gray-200 text-left text-gray-700">
                 <th className="py-2 pr-4 font-medium">日時</th>
+                <th className="py-2 pr-4 font-medium">実行者</th>
                 <th className="py-2 pr-4 font-medium">コマンド</th>
                 <th className="py-2 pr-4 font-medium">状態</th>
                 <th className="py-2 font-medium">完了</th>
@@ -127,6 +129,15 @@ export function ControlAuditHistory({
                 >
                   <td className="py-2 pr-4 text-gray-800">
                     {new Date(e.createdAt).toLocaleString("ja-JP")}
+                  </td>
+                  <td
+                    data-testid="control-audit-actor"
+                    className="py-2 pr-4 text-gray-800"
+                    // The subject id is a JWT sub, not a friendly name; the title keeps the exact
+                    // value readable for correlation with admin_audit even when a name is shown.
+                    title={e.actorSub}
+                  >
+                    {controlActorLabel(e)}
                   </td>
                   <td className="py-2 pr-4 text-gray-800">
                     {formatControlRequest(e.request)}

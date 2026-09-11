@@ -9,7 +9,12 @@ namespace BuildingOS.Shared.Domain.PointControl;
 /// </summary>
 public static class PointControlAuditSerializer
 {
-    public static PointControlAuditEntry ToEntry(PointControlInfo info) => new()
+    /// <summary>
+    /// Opens an audit row for a command about to be dispatched. <paramref name="actor"/> is required
+    /// rather than optional (#461): the principal is always available at the control entry point, and
+    /// a default would let a new call site write an un-attributed row without noticing.
+    /// </summary>
+    public static PointControlAuditEntry ToEntry(PointControlInfo info, ControlActor actor) => new()
     {
         Id        = info.id,
         // Back-compat with the prior Npgsql writer: persist "" (not null) when no point id is present,
@@ -17,6 +22,8 @@ public static class PointControlAuditSerializer
         PointId   = info.PointId ?? ExtractProperty(info.Body, "pointId") ?? string.Empty,
         Request   = info.Body ?? "{}",
         CreatedAt = DateTime.UtcNow,
+        ActorSub  = actor.Sub,
+        ActorName = actor.Name,
     };
 
     public static void ApplyResult(PointControlAuditEntry entry, PointControlInfo info)

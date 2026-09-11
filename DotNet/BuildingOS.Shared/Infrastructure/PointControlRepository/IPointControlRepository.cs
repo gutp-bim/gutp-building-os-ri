@@ -4,7 +4,12 @@ using BuildingOS.Shared.Domain.PointControl;
 public interface IPointControlRepository
 {
     Task<PointControlInfo?> GetPointControlInfoAsync(Guid id, CancellationToken ct = default);
-    Task CreatePointControlInfoAsync(PointControlInfo pointControlInfo, CancellationToken ct = default);
+    /// <summary>
+    /// Opens the audit row for a control command. <paramref name="actor"/> is the authenticated
+    /// principal that issued it (#461) and is persisted alongside the command, never published with it.
+    /// </summary>
+    Task CreatePointControlInfoAsync(
+        PointControlInfo pointControlInfo, ControlActor actor, CancellationToken ct = default);
     Task UpdatePointControlInfoAsync(PointControlInfo pointControlInfo, CancellationToken ct = default);
 
     /// <summary>

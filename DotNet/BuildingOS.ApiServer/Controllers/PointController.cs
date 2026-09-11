@@ -122,7 +122,11 @@ public class PointController(
             // Record the audit row *before* publishing (#333). The result can come back within
             // milliseconds (the in-process simulated handler does), and the result writer updates an
             // existing row by id — inserting afterwards would race and silently drop the outcome.
-            await auditWriter.RecordRequestAsync(pointControlInfo, ct).ConfigureAwait(false);
+            // The principal resolved above for the authorization check is carried into the row (#461):
+            // without it the trail records what moved the equipment but not who asked for it.
+            await auditWriter
+                .RecordRequestAsync(pointControlInfo, ControlActor.From(auth.UserId), ct)
+                .ConfigureAwait(false);
 
             var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
@@ -214,20 +218,34 @@ public class PointController(
 /// <summary>
 /// 制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`
 /// （"success" / "failed" / "pending"）に正規化して返す。`Request` は送信時のコマンド JSON。
+/// `ActorSub` / `ActorName` は制御を実行した principal（#461）で、`admin_audit` と同じ形。
 /// </summary>
+/// <param name="ControlId">制御コマンドの id。</param>
+/// <param name="PointId">制御対象ポイント。</param>
+/// <param name="Request">送信時のコマンド JSON。</param>
+/// <param name="Status">"success" / "failed" / "pending"。</param>
+/// <param name="CreatedAt">監査行を開いた時刻。</param>
+/// <param name="CompletedAt">結果が確定した時刻（未確定なら null）。</param>
+/// <param name="ActorSub">制御を実行した principal の識別子（JWT sub）。</param>
+/// <param name="ActorName">principal の表示名（無ければ null）。</param>
 public sealed record PointControlAuditResponse(
     Guid ControlId,
     string? PointId,
     string Request,
     string Status,
     DateTime CreatedAt,
-    DateTime? CompletedAt)
+    DateTime? CompletedAt,
+    string ActorSub,
+    string? ActorName)
 {
+    /// <summary>監査エントリをレスポンス DTO に写像する。</summary>
     public static PointControlAuditResponse From(PointControlAuditEntry e) => new(
         e.Id,
         e.PointId,
         e.Request,
         PointControlAuditSerializer.ReadStatus(e.Result),
         e.CreatedAt,
-        e.CompletedAt);
+        e.CompletedAt,
+        e.ActorSub,
+        e.ActorName);
 }

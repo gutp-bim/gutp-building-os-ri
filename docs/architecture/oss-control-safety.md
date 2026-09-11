@@ -194,22 +194,35 @@ number 型の**制御書き込み範囲の唯一の正は ControlSchema** であ
 
 ```sql
 CREATE TABLE point_control_audit (
-    id           UUID        PRIMARY KEY,
-    point_id     TEXT        NOT NULL,
-    request      JSONB       NOT NULL,   -- ControlType + Body
-    result       JSONB,                  -- { status, response }
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ
+    id           UUID         PRIMARY KEY,
+    point_id     TEXT         NOT NULL,
+    request      JSONB        NOT NULL,   -- ControlType + Body
+    result       JSONB,                   -- { status, response }
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    actor_sub    VARCHAR(200) NOT NULL,   -- #461: 制御を実行した principal（JWT sub）
+    actor_name   VARCHAR(200)             -- 表示名。現状は常に NULL（admin_audit と同じ）
 );
 ```
 
 マイグレーション: `DotNet/BuildingOS.Shared/Migrations/Timescale/V002__point_control_audit.sql`
+＋ `20260613210739_AddPointControlAudit`（EF）／ actor 列は `20260911224125_AddPointControlAuditActor`
+
+### 実行者（actor, #461）
+
+`admin_audit` と**同じ列名・同じ型**にしてあるので、設定変更と設備制御を 1 つの識別子で突き合わせ
+られる。値は API 入口の認証済み principal（`AuthorizationContext.UserId`）で、`ControlActor.From`
+が空白を `"unknown"` に正規化する（列は NOT NULL、actor 列の導入前に書かれた行も同じ番兵値）。
+
+**actor は `PointControlInfo` に載せない。** その型は `NatsPointControlCommandPublisher` が JSON 化して
+NATS → GatewayBridge → egress ストリームへ流すため、フィールドを足すと運用者の身元が全ゲートウェイに
+配られる。actor はコマンドの**隣**を、監査書き込み経路だけ通る。
 
 ### 記録タイミング
 
 | イベント | 記録内容 |
 |---------|---------|
-| コマンド受信時 | `INSERT` — id, point_id, request, created_at |
+| コマンド受信時 | `INSERT` — id, point_id, request, created_at, actor_sub, actor_name |
 | handler 完了時 | `UPDATE` — result, completed_at |
 | handler タイムアウト時 | `UPDATE` — result=`{status: "timeout"}`, completed_at |
 

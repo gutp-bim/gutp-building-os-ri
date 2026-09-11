@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  controlActorLabel,
   controlStatusLabel,
   formatControlRequest,
   toControlAuditEntry,
@@ -14,6 +15,8 @@ describe("toControlAuditEntry", () => {
       status: "success",
       createdAt: "2026-07-15T00:00:00Z",
       completedAt: "2026-07-15T00:00:01Z",
+      actorSub: "kc-sub-42",
+      actorName: "Yamada",
     });
     expect(entry).toEqual({
       controlId: "c1",
@@ -22,7 +25,17 @@ describe("toControlAuditEntry", () => {
       status: "success",
       createdAt: "2026-07-15T00:00:00Z",
       completedAt: "2026-07-15T00:00:01Z",
+      actorSub: "kc-sub-42",
+      actorName: "Yamada",
     });
+  });
+
+  it("falls back to the unknown sentinel for a row written before the actor column (#461)", () => {
+    // Rows the migration backfilled, and any server that predates the column, carry no usable
+    // actor. Reading that as an empty name would render a blank cell that looks like a UI bug.
+    const entry = toControlAuditEntry({ controlId: "c9", status: "success" });
+    expect(entry.actorSub).toBe("unknown");
+    expect(entry.actorName).toBeNull();
   });
 
   it("normalizes an unknown/absent status to pending and nulls missing fields", () => {
@@ -41,6 +54,20 @@ describe("toControlAuditEntry", () => {
     });
     expect(entry.status).toBe("pending");
     expect(entry.completedAt).toBeNull();
+  });
+});
+
+describe("controlActorLabel", () => {
+  it("prefers the display name when the server has one", () => {
+    expect(controlActorLabel({ actorSub: "kc-sub-42", actorName: "Yamada" })).toBe("Yamada");
+  });
+
+  it("falls back to the subject identifier, which is what correlates with admin_audit", () => {
+    expect(controlActorLabel({ actorSub: "kc-sub-42", actorName: null })).toBe("kc-sub-42");
+  });
+
+  it("reads the unknown sentinel as 不明 rather than showing it as a user id", () => {
+    expect(controlActorLabel({ actorSub: "unknown", actorName: null })).toBe("不明");
   });
 });
 

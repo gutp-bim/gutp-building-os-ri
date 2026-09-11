@@ -53,7 +53,8 @@ public class PointControllerTest
             bool canWrite = true,
             Dictionary<string, string>? connectionTypeMap = null,
             string connectionTypeDefault = "hono",
-            ControlSchema? schema = null)
+            ControlSchema? schema = null,
+            AuthorizationContext? auth = null)
     {
         var twinView = new Mock<IAuthorizedTwinView>();
         twinView.Setup(v => v.CanWritePointAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -88,7 +89,7 @@ public class PointControllerTest
             auditWriter.Object);
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = BuildHttpContext(AdminAuth()),
+            HttpContext = BuildHttpContext(auth ?? AdminAuth()),
         };
 
         return (controller, publisher, resultBus, auditWriter);
@@ -166,7 +167,7 @@ public class PointControllerTest
         var publishedBeforeAudit = false;
         var audited = false;
 
-        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
                    .Callback(() => audited = true)
                    .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
@@ -175,7 +176,7 @@ public class PointControllerTest
 
         await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
 
-        auditWriter.Verify(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Once);
+        auditWriter.Verify(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()), Times.Once);
         // The result can be published back within milliseconds; the row must exist first or the
         // result writer's update-by-id finds nothing and the outcome is silently lost.
         Assert.False(publishedBeforeAudit, "the audit row must be created before the command is published");
@@ -188,8 +189,8 @@ public class PointControllerTest
         PointControlInfo? auditedInfo = null;
         PointControlInfo? publishedInfo = null;
 
-        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
-                   .Callback<PointControlInfo, CancellationToken>((info, _) => auditedInfo = info)
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
+                   .Callback<PointControlInfo, ControlActor, CancellationToken>((info, _, _) => auditedInfo = info)
                    .Returns(Task.CompletedTask);
         publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
                  .Callback<PointControlInfo, CancellationToken>((info, _) => publishedInfo = info)
@@ -205,6 +206,46 @@ public class PointControllerTest
         Assert.Equal(body.ControlId, auditedInfo!.id);
         Assert.Equal(publishedInfo!.id, auditedInfo.id);
         Assert.Equal("PT001", auditedInfo.PointId);
+    }
+
+    // ── #461: the audit row names who issued the control ──────────────────────
+
+    [Fact]
+    public async Task Control_AuditRow_NamesTheAuthenticatedPrincipal()
+    {
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(
+            Detail(MakePoint()),
+            auth: new AuthorizationContext { UserId = "kc-sub-42", Role = "operator", Permissions = [] });
+        ControlActor? actor = null;
+
+        auditWriter.Setup(w => w.RecordRequestAsync(
+                       It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
+                   .Callback<PointControlInfo, ControlActor, CancellationToken>((_, a, _) => actor = a)
+                   .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        await controller.Control("PT001", new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None);
+
+        // The principal is already resolved here for the authorization check; dropping it afterwards
+        // is what left "誰が制御したか" untrackable.
+        Assert.NotNull(actor);
+        Assert.Equal("kc-sub-42", actor!.Sub);
+    }
+
+    [Fact]
+    public async Task ControlAudit_ExposesTheActor()
+    {
+        var entry = AuditEntry("PT001", null, DateTime.UtcNow);
+        entry.ActorSub = "kc-sub-42";
+        entry.ActorName = "Yamada";
+        var (controller, _, _) = BuildAuditController([entry]);
+
+        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+
+        var response = Assert.Single(Assert.IsType<PointControlAuditResponse[]>(result.Value));
+        Assert.Equal("kc-sub-42", response.ActorSub);
+        Assert.Equal("Yamada", response.ActorName);
     }
 
     [Fact]

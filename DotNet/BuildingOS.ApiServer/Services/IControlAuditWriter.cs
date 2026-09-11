@@ -20,7 +20,13 @@ public interface IControlAuditWriter
     /// Opens the audit row for a control command that is about to be dispatched. Runs on the control
     /// hot path, so it is bounded more tightly than the background writes.
     /// </summary>
-    Task RecordRequestAsync(PointControlInfo info, CancellationToken ct = default);
+    /// <param name="info">The command being dispatched.</param>
+    /// <param name="actor">
+    /// The authenticated principal issuing it (#461). Required, not defaulted: it is always available
+    /// at the control entry point, and the audit row is the only place it is kept.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    Task RecordRequestAsync(PointControlInfo info, ControlActor actor, CancellationToken ct = default);
 
     /// <summary>Closes the audit row with the outcome reported for <paramref name="controlId"/>.</summary>
     Task RecordResultAsync(string controlId, bool success, string? response, CancellationToken ct = default);
@@ -50,11 +56,11 @@ public sealed class ControlAuditWriter(
     /// </summary>
     private static readonly TimeSpan ResultWriteTimeout = TimeSpan.FromSeconds(5);
 
-    public Task RecordRequestAsync(PointControlInfo info, CancellationToken ct = default)
+    public Task RecordRequestAsync(PointControlInfo info, ControlActor actor, CancellationToken ct = default)
         => WriteAsync(
             info.id.ToString(),
             RequestWriteTimeout,
-            (repository, token) => repository.CreatePointControlInfoAsync(info, token),
+            (repository, token) => repository.CreatePointControlInfoAsync(info, actor, token),
             ct);
 
     public Task RecordResultAsync(string controlId, bool success, string? response, CancellationToken ct = default)

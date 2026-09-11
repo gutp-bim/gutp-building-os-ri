@@ -4090,23 +4090,36 @@ components:
       properties:
         controlId:
           type: string
+          description: 制御コマンドの id。
           format: uuid
         pointId:
           type: string
+          description: 制御対象ポイント。
           nullable: true
         request:
           type: string
+          description: 送信時のコマンド JSON。
         status:
           type: string
+          description: '"success" / "failed" / "pending"。'
         createdAt:
           type: string
+          description: 監査行を開いた時刻。
           format: date-time
         completedAt:
           type: string
+          description: 結果が確定した時刻（未確定なら null）。
           format: date-time
           nullable: true
+        actorSub:
+          type: string
+          description: 制御を実行した principal の識別子（JWT sub）。
+        actorName:
+          type: string
+          description: principal の表示名（無ければ null）。
+          nullable: true
       additionalProperties: false
-      description: "制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`\n（\"success\" / \"failed\" / \"pending\"）に正規化して返す。`Request` は送信時のコマンド JSON。"
+      description: "制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`\n（\"success\" / \"failed\" / \"pending\"）に正規化して返す。`Request` は送信時のコマンド JSON。\n`ActorSub` / `ActorName` は制御を実行した principal（#461）で、`admin_audit` と同じ形。"
     PointControllerControlAcceptedResponse:
       required:
         - controlId
