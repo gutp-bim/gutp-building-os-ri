@@ -192,21 +192,37 @@ number 型の**制御書き込み範囲の唯一の正は ControlSchema** であ
 
 ### テーブル: `point_control_audit`
 
+**正本は EF マイグレーション**（起動時に `Database.Migrate` が適用する）。新規デプロイが得る形:
+
 ```sql
 CREATE TABLE point_control_audit (
     id           UUID         PRIMARY KEY,
-    point_id     TEXT         NOT NULL,
+    point_id     TEXT,                    -- NULL 可。ただしアプリは NULL を書かない（下記）
     request      JSONB        NOT NULL,   -- ControlType + Body
     result       JSONB,                   -- { status, response }
-    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_at   TIMESTAMPTZ  NOT NULL,   -- DB default ではなくアプリが設定する
     completed_at TIMESTAMPTZ,
     actor_sub    VARCHAR(200) NOT NULL,   -- #461: 制御を実行した principal（JWT sub）
     actor_name   VARCHAR(200)             -- 表示名。現状は常に NULL（admin_audit と同じ）
 );
+CREATE INDEX "IX_point_control_audit_point_id_created_at"
+    ON point_control_audit (point_id, created_at);
 ```
 
-マイグレーション: `DotNet/BuildingOS.Shared/Migrations/Timescale/V002__point_control_audit.sql`
-＋ `20260613210739_AddPointControlAudit`（EF）／ actor 列は `20260911224125_AddPointControlAuditActor`
+- `point_id` が NULL 可なのは EF スキーマの都合で、**書き込み側は NULL を出さない**。
+  `PointControlAuditSerializer.ToEntry` は point id が引けないとき `""` を入れる（#235 レビュー —
+  既存の point_id ベースの集計とインデックス選択性を変えないため）。
+- `created_at` / `completed_at` は `ToEntry` / `ApplyResult` が `DateTime.UtcNow` で設定する。
+  DB の `DEFAULT NOW()` には依存しない。
+
+マイグレーション: `20260613210739_AddPointControlAudit`（作成）/ `20260911224125_AddPointControlAuditActor`
+（actor 列）。
+
+> **legacy Flyway 環境との差異。** `Migrations/Timescale/V002__point_control_audit.sql` を通った環境は
+> 同じテーブルを `point_id TEXT NOT NULL` / `created_at ... DEFAULT NOW()` / index 名 `idx_pca_point_created`
+> で持っている。EF 側の作成は `CREATE TABLE IF NOT EXISTS` なので**その制約はそのまま残る**（EF が
+> 作り直すことはない）。actor 列の追加は `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` なので、どちらの
+> 環境にも同じ形で入る。アプリの挙動は上記のとおり両方の制約を満たすため、差異は運用上問題にならない。
 
 ### 実行者（actor, #461）
 
