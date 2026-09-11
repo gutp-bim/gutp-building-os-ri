@@ -58,6 +58,10 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         // No result has been published yet, so the command is still in flight.
         Assert.Equal("pending", entry.Status);
         Assert.Null(entry.CompletedAt);
+        // #461: the authenticated principal must survive the real actor_sub column, not just the
+        // in-memory mapping — this is the only test that runs the migration against PostgreSQL.
+        Assert.Equal("admin1", entry.ActorSub);
+        Assert.Null(entry.ActorName);
     }
 
     [Fact]

@@ -10,6 +10,9 @@ namespace BuildingOS.Shared.Test.Infrastructure.PointControl;
 /// </summary>
 public class EfPointControlRepositoryTest
 {
+    /// <summary>The actor the ToEntry tests pass when the actor itself is not what is under test.</summary>
+    private static readonly ControlActor SomeActor = ControlActor.From("kc-sub-1");
+
     // ─── PointControlAuditEntry プロパティ ───────────────────────────────────
 
     [Fact]
@@ -22,6 +25,8 @@ public class EfPointControlRepositoryTest
         Assert.Null(entry.Result);
         Assert.Equal(default(DateTime), entry.CreatedAt);
         Assert.Null(entry.CompletedAt);
+        Assert.Equal("", entry.ActorSub);
+        Assert.Null(entry.ActorName);
     }
 
     [Fact]
@@ -56,7 +61,7 @@ public class EfPointControlRepositoryTest
         var body = """{"type":"Kandt","pointId":"p-1","objectId":42}""";
         var info = new PointControlInfo { id = id, Type = "Kandt", Body = body, PointId = "p-1" };
 
-        var entry = PointControlAuditSerializer.ToEntry(info);
+        var entry = PointControlAuditSerializer.ToEntry(info, SomeActor);
 
         Assert.Equal(id, entry.Id);
         Assert.Equal("p-1", entry.PointId);
@@ -69,7 +74,7 @@ public class EfPointControlRepositoryTest
         var body = """{"type":"Hono","pointId":"extracted-point"}""";
         var info = new PointControlInfo { id = Guid.NewGuid(), Type = "Hono", Body = body, PointId = null };
 
-        var entry = PointControlAuditSerializer.ToEntry(info);
+        var entry = PointControlAuditSerializer.ToEntry(info, SomeActor);
 
         Assert.Equal("extracted-point", entry.PointId);
     }
@@ -81,7 +86,7 @@ public class EfPointControlRepositoryTest
         // so existing point_id-based queries / aggregates / index selectivity are unchanged.
         var info = new PointControlInfo { id = Guid.NewGuid(), Type = "Kandt", Body = "{}", PointId = null };
 
-        var entry = PointControlAuditSerializer.ToEntry(info);
+        var entry = PointControlAuditSerializer.ToEntry(info, SomeActor);
 
         Assert.Equal(string.Empty, entry.PointId);
     }
@@ -91,10 +96,77 @@ public class EfPointControlRepositoryTest
     {
         var info = new PointControlInfo { id = Guid.NewGuid(), Type = "Kandt", Body = "{}" };
 
-        var entry = PointControlAuditSerializer.ToEntry(info);
+        var entry = PointControlAuditSerializer.ToEntry(info, SomeActor);
 
         Assert.Null(entry.Result);
         Assert.Null(entry.CompletedAt);
+    }
+
+    // ─── PointControlAuditSerializer: ToEntry の actor (#461) ──────────────
+
+    [Fact]
+    public void ToEntry_RecordsWhoIssuedTheControl()
+    {
+        var info = new PointControlInfo { id = Guid.NewGuid(), Type = "Kandt", Body = "{}", PointId = "p-1" };
+
+        var entry = PointControlAuditSerializer.ToEntry(info, ControlActor.From("kc-sub-9", "Yamada"));
+
+        Assert.Equal("kc-sub-9", entry.ActorSub);
+        Assert.Equal("Yamada", entry.ActorName);
+    }
+
+    [Fact]
+    public void ToEntry_ActorNameIsOptional()
+    {
+        // admin_audit's actor_name is nullable and every existing writer passes null; the control
+        // audit keeps the same shape rather than inventing a placeholder display name.
+        var info = new PointControlInfo { id = Guid.NewGuid(), Type = "Kandt", Body = "{}" };
+
+        var entry = PointControlAuditSerializer.ToEntry(info, ControlActor.From("kc-sub-9"));
+
+        Assert.Equal("kc-sub-9", entry.ActorSub);
+        Assert.Null(entry.ActorName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ToEntry_BlankActorSub_FallsBackToTheUnknownSentinel(string? sub)
+    {
+        // actor_sub is NOT NULL, and a blank principal is not an identity. "unknown" is the same
+        // sentinel AuthorizationContextMiddleware already uses for an unresolvable principal, so a
+        // row that cannot name its actor says so rather than carrying an empty string.
+        var info = new PointControlInfo { id = Guid.NewGuid(), Type = "Kandt", Body = "{}" };
+
+        var entry = PointControlAuditSerializer.ToEntry(info, ControlActor.From(sub));
+
+        Assert.Equal(ControlActor.UnknownSub, entry.ActorSub);
+    }
+
+    [Fact]
+    public void ControlActor_TrimsAndNormalizesBlankName()
+    {
+        var actor = ControlActor.From("  kc-sub-9  ", "   ");
+
+        Assert.Equal("kc-sub-9", actor.Sub);
+        Assert.Null(actor.Name);
+    }
+
+    [Fact]
+    public void PointControlInfo_CarriesNoActor_SoTheIdentityIsNeverPublishedToGateways()
+    {
+        // PointControlInfo is JSON-serialized onto NATS by NatsPointControlCommandPublisher and
+        // forwarded down the egress stream to the gateway. An actor field on it would hand the
+        // operator's identity to every gateway, so the actor travels beside it, not inside it.
+        var info = new PointControlInfo { id = Guid.NewGuid(), Type = "BacnetSim", Body = "{}", PointId = "p-1" };
+
+        var wire = JsonSerializer.Serialize(info);
+
+        using var doc = JsonDocument.Parse(wire);
+        Assert.DoesNotContain(
+            doc.RootElement.EnumerateObject(),
+            p => p.Name.Contains("actor", StringComparison.OrdinalIgnoreCase));
     }
 
     // ─── PointControlAuditSerializer: ApplyResult ──────────────────────────
@@ -255,7 +327,7 @@ public class EfPointControlRepositoryTest
             Response = """{"ack":true}"""
         };
 
-        var entry = PointControlAuditSerializer.ToEntry(original);
+        var entry = PointControlAuditSerializer.ToEntry(original, SomeActor);
         PointControlAuditSerializer.ApplyResult(entry, original);
         var restored = PointControlAuditSerializer.ToDomain(entry);
 

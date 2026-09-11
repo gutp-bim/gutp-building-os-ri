@@ -21,9 +21,10 @@ public sealed class EfPointControlRepository : IPointControlRepository
         return entry is null ? null : PointControlAuditSerializer.ToDomain(entry);
     }
 
-    public async Task CreatePointControlInfoAsync(PointControlInfo info, CancellationToken ct = default)
+    public async Task CreatePointControlInfoAsync(
+        PointControlInfo info, ControlActor actor, CancellationToken ct = default)
     {
-        var entry = PointControlAuditSerializer.ToEntry(info);
+        var entry = PointControlAuditSerializer.ToEntry(info, actor);
         _context.PointControlAudits.Add(entry);
         try
         {

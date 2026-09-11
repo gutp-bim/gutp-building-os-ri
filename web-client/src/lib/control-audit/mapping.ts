@@ -20,7 +20,30 @@ export function toControlAuditEntry(raw: Record<string, unknown>): ControlAuditE
     status: normalizeStatus(raw.status),
     createdAt: String(raw.createdAt ?? ""),
     completedAt: typeof raw.completedAt === "string" ? raw.completedAt : null,
+    actorSub:
+      typeof raw.actorSub === "string" && raw.actorSub !== ""
+        ? raw.actorSub
+        : UNKNOWN_ACTOR_SUB,
+    actorName: typeof raw.actorName === "string" ? raw.actorName : null,
   };
+}
+
+/**
+ * The sentinel the server writes (and the migration backfilled) when no principal could be resolved
+ * — mirrors `ControlActor.UnknownSub`.
+ */
+const UNKNOWN_ACTOR_SUB = "unknown";
+
+/**
+ * How to name the operator behind a control row: the display name when the server has one, else the
+ * subject identifier (the value that correlates with `admin_audit`), else 不明 for the sentinel —
+ * showing "unknown" verbatim would read as somebody's user id.
+ */
+export function controlActorLabel(
+  entry: Pick<ControlAuditEntry, "actorSub" | "actorName">,
+): string {
+  if (entry.actorName) return entry.actorName;
+  return entry.actorSub === UNKNOWN_ACTOR_SUB ? "不明" : entry.actorSub;
 }
 
 /** Japanese label for a control status. */
