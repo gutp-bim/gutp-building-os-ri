@@ -51,6 +51,17 @@ public interface IAuthorizedTwinView
     /// </summary>
     Task<TwinGetResult<PointDetail>> GetPointDetailAsync(AuthorizationContext auth, string pointId, CancellationToken ct);
 
+    /// <summary>
+    /// 建物 1 棟ぶんの Point 台帳（Point + Device/Floor/Space）を読み取り認可で絞って返す（#452）。
+    /// データ健全性の判定は「台帳の全 Point」×「最終受信インデックス」の突き合わせなので、
+    /// device 単位の <see cref="ListPointsAsync"/> ではなく建物単位の入口が要る。
+    ///
+    /// <para>絞り込み規則は <see cref="ListPointsAsync"/> と同じ考え方: admin は全件、建物の read 権が
+    /// あれば全件、そうでなければ point（ビジネス ID）または所属 device（dtId）の直接付与ぶんだけ。
+    /// IRI として使えない <paramref name="buildingDtId"/> は空配列（他の読み取りと同じ「無い」応答）。</para>
+    /// </summary>
+    Task<PointDetail[]> ListPointDetailsAsync(AuthorizationContext auth, string buildingDtId, CancellationToken ct);
+
     Task<bool> CanWritePointAsync(AuthorizationContext auth, string pointId, CancellationToken ct);
 
     /// <summary>

@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 
 // Stub the heavy children so the test isolates the page's own telemetry wiring (#196 / #197).
 vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn() }) }));
-vi.mock("./components/telemetry-hot-data", () => ({ TelemetryHotData: () => <div data-testid="hot" /> }));
+vi.mock("./components/telemetry-hot-data", () => ({
+  TelemetryHotData: () => <div data-testid="hot" />,
+}));
 vi.mock("./components/telemetry-warm-data", () => ({
   // Expose the received data + a way to change the period so the out-of-order test can drive it.
   // warmData is the domain TelemetryPoint[] ({t, v}) — the page passes the façade's series straight
@@ -29,19 +31,29 @@ vi.mock("./components/telemetry-warm-data", () => ({
   ),
 }));
 vi.mock("./components/point-info", () => ({ PointInfo: () => <div /> }));
+// 健全性パネル（#457）も最新値をそのまま描くため、素の getByText("1") がチャートと二重ヒット
+// してしまう。ここの関心はページ側の取得配線なので、他の重い子と同様にスタブする。
+vi.mock("./components/point-health-panel", () => ({
+  PointHealthPanel: () => <div data-testid="health" />,
+}));
 vi.mock("./components/point-control-modal/point-control-modal", () => ({
   PointControlModal: () => <div />,
 }));
-vi.mock("./components/control-audit-history", () => ({ ControlAuditHistory: () => <div /> }));
-vi.mock("./components/cold-data-download-modal", () => ({ ColdDataDownloadModal: () => <div /> }));
+vi.mock("./components/control-audit-history", () => ({
+  ControlAuditHistory: () => <div />,
+}));
+vi.mock("./components/cold-data-download-modal", () => ({
+  ColdDataDownloadModal: () => <div />,
+}));
 vi.mock("@/lib/resources/repository", () => ({ getPointDetail: vi.fn() }));
 vi.mock("@/lib/telemetry/repository", () => ({
   latestTelemetrySample: vi.fn(),
   queryTelemetry: vi.fn(),
   queryTelemetryWithState: vi.fn(),
-  getTelemetryConfig: vi
-    .fn()
-    .mockResolvedValue({ staleThresholdSeconds: 300, staleIntervalMultiplier: 3 }),
+  getTelemetryConfig: vi.fn().mockResolvedValue({
+    staleThresholdSeconds: 300,
+    staleIntervalMultiplier: 3,
+  }),
 }));
 
 import { getPointDetail } from "@/lib/resources/repository";
@@ -76,8 +88,12 @@ describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
 
     render(<PointDetailPageComponent pointId="p1" />);
 
-    expect(await screen.findByTestId("hot-error")).toHaveTextContent("最新値の取得に失敗しました");
-    expect(await screen.findByTestId("warm-error")).toHaveTextContent("履歴データの取得に失敗しました");
+    expect(await screen.findByTestId("hot-error")).toHaveTextContent(
+      "最新値の取得に失敗しました",
+    );
+    expect(await screen.findByTestId("warm-error")).toHaveTextContent(
+      "履歴データの取得に失敗しました",
+    );
   });
 
   it("shows no error banners when the reads succeed", async () => {
@@ -143,7 +159,9 @@ describe("PointDetailPageComponent out-of-order warm responses (#197 review)", (
     resolvers[1](withState(30));
 
     // The stale A response must not overwrite B's chart.
-    await waitFor(() => expect(screen.getByTestId("warm-values")).toHaveTextContent("1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("warm-values")).toHaveTextContent("1"),
+    );
     expect(screen.getByTestId("warm-values")).not.toHaveTextContent("30");
   });
 

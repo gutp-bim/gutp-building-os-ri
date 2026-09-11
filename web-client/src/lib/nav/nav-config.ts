@@ -24,6 +24,9 @@ export const NAV_ITEMS: NavItem[] = [
   // (/buildings/[id] etc.) are unchanged.
   // "ホーム" (#158): non-disruptive freshness/attention landing; does not change the login redirect.
   { label: "ホーム", href: "/home", workspace: "operator" },
+  // "データ品質" (#453): ホームの「要対応」から降りてくる Point 単位のデータ健全性一覧。
+  // ホーム（俯瞰）とリソース（台帳）の間、運用の視線の順に置く。
+  { label: "データ品質", href: "/health", workspace: "operator" },
   { label: "リソース", href: "/resources", workspace: "operator" },
   // "マイリソース" was consolidated into /resources (#195): the route now redirects there, so it is
   // hidden from the sidebar but kept for workspace/breadcrumb resolution (like the other retired lists).

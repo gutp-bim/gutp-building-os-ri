@@ -34,6 +34,8 @@ import type { Methods as Methods_1y29t8y } from './api/system/settings';
 import type { Methods as Methods_196ls2w } from './api/system/settings/_key@string';
 import type { Methods as Methods_rdegvd } from './api/system/status';
 import type { Methods as Methods_1pg53vd } from './api/telemetry/config';
+import type { Methods as Methods_1oefgnh } from './api/telemetry/health';
+import type { Methods as Methods_1h9deyq } from './api/telemetry/health/summary';
 import type { Methods as Methods_ok90xj } from './buildings';
 import type { Methods as Methods_1uitu21 } from './buildings/_buildingDtId@string';
 import type { Methods as Methods_a63ipz } from './buildings/_buildingDtId@string/metadata';
@@ -89,22 +91,24 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
   const PATH24 = '/api/system/settings';
   const PATH25 = '/api/system/status';
   const PATH26 = '/api/telemetry/config';
-  const PATH27 = '/buildings';
-  const PATH28 = '/metadata';
-  const PATH29 = '/device-details';
-  const PATH30 = '/devices';
-  const PATH31 = '/floors';
-  const PATH32 = '/gateways';
-  const PATH33 = '/pointlist';
-  const PATH34 = '/point-details';
-  const PATH35 = '/points';
-  const PATH36 = '/control';
-  const PATH37 = '/control-audit';
-  const PATH38 = '/resources/search';
-  const PATH39 = '/spaces';
-  const PATH40 = '/adjacent-spaces';
-  const PATH41 = '/telemetries/query';
-  const PATH42 = '/telemetries/query/batch-latest';
+  const PATH27 = '/api/telemetry/health';
+  const PATH28 = '/api/telemetry/health/summary';
+  const PATH29 = '/buildings';
+  const PATH30 = '/metadata';
+  const PATH31 = '/device-details';
+  const PATH32 = '/devices';
+  const PATH33 = '/floors';
+  const PATH34 = '/gateways';
+  const PATH35 = '/pointlist';
+  const PATH36 = '/point-details';
+  const PATH37 = '/points';
+  const PATH38 = '/control';
+  const PATH39 = '/control-audit';
+  const PATH40 = '/resources/search';
+  const PATH41 = '/spaces';
+  const PATH42 = '/adjacent-spaces';
+  const PATH43 = '/telemetries/query';
+  const PATH44 = '/telemetries/query/batch-latest';
   const GET = 'GET';
   const POST = 'POST';
   const PUT = 'PUT';
@@ -613,11 +617,39 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
             fetch<Methods_1pg53vd['get']['resBody'], BasicHeaders, Methods_1pg53vd['get']['status']>(prefix, PATH26, GET, option).json().then(r => r.body),
           $path: () => `${prefix}${PATH26}`,
         },
+        health: {
+          summary: {
+            /**
+             * @returns OK
+             */
+            get: (option?: { query?: Methods_1h9deyq['get']['query'] | undefined, config?: T | undefined } | undefined) =>
+              fetch<Methods_1h9deyq['get']['resBody'], BasicHeaders, Methods_1h9deyq['get']['status']>(prefix, PATH28, GET, option).json(),
+            /**
+             * @returns OK
+             */
+            $get: (option?: { query?: Methods_1h9deyq['get']['query'] | undefined, config?: T | undefined } | undefined) =>
+              fetch<Methods_1h9deyq['get']['resBody'], BasicHeaders, Methods_1h9deyq['get']['status']>(prefix, PATH28, GET, option).json().then(r => r.body),
+            $path: (option?: { method?: 'get' | undefined; query: Methods_1h9deyq['get']['query'] } | undefined) =>
+              `${prefix}${PATH28}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+          },
+          /**
+           * @returns OK
+           */
+          get: (option?: { query?: Methods_1oefgnh['get']['query'] | undefined, config?: T | undefined } | undefined) =>
+            fetch<Methods_1oefgnh['get']['resBody'], BasicHeaders, Methods_1oefgnh['get']['status']>(prefix, PATH27, GET, option).json(),
+          /**
+           * @returns OK
+           */
+          $get: (option?: { query?: Methods_1oefgnh['get']['query'] | undefined, config?: T | undefined } | undefined) =>
+            fetch<Methods_1oefgnh['get']['resBody'], BasicHeaders, Methods_1oefgnh['get']['status']>(prefix, PATH27, GET, option).json().then(r => r.body),
+          $path: (option?: { method?: 'get' | undefined; query: Methods_1oefgnh['get']['query'] } | undefined) =>
+            `${prefix}${PATH27}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        },
       },
     },
     buildings: {
       _buildingDtId: (val1: string) => {
-        const prefix1 = `${PATH27}/${val1}`;
+        const prefix1 = `${PATH29}/${val1}`;
 
         return {
           metadata: {
@@ -625,17 +657,17 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_a63ipz['get']['resBody'], BasicHeaders, Methods_a63ipz['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json(),
+              fetch<Methods_a63ipz['get']['resBody'], BasicHeaders, Methods_a63ipz['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json(),
             /**
              * @returns OK
              */
             $get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_a63ipz['get']['resBody'], BasicHeaders, Methods_a63ipz['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json().then(r => r.body),
+              fetch<Methods_a63ipz['get']['resBody'], BasicHeaders, Methods_a63ipz['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json().then(r => r.body),
             patch: (option: { body: Methods_a63ipz['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_a63ipz['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send(),
+              fetch<void, BasicHeaders, Methods_a63ipz['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send(),
             $patch: (option: { body: Methods_a63ipz['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_a63ipz['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH28}`,
+              fetch<void, BasicHeaders, Methods_a63ipz['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH30}`,
           },
           /**
            * @returns OK
@@ -654,31 +686,31 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
        * @returns OK
        */
       get: (option?: { config?: T | undefined } | undefined) =>
-        fetch<Methods_ok90xj['get']['resBody'], BasicHeaders, Methods_ok90xj['get']['status']>(prefix, PATH27, GET, option).json(),
+        fetch<Methods_ok90xj['get']['resBody'], BasicHeaders, Methods_ok90xj['get']['status']>(prefix, PATH29, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { config?: T | undefined } | undefined) =>
-        fetch<Methods_ok90xj['get']['resBody'], BasicHeaders, Methods_ok90xj['get']['status']>(prefix, PATH27, GET, option).json().then(r => r.body),
-      $path: () => `${prefix}${PATH27}`,
+        fetch<Methods_ok90xj['get']['resBody'], BasicHeaders, Methods_ok90xj['get']['status']>(prefix, PATH29, GET, option).json().then(r => r.body),
+      $path: () => `${prefix}${PATH29}`,
     },
     device_details: {
       /**
        * @returns OK
        */
       get: (option?: { query?: Methods_7yye3n['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_7yye3n['get']['resBody'], BasicHeaders, Methods_7yye3n['get']['status']>(prefix, PATH29, GET, option).json(),
+        fetch<Methods_7yye3n['get']['resBody'], BasicHeaders, Methods_7yye3n['get']['status']>(prefix, PATH31, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { query?: Methods_7yye3n['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_7yye3n['get']['resBody'], BasicHeaders, Methods_7yye3n['get']['status']>(prefix, PATH29, GET, option).json().then(r => r.body),
+        fetch<Methods_7yye3n['get']['resBody'], BasicHeaders, Methods_7yye3n['get']['status']>(prefix, PATH31, GET, option).json().then(r => r.body),
       $path: (option?: { method?: 'get' | undefined; query: Methods_7yye3n['get']['query'] } | undefined) =>
-        `${prefix}${PATH29}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        `${prefix}${PATH31}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
     },
     devices: {
       _deviceDtId: (val1: string) => {
-        const prefix1 = `${PATH30}/${val1}`;
+        const prefix1 = `${PATH32}/${val1}`;
 
         return {
           metadata: {
@@ -686,17 +718,17 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_1l25dyr['get']['resBody'], BasicHeaders, Methods_1l25dyr['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json(),
+              fetch<Methods_1l25dyr['get']['resBody'], BasicHeaders, Methods_1l25dyr['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json(),
             /**
              * @returns OK
              */
             $get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_1l25dyr['get']['resBody'], BasicHeaders, Methods_1l25dyr['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json().then(r => r.body),
+              fetch<Methods_1l25dyr['get']['resBody'], BasicHeaders, Methods_1l25dyr['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json().then(r => r.body),
             patch: (option: { body: Methods_1l25dyr['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_1l25dyr['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send(),
+              fetch<void, BasicHeaders, Methods_1l25dyr['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send(),
             $patch: (option: { body: Methods_1l25dyr['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_1l25dyr['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH28}`,
+              fetch<void, BasicHeaders, Methods_1l25dyr['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH30}`,
           },
           /**
            * @returns OK
@@ -715,18 +747,18 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
        * @returns OK
        */
       get: (option?: { query?: Methods_39vmi5['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_39vmi5['get']['resBody'], BasicHeaders, Methods_39vmi5['get']['status']>(prefix, PATH30, GET, option).json(),
+        fetch<Methods_39vmi5['get']['resBody'], BasicHeaders, Methods_39vmi5['get']['status']>(prefix, PATH32, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { query?: Methods_39vmi5['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_39vmi5['get']['resBody'], BasicHeaders, Methods_39vmi5['get']['status']>(prefix, PATH30, GET, option).json().then(r => r.body),
+        fetch<Methods_39vmi5['get']['resBody'], BasicHeaders, Methods_39vmi5['get']['status']>(prefix, PATH32, GET, option).json().then(r => r.body),
       $path: (option?: { method?: 'get' | undefined; query: Methods_39vmi5['get']['query'] } | undefined) =>
-        `${prefix}${PATH30}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        `${prefix}${PATH32}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
     },
     floors: {
       _floorDtId: (val1: string) => {
-        const prefix1 = `${PATH31}/${val1}`;
+        const prefix1 = `${PATH33}/${val1}`;
 
         return {
           metadata: {
@@ -734,17 +766,17 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_11vktvx['get']['resBody'], BasicHeaders, Methods_11vktvx['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json(),
+              fetch<Methods_11vktvx['get']['resBody'], BasicHeaders, Methods_11vktvx['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json(),
             /**
              * @returns OK
              */
             $get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_11vktvx['get']['resBody'], BasicHeaders, Methods_11vktvx['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json().then(r => r.body),
+              fetch<Methods_11vktvx['get']['resBody'], BasicHeaders, Methods_11vktvx['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json().then(r => r.body),
             patch: (option: { body: Methods_11vktvx['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_11vktvx['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send(),
+              fetch<void, BasicHeaders, Methods_11vktvx['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send(),
             $patch: (option: { body: Methods_11vktvx['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_11vktvx['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH28}`,
+              fetch<void, BasicHeaders, Methods_11vktvx['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH30}`,
           },
           /**
            * @returns OK
@@ -763,18 +795,18 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
        * @returns OK
        */
       get: (option?: { query?: Methods_z40s5x['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_z40s5x['get']['resBody'], BasicHeaders, Methods_z40s5x['get']['status']>(prefix, PATH31, GET, option).json(),
+        fetch<Methods_z40s5x['get']['resBody'], BasicHeaders, Methods_z40s5x['get']['status']>(prefix, PATH33, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { query?: Methods_z40s5x['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_z40s5x['get']['resBody'], BasicHeaders, Methods_z40s5x['get']['status']>(prefix, PATH31, GET, option).json().then(r => r.body),
+        fetch<Methods_z40s5x['get']['resBody'], BasicHeaders, Methods_z40s5x['get']['status']>(prefix, PATH33, GET, option).json().then(r => r.body),
       $path: (option?: { method?: 'get' | undefined; query: Methods_z40s5x['get']['query'] } | undefined) =>
-        `${prefix}${PATH31}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        `${prefix}${PATH33}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
     },
     gateways: {
       _gatewayId: (val1: string) => {
-        const prefix1 = `${PATH32}/${val1}`;
+        const prefix1 = `${PATH34}/${val1}`;
 
         return {
           pointlist: {
@@ -786,7 +818,7 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             get: (option?: { query?: Methods_137chuu['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH33}`, GET, option).json(),
+              fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH35}`, GET, option).json(),
             /**
              * The 200 response is BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse for the full list (no `since`, or
              * snapshot evicted) and BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListDiffResponse for a resolvable `?since=`
@@ -795,16 +827,16 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             $get: (option?: { query?: Methods_137chuu['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH33}`, GET, option).json().then(r => r.body),
+              fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH35}`, GET, option).json().then(r => r.body),
             $path: (option?: { method?: 'get' | undefined; query: Methods_137chuu['get']['query'] } | undefined) =>
-              `${prefix}${prefix1}${PATH33}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+              `${prefix}${prefix1}${PATH35}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
           },
         };
       },
     },
     point_details: {
       _pointId: (val1: string) => {
-        const prefix1 = `${PATH34}/${val1}`;
+        const prefix1 = `${PATH36}/${val1}`;
 
         return {
           /**
@@ -824,18 +856,18 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
        * @returns OK
        */
       get: (option?: { query?: Methods_19trvk3['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_19trvk3['get']['resBody'], BasicHeaders, Methods_19trvk3['get']['status']>(prefix, PATH34, GET, option).json(),
+        fetch<Methods_19trvk3['get']['resBody'], BasicHeaders, Methods_19trvk3['get']['status']>(prefix, PATH36, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { query?: Methods_19trvk3['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_19trvk3['get']['resBody'], BasicHeaders, Methods_19trvk3['get']['status']>(prefix, PATH34, GET, option).json().then(r => r.body),
+        fetch<Methods_19trvk3['get']['resBody'], BasicHeaders, Methods_19trvk3['get']['status']>(prefix, PATH36, GET, option).json().then(r => r.body),
       $path: (option?: { method?: 'get' | undefined; query: Methods_19trvk3['get']['query'] } | undefined) =>
-        `${prefix}${PATH34}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        `${prefix}${PATH36}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
     },
     points: {
       _pointId: (val1: string) => {
-        const prefix1 = `${PATH35}/${val1}`;
+        const prefix1 = `${PATH37}/${val1}`;
 
         return {
           control: {
@@ -843,44 +875,44 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns Accepted
              */
             post: (option: { body: Methods_ky3pcp['post']['reqBody'], config?: T | undefined }) =>
-              fetch<Methods_ky3pcp['post']['resBody'], BasicHeaders, Methods_ky3pcp['post']['status']>(prefix, `${prefix1}${PATH36}`, POST, option).json(),
+              fetch<Methods_ky3pcp['post']['resBody'], BasicHeaders, Methods_ky3pcp['post']['status']>(prefix, `${prefix1}${PATH38}`, POST, option).json(),
             /**
              * @returns Accepted
              */
             $post: (option: { body: Methods_ky3pcp['post']['reqBody'], config?: T | undefined }) =>
-              fetch<Methods_ky3pcp['post']['resBody'], BasicHeaders, Methods_ky3pcp['post']['status']>(prefix, `${prefix1}${PATH36}`, POST, option).json().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH36}`,
+              fetch<Methods_ky3pcp['post']['resBody'], BasicHeaders, Methods_ky3pcp['post']['status']>(prefix, `${prefix1}${PATH38}`, POST, option).json().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH38}`,
           },
           control_audit: {
             /**
              * @returns OK
              */
             get: (option?: { query?: Methods_1tjp38b['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<Methods_1tjp38b['get']['resBody'], BasicHeaders, Methods_1tjp38b['get']['status']>(prefix, `${prefix1}${PATH37}`, GET, option).json(),
+              fetch<Methods_1tjp38b['get']['resBody'], BasicHeaders, Methods_1tjp38b['get']['status']>(prefix, `${prefix1}${PATH39}`, GET, option).json(),
             /**
              * @returns OK
              */
             $get: (option?: { query?: Methods_1tjp38b['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<Methods_1tjp38b['get']['resBody'], BasicHeaders, Methods_1tjp38b['get']['status']>(prefix, `${prefix1}${PATH37}`, GET, option).json().then(r => r.body),
+              fetch<Methods_1tjp38b['get']['resBody'], BasicHeaders, Methods_1tjp38b['get']['status']>(prefix, `${prefix1}${PATH39}`, GET, option).json().then(r => r.body),
             $path: (option?: { method?: 'get' | undefined; query: Methods_1tjp38b['get']['query'] } | undefined) =>
-              `${prefix}${prefix1}${PATH37}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+              `${prefix}${prefix1}${PATH39}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
           },
           metadata: {
             /**
              * @returns OK
              */
             get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_mu5l1t['get']['resBody'], BasicHeaders, Methods_mu5l1t['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json(),
+              fetch<Methods_mu5l1t['get']['resBody'], BasicHeaders, Methods_mu5l1t['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json(),
             /**
              * @returns OK
              */
             $get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_mu5l1t['get']['resBody'], BasicHeaders, Methods_mu5l1t['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json().then(r => r.body),
+              fetch<Methods_mu5l1t['get']['resBody'], BasicHeaders, Methods_mu5l1t['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json().then(r => r.body),
             patch: (option: { body: Methods_mu5l1t['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_mu5l1t['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send(),
+              fetch<void, BasicHeaders, Methods_mu5l1t['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send(),
             $patch: (option: { body: Methods_mu5l1t['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_mu5l1t['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH28}`,
+              fetch<void, BasicHeaders, Methods_mu5l1t['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH30}`,
           },
           /**
            * @returns OK
@@ -899,14 +931,14 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
        * @returns OK
        */
       get: (option?: { query?: Methods_13o0dsd['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_13o0dsd['get']['resBody'], BasicHeaders, Methods_13o0dsd['get']['status']>(prefix, PATH35, GET, option).json(),
+        fetch<Methods_13o0dsd['get']['resBody'], BasicHeaders, Methods_13o0dsd['get']['status']>(prefix, PATH37, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { query?: Methods_13o0dsd['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_13o0dsd['get']['resBody'], BasicHeaders, Methods_13o0dsd['get']['status']>(prefix, PATH35, GET, option).json().then(r => r.body),
+        fetch<Methods_13o0dsd['get']['resBody'], BasicHeaders, Methods_13o0dsd['get']['status']>(prefix, PATH37, GET, option).json().then(r => r.body),
       $path: (option?: { method?: 'get' | undefined; query: Methods_13o0dsd['get']['query'] } | undefined) =>
-        `${prefix}${PATH35}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        `${prefix}${PATH37}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
     },
     resources: {
       search: {
@@ -914,19 +946,19 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
          * @returns OK
          */
         get: (option?: { query?: Methods_v8c4mg['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-          fetch<Methods_v8c4mg['get']['resBody'], BasicHeaders, Methods_v8c4mg['get']['status']>(prefix, PATH38, GET, option).json(),
+          fetch<Methods_v8c4mg['get']['resBody'], BasicHeaders, Methods_v8c4mg['get']['status']>(prefix, PATH40, GET, option).json(),
         /**
          * @returns OK
          */
         $get: (option?: { query?: Methods_v8c4mg['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-          fetch<Methods_v8c4mg['get']['resBody'], BasicHeaders, Methods_v8c4mg['get']['status']>(prefix, PATH38, GET, option).json().then(r => r.body),
+          fetch<Methods_v8c4mg['get']['resBody'], BasicHeaders, Methods_v8c4mg['get']['status']>(prefix, PATH40, GET, option).json().then(r => r.body),
         $path: (option?: { method?: 'get' | undefined; query: Methods_v8c4mg['get']['query'] } | undefined) =>
-          `${prefix}${PATH38}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+          `${prefix}${PATH40}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
       },
     },
     spaces: {
       _spaceDtId: (val1: string) => {
-        const prefix1 = `${PATH39}/${val1}`;
+        const prefix1 = `${PATH41}/${val1}`;
 
         return {
           adjacent_spaces: {
@@ -937,7 +969,7 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_1f7z7oa['get']['resBody'], BasicHeaders, Methods_1f7z7oa['get']['status']>(prefix, `${prefix1}${PATH40}`, GET, option).json(),
+              fetch<Methods_1f7z7oa['get']['resBody'], BasicHeaders, Methods_1f7z7oa['get']['status']>(prefix, `${prefix1}${PATH42}`, GET, option).json(),
             /**
              * 指定した部屋に隣接する部屋（`sbco:Room`）の一覧。隣接関係は BOT の対称関係
              * `bot:adjacentZone` に由来し、取り込み時に双方向へ正規化されている。
@@ -945,25 +977,25 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
              * @returns OK
              */
             $get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_1f7z7oa['get']['resBody'], BasicHeaders, Methods_1f7z7oa['get']['status']>(prefix, `${prefix1}${PATH40}`, GET, option).json().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH40}`,
+              fetch<Methods_1f7z7oa['get']['resBody'], BasicHeaders, Methods_1f7z7oa['get']['status']>(prefix, `${prefix1}${PATH42}`, GET, option).json().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH42}`,
           },
           metadata: {
             /**
              * @returns OK
              */
             get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_1pv2qv1['get']['resBody'], BasicHeaders, Methods_1pv2qv1['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json(),
+              fetch<Methods_1pv2qv1['get']['resBody'], BasicHeaders, Methods_1pv2qv1['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json(),
             /**
              * @returns OK
              */
             $get: (option?: { config?: T | undefined } | undefined) =>
-              fetch<Methods_1pv2qv1['get']['resBody'], BasicHeaders, Methods_1pv2qv1['get']['status']>(prefix, `${prefix1}${PATH28}`, GET, option).json().then(r => r.body),
+              fetch<Methods_1pv2qv1['get']['resBody'], BasicHeaders, Methods_1pv2qv1['get']['status']>(prefix, `${prefix1}${PATH30}`, GET, option).json().then(r => r.body),
             patch: (option: { body: Methods_1pv2qv1['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_1pv2qv1['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send(),
+              fetch<void, BasicHeaders, Methods_1pv2qv1['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send(),
             $patch: (option: { body: Methods_1pv2qv1['patch']['reqBody'], config?: T | undefined }) =>
-              fetch<void, BasicHeaders, Methods_1pv2qv1['patch']['status']>(prefix, `${prefix1}${PATH28}`, PATCH, option).send().then(r => r.body),
-            $path: () => `${prefix}${prefix1}${PATH28}`,
+              fetch<void, BasicHeaders, Methods_1pv2qv1['patch']['status']>(prefix, `${prefix1}${PATH30}`, PATCH, option).send().then(r => r.body),
+            $path: () => `${prefix}${prefix1}${PATH30}`,
           },
           /**
            * @returns OK
@@ -982,14 +1014,14 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
        * @returns OK
        */
       get: (option?: { query?: Methods_kbl8x1['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_kbl8x1['get']['resBody'], BasicHeaders, Methods_kbl8x1['get']['status']>(prefix, PATH39, GET, option).json(),
+        fetch<Methods_kbl8x1['get']['resBody'], BasicHeaders, Methods_kbl8x1['get']['status']>(prefix, PATH41, GET, option).json(),
       /**
        * @returns OK
        */
       $get: (option?: { query?: Methods_kbl8x1['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-        fetch<Methods_kbl8x1['get']['resBody'], BasicHeaders, Methods_kbl8x1['get']['status']>(prefix, PATH39, GET, option).json().then(r => r.body),
+        fetch<Methods_kbl8x1['get']['resBody'], BasicHeaders, Methods_kbl8x1['get']['status']>(prefix, PATH41, GET, option).json().then(r => r.body),
       $path: (option?: { method?: 'get' | undefined; query: Methods_kbl8x1['get']['query'] } | undefined) =>
-        `${prefix}${PATH39}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+        `${prefix}${PATH41}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
     },
     telemetries: {
       query: {
@@ -998,26 +1030,26 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
            * @returns OK
            */
           post: (option: { body: Methods_1dmkv0v['post']['reqBody'], config?: T | undefined }) =>
-            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH42, POST, option).json(),
+            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH44, POST, option).json(),
           /**
            * @returns OK
            */
           $post: (option: { body: Methods_1dmkv0v['post']['reqBody'], config?: T | undefined }) =>
-            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH42, POST, option).json().then(r => r.body),
-          $path: () => `${prefix}${PATH42}`,
+            fetch<Methods_1dmkv0v['post']['resBody'], BasicHeaders, Methods_1dmkv0v['post']['status']>(prefix, PATH44, POST, option).json().then(r => r.body),
+          $path: () => `${prefix}${PATH44}`,
         },
         /**
          * @returns OK
          */
         get: (option?: { query?: Methods_8ytsl6['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH41, GET, option).json(),
+          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH43, GET, option).json(),
         /**
          * @returns OK
          */
         $get: (option?: { query?: Methods_8ytsl6['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH41, GET, option).json().then(r => r.body),
+          fetch<Methods_8ytsl6['get']['resBody'], BasicHeaders, Methods_8ytsl6['get']['status']>(prefix, PATH43, GET, option).json().then(r => r.body),
         $path: (option?: { method?: 'get' | undefined; query: Methods_8ytsl6['get']['query'] } | undefined) =>
-          `${prefix}${PATH41}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+          `${prefix}${PATH43}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
       },
     },
   };

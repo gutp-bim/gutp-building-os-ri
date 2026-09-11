@@ -16,6 +16,11 @@ Update this file with measured values after running E2E performance tests.
 
 ## Cardinality Policy
 
+> The architectural decision behind this policy — which layer owns per-point state, and where the
+> line between Alertmanager and Building OS's own alerting runs — is recorded in
+> [ADR-0007](../adr/0007-observability-domain-health-boundary.md). This section stays the
+> operational reference (allowed tags, targets, recording rules); the ADR carries the reasoning.
+
 **Never use `point_id` or `device_id` as Prometheus labels.**
 
 Reason: with 100,000+ points, each point_id label creates a separate time series.

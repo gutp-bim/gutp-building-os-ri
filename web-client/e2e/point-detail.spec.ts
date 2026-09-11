@@ -8,7 +8,10 @@ test.beforeEach(async ({ context }) => {
   await loginAs(context, "admin");
 });
 
-async function mockPoint(page: Page, opts: { datetime: string; value: number }) {
+async function mockPoint(
+  page: Page,
+  opts: { datetime: string; value: number },
+) {
   await page.route("**/point-details/**", (route) =>
     fulfillJson(route, {
       point: { dtId: "p1", id: "SOS-PT-001", name: "室温", unit: "degC" },
@@ -20,11 +23,17 @@ async function mockPoint(page: Page, opts: { datetime: string; value: number }) 
   );
 }
 
-test("shows the latest value and a fresh badge for a recent sample", async ({ page }) => {
+test("shows the latest value and a fresh badge for a recent sample", async ({
+  page,
+}) => {
   await mockPoint(page, { datetime: isoSecondsAgo(10), value: 22.5 });
   await page.goto("/points/SOS-PT-001");
 
-  await expect(page.getByTestId("freshness-fresh")).toBeVisible();
+  // 鮮度バッジは最新値カードと健全性パネル（#457）の両方に出るので locator を絞る。
+  await expect(page.getByTestId("freshness-fresh").first()).toBeVisible();
+  await expect(
+    page.getByTestId("point-health-panel").getByTestId("freshness-fresh"),
+  ).toBeVisible();
   await expect(page.getByText("室温")).toBeVisible();
 });
 
@@ -32,7 +41,7 @@ test("shows a stale badge for an old sample", async ({ page }) => {
   await mockPoint(page, { datetime: isoSecondsAgo(100_000), value: 22.5 });
   await page.goto("/points/SOS-PT-001");
 
-  await expect(page.getByTestId("freshness-stale")).toBeVisible();
+  await expect(page.getByTestId("freshness-stale").first()).toBeVisible();
 });
 
 test("surfaces an error when point detail fails to load", async ({ page }) => {
@@ -42,5 +51,7 @@ test("surfaces an error when point detail fails to load", async ({ page }) => {
   );
   await page.goto("/points/SOS-PT-001");
 
-  await expect(page.getByText("ポイント情報の取得に失敗しました。")).toBeVisible();
+  await expect(
+    page.getByText("ポイント情報の取得に失敗しました。"),
+  ).toBeVisible();
 });

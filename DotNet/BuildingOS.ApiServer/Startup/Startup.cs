@@ -81,6 +81,23 @@ namespace BuildingOs.ApiServer
                 return new NatsJSContext(conn);
             });
             services.AddSingleton<IHotTelemetryStore, NatsKvLatestStore>();
+
+            // Clock. Injected rather than DateTimeOffset.UtcNow so freshness classification is testable.
+            services.AddSingleton(TimeProvider.System);
+
+            // === Data health (#452) ===
+            // Point last-seen index: one singleton store (the state machine + the lock-free read side)
+            // exposed as IPointLastSeenIndex, plus the thin NATS KV watch adapter that feeds it. This is
+            // NOT a new data store — it is a process-local projection of the existing telemetry-latest KV,
+            // so the health endpoint answers thousands of points from memory instead of N hot-store gets.
+            services.AddSingleton<PointLastSeenIndexStore>();
+            services.AddSingleton<IPointLastSeenIndex>(sp => sp.GetRequiredService<PointLastSeenIndexStore>());
+            services.AddHostedService<NatsKvPointLastSeenIndexWorker>();
+            // Short-TTL cache of the per-building point ledger. Caches PRE-authorization twin data only;
+            // AuthorizedTwinView re-applies the read filter on every request.
+            services.AddSingleton(sp => new BuildingOs.ApiServer.Authorization.PointDetailInventoryCache(
+                TimeSpan.FromSeconds(_envModule.HealthInventoryTtlSeconds),
+                sp.GetRequiredService<TimeProvider>()));
             // Cross-replica gateway connection heartbeat read side (#230 Phase 2②, ADR-0004). Read-only
             // here — GatewayBridge writes it. Default TTL must match the writer's (both default to
             // NatsKvGatewayConnectionStore.DefaultTtlSeconds; override GATEWAY_HEARTBEAT_TTL_SEC in lockstep).

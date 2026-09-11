@@ -1,0 +1,17 @@
+# 生成物は prettier の対象外にする。
+#
+# 理由: これらのディレクトリの中身は「生成器の生の出力と 1 バイト単位で一致すること」が
+# CI のゲートになっている（pr-check.yml の "Aspida client is up to date" は
+# openapi2aspida を回し直して `git status --porcelain` が空であることを要求する）。
+# prettier は生成物を整形してしまうため、`yarn format:write` を一度でも掛けると
+# そのゲートが赤になり、直し方（Tools/sync-type.bash で再生成）と整形が互いを打ち消し合う。
+# 生成物の整形は誰の役にも立たないので、最初から触らせない。
+#
+# swagger → aspida（Tools/sync-type.bash が再生成。CI が差分ゼロを検査する）
+src/lib/infra/aspida-client/generated/
+# proto → TypeScript（`yarn generate` が再生成）
+src/lib/gen/
+
+# ビルド成果物
+.next/
+node_modules/

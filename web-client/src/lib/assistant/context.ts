@@ -27,6 +27,7 @@ export function isAssistantEnabled(): boolean {
 
 /** Maps a route to the help key whose D-1 content becomes the assistant's screen context. */
 const PATH_HELP_KEYS: Record<string, string> = {
+  "/health": "operator.health",
   "/platform/status": "platform.status",
   "/platform/config": "platform.config",
   "/platform/settings": "platform.settings",

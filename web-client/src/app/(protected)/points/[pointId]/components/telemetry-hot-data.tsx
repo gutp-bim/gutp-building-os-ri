@@ -7,7 +7,7 @@ import {
 import { resolveStaleThresholdSeconds } from "@/lib/telemetry/freshness-threshold";
 import type { TelemetryLatestSample } from "@/lib/telemetry/types";
 import { formatResolvedValue } from "@/lib/telemetry/value";
-import { unitLabelMap } from "@/lib/utils/helper/telemetry-helper";
+import { resolveUnitLabel } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
 
@@ -45,7 +45,9 @@ export function TelemetryHotData({
       return formatResolvedValue(resolved) ?? "-";
     if (resolved.kind === "none") return "-";
 
-    return `${resolved.value * scale} ${unit ? (unitLabelMap[unit] ?? unit) : ""}`;
+    // 単位ラベルの解決は resolveUnitLabel に一本化する。ここだけ IRI 表を直接引いていたため、
+    // 同じページの健全性パネルが "°C" と出す値を最新値カードは "degC" と出していた（#460 レビュー）。
+    return `${resolved.value * scale} ${resolveUnitLabel(unit) ?? ""}`;
   }, [hotData, scale, unit]);
 
   // Freshness of the latest sample, evaluated against the current time on each render. The stale

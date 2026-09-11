@@ -36,6 +36,15 @@ public class EnvModule
         int.TryParse(Environment.GetEnvironmentVariable("PARQUET_LATEST_LOOKBACK_HOURS"), out var h) && h > 0 ? h : 24;
     public readonly int ParquetQueryMaxFiles =
         int.TryParse(Environment.GetEnvironmentVariable("PARQUET_QUERY_MAX_FILES"), out var f) && f > 0 ? f : 0;
+    /// <summary>
+    /// Data-health inventory cache TTL in seconds (#452, <c>HEALTH_INVENTORY_TTL_SEC</c>, default 60).
+    /// <c>GET /api/telemetry/health</c> reads a whole building's point ledger per request, so the
+    /// <b>pre-authorization</b> twin snapshot is cached this long. Authorization filtering is always
+    /// re-applied per request — only the twin data is cached. Non-numeric or non-positive → default.
+    /// </summary>
+    public readonly int HealthInventoryTtlSeconds =
+        int.TryParse(Environment.GetEnvironmentVariable("HEALTH_INVENTORY_TTL_SEC"), out var ttl) && ttl > 0 ? ttl : 60;
+
     // Optional: Prometheus base URL for the built-in simple-monitoring endpoint
     // (GET /api/system/status). Unset → KPIs degrade to null (service up/down still works via
     // the /health fan-out below, so the endpoint is usable without Prometheus/Grafana).

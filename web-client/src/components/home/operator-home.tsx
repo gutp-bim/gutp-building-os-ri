@@ -3,13 +3,13 @@
 import { fetchGateways as defaultFetchGateways } from "@/lib/admin/gateways";
 import {
   activeAlarms,
-  type AttentionItem,
   buildAttentionList,
+  type AttentionItem,
   type NamedPoint,
 } from "@/lib/home/aggregate";
 import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
-import { type PointAlarm, summarizeAlarms } from "@/lib/telemetry/alarm";
+import { summarizeAlarms, type PointAlarm } from "@/lib/telemetry/alarm";
 import {
   summarizeFreshness,
   type FreshnessSummary,
@@ -200,32 +200,48 @@ export function OperatorHome({
       )}
 
       <section
-        className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+        className="grid grid-cols-2 gap-4 sm:grid-cols-5"
         data-testid="home-summary"
       >
         <SummaryCard
-          label="異常"
-          value={alarmSummary.critical + alarmSummary.warn}
-          testid="summary-alarm"
-          tone="text-red-700"
+          label="登録ポイント"
+          value={summary.total}
+          testid="summary-total"
+          tone="text-gray-800"
+          href="/health"
         />
         <SummaryCard
+          // 「最新」は到着軸（データが届いているか）の状態であって値の正常性ではないので、
+          // 「正常」とは呼ばない。最新かつ値異常のポイントは成立する。
+          // 呼び名は freshnessLabel（/health 側）と揃える — 飛んだ先で別の語になると同じ状態に
+          // 見えなくなる。
           label="最新"
           value={summary.fresh}
+          sub={freshRateLabel(summary)}
           testid="summary-fresh"
           tone="text-green-800"
+          href="/health?freshness=fresh"
         />
         <SummaryCard
           label="鮮度切れ"
           value={summary.stale}
           testid="summary-stale"
           tone="text-amber-800"
+          href="/health?freshness=stale"
         />
         <SummaryCard
           label="欠測"
           value={summary.missing}
           testid="summary-missing"
           tone="text-gray-700"
+          href="/health?freshness=missing"
+        />
+        <SummaryCard
+          label="値異常"
+          value={alarmSummary.critical + alarmSummary.warn}
+          testid="summary-alarm"
+          tone="text-red-700"
+          href="/health?alarm=warn,critical"
         />
       </section>
 
@@ -277,6 +293,16 @@ export function OperatorHome({
             ))}
           </ul>
         )}
+        {/* 要対応が 0 件でもデータ品質画面への導線は残す（全体を俯瞰したいときの入口）。 */}
+        <p className="mt-2 text-right">
+          <Link
+            href="/health"
+            data-testid="home-attention-all-link"
+            className="rounded text-sm text-blue-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          >
+            すべて見る → データ品質
+          </Link>
+        </p>
       </section>
 
       {isAdmin && <GatewayStatusPanel fetchGateways={fetchGateways} />}
@@ -308,25 +334,43 @@ function attentionLabel(item: AttentionItem): string {
   }
 }
 
+/** Fresh 率（小数 1 桁）。母数 0 のときは率を出さず「—」を表示する。 */
+function freshRateLabel(summary: FreshnessSummary): string {
+  if (summary.total <= 0) return "—";
+  return `${((summary.fresh / summary.total) * 100).toFixed(1)}%`;
+}
+
+/**
+ * サマリカード。カード全体が `/health` の絞り込みリンクになっていて、
+ * クエリ名は `/health` 画面と共通の軸名（`freshness=` / `alarm=`）を使う。
+ */
 function SummaryCard({
   label,
   value,
+  sub,
   testid,
   tone,
+  href,
 }: {
   label: string;
   value: number;
+  sub?: string;
   testid: string;
   tone: string;
+  href: string;
 }) {
   return (
-    <div
+    <Link
+      href={href}
       data-testid={testid}
-      className="rounded-lg border border-gray-200 p-4 text-center"
+      className="block rounded-lg border border-gray-200 p-4 text-center transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
     >
-      <div className={`text-2xl font-bold ${tone}`}>{value}</div>
+      <div className={`text-2xl font-bold ${tone}`}>
+        {value.toLocaleString("ja-JP")}
+      </div>
+      {sub && <div className={`text-xs font-medium ${tone}`}>{sub}</div>}
       <div className="mt-1 text-xs text-gray-600">{label}</div>
-    </div>
+    </Link>
   );
 }
 

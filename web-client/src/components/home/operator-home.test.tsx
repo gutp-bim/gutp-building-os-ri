@@ -166,29 +166,27 @@ describe("OperatorHome", () => {
       name: "2F",
     };
     // Each floor contributes one stale point; the building-wide view must show both.
-    const loadFloorPoints = vi
-      .fn()
-      .mockImplementation((floorDtId: string) =>
-        Promise.resolve(
-          floorDtId === "f1"
-            ? [
-                {
-                  pointId: "p1",
-                  name: "1F室温",
-                  deviceName: "AHU-1",
-                  spaceName: "会議室A",
-                },
-              ]
-            : [
-                {
-                  pointId: "p2",
-                  name: "2F室温",
-                  deviceName: "AHU-2",
-                  spaceName: "会議室B",
-                },
-              ],
-        ),
-      );
+    const loadFloorPoints = vi.fn().mockImplementation((floorDtId: string) =>
+      Promise.resolve(
+        floorDtId === "f1"
+          ? [
+              {
+                pointId: "p1",
+                name: "1F室温",
+                deviceName: "AHU-1",
+                spaceName: "会議室A",
+              },
+            ]
+          : [
+              {
+                pointId: "p2",
+                name: "2F室温",
+                deviceName: "AHU-2",
+                spaceName: "会議室B",
+              },
+            ],
+      ),
+    );
     const loadFreshness = vi
       .fn()
       .mockImplementation((points: { pointId: string }[]) =>
@@ -268,6 +266,117 @@ describe("OperatorHome", () => {
       />,
     );
     expect(await screen.findByTestId("home-error")).toHaveTextContent("boom");
+  });
+
+  it("shows the registered-point total and the fresh rate (#451 Phase 1)", async () => {
+    // 1,234 points: 1,200 fresh + 34 stale → 97.2%. The thousands separator and the 1-decimal
+    // percentage are part of the contract.
+    const points = Array.from({ length: 1234 }, (_, i) => ({
+      pointId: `p${i}`,
+      name: `点${i}`,
+      deviceName: "AHU-1",
+      spaceName: "会議室A",
+    }));
+    const loaders = makeLoaders({
+      loadFloorPoints: vi.fn().mockResolvedValue(points),
+      loadFreshness: vi.fn().mockResolvedValue(
+        points.map((p, i) => ({
+          pointId: p.pointId,
+          status: i < 1200 ? ("fresh" as const) : ("stale" as const),
+          ageSeconds: i < 1200 ? 1 : 900,
+        })),
+      ),
+    });
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    const total = await screen.findByTestId("summary-total");
+    await waitFor(() => expect(total).toHaveTextContent("1,234"));
+    expect(total).toHaveTextContent("登録ポイント");
+    const fresh = screen.getByTestId("summary-fresh");
+    expect(fresh).toHaveTextContent("1,200");
+    expect(fresh).toHaveTextContent("97.2%");
+    // 到着軸のラベルは「最新」（/health の freshnessLabel と同じ語）。値の正常性ではないので
+    // 「正常」とは呼ばない。
+    expect(fresh).toHaveTextContent("最新");
+    expect(fresh).not.toHaveTextContent("正常");
+  });
+
+  it("shows a dash instead of a fresh rate when no point is registered (#451 Phase 1)", async () => {
+    const loaders = makeLoaders({
+      loadFloorPoints: vi.fn().mockResolvedValue([]),
+      loadFreshness: vi.fn().mockResolvedValue([]),
+    });
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("summary-total")).toHaveTextContent("0"),
+    );
+    expect(screen.getByTestId("summary-fresh")).toHaveTextContent("—");
+    expect(screen.getByTestId("summary-fresh")).not.toHaveTextContent("%");
+  });
+
+  it("links each summary card to the matching /health filter (#451 Phase 1)", async () => {
+    render(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    await screen.findAllByTestId("home-attention-row");
+    const href = (testid: string) =>
+      screen.getByTestId(testid).getAttribute("href");
+    expect(href("summary-total")).toBe("/health");
+    expect(href("summary-fresh")).toBe("/health?freshness=fresh");
+    expect(href("summary-stale")).toBe("/health?freshness=stale");
+    expect(href("summary-missing")).toBe("/health?freshness=missing");
+    expect(href("summary-alarm")).toBe("/health?alarm=warn,critical");
+  });
+
+  it("links to the data-quality screen from the attention list, even when it is empty (#451 Phase 1)", async () => {
+    render(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    const link = await screen.findByTestId("home-attention-all-link");
+    expect(link).toHaveAttribute("href", "/health");
+    expect(link).toHaveTextContent("データ品質");
+
+    // 要対応が 0 件でも導線は出す。
+    const allFresh = makeLoaders({
+      loadFreshness: vi.fn().mockResolvedValue(
+        namedPoints.map((p) => ({
+          pointId: p.pointId,
+          status: "fresh",
+          ageSeconds: 1,
+        })),
+      ),
+    });
+    render(
+      <OperatorHome
+        loaders={allFresh}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    await screen.findByTestId("home-attention-empty");
+    expect(screen.getAllByTestId("home-attention-all-link")).toHaveLength(2);
   });
 
   it("surfaces a telemetry error instead of showing every point as missing (#182 review)", async () => {
