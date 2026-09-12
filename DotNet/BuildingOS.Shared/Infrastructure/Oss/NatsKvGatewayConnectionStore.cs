@@ -120,11 +120,20 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
             // Answered: no entry (or a delete marker) means the gateway is not observably connected.
             return status is null ? GatewayConnectionLookup.Disconnected : GatewayConnectionLookup.Live(status);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The caller walked away (request aborted / shutdown). Nothing is waiting on the answer,
+            // so this is normal control flow, not a KV failure — the sibling write paths treat it the
+            // same way. Still Unknown: we never found out, and the value must not read as 切断.
+            return GatewayConnectionLookup.Unknown;
+        }
         catch (Exception ex)
         {
             // We could not ask. Reporting this as Disconnected — which is what returning null used to
             // do — makes every gateway look down during a KV hiccup and sends the operator after an
-            // outage that is not happening (#463).
+            // outage that is not happening (#463). An OperationCanceledException still reaches here
+            // when our own token was not the cause (an internal KV timeout), which is a real failure
+            // and worth the warning.
             _logger.LogWarning(ex, "Gateway connection read failed for {GatewayId}", ForLog(gatewayId));
             return GatewayConnectionLookup.Unknown;
         }

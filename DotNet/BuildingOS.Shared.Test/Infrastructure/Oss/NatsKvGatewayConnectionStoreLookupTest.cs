@@ -1,5 +1,6 @@
 using BuildingOS.Shared.Domain.Types;
 using BuildingOS.Shared.Infrastructure.Oss;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NATS.Client.JetStream;
@@ -61,6 +62,49 @@ public class NatsKvGatewayConnectionStoreLookupTest
 
         Assert.Equal(GatewayConnectionState.Connected, lookup.State);
         Assert.Same(status, lookup.Status);
+    }
+
+    [Fact]
+    public async Task Get_WhenTheCallerCancels_IsUnknown_WithoutLoggingAFailure()
+    {
+        // An aborted request / shutdown is normal control flow, not a KV failure — the sibling write
+        // paths in this store already treat it that way. Still Unknown: we never found out, and it
+        // must not read as 切断.
+        var log = new CapturingLogger();
+        var store = new NatsKvGatewayConnectionStore(new Mock<INatsJSContext>().Object, log);
+
+        var lookup = await store.GetAsync("GW-001", new CancellationToken(canceled: true));
+
+        Assert.Equal(GatewayConnectionState.Unknown, lookup.State);
+        Assert.Empty(log.Warnings);
+    }
+
+    [Fact]
+    public async Task Get_WhenTheKvCannotBeRead_LogsTheFailure()
+    {
+        // The genuine failure arm stays loud: it is the only trace that the state is unreadable.
+        var log = new CapturingLogger();
+        var store = new NatsKvGatewayConnectionStore(new Mock<INatsJSContext>().Object, log);
+
+        await store.GetAsync("GW-001");
+
+        Assert.Single(log.Warnings);
+    }
+
+    private sealed class CapturingLogger : ILogger<NatsKvGatewayConnectionStore>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Warning) Warnings.Add(formatter(state, exception));
+        }
     }
 
     [Theory]
