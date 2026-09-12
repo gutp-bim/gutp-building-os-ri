@@ -3,6 +3,7 @@
 import {
   bindingLabel,
   connectedLabel,
+  connectedTone,
   type GatewayAdminView,
   lastSeenLabel,
   pointlistSyncedLabel,
@@ -88,9 +89,11 @@ export function GatewayStatusPanel({
                 <span
                   data-testid="home-gateway-connected"
                   className={`mr-3 rounded px-1.5 py-0.5 text-xs font-medium ${
-                    g.connected
+                    connectedTone(g.connected) === "connected"
                       ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-600"
+                      : connectedTone(g.connected) === "disconnected"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {connectedLabel(g.connected)}

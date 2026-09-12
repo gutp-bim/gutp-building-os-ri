@@ -1,3 +1,5 @@
+using BuildingOS.Shared.Domain.Types;
+
 namespace BuildingOS.Shared.Infrastructure.Oss;
 
 /// <summary>
@@ -10,6 +12,10 @@ namespace BuildingOS.Shared.Infrastructure.Oss;
 /// This is <b>best-effort observability</b>: implementations MUST NOT throw from any method (a KV
 /// hiccup must never affect control routing, which flows over the per-gateway NATS subject regardless).
 /// A missing entry means "not observably connected", which the UI shows alongside the last-seen signal.
+///
+/// <para>Not throwing does <b>not</b> mean collapsing failure into "disconnected" (#463). The read
+/// reports three outcomes — see <see cref="GatewayConnectionState"/> — so a caller can tell a gateway
+/// that is observably down from one we simply could not ask about.</para>
 /// </summary>
 public interface IGatewayConnectionStatusStore
 {
@@ -29,8 +35,12 @@ public interface IGatewayConnectionStatusStore
     /// </summary>
     Task MarkDisconnectedAsync(string gatewayId, string replicaId, CancellationToken ct = default);
 
-    /// <summary>The gateway's current connection entry, or <c>null</c> when none is live (TTL-expired/absent).</summary>
-    Task<GatewayConnectionStatus?> GetAsync(string gatewayId, CancellationToken ct = default);
+    /// <summary>
+    /// The gateway's connection state right now, with the entry attached when one is live. Never
+    /// throws: a failed read is reported as <see cref="GatewayConnectionState.Unknown"/>, which is
+    /// deliberately distinct from <see cref="GatewayConnectionState.Disconnected"/> (#463).
+    /// </summary>
+    Task<GatewayConnectionLookup> GetAsync(string gatewayId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -39,3 +49,25 @@ public interface IGatewayConnectionStatusStore
 /// </summary>
 public sealed record GatewayConnectionStatus(
     string ReplicaId, DateTimeOffset UpdatedAt, string? AppliedRevision = null);
+
+/// <summary>
+/// The result of reading one gateway's connection state (#463). <see cref="Status"/> is only present
+/// for <see cref="GatewayConnectionState.Connected"/> — both other states carry <c>null</c>, so
+/// <b>the state, not the nullness of the status, is what a caller must branch on</b>. Branching on
+/// "status is null" is exactly the bug this type exists to prevent.
+/// </summary>
+public readonly record struct GatewayConnectionLookup(
+    GatewayConnectionState State, GatewayConnectionStatus? Status)
+{
+    /// <summary>A live heartbeat was found.</summary>
+    public static GatewayConnectionLookup Live(GatewayConnectionStatus status) =>
+        new(GatewayConnectionState.Connected, status);
+
+    /// <summary>The store answered, and this gateway has no live entry (TTL-expired / never registered).</summary>
+    public static GatewayConnectionLookup Disconnected { get; } =
+        new(GatewayConnectionState.Disconnected, null);
+
+    /// <summary>The store could not be read. Says nothing about whether the gateway is up.</summary>
+    public static GatewayConnectionLookup Unknown { get; } =
+        new(GatewayConnectionState.Unknown, null);
+}

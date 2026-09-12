@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import {
   bindingLabel,
   connectedLabel,
+  connectedTone,
   fetchGateways,
   lastSeenLabel,
   pointlistSyncedLabel,
@@ -126,9 +127,11 @@ export function GatewaysPageClient() {
                   >
                     <span
                       className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                        gw.connected
+                        connectedTone(gw.connected) === "connected"
                           ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-600"
+                          : connectedTone(gw.connected) === "disconnected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-600"
                       }`}
                     >
                       {connectedLabel(gw.connected)}

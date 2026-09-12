@@ -90,9 +90,15 @@ C. **やらない（connected のみ）** — 同期状態は将来。Phase を�
 - **TTL**: `MaxAge` = `HeartbeatInterval × 3`（既定 **30s** 目安）。レプリカがクラッシュして `Delete` に到達できなくても、
   TTL 失効で `connected=false` に落ちる。**この TTL がクラッシュ時のバックストップ**。
 - **読み取り**（ApiServer、`GatewaysController.BuildViewAsync`）: KV エントリを引き、存在かつ未失効なら `connected=true`。
-  `GatewayAdminView`（`GatewaysController.cs` L199-206）に **`bool Connected`** と（Phase 2b で）
+  `GatewayAdminView`（`GatewaysController.cs` L199-206）に **`bool? Connected`** と（Phase 2b で）
   **`bool? PointlistSynced`** を追加。既存の `LastTelemetryAt` は**併記**（connected は egress 制御面の生死、
   last-seen は ingress テレメトリの最終受信で、意味が異なるため UI で区別して出す）。
+- **接続軸は 3 値（#463 で修正）**。読み取りは `GatewayConnectionState`（`Connected` / `Disconnected` /
+  `Unknown`）を返し、API では `bool?`（`null` = 不明）で露出する。**「エントリが無い」と「読めなかった」を
+  同じ値に丸めない** — 当初の実装は例外を握り潰して `null` を返し、呼び出し側が `is not null` で bool に
+  潰していたため、KV が一時的に読めないだけで全ゲートウェイが未接続に見え、`/health` の欠測理由も全件
+  「ゲートウェイ切断」になっていた。例外を投げない方針（best-effort）は維持したまま、投げない代わりに
+  切断を騙らない、が本 ADR の接続軸の不変条件。
 
 ### 2. PointList 同期状態（Phase 2b, オプション A）
 
@@ -117,8 +123,10 @@ C. **やらない（connected のみ）** — 同期状態は将来。Phase を�
   `GATEWAY_HEARTBEAT_INTERVAL_SEC` (default 10), and clears the entry at teardown — epoch-guarded twice
   (skip if `connection.IsSuperseded`; the store also compares `replicaId` before deleting). TTL =
   `GATEWAY_HEARTBEAT_TTL_SEC` (default 30 = `NatsKvGatewayConnectionStore.DefaultTtlSeconds`).
-- Reader: `GatewaysController.BuildViewAsync` → `GatewayAdminView.Connected` (bool). UI: `connected` on
-  the admin façade + a badge in the operator-home panel and `/admin/gateways` table.
+- Reader: `GatewaysController.BuildViewAsync` → `GatewayAdminView.Connected` (`bool?`, tri-state since
+  #463). UI: `connected` on the admin façade + a badge in the operator-home panel and `/admin/gateways`
+  table, rendered in three colours (接続中 / 未接続 / 接続状態不明) matching `/health`'s
+  `GatewayConnectionBadge`.
 - Verified offline: unit (bridge wiring, controller read) + Testcontainers (`NatsKvGatewayConnectionStoreTest`:
   round-trip, epoch guard, TTL expiry — runs in the weekly `integration-tests` workflow, not runnable
   without Docker here).

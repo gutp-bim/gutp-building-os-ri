@@ -141,7 +141,9 @@ export type FreshnessStatus = 'Fresh' | 'Stale' | 'Missing' | 'Unknown'
  * points (ISO-8601), or `null` when none have reported — it is the ingress last-seen, distinct
  * from `Connected`. `Connected` is the cross-replica egress heartbeat (ADR-0004): `true`
  * when a bridge replica is holding a live egress stream for this gateway right now, `false` when
- * none is observed (TTL-expired/absent). `PointlistSynced` compares the ETag the gateway reports
+ * none is observed (TTL-expired/absent), `null` when the heartbeat could not be read at all
+ * (#463 — 不明; distinct from 未接続, and deliberately the same tri-state shape as
+ * BuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced below). `PointlistSynced` compares the ETag the gateway reports
  * as applied against the twin-authoritative BuildingOs.ApiServer.Controllers.GatewayAdminView.Revision: `true` = in sync, `false`
  * = drifted (a resync is warranted), `null` = the gateway has not reported one (unknown — e.g. not
  * connected, or a gateway build that predates the report).
@@ -158,7 +160,7 @@ export type GatewayAdminView = {
   revision?: string | undefined;
   certTrustAnchor?: string | undefined;
   lastTelemetryAt?: string | null | undefined;
-  connected?: boolean | undefined;
+  connected?: boolean | null | undefined;
   pointlistSynced?: boolean | null | undefined;
 }
 
@@ -446,7 +448,7 @@ export type PointFreshnessResult = {
 
 export type PointGatewayInfo = {
   id?: string | null | undefined;
-  connected?: boolean | undefined;
+  connected?: boolean | null | undefined;
 }
 
 export type PointHealthItem = {

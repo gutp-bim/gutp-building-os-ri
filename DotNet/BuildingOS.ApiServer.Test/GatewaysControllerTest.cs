@@ -45,7 +45,7 @@ public class GatewaysControllerTest
         var connStatus = new Mock<IGatewayConnectionStatusStore>();
         // Default: no heartbeat for any gateway (→ Connected false, #230).
         connStatus.Setup(s => s.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((GatewayConnectionStatus?)null);
+            .ReturnsAsync(GatewayConnectionLookup.Disconnected);
 
         var controller = new GatewaysController(
             twin.Object, registry.Object, pub.Object, audit.Object, telemetry.Object,
@@ -166,11 +166,27 @@ public class GatewaysControllerTest
         // A live heartbeat entry for the gateway → Connected true, independent of last-seen telemetry.
         var (c, _, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
         connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow));
+            .ReturnsAsync(GatewayConnectionLookup.Live(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow)));
 
         var ok = Assert.IsType<OkObjectResult>(await c.List(default));
         var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
         Assert.True(gw.Connected);
+    }
+
+    /// <summary>
+    /// #463: 接続状態を読めなかったときは「未接続」と言い切らない。KV の不調で全ゲートウェイが
+    /// 一斉に未接続バッジになると、運用者は存在しない障害を追いかける。
+    /// </summary>
+    [Fact]
+    public async Task List_Connected_IsNull_WhenTheHeartbeatCannotBeRead()
+    {
+        var (c, _, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
+        connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(GatewayConnectionLookup.Unknown);
+
+        var ok = Assert.IsType<OkObjectResult>(await c.List(default));
+        var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
+        Assert.Null(gw.Connected);
     }
 
     // ── PointlistSynced tri-state (#230 Phase 2b) ───────────────────────────────
@@ -188,7 +204,8 @@ public class GatewaysControllerTest
         var (c, twin, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
         twin.Setup(t => t.ListGatewayPointList("GW001")).ReturnsAsync(TwoPoints);
         connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, AppliedRevision: null));
+            .ReturnsAsync(GatewayConnectionLookup.Live(
+                new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, AppliedRevision: null)));
 
         var ok = Assert.IsType<OkObjectResult>(await c.List(default));
         var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
@@ -202,7 +219,8 @@ public class GatewaysControllerTest
         twin.Setup(t => t.ListGatewayPointList("GW001")).ReturnsAsync(TwoPoints);
         var authoritative = PointListEtag.Compute(TwoPoints);
         connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, authoritative));
+            .ReturnsAsync(GatewayConnectionLookup.Live(
+                new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, authoritative)));
 
         var ok = Assert.IsType<OkObjectResult>(await c.List(default));
         var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));
@@ -216,7 +234,8 @@ public class GatewaysControllerTest
         var (c, twin, _, _, _, connStatus) = Build(Auth("admin"), ["GW001"]);
         twin.Setup(t => t.ListGatewayPointList("GW001")).ReturnsAsync(TwoPoints);
         connStatus.Setup(s => s.GetAsync("GW001", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, "\"sha256:stale\""));
+            .ReturnsAsync(GatewayConnectionLookup.Live(
+                new GatewayConnectionStatus("replica-a", DateTimeOffset.UtcNow, "\"sha256:stale\"")));
 
         var ok = Assert.IsType<OkObjectResult>(await c.List(default));
         var gw = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<GatewayAdminView>>(ok.Value));

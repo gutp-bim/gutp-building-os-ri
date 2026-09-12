@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BuildingOS.Shared.Domain.Types;
 
 namespace BuildingOS.Shared.Domain.Health;
 
@@ -116,7 +117,13 @@ public sealed class PointHealthInput
     public ExpectedIntervals Expected { get; set; } = new();
     public PointAlarmThresholds Thresholds { get; set; } = new();
     public string? GatewayId { get; set; }
-    public bool GatewayConnected { get; set; }
+
+    /// <summary>
+    /// gateway の接続状態（#463）。<c>Unknown</c>（読めなかった）を <c>Disconnected</c> と
+    /// 同一視しないために bool ではなく 3 値。既定は <c>Connected</c>：gateway を持たない Point の
+    /// 判定に gateway 断が混じらないようにするため（<c>GatewayId</c> が無ければそもそも見ない）。
+    /// </summary>
+    public GatewayConnectionState GatewayState { get; set; } = GatewayConnectionState.Connected;
 }
 
 /// <summary>鮮度閾値の解決結果（採用した期待間隔・その出所・秒数）。</summary>
@@ -158,7 +165,12 @@ public sealed record PointHealthResult
 }
 
 /// <summary>Point が属する gateway と、その egress 接続状態（#230 のハートビート由来）。</summary>
-public sealed record PointGatewayInfo(string? Id, bool Connected);
+/// <summary>
+/// Point を所有する gateway と、その接続状態。<c>Connected</c> は **tri-state**（#463）:
+/// <c>true</c> = 接続中 / <c>false</c> = 未接続 / <c>null</c> = 接続状態を読めなかった（不明）。
+/// 同じ API の <c>GatewayAdminView.PointlistSynced</c> と同じ形。
+/// </summary>
+public sealed record PointGatewayInfo(string? Id, bool? Connected);
 
 /// <summary>
 /// 一覧 1 行。台帳の静的メタデータ（名前・単位・階層・タグ）と判定済みの 3 軸を並べたもの。

@@ -1,5 +1,6 @@
 using BuildingOS.Shared.Domain.Configuration;
 using BuildingOS.Shared.Domain.Health;
+using BuildingOS.Shared.Domain.Types;
 
 namespace BuildingOS.Shared.Test.Domain.Health;
 
@@ -32,7 +33,7 @@ public class PointHealthClassifierTest
         ExpectedIntervals? expected = null,
         PointAlarmThresholds? thresholds = null,
         string? gatewayId = null,
-        bool gatewayConnected = true) => new()
+        GatewayConnectionState gatewayState = GatewayConnectionState.Connected) => new()
         {
             PointId = "PT001",
             LastSeen = lastSeen,
@@ -41,7 +42,7 @@ public class PointHealthClassifierTest
             Expected = expected ?? new ExpectedIntervals(),
             Thresholds = thresholds ?? new PointAlarmThresholds(),
             GatewayId = gatewayId,
-            GatewayConnected = gatewayConnected,
+            GatewayState = gatewayState,
         };
 
     // ---------------------------------------------------------------------
@@ -302,10 +303,40 @@ public class PointHealthClassifierTest
     {
         // gateway が落ちている方が「一度も来ていない」より説明力が高いので優先する。
         var r = PointHealthClassifier.ClassifyFreshness(
-            Input(lastSeen: null, hasIndexEntry: false, gatewayId: "GW-001", gatewayConnected: false),
+            Input(lastSeen: null, hasIndexEntry: false, gatewayId: "GW-001", gatewayState: GatewayConnectionState.Disconnected),
             Defaults, indexReady: true, Now);
 
         Assert.Equal(MissingReason.GatewayDisconnected, r.Reason);
+    }
+
+    /// <summary>
+    /// #463: gateway の接続状態が**読めなかった**とき（KV 不達など）、切断と言い切ってはいけない。
+    /// gateway 断は「一度も来ていない」より優先される理由なので、読み取り失敗を切断に丸めると
+    /// 欠測 Point が全件「ゲートウェイ切断」になり、運用者は正常なゲートウェイを見に行く。
+    /// index 由来の理由（<c>NeverReceived</c>）は自分のインデックスについての事実なので、
+    /// gateway の状態が分からなくても真であり続ける。
+    /// </summary>
+    [Fact]
+    public void ClassifyFreshness_MissingWithUnknownGatewayState_DoesNotClaimDisconnected()
+    {
+        var r = PointHealthClassifier.ClassifyFreshness(
+            Input(lastSeen: null, hasIndexEntry: false, gatewayId: "GW-001",
+                  gatewayState: GatewayConnectionState.Unknown),
+            Defaults, indexReady: true, Now);
+
+        Assert.Equal(MissingReason.NeverReceived, r.Reason);
+    }
+
+    [Fact]
+    public void ClassifyFreshness_MissingWithEntryAndUnknownGatewayState_ReasonIsUnknown()
+    {
+        // 受信実績はあるが今は来ていない。gateway が読めない以上、理由は「不明」が正直。
+        var r = PointHealthClassifier.ClassifyFreshness(
+            Input(lastSeen: null, hasIndexEntry: true, gatewayId: "GW-001",
+                  gatewayState: GatewayConnectionState.Unknown),
+            Defaults, indexReady: true, Now);
+
+        Assert.Equal(MissingReason.Unknown, r.Reason);
     }
 
     [Fact]
@@ -313,7 +344,7 @@ public class PointHealthClassifierTest
     {
         // index にエントリはあるが timestamp が読めなかった（LastSeen=null）ケース。
         var r = PointHealthClassifier.ClassifyFreshness(
-            Input(lastSeen: null, hasIndexEntry: true, gatewayId: "GW-001", gatewayConnected: true),
+            Input(lastSeen: null, hasIndexEntry: true, gatewayId: "GW-001", gatewayState: GatewayConnectionState.Connected),
             Defaults, indexReady: true, Now);
 
         Assert.Equal(MissingReason.Unknown, r.Reason);
@@ -323,7 +354,7 @@ public class PointHealthClassifierTest
     public void ClassifyFreshness_NotMissing_HasNoReason()
     {
         var r = PointHealthClassifier.ClassifyFreshness(
-            Input(Ago(1000), gatewayId: "GW-001", gatewayConnected: false), Defaults, indexReady: true, Now);
+            Input(Ago(1000), gatewayId: "GW-001", gatewayState: GatewayConnectionState.Disconnected), Defaults, indexReady: true, Now);
 
         Assert.Equal(FreshnessStatus.Stale, r.Status);
         Assert.Null(r.Reason);

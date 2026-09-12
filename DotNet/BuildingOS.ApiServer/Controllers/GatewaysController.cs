@@ -5,6 +5,7 @@ using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
+using BuildingOS.Shared.Domain.Types;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.Oss;
@@ -136,13 +137,16 @@ public class GatewaysController : ControllerBase
         // #230/ADR-0004: live egress connection state from the cross-replica heartbeat (KV, TTL-expired).
         // Distinct from LastTelemetryAt (ingress last-seen): present here = a bridge replica is holding an
         // egress stream for this gateway right now. Best-effort — a KV miss reads as not-connected.
-        var connectionStatus = await _connectionStatus.GetAsync(id, ct).ConfigureAwait(false);
-        var connected = connectionStatus is not null;
+        var heartbeat = await _connectionStatus.GetAsync(id, ct).ConfigureAwait(false);
+        // Tri-state (#463): branch on the state, not on whether an entry came back. A failed KV read
+        // returns no entry either, and reporting that as 未接続 makes every gateway look down during a
+        // KV hiccup.
+        var connected = heartbeat.State.ToConnectedFlag();
 
         // #230 Phase 2b: pointlist sync state (tri-state). The gateway reports its applied ETag up the
         // egress stream (EgressUp.Status → heartbeat KV); compare it to the twin-authoritative revision.
         // null = not reported / not connected (unknown); true = applied == authoritative; false = drifted.
-        bool? pointlistSynced = connectionStatus?.AppliedRevision is { Length: > 0 } applied
+        bool? pointlistSynced = heartbeat.Status?.AppliedRevision is { Length: > 0 } applied
             ? string.Equals(applied, revision, StringComparison.Ordinal)
             : null;
 
@@ -219,7 +223,9 @@ public class GatewaysController : ControllerBase
 /// points (ISO-8601), or <c>null</c> when none have reported — it is the ingress last-seen, distinct
 /// from <c>Connected</c>. <c>Connected</c> is the cross-replica egress heartbeat (ADR-0004): <c>true</c>
 /// when a bridge replica is holding a live egress stream for this gateway right now, <c>false</c> when
-/// none is observed (TTL-expired/absent). <c>PointlistSynced</c> compares the ETag the gateway reports
+/// none is observed (TTL-expired/absent), <c>null</c> when the heartbeat could not be read at all
+/// (#463 — 不明; distinct from 未接続, and deliberately the same tri-state shape as
+/// <see cref="PointlistSynced"/> below). <c>PointlistSynced</c> compares the ETag the gateway reports
 /// as applied against the twin-authoritative <see cref="Revision"/>: <c>true</c> = in sync, <c>false</c>
 /// = drifted (a resync is warranted), <c>null</c> = the gateway has not reported one (unknown — e.g. not
 /// connected, or a gateway build that predates the report).
@@ -232,5 +238,5 @@ public sealed record GatewayAdminView(
     string Revision,
     string CertTrustAnchor,
     string? LastTelemetryAt,
-    bool Connected,
+    bool? Connected,
     bool? PointlistSynced);

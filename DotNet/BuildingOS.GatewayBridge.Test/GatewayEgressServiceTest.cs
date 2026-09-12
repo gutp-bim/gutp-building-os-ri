@@ -234,8 +234,11 @@ public class GatewayEgressServiceTest
             return Task.CompletedTask;
         }
 
-        public Task<GatewayConnectionStatus?> GetAsync(string gatewayId, CancellationToken ct = default)
-            => Task.FromResult<GatewayConnectionStatus?>(null);
+        // The bridge only writes heartbeats; the read side is the ApiServer's. Answering
+        // "disconnected" (not "unknown") keeps that explicit — this fake is not failing, it has
+        // nothing recorded.
+        public Task<GatewayConnectionLookup> GetAsync(string gatewayId, CancellationToken ct = default)
+            => Task.FromResult(GatewayConnectionLookup.Disconnected);
     }
 
     private sealed class ThrowingSubscribeBus : IEgressCommandBus
