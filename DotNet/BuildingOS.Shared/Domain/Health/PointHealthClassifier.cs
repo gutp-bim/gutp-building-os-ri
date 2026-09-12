@@ -1,4 +1,5 @@
 using BuildingOS.Shared.Domain.Configuration;
+using BuildingOS.Shared.Domain.Types;
 
 namespace BuildingOS.Shared.Domain.Health;
 
@@ -177,10 +178,17 @@ public static class PointHealthClassifier
     /// <summary>
     /// 欠測の理由。**gateway 断が「一度も来ていない」より優先**（運用者の次の一手に直結するため）。
     /// index にエントリがあるのに時刻が無い＝timestamp が読めなかったので Unknown。
+    ///
+    /// <para>ただし優先されるのは <see cref="GatewayConnectionState.Disconnected"/>（観測上つながって
+    /// いない）だけで、<see cref="GatewayConnectionState.Unknown"/>（接続状態を読めなかった）では
+    /// gateway 断を名乗らない（#463）。優先順位が高いぶん、ここで丸めると KV の不調のたびに欠測
+    /// Point が全件 gateway 断に見える。index 由来の理由は**自分のインデックスについての事実**なので、
+    /// gateway の状態が分からなくても成り立つ。</para>
     /// </summary>
     private static MissingReason ResolveMissingReason(PointHealthInput input)
     {
-        if (!string.IsNullOrEmpty(input.GatewayId) && !input.GatewayConnected)
+        if (!string.IsNullOrEmpty(input.GatewayId)
+            && input.GatewayState == GatewayConnectionState.Disconnected)
             return MissingReason.GatewayDisconnected;
         return !input.HasIndexEntry ? MissingReason.NeverReceived : MissingReason.Unknown;
     }

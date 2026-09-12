@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Domain.Types;
 using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.IntegrationTest.Collections;
 using BuildingOS.IntegrationTest.Common;
@@ -33,11 +34,11 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
         var gatewayId = $"gw-{Guid.NewGuid():N}";
 
         await store.MarkConnectedAsync(gatewayId, "replica-a");
-        var status = await store.GetAsync(gatewayId);
+        var lookup = await store.GetAsync(gatewayId);
 
-        Assert.NotNull(status);
-        Assert.Equal("replica-a", status!.ReplicaId);
-        Assert.Null(status.AppliedRevision); // none reported yet (#230 Phase 2b)
+        Assert.Equal(GatewayConnectionState.Connected, lookup.State);
+        Assert.Equal("replica-a", lookup.Status!.ReplicaId);
+        Assert.Null(lookup.Status.AppliedRevision); // none reported yet (#230 Phase 2b)
     }
 
     [Fact]
@@ -49,17 +50,22 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
         var gatewayId = $"gw-{Guid.NewGuid():N}";
 
         await store.MarkConnectedAsync(gatewayId, "replica-a", "\"sha256:abc\"");
-        var status = await store.GetAsync(gatewayId);
+        var lookup = await store.GetAsync(gatewayId);
 
-        Assert.NotNull(status);
-        Assert.Equal("\"sha256:abc\"", status!.AppliedRevision);
+        Assert.Equal(GatewayConnectionState.Connected, lookup.State);
+        Assert.Equal("\"sha256:abc\"", lookup.Status!.AppliedRevision);
     }
 
     [Fact]
-    public async Task Get_Returns_Null_WhenGatewayNeverConnected()
+    public async Task Get_IsDisconnected_WhenGatewayNeverConnected()
     {
+        // The store answered and found nothing — that is 未接続, not 不明 (#463).
         var store = await CreateStoreAsync();
-        Assert.Null(await store.GetAsync($"gw-{Guid.NewGuid():N}"));
+
+        var lookup = await store.GetAsync($"gw-{Guid.NewGuid():N}");
+
+        Assert.Equal(GatewayConnectionState.Disconnected, lookup.State);
+        Assert.Null(lookup.Status);
     }
 
     [Fact]
@@ -71,7 +77,7 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
         await store.MarkConnectedAsync(gatewayId, "replica-a");
         await store.MarkDisconnectedAsync(gatewayId, "replica-a");
 
-        Assert.Null(await store.GetAsync(gatewayId));
+        Assert.Equal(GatewayConnectionState.Disconnected, (await store.GetAsync(gatewayId)).State);
     }
 
     [Fact]
@@ -84,9 +90,9 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
         await store.MarkConnectedAsync(gatewayId, "replica-b");
         await store.MarkDisconnectedAsync(gatewayId, "replica-a"); // stale owner — must be a no-op
 
-        var status = await store.GetAsync(gatewayId);
-        Assert.NotNull(status);
-        Assert.Equal("replica-b", status!.ReplicaId);
+        var lookup = await store.GetAsync(gatewayId);
+        Assert.Equal(GatewayConnectionState.Connected, lookup.State);
+        Assert.Equal("replica-b", lookup.Status!.ReplicaId);
     }
 
     [Fact]
@@ -102,19 +108,17 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
         await store.MarkConnectedAsync(gwA, "replica-a");
         await store.MarkConnectedAsync(gwB, "replica-b");
 
-        var statusA = await store.GetAsync(gwA);
-        var statusB = await store.GetAsync(gwB);
-        Assert.NotNull(statusA);
-        Assert.Equal("replica-a", statusA!.ReplicaId);
-        Assert.NotNull(statusB);
-        Assert.Equal("replica-b", statusB!.ReplicaId);
+        var lookupA = await store.GetAsync(gwA);
+        var lookupB = await store.GetAsync(gwB);
+        Assert.Equal("replica-a", lookupA.Status!.ReplicaId);
+        Assert.Equal("replica-b", lookupB.Status!.ReplicaId);
 
         await store.MarkDisconnectedAsync(gwA, "replica-a");
 
-        Assert.Null(await store.GetAsync(gwA));
+        Assert.Equal(GatewayConnectionState.Disconnected, (await store.GetAsync(gwA)).State);
         var stillB = await store.GetAsync(gwB);
-        Assert.NotNull(stillB);
-        Assert.Equal("replica-b", stillB!.ReplicaId);
+        Assert.Equal(GatewayConnectionState.Connected, stillB.State);
+        Assert.Equal("replica-b", stillB.Status!.ReplicaId);
     }
 
     [Fact]
@@ -127,9 +131,34 @@ public class NatsKvGatewayConnectionStoreTest(NatsFixture fixture) : Integration
         var gatewayId = $"gw-{Guid.NewGuid():N}";
 
         await store.MarkConnectedAsync(gatewayId, "replica-a");
-        Assert.NotNull(await store.GetAsync(gatewayId));
+        Assert.Equal(GatewayConnectionState.Connected, (await store.GetAsync(gatewayId)).State);
 
         await Task.Delay(TimeSpan.FromSeconds(2));
-        Assert.Null(await store.GetAsync(gatewayId));
+        // TTL 切れは「観測上つながっていない」。読めなかった (Unknown) とは区別する。
+        Assert.Equal(GatewayConnectionState.Disconnected, (await store.GetAsync(gatewayId)).State);
+    }
+
+    /// <summary>
+    /// #463: KV がそもそも読めないとき、「未接続」ではなく「不明」を返す。ここが Disconnected に
+    /// 丸まっていたせいで、NATS の不調のたびに `/health` の欠測が全件ゲートウェイ切断に見えていた。
+    /// 接続を落として実際に読めない状態を作る（例外を投げないことも同時に確かめる）。
+    /// </summary>
+    [Fact]
+    public async Task Get_WhenNatsIsUnreachable_IsUnknown_NotDisconnected()
+    {
+        var (nats, js) = await fixture.CreateJetStreamAsync();
+        var store = new NatsKvGatewayConnectionStore(
+            js, NullLogger<NatsKvGatewayConnectionStore>.Instance);
+        var gatewayId = $"gw-{Guid.NewGuid():N}";
+
+        await store.MarkConnectedAsync(gatewayId, "replica-a");
+        Assert.Equal(GatewayConnectionState.Connected, (await store.GetAsync(gatewayId)).State);
+
+        await nats.DisposeAsync();
+
+        var lookup = await store.GetAsync(gatewayId);
+
+        Assert.Equal(GatewayConnectionState.Unknown, lookup.State);
+        Assert.Null(lookup.Status);
     }
 }

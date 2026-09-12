@@ -65,6 +65,21 @@ describe("GatewayStatusPanel", () => {
     ).toHaveTextContent("未接続");
   });
 
+  it("shows 接続状態不明 when the heartbeat could not be read (#463)", async () => {
+    // 未接続 と同じ見た目にしない。KV の読み取り失敗を「落ちている」と描くと、運用者は
+    // 存在しない障害を追いかける。
+    render(
+      <GatewayStatusPanel
+        fetchGateways={vi
+          .fn()
+          .mockResolvedValue([{ ...gateway, connected: null }])}
+      />,
+    );
+    const badge = await screen.findByTestId("home-gateway-connected");
+    expect(badge).toHaveTextContent("接続状態不明");
+    expect(badge.className).not.toContain("red");
+  });
+
   it("shows the tri-state pointlist sync badge (#230 Phase 2b)", async () => {
     const { rerender } = render(
       <GatewayStatusPanel

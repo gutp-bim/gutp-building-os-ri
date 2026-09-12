@@ -111,17 +111,31 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         }
     }
 
-    public async Task<GatewayConnectionStatus?> GetAsync(string gatewayId, CancellationToken ct = default)
+    public async Task<GatewayConnectionLookup> GetAsync(string gatewayId, CancellationToken ct = default)
     {
         try
         {
             var kv = await GetKvAsync(ct).ConfigureAwait(false);
-            return await ReadAsync(kv, SanitizeKey(gatewayId), ct).ConfigureAwait(false);
+            var status = await ReadAsync(kv, SanitizeKey(gatewayId), ct).ConfigureAwait(false);
+            // Answered: no entry (or a delete marker) means the gateway is not observably connected.
+            return status is null ? GatewayConnectionLookup.Disconnected : GatewayConnectionLookup.Live(status);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The caller walked away (request aborted / shutdown). Nothing is waiting on the answer,
+            // so this is normal control flow, not a KV failure — the sibling write paths treat it the
+            // same way. Still Unknown: we never found out, and the value must not read as 切断.
+            return GatewayConnectionLookup.Unknown;
         }
         catch (Exception ex)
         {
+            // We could not ask. Reporting this as Disconnected — which is what returning null used to
+            // do — makes every gateway look down during a KV hiccup and sends the operator after an
+            // outage that is not happening (#463). An OperationCanceledException still reaches here
+            // when our own token was not the cause (an internal KV timeout), which is a real failure
+            // and worth the warning.
             _logger.LogWarning(ex, "Gateway connection read failed for {GatewayId}", ForLog(gatewayId));
-            return null;
+            return GatewayConnectionLookup.Unknown;
         }
     }
 
@@ -134,6 +148,14 @@ public sealed class NatsKvGatewayConnectionStore : IGatewayConnectionStatusStore
         }
         catch (NatsKVKeyNotFoundException)
         {
+            return null;
+        }
+        catch (NatsKVKeyDeletedException)
+        {
+            // A graceful teardown leaves a delete marker rather than removing the key, and reading it
+            // raises its own exception. That is still a definite answer — the gateway is not
+            // connected — so it must not fall through to the caller's failure arm, which would report
+            // it as "could not find out" (#463).
             return null;
         }
     }

@@ -18,10 +18,11 @@ export interface GatewayAdminView {
   /**
    * Live **egress** connection state (#230 Phase 2②, ADR-0004): true when a GatewayBridge replica is
    * holding a live egress control stream for this gateway right now (cross-replica NATS-KV heartbeat),
-   * false when none is observed (TTL-expired/absent). Distinct from {@link lastTelemetryAt}: a gateway
-   * can be receiving telemetry (ingress) yet have no egress stream, or vice-versa.
+   * false when none is observed (TTL-expired/absent), `null` when the heartbeat could not be read at
+   * all (#463 — 不明, not 未接続). Distinct from {@link lastTelemetryAt}: a gateway can be receiving
+   * telemetry (ingress) yet have no egress stream, or vice-versa.
    */
-  connected: boolean;
+  connected: boolean | null;
   /**
    * Pointlist sync state (#230 Phase 2b, ADR-0004 option A): compares the point-list ETag the gateway
    * reports as applied (via the egress stream) against the twin-authoritative {@link revision}.
@@ -49,13 +50,33 @@ export function lastSeenLabel(
   return `${Math.floor(diffSec / 86400)}日前`;
 }
 
-/** Human label for the live egress connection state (#230). true → 「接続中」, false → 「未接続」. */
-export function connectedLabel(connected: boolean): string {
+/**
+ * Human label for the live egress connection state (#230). Tri-state (#463): `true` → 「接続中」,
+ * `false` → 「未接続」, `null` → 「接続状態不明」 — the heartbeat could not be read, which says nothing
+ * about whether the gateway is up. Same shape as {@link pointlistSyncedLabel} next to it.
+ */
+export function connectedLabel(connected: boolean | null): string {
+  if (connected === null) return "接続状態不明";
   return connected ? "接続中" : "未接続";
 }
 
 /** Tone for the pointlist sync badge (#230 Phase 2b): drives the badge colour without inline logic. */
 export type PointlistSyncTone = "ok" | "warn" | "unknown";
+
+/**
+ * Tone for the connection badge (#463). Its own type rather than {@link PointlistSyncTone}: the two
+ * badges sit side by side but do not share a palette — 未接続 is red (an outage), while a drifted
+ * pointlist is amber. The three values must render in three different colours; painting 接続状態不明
+ * the same grey-or-otherwise as 未接続 hides the state the tri-state exists to show. Matches the
+ * palette `GatewayConnectionBadge` already uses on `/health` so the same fact looks the same on both
+ * screens.
+ */
+export type GatewayConnectionTone = "connected" | "disconnected" | "unknown";
+
+export function connectedTone(connected: boolean | null): GatewayConnectionTone {
+  if (connected === null) return "unknown";
+  return connected ? "connected" : "disconnected";
+}
 
 /**
  * Tri-state pointlist sync presentation (#230 Phase 2b). `true` → 同期済み (ok),

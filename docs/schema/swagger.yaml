@@ -3649,11 +3649,12 @@ components:
           nullable: true
         connected:
           type: boolean
+          nullable: true
         pointlistSynced:
           type: boolean
           nullable: true
       additionalProperties: false
-      description: "Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived\nBuildingOs.ApiServer.Controllers.GatewayAdminView.LastTelemetryAt last-seen signal (#181 Phase 2), the live egress\nBuildingOs.ApiServer.Controllers.GatewayAdminView.Connected state (#230 Phase 2②), and the pointlist BuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced state\n(#230 Phase 2b). `LastTelemetryAt` is the most recent telemetry timestamp across the gateway's\npoints (ISO-8601), or `null` when none have reported — it is the ingress last-seen, distinct\nfrom `Connected`. `Connected` is the cross-replica egress heartbeat (ADR-0004): `true`\nwhen a bridge replica is holding a live egress stream for this gateway right now, `false` when\nnone is observed (TTL-expired/absent). `PointlistSynced` compares the ETag the gateway reports\nas applied against the twin-authoritative BuildingOs.ApiServer.Controllers.GatewayAdminView.Revision: `true` = in sync, `false`\n= drifted (a resync is warranted), `null` = the gateway has not reported one (unknown — e.g. not\nconnected, or a gateway build that predates the report)."
+      description: "Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived\nBuildingOs.ApiServer.Controllers.GatewayAdminView.LastTelemetryAt last-seen signal (#181 Phase 2), the live egress\nBuildingOs.ApiServer.Controllers.GatewayAdminView.Connected state (#230 Phase 2②), and the pointlist BuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced state\n(#230 Phase 2b). `LastTelemetryAt` is the most recent telemetry timestamp across the gateway's\npoints (ISO-8601), or `null` when none have reported — it is the ingress last-seen, distinct\nfrom `Connected`. `Connected` is the cross-replica egress heartbeat (ADR-0004): `true`\nwhen a bridge replica is holding a live egress stream for this gateway right now, `false` when\nnone is observed (TTL-expired/absent), `null` when the heartbeat could not be read at all\n(#463 — 不明; distinct from 未接続, and deliberately the same tri-state shape as\nBuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced below). `PointlistSynced` compares the ETag the gateway reports\nas applied against the twin-authoritative BuildingOs.ApiServer.Controllers.GatewayAdminView.Revision: `true` = in sync, `false`\n= drifted (a resync is warranted), `null` = the gateway has not reported one (unknown — e.g. not\nconnected, or a gateway build that predates the report)."
     GatewayCollision:
       type: object
       properties:
@@ -4186,6 +4187,7 @@ components:
           nullable: true
         connected:
           type: boolean
+          nullable: true
       additionalProperties: false
     PointHealthItem:
       type: object

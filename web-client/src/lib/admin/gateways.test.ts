@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bindingLabel,
   connectedLabel,
+  connectedTone,
   lastSeenLabel,
   pointlistSyncedLabel,
   pointlistSyncedTone,
@@ -12,6 +13,16 @@ describe("gateways display helpers", () => {
   it("connectedLabel reflects the live egress connection state (#230)", () => {
     expect(connectedLabel(true)).toBe("接続中");
     expect(connectedLabel(false)).toBe("未接続");
+  });
+
+  it("connectedLabel/Tone separate 未接続 from 接続状態不明 (#463)", () => {
+    // heartbeat が読めなかっただけで「未接続」と出すと、KV の不調のたびに全ゲートウェイが
+    // 落ちて見え、運用者は存在しない障害を追いかける。3 値が別の色になることまでが仕様
+    // （同じ灰色だと、ラベルを読むまで新しい状態に気づけない）。
+    expect(connectedLabel(null)).toBe("接続状態不明");
+    expect(connectedTone(true)).toBe("connected");
+    expect(connectedTone(false)).toBe("disconnected");
+    expect(connectedTone(null)).toBe("unknown");
   });
 
   it("pointlistSyncedLabel/Tone reflect the tri-state sync signal (#230 Phase 2b)", () => {

@@ -93,7 +93,7 @@ public class TelemetryHealthControllerTest
         // 既定は「接続エントリ無し＝未接続」。接続済みを見たいテストだけ上書きする。
         var gateways = new Mock<IGatewayConnectionStatusStore>();
         gateways.Setup(g => g.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((GatewayConnectionStatus?)null);
+            .ReturnsAsync(GatewayConnectionLookup.Disconnected);
 
         var index = new FakeIndex { State = indexState };
 
@@ -121,7 +121,12 @@ public class TelemetryHealthControllerTest
 
     private static void Connected(Harness h, string gatewayId) =>
         h.Gateways.Setup(g => g.GetAsync(gatewayId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GatewayConnectionStatus("replica-1", Now));
+            .ReturnsAsync(GatewayConnectionLookup.Live(new GatewayConnectionStatus("replica-1", Now)));
+
+    /// <summary>#463: 接続状態を読めなかった gateway（KV 不達）。切断とは別の状態。</summary>
+    private static void StatusUnknown(Harness h, string gatewayId) =>
+        h.Gateways.Setup(g => g.GetAsync(gatewayId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(GatewayConnectionLookup.Unknown);
 
     private static PointDetail Detail(
         string pointId,
@@ -340,6 +345,36 @@ public class TelemetryHealthControllerTest
         Assert.Equal("GW-001", item.Gateway!.Id);
         Assert.False(item.Gateway.Connected);
         Assert.Equal(MissingReason.GatewayDisconnected, item.Freshness.Reason);
+    }
+
+    /// <summary>
+    /// #463: KV が読めなかっただけで欠測理由を「ゲートウェイ切断」にしない。ここが割れると、
+    /// NATS KV の不調のたびに欠測 Point が全件 gateway 断に見え、運用者は正常な gateway を見に行く。
+    /// </summary>
+    [Fact]
+    public async Task Get_MissingPointWithUnreadableGatewayStatus_DoesNotBlameTheGateway()
+    {
+        var h = Build(Detail("PT-1", gatewayId: "GW-001"));
+        StatusUnknown(h, "GW-001");
+
+        var item = Assert.Single(Body(await Get(h)).Items);
+
+        Assert.NotNull(item.Gateway);
+        Assert.Equal("GW-001", item.Gateway!.Id);
+        // 接続状態そのものも「不明」として出す。赤い「切断」バッジを出さない。
+        Assert.Null(item.Gateway.Connected);
+        Assert.Equal(MissingReason.NeverReceived, item.Freshness.Reason);
+    }
+
+    [Fact]
+    public async Task Get_ConnectedGateway_ReportsConnectedTrue()
+    {
+        var h = Build(Detail("PT-1", gatewayId: "GW-001"));
+        Connected(h, "GW-001");
+
+        var item = Assert.Single(Body(await Get(h)).Items);
+
+        Assert.True(item.Gateway!.Connected);
     }
 
     [Fact]

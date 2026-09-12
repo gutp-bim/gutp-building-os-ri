@@ -3,6 +3,7 @@ using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
 using BuildingOS.Shared.Domain.Health;
+using BuildingOS.Shared.Domain.Types;
 using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Authorization;
@@ -201,7 +202,8 @@ public class TelemetryHealthController : ControllerBase
 
         var buildings = await ResolveBuildingsAsync(auth, buildingDtId, ct).ConfigureAwait(false);
 
-        var gatewayConnected = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        // 1 リクエスト内で gateway ごとに 1 回だけ引いて使い回す（数千 Point ぶん KV を叩かないため）。
+        var gatewayStates = new Dictionary<string, GatewayConnectionState>(StringComparer.OrdinalIgnoreCase);
         var items = new List<PointHealthItem>();
 
         foreach (var building in buildings)
@@ -213,13 +215,15 @@ public class TelemetryHealthController : ControllerBase
                 if (point is null) continue;
 
                 var gatewayId = ResolveGatewayId(detail);
-                var connected = true;
+                // gateway を持たない Point は接続軸を見ない。Connected を既定にしておけば、
+                // 欠測理由の解決が gateway 断へ falsely 分岐することはない。
+                var gatewayState = GatewayConnectionState.Connected;
                 if (gatewayId is not null)
                 {
-                    if (!gatewayConnected.TryGetValue(gatewayId, out connected))
+                    if (!gatewayStates.TryGetValue(gatewayId, out gatewayState))
                     {
-                        connected = await _gatewayStatus.GetAsync(gatewayId, ct).ConfigureAwait(false) is not null;
-                        gatewayConnected[gatewayId] = connected;
+                        gatewayState = (await _gatewayStatus.GetAsync(gatewayId, ct).ConfigureAwait(false)).State;
+                        gatewayStates[gatewayId] = gatewayState;
                     }
                 }
 
@@ -236,7 +240,7 @@ public class TelemetryHealthController : ControllerBase
                         ToJsonDouble(point.AlarmHigh), ToJsonDouble(point.AlarmLow),
                         ToJsonDouble(point.WarnHigh), ToJsonDouble(point.WarnLow)),
                     GatewayId = gatewayId,
-                    GatewayConnected = connected,
+                    GatewayState = gatewayState,
                 };
 
                 var result = PointHealthClassifier.Classify(input, thresholds, indexReady, now);
@@ -249,7 +253,9 @@ public class TelemetryHealthController : ControllerBase
                     Unit = point.Unit,
                     Freshness = result.Freshness,
                     Alarm = result.Alarm,
-                    Gateway = gatewayId is null ? null : new PointGatewayInfo(gatewayId, connected),
+                    Gateway = gatewayId is null
+                        ? null
+                        : new PointGatewayInfo(gatewayId, gatewayState.ToConnectedFlag()),
                     HealthStatus = result.HealthStatus,
                     DeviceDtId = detail.Device?.DtId,
                     DeviceName = detail.Device?.Name,
