@@ -9,17 +9,27 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// and the store is empty; (2) validates device templates against OxiGraph when
 /// OXIGRAPH_DEVICE_TEMPLATE_PATH is set — throws InvalidOperationException on mismatch to stop startup.
 ///
+/// <para><b>The store-empty check (#484)</b> is what makes OXIGRAPH_SEED_TTL_PATH safe to leave set
+/// across restarts. It reuses the readiness probe's own row count (<see cref="WaitForOxiGraphAsync"/>)
+/// rather than issuing a second query: a store with zero triples gets seeded, a non-empty store — one
+/// already seeded, or one that has since accumulated runtime twin edits via the admin import API —
+/// is left alone and the import is skipped (logged, not silent). Before this check the import ran
+/// unconditionally on every restart, silently discarding any runtime twin state that had diverged
+/// from the seed file.</para>
+///
 /// <para><b>Two instances seeding at once (#447)</b> — the case a second <c>WORKER_ROLE=all</c> replica
 /// creates — is convergent rather than corrupting, and deliberately carries no distributed lock. The
 /// import replaces the default graph, but <see cref="OxiGraphIngestMaterializer"/> sends the whole
 /// clear-and-rebuild as a single SPARQL UPDATE request, which OxiGraph commits in one transaction: a
 /// reader (including the other replica's own uniqueness check) sees the twin either wholly before or
-/// wholly after, never half-cleared. Two replicas seeding the same file therefore write the same
-/// content, and the loser's work is simply redundant — plus one extra point-list push, which gateways
-/// absorb as an ETag 304. What is *not* covered is two replicas seeding *different* files: they would
-/// overwrite each other on every restart. That is a misconfiguration to detect in deployment, not a
-/// race to lock against — a startup lock would buy nothing for the identical-file case and would add a
-/// hard NATS dependency to a path the single-container OSS stack must be able to run without.</para>
+/// wholly after, never half-cleared. Two replicas racing to seed the same file while the store is still
+/// empty therefore write the same content, and the loser's work is simply redundant — plus one extra
+/// point-list push, which gateways absorb as an ETag 304. A replica joining *after* the store is already
+/// non-empty skips seeding entirely per the empty check above, which only strengthens convergence. What
+/// is *not* covered is two replicas seeding *different* files while both start from empty: they would
+/// race to decide the initial content. That is a misconfiguration to detect in deployment, not a race to
+/// lock against — a startup lock would buy nothing for the identical-file case and would add a hard NATS
+/// dependency to a path the single-container OSS stack must be able to run without.</para>
 /// </summary>
 public sealed class OxiGraphSeedHostedService(
     OxiGraphClient client,
@@ -64,10 +74,17 @@ public sealed class OxiGraphSeedHostedService(
             // the store's listener may not be bound yet. Everything below talks to OxiGraph, and
             // the uniqueness validation in particular has no error handling of its own — an
             // unbound port used to propagate straight out of StartAsync and kill the process (#321).
-            await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
+            var isEmpty = await WaitForOxiGraphAsync(ct).ConfigureAwait(false);
             waited = true;
 
-            await TrySeedAsync(seedTtlPath, ct).ConfigureAwait(false);
+            if (isEmpty)
+                await TrySeedAsync(seedTtlPath, ct).ConfigureAwait(false);
+            else
+                logger.LogInformation(
+                    "OxiGraph store is not empty; skipping seed import from {Path} to avoid " +
+                    "discarding runtime twin changes (#484). Unset OXIGRAPH_SEED_TTL_PATH after " +
+                    "first boot, or clear the store, if a fresh import is actually intended.",
+                    seedTtlPath);
 
             // gateway_id must be globally unique: a gateway addresses a point by gateway_id +
             // point_id (ingress provenance/ownership, egress per-gateway routing), so the same id
@@ -106,7 +123,9 @@ public sealed class OxiGraphSeedHostedService(
     private static readonly TimeSpan FinalProbeGrace = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    /// Blocks until OxiGraph answers a query, or the startup budget elapses.
+    /// Blocks until OxiGraph answers a query, or the startup budget elapses. Returns whether the
+    /// store was empty on that successful probe (#484) — the readiness query already asks for one
+    /// triple, so the emptiness check rides along for free instead of costing a second round trip.
     /// </summary>
     /// <remarks>
     /// Only transport-level failures are retried. A store that answers with an error is reporting a
@@ -114,7 +133,7 @@ public sealed class OxiGraphSeedHostedService(
     /// to a 2s ceiling: the wait is usually a second or two of container startup, so a long tail
     /// would add avoidable dead time to every boot.
     /// </remarks>
-    private async Task WaitForOxiGraphAsync(CancellationToken ct)
+    private async Task<bool> WaitForOxiGraphAsync(CancellationToken ct)
     {
         var deadline = DateTimeOffset.UtcNow + _startupTimeout;
         var delay = TimeSpan.FromMilliseconds(100);
@@ -139,10 +158,10 @@ public sealed class OxiGraphSeedHostedService(
             probeCts.CancelAfter(probeBudget);
             try
             {
-                await client.QueryAsync(ReadinessQuery, probeCts.Token).ConfigureAwait(false);
+                var rows = await client.QueryAsync(ReadinessQuery, probeCts.Token).ConfigureAwait(false);
                 if (attempts > 1)
                     logger.LogInformation("OxiGraph became reachable after {Attempts} attempts", attempts);
-                return;
+                return rows.Count == 0;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
