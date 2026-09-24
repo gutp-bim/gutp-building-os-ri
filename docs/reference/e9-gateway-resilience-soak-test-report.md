@@ -18,11 +18,11 @@ Building OS OSS スタックに接続し、**約 73 時間**の連続稼働評�
 - 計画した障害注入(ConnectorWorker 再起動・ネットワーク分断・Point List 更新・MinIO 一時停止)
   はいずれも実施し、**すべて損失ゼロで復旧**した(詳細は §3)。
 - 48 時間時点の Point List 更新を「自然実験」として、点数の変化(約 2.2 倍)に対する
-  ConnectorWorker / OxiGraph / NATS のメモリ使用量の変化を実測した(§4)。
+  ConnectorWorker / OxiGraph / NATS のメモリ使用量の変化を実測した(§5)。
 - Control(機器制御)系の障害注入(ゲートウェイオフライン検知・送信中 timeout・重複要求)は
   部分的にしか完了しなかった。既存の評価計画([`e2e/evaluation-report.md`](../../e2e/evaluation-report.md))
   でも同じ 3 項目が意図的に SKIP されていたことが判明し、真に未検証のまま残るのは
-  「送信中 disconnect 後の timeout」「重複 ControlResult」の 2 点に絞り込めた(§5)。
+  「送信中 disconnect 後の timeout」「重複 ControlResult」の 2 点に絞り込めた(§6)。
 - 評価の過程で `OxiGraphSeedHostedService` のドキュメントと実装の不一致(意図せぬ twin
   ロールバックの危険性)を発見し、Issue 化した([gutp-bim/gutp-building-os-ri#484](https://github.com/gutp-bim/gutp-building-os-ri/issues/484))。
 
@@ -35,8 +35,8 @@ Building OS OSS スタックに接続し、**約 73 時間**の連続稼働評�
 | 36h | Gateway ↔ BuildingOS ネットワーク分断・再接続 | **PASS**(RTO 48–78 秒、backlog 追従を確認) |
 | 48h | Point List 更新 + 通知欠落からの polling 復旧 + 更新失敗時の rollback 確認 | **PASS**(詳細 §3.3) |
 | 60h | Parquet writer / MinIO 一時停止 | **PASS**(outage 4 分 25 秒、RTO 約 25 秒、データロス 0 件) |
-| 70h | Control 送信中の gateway 切断・timeout・重複要求 | **部分完了**(§5 参照) |
-| 72h | 最終整合性照合(全件突合) | **PASS**(§6 参照) |
+| 70h | Control 送信中の gateway 切断・timeout・重複要求 | **部分完了**(§6 参照) |
+| 72h | 最終整合性照合(全件突合) | **PASS**(§7 参照) |
 
 ## 3. 障害注入の詳細
 
@@ -81,7 +81,24 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 - `ParquetLakeWriterWorker`(実データ書き込み本体)は失敗ログ 0 件。
 - MinIO 自体の RTO(起動から healthy 判定まで)は約 25 秒。
 
-## 4. スケーリング分析(点数対リソース要件)
+## 4. テレメトリトレンドの実測
+
+`GET /telemetries/query` で取得した実測値から、73 時間全体および 48h 更新後に新規追加
+されたカテゴリのトレンドをキャプチャした。
+
+![Site-A 外気温・外気湿度の73時間トレンド](images/e9-oat-oarh-trend.png)
+
+外気温・湿度は 73 時間で 2 晩分の明瞭な日周期変動を示した(気温 19.3〜31.1℃、湿度
+40〜100%)。
+
+![Site-A 在室人数・CO2濃度の新規カテゴリトレンド](images/e9-occupancy-co2-trend.png)
+
+48h マイルストーンで新たに取り込まれるようになった在室人数(WiFi ベースの人流センサー)・
+CO2 濃度は、在室人数の増加に遅れて CO2 濃度が緩やかに上昇するという、物理的に妥当な相関を
+示した(在室人数 0〜8 人、CO2 濃度 394〜765 ppm)。上流ツールのバグ修正(§3.3)で救済された
+カテゴリが、実際に意味のあるテレメトリを生成し続けていることを裏付ける結果になった。
+
+## 5. スケーリング分析(点数対リソース要件)
 
 48h の Point List 更新(約 2.2 倍の点数増加)を自然実験として、コンポーネントごとの
 点数対リソース要件を実測した。
@@ -101,7 +118,7 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 `docker stats` ベースの観測のため、.NET の GC 保持分と実データ増加分を完全には
 切り分けられていない点にも留意すること。
 
-## 5. Control 安全性の検証状況(70h マイルストーン)
+## 6. Control 安全性の検証状況(70h マイルストーン)
 
 70h マイルストーンでは、Control(機器制御)コマンド送信中のゲートウェイ切断・timeout・
 重複要求という障害注入を計画した。実機への誤作動リスクを避けるため、実際の建物・
@@ -128,7 +145,7 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 いずれも `docs/architecture/oss-control-safety.md` に「将来課題」と明記されている領域であり、
 既存の unit/integration/E2E テストにも該当するものが無いことを確認した。
 
-## 6. 72h 最終整合性照合
+## 7. 72h 最終整合性照合
 
 | レイヤー | 値 | 備考 |
 |---|---:|---|
@@ -139,7 +156,7 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 `parquetlakewriter` コンシューマの再送(NAK)は 72 時間を通じて 0 件。差分は直近の
 スループットから見て未 compact のバックログとして説明でき、データロスを示す証跡ではない。
 
-## 7. 保存データ量
+## 8. 保存データ量
 
 | 項目 | 値 |
 |---|---:|
@@ -154,7 +171,7 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 5 万行で約 2.8 bytes/行という実測値がある。前提データ(実テレメトリ vs 合成データ)が異なる
 ため単純比較はできないが、いずれも「非常に高圧縮」という結論は一致する。
 
-## 8. 測定環境
+## 9. 測定環境
 
 | 項目 | 値 |
 |---|---|
@@ -164,9 +181,9 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 | ゲートウェイ接続経路 | 別ホスト上の実ゲートウェイ ↔ mTLS 終端 nginx エッジ(:5051 系統 Ingress / :5052 系統 Egress)↔ Building OS |
 
 業務用サーバではなく開発者ノート PC 1 台でも、数千点規模・73 時間の連続稼働に安定して耐えた。
-より大規模な展開の容量計画には、桁が変わる点数規模での再検証(§4 参照)を推奨する。
+より大規模な展開の容量計画には、桁が変わる点数規模での再検証(§5 参照)を推奨する。
 
-## 9. 発見した問題・follow-up
+## 10. 発見した問題・follow-up
 
 | 課題 | 状態 |
 |---|---|
@@ -175,18 +192,18 @@ mTLS 終端エッジ(nginx)を経由するネットワークパスを一時的�
 | `/api/admin/twin/import/apply` 経由の更新で Point List push 通知が発火しない | 未着手(ポーリングがバックストップとして機能することは確認済み) |
 | GatewayBridge(Egress)に ConnectorWorker Ingress の #296 相当の identity-binding が無い | 未着手 |
 | Point List 同期 API(`GET /gateways/{id}/pointlist`)が mTLS 化されていない | 未着手 |
-| Control 送信中 disconnect の timeout 挙動・重複 ControlResult の扱い | 未検証(§5 参照) |
+| Control 送信中 disconnect の timeout 挙動・重複 ControlResult の扱い | 未検証(§6 参照) |
 
-## 10. 既知の限界
+## 11. 既知の限界
 
 - 単一ホスト・単一ゲートウェイでの評価であり、複数ゲートウェイ・複数 API レプリカでの
   挙動は対象外(#261/#262 の大規模スイープを別途参照)。
 - メモリ/CPU のスケーリング分析は 1 回の自然実験(約 2.2 倍の点数変化)のみに基づく。
 - コンテナイメージが distroless 系のため、`dotnet-counters` 等のマネージドヒープ診断ツールを
   実行できず、GC 保持分と実データ増加分の完全な切り分けはできていない。
-- Control 系の未検証項目(§5)は次回評価の候補。
+- Control 系の未検証項目(§6)は次回評価の候補。
 
-## 11. 参照
+## 12. 参照
 
 - [`docs/reference/performance-evaluation-report.md`](performance-evaluation-report.md) — スケールスイープ(#261)・Gateway 再接続(#262)の既存評価
 - [`e2e/evaluation-report.md`](../../e2e/evaluation-report.md) — E1〜E8 定量評価ゲート(Control 安全性 E6 含む)
