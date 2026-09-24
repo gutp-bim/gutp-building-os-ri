@@ -25,7 +25,12 @@ volumes:
   nats_data:
   pg_data:
   oxigraph_data:
-  minio_data:
+  # Named rustfs_data (not minio_data) deliberately: MinIO's and RustFS's on-disk formats are not
+  # interchangeable despite S3-API compatibility — mounting an existing minio_data volume into
+  # RustFS would silently make its previously-written objects unreadable rather than migrate them.
+  # A stack already running the old MinIO image keeps its own minio_data volume (and history)
+  # completely untouched; this is a new, empty volume for the RustFS-backed service.
+  rustfs_data:
   keycloak_data:
   prometheus_data:
   grafana_data:
@@ -192,7 +197,7 @@ services:
       - "9000:9000"   # S3 API
       - "9001:9001"   # Web Console
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
     networks:
       - oss
     healthcheck:
