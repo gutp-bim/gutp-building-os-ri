@@ -401,8 +401,8 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 | 8222 | NATS（モニタリング） | http://localhost:8222 |
 | 5433 | PostgreSQL 16 | `localhost:5433` |
 | 7878 | OxiGraph（SPARQL） | http://localhost:7878 |
-| 9000 | MinIO（S3 API） | http://localhost:9000 |
-| 9001 | MinIO（Web Console） | http://localhost:9001 |
+| 9000 | MinIO（S3 API、実体は RustFS — 後述） | http://localhost:9000 |
+| 9001 | MinIO（Web Console、実体は RustFS） | http://localhost:9001 |
 | 8080 | Keycloak | http://localhost:8080 |
 | 9090 | Prometheus（`--profile observability`） | http://localhost:9090 |
 | 3010 | Grafana（`--profile observability`） | http://localhost:3010 |
@@ -411,6 +411,17 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 | 1883 | Mosquitto（MQTT、`--profile mqtt`） | `mqtt://localhost:1883` |
 | **5000** | **API Server**（`WithLocal`）| http://localhost:5000 |
 | **3000** | **Web Client**（`/admin` に管理ワークスペース）| http://localhost:3000 |
+
+> **`building-os.minio` は RustFS で動いています（#489）**: MinIO は 2026-09-11 に `minio/minio`
+> イメージを Docker Hub から削除し、フォールバック先とされていた `quay.io/minio/minio` も
+> 2026-09-25 時点でアクセス不能（両レジストリとも全タグで確認済み）。RustFS
+> ([rustfs/rustfs](https://github.com/rustfs/rustfs)、Apache-2.0・S3 API 互換)は現時点で唯一配布が
+> 生きている代替で、本リポジトリの `AmazonS3Client` ベースのコード
+> (`MinioBlobStorage`・`LakeRetentionHostedService` 等、ILM/lifecycle 含む)がそのまま動作すること
+> を確認済み。サービス名・環境変数名（`MINIO_ROOT_USER` 等）は変更していない — 変わったのは
+> `docker-compose.oss.yaml` の `building-os.minio` サービスのイメージ・ヘルスチェックのみ。
+> 本番 IaC（`opentofu/modules/minio`）は対象外で、コールド階層の副次 Sink としての採用は
+> [#489](https://github.com/gutp-bim/gutp-building-os-ri/issues/489) で別途検討中。
 
 ---
 

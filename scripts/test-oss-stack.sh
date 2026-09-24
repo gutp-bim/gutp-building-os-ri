@@ -80,9 +80,11 @@ check "SPARQL endpoint"    "curl -sf -X POST http://localhost:7878/query \
   -H 'Accept: application/sparql-results+json'"
 
 # ── MinIO ─────────────────────────────────────────────────────────────────────
+# Backed by RustFS (#489) — MinIO's own image is gone from Docker Hub/quay.io — whose health
+# endpoint is plain /health rather than MinIO's /minio/health/live.
 echo
 echo "[MinIO]"
-check "health endpoint (9000)" "curl -sf http://localhost:9000/minio/health/live"
+check "health endpoint (9000)" "curl -sf http://localhost:9000/health"
 check "console port (9001)"    "nc -z localhost 9001"
 
 # ── Keycloak ──────────────────────────────────────────────────────────────────

@@ -78,8 +78,17 @@ yarn generate               # regenerate TypeScript types from proto files via B
 > workspace under `/admin` — there is no separate admin app.
 
 ### Local Development Services
+> **`building-os.minio` runs RustFS, not MinIO (#489):** MinIO deleted `minio/minio` from Docker
+> Hub on 2026-09-11, and the `quay.io/minio/minio` fallback some projects used is also unauthorized
+> as of 2026-09-25 (both verified dead across every tag, not just one). RustFS
+> ([rustfs/rustfs](https://github.com/rustfs/rustfs), Apache-2.0, S3-API-compatible) is the only
+> still-published option and has been verified as a drop-in for this codebase's `AmazonS3Client`
+> usage (`MinioBlobStorage`, `LakeRetentionHostedService`'s ILM). Only
+> `docker-compose.oss.yaml`'s `building-os.minio` image/healthcheck changed — service name, ports,
+> and `MINIO_*` env var names are untouched. Production IaC (`opentofu/modules/minio`) is unaffected;
+> RustFS as a cold-tier archive sink is tracked separately in #489.
 ```bash
-docker compose -f docker-compose.oss.yaml up -d   # NATS, PostgreSQL 16, OxiGraph, MinIO, Keycloak, ConnectorWorker, GatewayBridge
+docker compose -f docker-compose.oss.yaml up -d   # NATS, PostgreSQL 16, OxiGraph, MinIO(RustFS), Keycloak, ConnectorWorker, GatewayBridge
 docker compose -f docker-compose.oss.yaml down
 docker compose up -d   # Redis (legacy helper service)
 
