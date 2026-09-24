@@ -91,7 +91,7 @@ yarn generate               # regenerate TypeScript types from proto files via B
 > on-disk formats are not interchangeable — mounting the existing `minio_data` volume straight into
 > RustFS makes its contents unreadable rather than migrating them. Run
 > `scripts/migrate-minio-to-rustfs.sh <existing building-os.minio container>` (S3-API-level copy,
-> verified end-to-end) before `docker compose up -d`. A fresh clone has no prior volume and needs
+> verified end-to-end) before `docker compose -f docker-compose.oss.yaml up -d`. A fresh clone has no prior volume and needs
 > none of this.
 ```bash
 docker compose -f docker-compose.oss.yaml up -d   # NATS, PostgreSQL 16, OxiGraph, MinIO(RustFS), Keycloak, ConnectorWorker, GatewayBridge

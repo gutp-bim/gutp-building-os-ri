@@ -10,7 +10,7 @@
 # container still running on the MinIO image — do NOT `docker compose pull`/recreate it before running
 # this. A brand-new clone with no prior minio_data volume does not need this script at all.
 #
-# Stop anything still writing to the lake first (e.g. `docker compose stop building-os.connector-worker`)
+# Stop anything still writing to the lake first (e.g. `docker compose -f docker-compose.oss.yaml stop building-os.connector-worker`)
 # — this is a point-in-time copy, not live replication, and it treats a mismatched object count between
 # old and new as a hard failure specifically so a concurrent write during the mirror cannot pass as a
 # silent success.
@@ -111,7 +111,7 @@ if [ "${OLD_COUNT}" != "${NEW_COUNT}" ]; then
 
 FAILED: object counts still differ after two mirror passes (old: ${OLD_COUNT}, new: ${NEW_COUNT}).
 This usually means something is still writing to ${OLD_CONTAINER} — stop the writer
-(e.g. \`docker compose stop building-os.connector-worker\`) and re-run this script.
+(e.g. \`docker compose -f docker-compose.oss.yaml stop building-os.connector-worker\`) and re-run this script.
 ${NEW_VOLUME} was left in place for inspection but should NOT be trusted yet.
 EOF
   exit 1

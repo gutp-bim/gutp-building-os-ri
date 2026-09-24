@@ -424,7 +424,7 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 > [#489](https://github.com/gutp-bim/gutp-building-os-ri/issues/489) で別途検討中。
 > **既に MinIO でスタックを起動済みでデータを残したい場合**は、この変更を取り込む前に
 > `scripts/migrate-minio-to-rustfs.sh <既存の building-os.minio コンテナ名>` を実行してから
-> `docker compose up -d` すること — MinIO と RustFS はオンディスク形式に互換性が無く、既存の
+> `docker compose -f docker-compose.oss.yaml up -d` すること — MinIO と RustFS はオンディスク形式に互換性が無く、既存の
 > `minio_data` ボリュームをそのまま RustFS にマウントしても中身は読めない。新規 clone は
 > 影響しない（空の新規ボリュームから始まるだけ）。
 
