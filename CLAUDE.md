@@ -87,6 +87,12 @@ yarn generate               # regenerate TypeScript types from proto files via B
 > `docker-compose.oss.yaml`'s `building-os.minio` image/healthcheck changed — service name, ports,
 > and `MINIO_*` env var names are untouched. Production IaC (`opentofu/modules/minio`) is unaffected;
 > RustFS as a cold-tier archive sink is tracked separately in #489.
+> **Already running the old MinIO-backed stack and want to keep its data?** MinIO's and RustFS's
+> on-disk formats are not interchangeable — mounting the existing `minio_data` volume straight into
+> RustFS makes its contents unreadable rather than migrating them. Run
+> `scripts/migrate-minio-to-rustfs.sh <existing building-os.minio container>` (S3-API-level copy,
+> verified end-to-end) before `docker compose up -d`. A fresh clone has no prior volume and needs
+> none of this.
 ```bash
 docker compose -f docker-compose.oss.yaml up -d   # NATS, PostgreSQL 16, OxiGraph, MinIO(RustFS), Keycloak, ConnectorWorker, GatewayBridge
 docker compose -f docker-compose.oss.yaml down
