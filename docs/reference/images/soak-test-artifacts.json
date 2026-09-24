@@ -1,0 +1,126 @@
+{
+  "description": "Anonymized reconciliation and milestone artifact for the gateway mTLS endurance soak evaluation. Facility/gateway/network identifiers are omitted; quantitative results are as measured.",
+  "evaluated_source": {
+    "note": "Docker images were built from a separate clone of this repository that had drifted from main and carried additional uncommitted local modifications at build time. The base commit and image build timestamps are recorded below for traceability, but full source reproducibility cannot be guaranteed.",
+    "base_commit": "158ec83542196acdcc26603725cdae76410a3567",
+    "base_commit_subject": "feat(e2e): gate E10 on retention rather than on how far RSS climbed, and add the capped-run variant (#297) (#393)",
+    "base_commit_date": "2026-08-28T14:16:40+09:00",
+    "image_build_timestamp_utc": "2026-09-09T03:50:3x.xxxxxxxxxZ",
+    "image_ids": {
+      "building-os.api": "sha256:294c875203d636acf9c4c29d0223eae5c9564433df51ea17e3be9ec877a32849",
+      "building-os.connector-worker": "sha256:5ba7c16ea280e5b6dd2d008b93c5fc1f808023ddb160455902d33ef2f6046c0e",
+      "building-os.gateway-bridge": "sha256:68699b90c0c8d8af303fa2f77594067885367d9b51ee3ac440ef547edca4d539"
+    },
+    "known_drift_from_evaluated_base": [
+      {
+        "commit": "4c61abd156441268388858e14f9c3f5d27851a0e",
+        "subject": "fix(twin): publish point-list update to gateways after admin import apply (#425)",
+        "merged_after_base_commit_by_days": 10,
+        "impact": "Wires PointListUpdateBroadcaster.PublishAllAsync into OxiGraphTwinAdminService.ApplyImportAsync. The evaluated image predates this fix, so the report's observation that push notifications were not fired on POST /api/admin/twin/import/apply was accurate for the tested build but is now resolved on main."
+      }
+    ]
+  },
+  "run": {
+    "t0_utc": "2026-09-21T03:26:09Z",
+    "duration_hours": 73.6,
+    "point_count_before": 1468,
+    "point_count_after_48h_update": 3272,
+    "gateway_count": 1
+  },
+  "milestones": [
+    {
+      "elapsed_hours": 26,
+      "name": "connector_worker_restart",
+      "executed_at_utc": "2026-09-22T05:32:37Z",
+      "rto_seconds_range": [13, 16],
+      "data_loss_events": 0
+    },
+    {
+      "elapsed_hours": 36,
+      "name": "network_partition",
+      "rto_seconds_range": [48, 78],
+      "data_loss_events": 0,
+      "note": "backlog burst-caught-up on reconnect"
+    },
+    {
+      "elapsed_hours": 48,
+      "name": "point_list_update_and_rollback",
+      "etag_before": "REDACTED",
+      "etag_after": "REDACTED",
+      "point_count_before": 1469,
+      "point_count_after": 3272,
+      "orphan_rejection_tested": true,
+      "orphan_rejection_result": "409 Conflict, twin unchanged",
+      "push_notification_fired_on_import_apply": false,
+      "push_notification_note": "Not fired in the evaluated build (predates #425). Polling backstop confirmed to pick up the change within one polling interval (observed: well under the ~10 minute maximum)."
+    },
+    {
+      "elapsed_hours": 60,
+      "name": "minio_outage",
+      "outage_start_utc": "2026-09-23T15:32:30Z",
+      "outage_end_utc": "2026-09-23T15:36:55Z",
+      "outage_duration_seconds": 265,
+      "minio_rto_seconds": 25,
+      "compaction_worker_errors": 1,
+      "compaction_worker_error_note": "Self-recovered on next cycle per its skip-and-replan design; no process crash.",
+      "parquet_lake_writer_errors": 0
+    },
+    {
+      "elapsed_hours": 70,
+      "name": "control_safety_fault_injection",
+      "status": "partial",
+      "tests": {
+        "gateway_offline_detection": {
+          "status": "attempted, result not conclusively attributed",
+          "note": "Observed 202 Accepted where 503 was expected against a test-only point bound to a dedicated gateway id; NATS BUILDING_OS_CONTROL stream showed 1 message, indicating the request was routed to the generic in-process handler subject rather than the per-gateway GatewayBridge egress subject. Root cause of the binding resolution not reaching the expected path was not isolated within the test window. No real gateway or equipment was reached in either case."
+        },
+        "disconnect_during_control_timeout": { "status": "not executed" },
+        "duplicate_control_result": { "status": "not executed" }
+      }
+    },
+    {
+      "elapsed_hours": 72,
+      "name": "final_reconciliation",
+      "nats_validated_stream_cumulative_last_seq": 1110088,
+      "parquet_lake_compacted_rows": 1074855,
+      "parquet_lake_compacted_hours": 70,
+      "parquet_lake_compacted_parts_merged": 777,
+      "uncompacted_backlog_estimate": 35233,
+      "reconciliation_method": "Aggregate count comparison (cumulative NATS publish counter vs. compacted Parquet row count). This is NOT a per-sequence-number or per-point-id join across all three layers (NATS / Hot KV / Parquet Lake); a full row-level reconciliation was not performed.",
+      "parquet_lake_writer_nak_count_over_72h": 0
+    }
+  ],
+  "storage": {
+    "nats_validated_cumulative_publishes": 1110088,
+    "parquet_lake_compacted_rows": 1074855,
+    "parquet_lake_disk_bytes": 15437041,
+    "parquet_lake_bytes_per_row": 14.36,
+    "nats_jetstream_volume_mib": 243.0,
+    "oxigraph_volume_mib": 370.7,
+    "oxigraph_triple_count": 60010,
+    "postgres_volume_mib": 46.4
+  },
+  "resource_scaling_observation": {
+    "method": "Single natural experiment across the 48h Point List update (~2.2x point count increase). Not a controlled multi-point sweep.",
+    "components": {
+      "oxigraph_mib": { "before": [66, 67], "after_stable": 609 },
+      "connector_worker_mib": { "before_oscillation_band": [330, 425], "after_oscillation_band": [460, 690] },
+      "nats_mib": { "before_floor": [100, 150], "after_floor": [270, 340] }
+    },
+    "caveat": "docker stats reports cgroup working set; managed heap vs. GC-committed-but-unreturned vs. page cache could not be separated because the runtime images are distroless (no dotnet-counters). This repository's own e2e/scenarios/E10-endurance-soak.md documents an OTel + Prometheus based method to make that separation (connector_worker_rss_minus_gc_committed_*); this evaluation did not use it."
+  },
+  "telemetry_trend_samples": {
+    "outdoor_temperature_c": { "n": 378, "min": 19.3, "max": 31.1, "mean": 23.15, "window_hours": 73 },
+    "outdoor_humidity_pct": { "n": 378, "min": 40, "max": 100, "mean": 82.71, "window_hours": 73 },
+    "occupancy_count": { "n": 1480, "min": 0, "max": 8, "mean": 0.77, "window_hours": 25, "note": "category recovered after the 48h Point List update" },
+    "co2_ppm": { "n": 141, "min": 394, "max": 765, "mean": 456.31, "window_hours": 25, "note": "category recovered after the 48h Point List update" }
+  },
+  "known_gaps_not_covered_by_this_evaluation": [
+    "Control command disconnect-during-send timeout (CONTROL_RESULT_TIMEOUT_SEC) behavior",
+    "Duplicate ControlResult handling for the same control_id",
+    "Multi-gateway and multi-API-replica behavior (single gateway, single replica only in this run)",
+    "Tens-of-thousands-of-points scale combined with multi-day duration (functional scaling to 50,000 points is covered separately by #261, but not combined with long-duration soak, and not with memory/CPU measurement)",
+    "Managed-heap-vs-GC-committed memory leak determination (only cgroup RSS was observed; see e2e/scenarios/E10-endurance-soak.md #370 for the project's own methodology to separate these)",
+    "Full per-point end-to-end reconciliation across NATS/Hot-KV/Parquet-Lake by sequence number or point id (only aggregate counts were compared)"
+  ]
+}

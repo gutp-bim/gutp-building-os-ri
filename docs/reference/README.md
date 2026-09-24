@@ -4,7 +4,7 @@
 
 - [Evaluation Summary](evaluation-summary.md)
 - [パフォーマンス総合評価](performance-evaluation-report.md)
-- [E9 ゲートウェイ mTLS 接続・長時間障害復旧評価](e9-gateway-resilience-soak-test-report.md)
+- [実運用ゲートウェイ mTLS 接続・長時間稼働評価](gateway-mtls-endurance-soak-report.md)
 - [DuckDB 性能評価](oss-duckdb-spike.md)
 - [OSS 技術スタック分析](oss-tech-stack-analysis.md)
 - [Azure / OSS 機能比較](oss-feature-comparison.md)
