@@ -10,6 +10,11 @@
 # container still running on the MinIO image — do NOT `docker compose pull`/recreate it before running
 # this. A brand-new clone with no prior minio_data volume does not need this script at all.
 #
+# Stop anything still writing to the lake first (e.g. `docker compose stop building-os.connector-worker`)
+# — this is a point-in-time copy, not live replication, and it treats a mismatched object count between
+# old and new as a hard failure specifically so a concurrent write during the mirror cannot pass as a
+# silent success.
+#
 # Usage:
 #   scripts/migrate-minio-to-rustfs.sh <old_minio_container> [bucket]
 #
@@ -28,8 +33,16 @@ NETWORK="building-os-oss"
 NEW_VOLUME="$(docker compose -f docker-compose.oss.yaml config --format json \
   | python3 -c 'import sys,json; print(json.load(sys.stdin)["volumes"]["rustfs_data"]["name"])')"
 TEMP_CONTAINER="building-os.minio-migrate-temp"
-ACCESS_KEY="${MINIO_ROOT_USER:-buildingos}"
-SECRET_KEY="${MINIO_ROOT_PASSWORD:-buildingos123}"
+
+# Resolve credentials from the OLD container's *actual* running environment, not this shell's — a
+# `.env`-file override (docker-compose.oss.yaml's normal mechanism) never reaches the calling shell,
+# so trusting $MINIO_ROOT_USER/$MINIO_ROOT_PASSWORD here would silently fall back to the dev defaults
+# and fail every `mc alias set` below on any installation with real credentials.
+container_env() {
+  docker exec "${OLD_CONTAINER}" printenv "$1" 2>/dev/null || true
+}
+ACCESS_KEY="$(container_env MINIO_ROOT_USER)"; ACCESS_KEY="${ACCESS_KEY:-${MINIO_ROOT_USER:-buildingos}}"
+SECRET_KEY="$(container_env MINIO_ROOT_PASSWORD)"; SECRET_KEY="${SECRET_KEY:-${MINIO_ROOT_PASSWORD:-buildingos123}}"
 
 echo "Old container   : ${OLD_CONTAINER}"
 echo "Bucket           : ${BUCKET}"
@@ -73,22 +86,41 @@ docker exec "${OLD_CONTAINER}" mc alias set migrate-new "http://${TEMP_CONTAINER
 echo "==> Creating destination bucket (mc mirror does not create it for you)..."
 docker exec "${OLD_CONTAINER}" mc mb --ignore-existing "migrate-new/${BUCKET}" >/dev/null
 
-echo "==> Mirroring migrate-old/${BUCKET} -> migrate-new/${BUCKET} (this can take a while for a large lake)..."
+lake_count() {
+  docker exec "${OLD_CONTAINER}" mc ls --recursive "$1" 2>/dev/null | wc -l | tr -d ' '
+}
+
+# Two passes, not one: a writer still active during the first mirror can add objects after mc has
+# already scanned their prefix, so a single pass can under-copy without mc reporting any error. The
+# second pass catches exactly that window; if counts still disagree after it, something is still
+# writing (or genuinely failed) and this must not report success.
+echo "==> Mirroring migrate-old/${BUCKET} -> migrate-new/${BUCKET} (pass 1, this can take a while for a large lake)..."
+docker exec "${OLD_CONTAINER}" mc mirror --overwrite "migrate-old/${BUCKET}" "migrate-new/${BUCKET}"
+echo "==> Mirroring migrate-old/${BUCKET} -> migrate-new/${BUCKET} (pass 2, catches anything written during pass 1)..."
 docker exec "${OLD_CONTAINER}" mc mirror --overwrite "migrate-old/${BUCKET}" "migrate-new/${BUCKET}"
 
-OLD_COUNT="$(docker exec "${OLD_CONTAINER}" mc ls --recursive "migrate-old/${BUCKET}" 2>/dev/null | wc -l | tr -d ' ')"
-NEW_COUNT="$(docker exec "${OLD_CONTAINER}" mc ls --recursive "migrate-new/${BUCKET}" 2>/dev/null | wc -l | tr -d ' ')"
+OLD_COUNT="$(lake_count "migrate-old/${BUCKET}")"
+NEW_COUNT="$(lake_count "migrate-new/${BUCKET}")"
 echo "==> Object count — old: ${OLD_COUNT}, new: ${NEW_COUNT}"
-if [ "${OLD_COUNT}" != "${NEW_COUNT}" ]; then
-  echo "warning: object counts differ — inspect before trusting the migrated volume." >&2
-fi
 
 echo "==> Cleaning up the temporary RustFS instance (data stays in ${NEW_VOLUME})..."
 docker rm -f "${TEMP_CONTAINER}" >/dev/null
 
+if [ "${OLD_COUNT}" != "${NEW_COUNT}" ]; then
+  cat <<EOF >&2
+
+FAILED: object counts still differ after two mirror passes (old: ${OLD_COUNT}, new: ${NEW_COUNT}).
+This usually means something is still writing to ${OLD_CONTAINER} — stop the writer
+(e.g. \`docker compose stop building-os.connector-worker\`) and re-run this script.
+${NEW_VOLUME} was left in place for inspection but should NOT be trusted yet.
+EOF
+  exit 1
+fi
+
 cat <<EOF
 
-Done. ${NEW_VOLUME} now holds a copy of ${OLD_CONTAINER}'s '${BUCKET}' bucket.
+Done. ${NEW_VOLUME} now holds a verified copy of ${OLD_CONTAINER}'s '${BUCKET}' bucket
+(${NEW_COUNT} objects, matching the source).
 Next: docker compose -f docker-compose.oss.yaml up -d
       (this recreates building-os.minio on rustfs/rustfs, using ${NEW_VOLUME})
 Your original minio_data volume is untouched; remove it yourself once you've

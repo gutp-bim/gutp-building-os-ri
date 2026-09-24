@@ -25,7 +25,7 @@ Building OS の永続状態は 3 つの主ストア + Keycloak に分かれま�
 | ストア | サービス / ボリューム | 保持データ | 区分 | バックアップ |
 |---|---|---|---|---|
 | **PostgreSQL 16** | `building-os.postgres` / `pg_data` | ユーザー/グループ/認可、`point_control_audit`（制御監査）、`system_config`（アプリ設定 #148） | **正本** | 必須 |
-| **MinIO（Parquet レイク）** | `building-os.minio` / `minio_data`、バケット **`cold`** | Warm+Cold テレメトリ（`building_id=.../hour=...` パーティション、immutable append + compaction） | **正本**（実測データ） | 必須 |
+| **MinIO（Parquet レイク、実体は RustFS #489）** | `building-os.minio` / `rustfs_data`、バケット **`cold`** | Warm+Cold テレメトリ（`building_id=.../hour=...` パーティション、immutable append + compaction） | **正本**（実測データ） | 必須 |
 | **OxiGraph（ツイン）** | `building-os.oxigraph` / `oxigraph_data` | 建物→フロア→空間→機器→ポイント階層、共有ポイントリスト（`gateway_id` 所有権） | **正本**（UI 編集分）／ 種 TTL があれば一部再構築可 | 必須 |
 | Keycloak | `building-os.keycloak` / `keycloak_data` | realm・クライアント・ユーザー | dev は種 `realm.json` から再構築可／本番は外部 DB が正本 | 環境依存（§6） |
 | NATS KV `telemetry-latest`（Hot） | `building-os.nats` / `nats_data` | 各ポイントの**最新値キャッシュ**のみ | **再構築可**（ライブ ingest とレイク read から再充填） | 不要 |

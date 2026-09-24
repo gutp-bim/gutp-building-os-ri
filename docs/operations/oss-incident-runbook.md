@@ -87,7 +87,7 @@ operator-home が全 Point stale/missing 化。
 `/api/system/status` の `connector-worker` は up のままなので、同表の `minio` 行を見ること。
 
 **一次対応 / 復旧**:
-1. MinIO を復旧（再起動 / ストレージ確認 / ディスク空き）。データは `minio_data`（S3 バケット `cold`）。
+1. MinIO を復旧（再起動 / ストレージ確認 / ディスク空き）。データは `rustfs_data`（S3 バケット `cold`、#489 で実体を RustFS に変更）。
 2. **データロスはしない設計**: writer は **MinIO 書き込み成功後にのみ JetStream を ack**
    （`ParquetLakeWriterWorker`, `AckPolicy=Explicit`）。MinIO ダウン中は ack されず、JetStream が
    AckWait 経過後に**再配信** → 復旧後にレイクへ書き込まれる（MaxAge 24h の範囲内）。
