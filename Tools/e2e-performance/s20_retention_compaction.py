@@ -191,6 +191,11 @@ def compaction_converged(keys: list[str], prefix: str) -> bool:
 # ── thin I/O: MinIO listing + ILM verification (docker exec mc, same approach as
 #    e2e/runner/normalize_storage.py's E7 listing — kept local so this harness has no import
 #    dependency outside Tools/e2e-performance/) ─────────────────────────────────────────────────────
+# KNOWN BROKEN (#491): building-os.minio now runs RustFS (#489), whose image ships no `mc` binary
+# at all — every `docker exec ... mc ...` call below fails outright, and the MINIO_ROOT_USER/
+# PASSWORD env lookup below also no longer matches the container's actual env
+# (RUSTFS_ACCESS_KEY/SECRET_KEY). Not fixed here: needs a real redesign (host-side mc against
+# localhost:9000, or a different S3 client), not a credential-name patch.
 def _minio_container_env(container: str, var: str) -> str | None:
     """The value MinIO's own container is actually running `var` with (`docker exec printenv`), not
     this process's shell env. Compose interpolates MINIO_ROOT_USER/PASSWORD from its own `.env` file

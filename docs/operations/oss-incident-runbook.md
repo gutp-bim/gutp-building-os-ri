@@ -81,11 +81,13 @@ operator-home が全 Point stale/missing 化。
 `WORKER_ROLE=lake` の worker は `/health/ready` が **503**（objectstore check が落ちる）、既定の
 `all` は **200 + Degraded** のまま。
 
-**切り分け**: `GET http://<minio>:9000/minio/health/live` 応答なし。`all` 構成では
+**切り分け**: `GET http://<minio>:9000/health` 応答なし(#489: ローカル/OSS スタックの
+`building-os.minio` は実体が RustFS — MinIO 固有パス `/minio/health/live` ではなく `/health`)。
+`all` 構成では
 `/api/system/status` の `connector-worker` は up のままなので、同表の `minio` 行を見ること。
 
 **一次対応 / 復旧**:
-1. MinIO を復旧（再起動 / ストレージ確認 / ディスク空き）。データは `minio_data`（S3 バケット `cold`）。
+1. MinIO を復旧（再起動 / ストレージ確認 / ディスク空き）。データは `rustfs_data`（S3 バケット `cold`、#489 で実体を RustFS に変更）。
 2. **データロスはしない設計**: writer は **MinIO 書き込み成功後にのみ JetStream を ack**
    （`ParquetLakeWriterWorker`, `AckPolicy=Explicit`）。MinIO ダウン中は ack されず、JetStream が
    AckWait 経過後に**再配信** → 復旧後にレイクへ書き込まれる（MaxAge 24h の範囲内）。

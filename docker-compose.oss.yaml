@@ -25,7 +25,12 @@ volumes:
   nats_data:
   pg_data:
   oxigraph_data:
-  minio_data:
+  # Named rustfs_data (not minio_data) deliberately: MinIO's and RustFS's on-disk formats are not
+  # interchangeable despite S3-API compatibility — mounting an existing minio_data volume into
+  # RustFS would silently make its previously-written objects unreadable rather than migrate them.
+  # A stack already running the old MinIO image keeps its own minio_data volume (and history)
+  # completely untouched; this is a new, empty volume for the RustFS-backed service.
+  rustfs_data:
   keycloak_data:
   prometheus_data:
   grafana_data:
@@ -165,22 +170,40 @@ services:
     # Health from the host is verified by scripts/test-oss-stack.sh
 
   # ── MinIO S3 (← Azure Blob Storage) ──────────────────────────────────────
+  # Backed by RustFS, not MinIO (#489): MinIO deleted minio/minio from Docker Hub on 2026-09-11
+  # (community-edition wind-down) and the quay.io/minio/minio mirror some projects fell back to is
+  # now unauthorized too (verified 2026-09-25 — both registries return "does not exist"/401 for every
+  # tag, not just this one). RustFS is a S3-API-compatible, Apache-2.0, actively-published drop-in;
+  # its docker image speaks the same S3 REST API our AmazonS3Client-based code
+  # (MinioBlobStorage/LakeRetentionHostedService) already uses, so nothing downstream changes — only
+  # this service's image/env/healthcheck. Service/container/network name stays "minio" (every other
+  # service's MINIO_ENDPOINT/depends_on references it by that name); the value is the object store
+  # role, not the specific software. Production IaC (opentofu/modules/minio) is unaffected — that is
+  # tracked separately in #489, which also covers RustFS as a cold-tier archive sink.
   building-os.minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: rustfs/rustfs:1.0.0
     container_name: building-os.minio
-    command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-buildingos}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-buildingos123}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      # Keep the existing MINIO_ROOT_* override names (.env.example, README) rather than renaming
+      # every caller to RUSTFS_*: the credentials are consumed generically as MINIO_ACCESS_KEY/
+      # MINIO_SECRET_KEY by the app services below regardless of which S3-compatible server backs them.
+      RUSTFS_ACCESS_KEY: ${MINIO_ROOT_USER:-buildingos}
+      RUSTFS_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-buildingos123}
     ports:
       - "9000:9000"   # S3 API
       - "9001:9001"   # Web Console
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
     networks:
       - oss
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # RustFS has no `mc`-equivalent CLI baked into its image; it exposes a plain HTTP health
+      # endpoint instead (verified locally: GET /health → 200).
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -388,7 +411,7 @@ services:
       SYSTEM_STATUS_HEALTH_TARGETS: >-
         nats=http://building-os.nats:8222/healthz,
         oxigraph=http://building-os.oxigraph:7878/,
-        minio=http://building-os.minio:9000/minio/health/live,
+        minio=http://building-os.minio:9000/health,
         keycloak=http://building-os.keycloak:9000/health/ready,
         connector-worker=http://building-os.connector-worker:8081/health/ready
       # OpenTelemetry: export traces/metrics/logs to the collector (no-op if unset).

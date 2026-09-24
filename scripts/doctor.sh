@@ -138,9 +138,11 @@ main() {
   fi
 
   # ── MinIO (Parquet lake) ──────────────────────────────────────────────────────
+  # Backed by RustFS (#489) — MinIO's own image is gone from Docker Hub/quay.io — whose health
+  # endpoint is plain /health rather than MinIO's /minio/health/live.
   echo
   echo "[MinIO]"
-  check_http "MinIO health (:9000)" "http://localhost:9000/minio/health/live" \
+  check_http "MinIO health (:9000)" "http://localhost:9000/health" \
     "MinIO is not healthy on :9000. Check \`$COMPOSE logs building-os.minio\`. The API fail-fasts without MINIO_ENDPOINT in parquet mode."
 
   # ── Keycloak ──────────────────────────────────────────────────────────────────

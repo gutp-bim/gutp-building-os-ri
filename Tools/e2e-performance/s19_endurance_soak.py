@@ -93,7 +93,8 @@ DEFAULT_CONTAINERS = [
 DEFAULT_HEALTH_PROBES = {
     "nats": "http://localhost:8222/healthz",
     "oxigraph": "http://localhost:7878/",
-    "minio": "http://localhost:9000/minio/health/live",
+    # building-os.minio is backed by RustFS (#489), whose health route is plain /health.
+    "minio": "http://localhost:9000/health",
     "connector-worker": "http://localhost:8081/health/ready",
 }
 
