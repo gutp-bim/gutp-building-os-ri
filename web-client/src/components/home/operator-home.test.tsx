@@ -256,6 +256,54 @@ describe("OperatorHome", () => {
     expect(loadHealthSummary).toHaveBeenCalledWith("b1", undefined);
   });
 
+  it("never queries the new building with the previous building's stale floor id (#497 review)", async () => {
+    const building2: ResourceRef = {
+      type: "building",
+      dtId: "b2",
+      id: "b2",
+      name: "棟B",
+    };
+    const floor2: ResourceRef = {
+      type: "floor",
+      dtId: "g1",
+      id: "g1",
+      name: "1F",
+    };
+    const loadFloors = vi
+      .fn()
+      .mockImplementation((buildingDtId: string) =>
+        Promise.resolve(buildingDtId === "b1" ? [floor] : [floor2]),
+      );
+    const loadHealthSummary = vi.fn().mockResolvedValue(healthSummary);
+    const loaders = makeLoaders({
+      loadBuildings: vi.fn().mockResolvedValue([building, building2]),
+      loadFloors,
+      loadHealthSummary,
+    });
+
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(loadHealthSummary).toHaveBeenCalledWith("b1", "f1"),
+    );
+
+    await userEvent.selectOptions(
+      screen.getByTestId("home-building-select"),
+      "b2",
+    );
+
+    await waitFor(() =>
+      expect(loadHealthSummary).toHaveBeenCalledWith("b2", "g1"),
+    );
+    // b1's floor id must never be paired with b2 — building and floor change atomically.
+    expect(loadHealthSummary.mock.calls).not.toContainEqual(["b2", "f1"]);
+  });
+
   it("hides the gateway panel for non-admins and shows it for admins", async () => {
     const fetchGateways = vi.fn().mockResolvedValue([gateway]);
 

@@ -117,13 +117,20 @@ export function OperatorHome({
   // Also loads the registered-count / Fresh-rate KPI from the server-side summary (#452), scoped to
   // the same building/floor selection — a single request for "すべてのフロア" rather than a
   // per-floor client-side re-aggregation of `loadFreshness` (#451).
+  //
+  // 既知のトレードオフ: 上段 KPI（登録ポイント/最新/鮮度切れ/欠測）はこのサーバ集計を正本にする一方、
+  // 下の要対応リストは今も per-point の `loadFreshness`/`loadAlarms`（クライアント側分類）のまま
+  // ——両者の判定ロジック（閾値の解決経路や取得タイミング）が僅かに異なれば、この画面内で
+  // 「鮮度切れ N 件」の KPI と要対応リストの件数が食い違いうる。#451 の残作業は登録 Point 数 /
+  // Fresh 率の母数のみを対象としており、要対応リストをサーバ側 `GET /api/telemetry/health`
+  // （一覧側）へ載せ替えるのは意図的にスコープ外（別 issue）。
   useEffect(() => {
-    const floorIds =
-      floorDtId === ALL_FLOORS
-        ? floors.map((f) => f.dtId)
-        : floorDtId
-          ? [floorDtId]
-          : [];
+    const isAllFloors = floorDtId === ALL_FLOORS;
+    const floorIds = isAllFloors
+      ? floors.map((f) => f.dtId)
+      : floorDtId
+        ? [floorDtId]
+        : [];
     if (!buildingDtId || floorIds.length === 0) {
       setNamed([]);
       setFreshness([]);
@@ -132,8 +139,7 @@ export function OperatorHome({
       return;
     }
     const scopedBuildingDtId = buildingDtId;
-    const summaryFloorDtId =
-      floorDtId === ALL_FLOORS ? undefined : (floorDtId ?? undefined);
+    const summaryFloorDtId = isAllFloors ? undefined : (floorDtId ?? undefined);
     let active = true;
     setLoadingFloor(true);
     setError(null);
@@ -191,7 +197,15 @@ export function OperatorHome({
             data-testid="home-building-select"
             className="rounded border border-gray-300 px-2 py-1"
             value={buildingDtId ?? ""}
-            onChange={(e) => setBuildingDtId(e.target.value || null)}
+            onChange={(e) => {
+              // Clear floorDtId/floors in the same batch as the building change so the
+              // points/health-summary effect below (keyed on buildingDtId + floorDtId) never
+              // observes the new building paired with the previous building's stale floor
+              // selection — React batches these into a single render (#497 review).
+              setBuildingDtId(e.target.value || null);
+              setFloorDtId(null);
+              setFloors([]);
+            }}
           >
             {buildings.length === 0 && <option value="">（建物なし）</option>}
             {buildings.map((b) => (
