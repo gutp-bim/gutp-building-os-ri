@@ -33,19 +33,29 @@ def _client(endpoint: str, access_key: str, secret_key: str):
     )
 
 
+def list_objects_strict(endpoint: str, bucket: str, prefix: str = "",
+                         access_key: str = DEFAULT_ACCESS_KEY, secret_key: str = DEFAULT_SECRET_KEY
+                         ) -> list[dict]:
+    """Like `list_objects`, but raises on any connection/client error instead of degrading to `[]`.
+    For callers that must distinguish "queried, genuinely empty" from "could not reach the lake" —
+    monitor_gateway.py's outage reporting is the reason this exists (#491 review)."""
+    s3 = _client(endpoint, access_key, secret_key)
+    objects: list[dict] = []
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        objects.extend({"key": o["Key"], "size": o["Size"]} for o in page.get("Contents", []))
+    return objects
+
+
 def list_objects(endpoint: str, bucket: str, prefix: str = "",
                   access_key: str = DEFAULT_ACCESS_KEY, secret_key: str = DEFAULT_SECRET_KEY
                   ) -> list[dict]:
     """All objects under `prefix` in `bucket` as [{"key", "size"}, ...] (paginated), or [] on any
     connection/client error — a listing failure degrades the caller's KPI to "not yet seen", not a
-    hard error, matching the previous `mc`-based helpers' best-effort semantics."""
+    hard error, matching the previous `mc`-based helpers' best-effort semantics. Callers that need to
+    tell an outage apart from a genuinely empty bucket should use `list_objects_strict` instead."""
     try:
-        s3 = _client(endpoint, access_key, secret_key)
-        objects: list[dict] = []
-        paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            objects.extend({"key": o["Key"], "size": o["Size"]} for o in page.get("Contents", []))
-        return objects
+        return list_objects_strict(endpoint, bucket, prefix, access_key, secret_key)
     except Exception:  # noqa: BLE001 — best-effort, see docstring
         return []
 

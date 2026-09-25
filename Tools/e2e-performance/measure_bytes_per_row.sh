@@ -28,7 +28,7 @@ sleep 12
   --out "$OUT" --rows "$ROWS" \
   --ingress "localhost:${GRPC_INGRESS_PORT}" \
   --oxigraph "${OXIGRAPH_URL:-http://localhost:7878}" \
-  --minio-container "${MINIO_CONTAINER:-building-os.minio}"
+  --minio-endpoint "${MINIO_ENDPOINT_HOST:-localhost:9000}"
 rc=$?
 echo "[e7] bytes/row done → $OUT (rc=$rc)"
 exit $rc

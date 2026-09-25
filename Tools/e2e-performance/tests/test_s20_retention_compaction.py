@@ -6,7 +6,6 @@ hour boundary, and turning a raw MinIO key listing into retention observations.
 from __future__ import annotations
 
 import importlib.util
-import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -133,57 +132,29 @@ def test_objects_after_compaction_success_when_only_a_single_compact_object_rema
     assert s20.compaction_converged([], "building_id=b1/year=2026/month=09/day=08/hour=12/") is False
 
 
-def _fake_run(stdout: str = ""):
-    result = mock.Mock()
-    result.stdout = stdout
-    return result
+def test_list_lake_keys_delegates_to_lake_s3_client(monkeypatch):
+    # #491: s20 no longer talks to MinIO/RustFS itself (docker exec mc ...) — it is a thin wrapper
+    # over lake_s3_client, which talks the S3 API directly against --minio-endpoint.
+    calls: list[tuple] = []
+
+    def fake_list_keys(endpoint, bucket):
+        calls.append((endpoint, bucket))
+        return ["k1", "k2"]
+
+    with mock.patch.object(s20.lakes3, "list_keys", side_effect=fake_list_keys):
+        assert s20.list_lake_keys("localhost:9000", "cold") == ["k1", "k2"]
+
+    assert calls == [("localhost:9000", "cold")]
 
 
-def test_resolve_minio_credentials_prefers_the_container_env_over_the_host_shell(monkeypatch):
-    # The MinIO container gets MINIO_ROOT_USER/PASSWORD from Compose's own .env file — this
-    # process's shell may never have them exported, so the host env must not win when the
-    # container itself reports different creds (the #263 review's false-empty-listing bug).
-    monkeypatch.delenv("MINIO_ROOT_USER", raising=False)
-    monkeypatch.delenv("MINIO_ROOT_PASSWORD", raising=False)
+def test_check_ilm_rule_delegates_to_lake_s3_client_with_the_default_rule_id():
+    calls: list[tuple] = []
 
-    def fake_run(cmd, **kwargs):
-        var = cmd[-1]
-        return _fake_run({"MINIO_ROOT_USER": "custom-user\n",
-                           "MINIO_ROOT_PASSWORD": "custom-pass\n"}[var])
+    def fake_get_ilm_rule(endpoint, bucket, rule_id):
+        calls.append((endpoint, bucket, rule_id))
+        return {"applied": True, "days": 30}
 
-    with mock.patch.object(s20.subprocess, "run", side_effect=fake_run):
-        assert s20._resolve_minio_credentials("building-os.minio") == ("custom-user", "custom-pass")
+    with mock.patch.object(s20.lakes3, "get_ilm_rule", side_effect=fake_get_ilm_rule):
+        assert s20.check_ilm_rule("localhost:9000", "cold") == {"applied": True, "days": 30}
 
-
-def test_resolve_minio_credentials_falls_back_to_host_env_then_default(monkeypatch):
-    monkeypatch.setenv("MINIO_ROOT_USER", "host-user")
-    monkeypatch.delenv("MINIO_ROOT_PASSWORD", raising=False)
-
-    with mock.patch.object(s20.subprocess, "run", side_effect=lambda *a, **k: _fake_run("")):
-        assert s20._resolve_minio_credentials("building-os.minio") == ("host-user", "buildingos123")
-
-
-def test_resolve_minio_credentials_container_lookup_failure_falls_through(monkeypatch):
-    monkeypatch.delenv("MINIO_ROOT_USER", raising=False)
-    monkeypatch.delenv("MINIO_ROOT_PASSWORD", raising=False)
-
-    with mock.patch.object(s20.subprocess, "run", side_effect=subprocess.SubprocessError("boom")):
-        assert s20._resolve_minio_credentials("building-os.minio") == ("buildingos", "buildingos123")
-
-
-def test_check_ilm_rule_configures_its_own_mc_alias_without_a_prior_listing_call():
-    # #263 review: check_ilm_rule must be self-contained — it must not assume list_lake_keys ran
-    # first and already configured the `mc` alias.
-    calls: list[list[str]] = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        if cmd[3:5] == ["mc", "ilm"]:
-            return _fake_run('{"config": {"ID": "other-rule"}}\n')
-        return _fake_run("")
-
-    with mock.patch.object(s20.subprocess, "run", side_effect=fake_run):
-        s20.check_ilm_rule("building-os.minio", "cold")
-
-    alias_calls = [c for c in calls if c[3:5] == ["mc", "alias"]]
-    assert alias_calls, "check_ilm_rule must configure the mc alias itself"
+    assert calls == [("localhost:9000", "cold", s20.RETENTION_RULE_ID)]

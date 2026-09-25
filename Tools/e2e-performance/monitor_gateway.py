@@ -88,10 +88,18 @@ def _nats_streams() -> dict[str, dict]:
 
 def _minio_count() -> dict:
     # Host-side S3 API against MINIO_ENDPOINT (#491 — building-os.minio now runs RustFS, whose image
-    # ships no `mc` binary, so `docker exec ... mc ...` no longer works).
-    count = len(lakes3.list_keys(MINIO_ENDPOINT, "cold"))
-    unknown = len(lakes3.list_keys(MINIO_ENDPOINT, "cold", prefix="building_id=unknown/"))
-    return {"total_objects": count, "unknown_objects": unknown}
+    # ships no `mc` binary, so `docker exec ... mc ...` no longer works). Uses the *_strict variant
+    # (raises rather than degrading to []) so a real outage still reports -1/-1 here, same as the old
+    # `docker exec` failure path — silently reading it as "0 objects" would hide a storage outage
+    # during a 12h monitoring run behind what looks like a healthy empty lake.
+    try:
+        count = len(lakes3.list_objects_strict(MINIO_ENDPOINT, "cold"))
+        unknown = len(
+            lakes3.list_objects_strict(MINIO_ENDPOINT, "cold", prefix="building_id=unknown/")
+        )
+        return {"total_objects": count, "unknown_objects": unknown}
+    except Exception:
+        return {"total_objects": -1, "unknown_objects": -1}
 
 
 def _count_log_events(log: str, since_line: int) -> dict:

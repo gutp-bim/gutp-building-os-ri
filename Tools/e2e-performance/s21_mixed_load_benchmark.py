@@ -107,7 +107,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--ingress", default=os.environ.get("INGRESS_TARGET", "localhost:5051"))
     ap.add_argument("--oxigraph", default=os.environ.get("OXIGRAPH_URL", "http://localhost:7878"))
     ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
-    ap.add_argument("--minio-container", default=os.environ.get("MINIO_CONTAINER", "building-os.minio"))
     ap.add_argument("--bucket", default=os.environ.get("BUCKET", "cold"))
     ap.add_argument("--base-url", default=os.environ.get("BASE_URL", "http://localhost:5000"))
     ap.add_argument("--compose-file", default=os.environ.get("COMPOSE_FILE", "docker-compose.oss.yaml"))
@@ -434,7 +433,7 @@ async def force_compaction_and_wait(args: argparse.Namespace, building: str, poi
     deadline = time.monotonic() + args.compaction_wait_s
     converged_at_s = None
     while time.monotonic() < deadline:
-        keys = s20.list_lake_keys(args.minio_container, args.bucket)
+        keys = s20.list_lake_keys(args.minio_endpoint, args.bucket)
         if s20.compaction_converged(keys, prefix):
             converged_at_s = round(time.monotonic() - epoch, 1)
             break
