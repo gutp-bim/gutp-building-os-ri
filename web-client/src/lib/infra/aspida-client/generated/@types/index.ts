@@ -350,6 +350,16 @@ export type OidcClientsControllerSetEnabledRequest = {
   enabled?: boolean | undefined;
 }
 
+/**
+ * データ流量（Platform 由来、Prometheus 集計）の応答（#451 Phase 1）。Point 母数 / Fresh 率は
+ * `telemetry/health/summary`（#452, domain 側）の責務で、ここには含めない。
+ */
+export type OperationsSummaryResponse = {
+  msgRate1m?: number | null | undefined;
+  msgRate1hAvg?: number | null | undefined;
+  metricsAvailable?: boolean | undefined;
+}
+
 export type PermissionsControllerResolvedPermissionInfo = {
   originalId?: string | undefined;
   resourceType?: string | undefined;

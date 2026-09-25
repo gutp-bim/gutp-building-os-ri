@@ -5,6 +5,8 @@ import {
   listPoints,
   listSpaces,
 } from "@/lib/resources/repository";
+import { fetchOperationsSummary } from "@/lib/operations/repository";
+import type { OperationsSummary } from "@/lib/operations/repository";
 import type { ResourceRef } from "@/lib/resources/types";
 import type { PointAlarm } from "@/lib/telemetry/alarm";
 import { loadPointsAlarms } from "@/lib/telemetry/alarm-loader";
@@ -34,6 +36,11 @@ export type HomeLoaders = {
    * opt-in thresholds are applied; points without thresholds come back `unknown` (not surfaced).
    */
   loadAlarms: (points: NamedPoint[]) => Promise<PointAlarm[]>;
+  /**
+   * Platform 由来のデータ流量 KPI（#451 Phase 1）。建物/フロアのスコープを持たない
+   * （Point 母数側とは別軸 — `@/lib/health/repository` の責務）ので、フロア選択とは独立に読める。
+   */
+  loadOperationsSummary: () => Promise<OperationsSummary>;
 };
 
 /**
@@ -98,4 +105,5 @@ export const productionHomeLoaders: HomeLoaders = {
       points.map((p) => p.pointId),
       new Map(points.map((p) => [p.pointId, p.thresholds])),
     ),
+  loadOperationsSummary: () => fetchOperationsSummary(),
 };

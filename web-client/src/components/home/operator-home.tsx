@@ -8,7 +8,9 @@ import {
   type NamedPoint,
 } from "@/lib/home/aggregate";
 import type { HomeLoaders } from "@/lib/home/loaders";
+import type { OperationsSummary } from "@/lib/operations/repository";
 import type { ResourceRef } from "@/lib/resources/types";
+import { formatKpi } from "@/lib/system-status/format";
 import { summarizeAlarms, type PointAlarm } from "@/lib/telemetry/alarm";
 import {
   summarizeFreshness,
@@ -51,6 +53,25 @@ export function OperatorHome({
   const [named, setNamed] = useState<NamedPoint[]>([]);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [opsSummary, setOpsSummary] = useState<OperationsSummary | null>(
+    null,
+  );
+
+  // Data throughput (#451 Phase 1) is a Platform-wide KPI, independent of the building/floor
+  // selection — fetch it once. A failure here degrades to "no card" rather than the page error
+  // banner: it is a supplementary KPI, not something the operator came here to see.
+  useEffect(() => {
+    let active = true;
+    loaders
+      .loadOperationsSummary()
+      .then((s) => active && setOpsSummary(s))
+      .catch(() => {
+        /* card just stays hidden */
+      });
+    return () => {
+      active = false;
+    };
+  }, [loaders]);
 
   // Load the building list once; auto-select the first.
   useEffect(() => {
@@ -245,6 +266,8 @@ export function OperatorHome({
         />
       </section>
 
+      <DataThroughputPanel summary={opsSummary} />
+
       <section>
         <h2 className="mb-2 text-sm font-semibold text-gray-700">
           要対応ポイント
@@ -376,4 +399,66 @@ function SummaryCard({
 
 function errMsg(e: unknown, fallback: string): string {
   return e instanceof Error ? e.message : fallback;
+}
+
+/**
+ * データ流量（#451 Phase 1）。Platform 由来（Prometheus 集計）の KPI で、建物/フロアのスコープを
+ * 持たない。値が 1 つも無ければカードごと出さない — エラーにしない。
+ *
+ * `metricsAvailable` だけでは判定しない: 既定の docker-compose スタックは observability プロファイル
+ * を有効にしなくても `PROMETHEUS_URL` を設定する（Prometheus 未起動でも no-op で動くようにするため、
+ * CLAUDE.md の Observability セクション参照）。`IsConfigured` は「URL が空でないか」しか見ないので、
+ * この既定構成では `metricsAvailable: true` のままクエリだけが両方 null になり、`!metricsAvailable`
+ * だけを見ると「—」だけの空カードが出てしまう。
+ */
+function DataThroughputPanel({
+  summary,
+}: {
+  summary: OperationsSummary | null;
+}) {
+  if (!summary || (summary.msgRate1m == null && summary.msgRate1hAvg == null))
+    return null;
+  const delta = throughputDeltaLabel(summary);
+  return (
+    <section
+      data-testid="home-throughput"
+      className="flex flex-wrap gap-6 rounded-lg border border-gray-200 p-4"
+    >
+      <div>
+        <div className="text-xs text-gray-600">現在のデータ流量</div>
+        <div
+          data-testid="throughput-current"
+          className="text-lg font-semibold text-gray-800"
+        >
+          {formatKpi(summary.msgRate1m, { suffix: " msg/s" })}
+        </div>
+      </div>
+      <div>
+        <div className="text-xs text-gray-600">過去1時間平均</div>
+        <div
+          data-testid="throughput-1h-avg"
+          className="text-lg font-semibold text-gray-800"
+        >
+          {formatKpi(summary.msgRate1hAvg, { suffix: " msg/s" })}
+          {delta && (
+            <span
+              data-testid="throughput-delta"
+              className="ml-2 text-sm font-normal text-gray-600"
+            >
+              {delta}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** 現在値の、過去1時間平均に対する変化率。片方が無い／平均が 0 のときは出さない。 */
+function throughputDeltaLabel(summary: OperationsSummary): string | null {
+  const { msgRate1m, msgRate1hAvg } = summary;
+  if (msgRate1m == null || !msgRate1hAvg) return null;
+  const pct = ((msgRate1m - msgRate1hAvg) / msgRate1hAvg) * 100;
+  const arrow = pct >= 0 ? "↑" : "↓";
+  return `${arrow} ${Math.abs(pct).toFixed(1)}%`;
 }

@@ -1089,6 +1089,24 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/OidcClientDetail'
+  /api/operations/summary:
+    get:
+      tags:
+        - Operations
+      summary: "現在のデータ流量（1m 平均）と過去 1 時間平均。Prometheus 未配線ならどちらも null\n            （エラーにしない — カードは非表示にできる）。"
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/OperationsSummaryResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationsSummaryResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/OperationsSummaryResponse'
   /api/Permissions/resolve:
     post:
       tags:
@@ -3969,6 +3987,21 @@ components:
         enabled:
           type: boolean
       additionalProperties: false
+    OperationsSummaryResponse:
+      type: object
+      properties:
+        msgRate1m:
+          type: number
+          format: double
+          nullable: true
+        msgRate1hAvg:
+          type: number
+          format: double
+          nullable: true
+        metricsAvailable:
+          type: boolean
+      additionalProperties: false
+      description: "データ流量（Platform 由来、Prometheus 集計）の応答（#451 Phase 1）。Point 母数 / Fresh 率は\n`telemetry/health/summary`（#452, domain 側）の責務で、ここには含めない。"
     PermissionsControllerResolvedPermissionInfo:
       type: object
       properties:
@@ -4722,6 +4755,7 @@ tags:
   - name: Groups
   - name: MyResources
   - name: OidcClients
+  - name: Operations
   - name: Permissions
   - name: Point
   - name: PointDetail
