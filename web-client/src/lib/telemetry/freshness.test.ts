@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { PointLastSeen } from "./freshness";
 import {
   DEFAULT_STALE_THRESHOLD_SECONDS,
   classifyPointFreshness,
-  summarizeFreshness,
 } from "./freshness";
-import type { PointFreshness, PointLastSeen } from "./freshness";
 
 // A fixed clock so the pure classifier is deterministic (no Date.now() inside the function).
 const NOW = new Date("2026-07-15T12:00:00Z");
@@ -138,31 +137,5 @@ describe("classifyPointFreshness", () => {
       ["OVERRIDE", "stale"],
       ["DEFAULT", "fresh"],
     ]);
-  });
-});
-
-describe("summarizeFreshness", () => {
-  it("counts each status and the total", () => {
-    const results: PointFreshness[] = [
-      { pointId: "A", status: "fresh", ageSeconds: 1 },
-      { pointId: "B", status: "fresh", ageSeconds: 2 },
-      { pointId: "C", status: "stale", ageSeconds: 900 },
-      { pointId: "D", status: "missing", ageSeconds: null },
-    ];
-    expect(summarizeFreshness(results)).toEqual({
-      fresh: 2,
-      stale: 1,
-      missing: 1,
-      total: 4,
-    });
-  });
-
-  it("returns all-zero counts for an empty result set", () => {
-    expect(summarizeFreshness([])).toEqual({
-      fresh: 0,
-      stale: 0,
-      missing: 0,
-      total: 0,
-    });
   });
 });

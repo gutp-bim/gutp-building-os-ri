@@ -5,6 +5,9 @@ import {
   listPoints,
   listSpaces,
 } from "@/lib/resources/repository";
+import { fetchPointHealthSummary } from "@/lib/health/repository";
+import type { HealthSummary } from "@/lib/health/repository";
+import { DEFAULT_HEALTH_QUERY } from "@/lib/health/query";
 import { fetchOperationsSummary } from "@/lib/operations/repository";
 import type { OperationsSummary } from "@/lib/operations/repository";
 import type { ResourceRef } from "@/lib/resources/types";
@@ -41,6 +44,16 @@ export type HomeLoaders = {
    * （Point 母数側とは別軸 — `@/lib/health/repository` の責務）ので、フロア選択とは独立に読める。
    */
   loadOperationsSummary: () => Promise<OperationsSummary>;
+  /**
+   * 登録 Point 数 / Fresh 率の母数（#451 Phase 1 残作業）。判定の正本である `GET
+   * /api/telemetry/health/summary`（#452）をそのまま使う — クライアント側で `loadFreshness` の
+   * 結果を再集計しない（`summarizeFreshness` は #452 以前の暫定実装だった）。`floorDtId` を省略する
+   * と「すべてのフロア」選択時と同じ、建物全体の集計をサーバ側 1 リクエストで返す。
+   */
+  loadHealthSummary: (
+    buildingDtId: string,
+    floorDtId?: string,
+  ) => Promise<HealthSummary>;
 };
 
 /**
@@ -106,4 +119,6 @@ export const productionHomeLoaders: HomeLoaders = {
       new Map(points.map((p) => [p.pointId, p.thresholds])),
     ),
   loadOperationsSummary: () => fetchOperationsSummary(),
+  loadHealthSummary: (buildingDtId, floorDtId) =>
+    fetchPointHealthSummary({ ...DEFAULT_HEALTH_QUERY, buildingDtId, floorDtId }),
 };

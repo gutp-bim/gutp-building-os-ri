@@ -41,13 +41,6 @@ export type PointFreshness = {
   ageSeconds: number | null;
 };
 
-export type FreshnessSummary = {
-  fresh: number;
-  stale: number;
-  missing: number;
-  total: number;
-};
-
 /**
  * Classify each point's freshness relative to `now`:
  * - `missing` — no sample, or an unparseable timestamp,
@@ -85,20 +78,4 @@ export function classifyPointFreshness(
     const ageSeconds = Math.max(0, Math.floor(ageMs / 1000));
     return { pointId, status, ageSeconds };
   });
-}
-
-/** Roll up per-point results into fresh/stale/missing counts plus the total. */
-export function summarizeFreshness(
-  results: PointFreshness[],
-): FreshnessSummary {
-  const summary: FreshnessSummary = {
-    fresh: 0,
-    stale: 0,
-    missing: 0,
-    total: results.length,
-  };
-  for (const r of results) {
-    summary[r.status] += 1;
-  }
-  return summary;
 }

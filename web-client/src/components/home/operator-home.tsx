@@ -1,6 +1,7 @@
 "use client";
 
 import { fetchGateways as defaultFetchGateways } from "@/lib/admin/gateways";
+import type { HealthSummary } from "@/lib/health/repository";
 import {
   activeAlarms,
   buildAttentionList,
@@ -12,11 +13,7 @@ import type { OperationsSummary } from "@/lib/operations/repository";
 import type { ResourceRef } from "@/lib/resources/types";
 import { formatKpi } from "@/lib/system-status/format";
 import { summarizeAlarms, type PointAlarm } from "@/lib/telemetry/alarm";
-import {
-  summarizeFreshness,
-  type FreshnessSummary,
-  type PointFreshness,
-} from "@/lib/telemetry/freshness";
+import type { PointFreshness } from "@/lib/telemetry/freshness";
 import { formatAge } from "@/lib/telemetry/freshness-format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -51,6 +48,9 @@ export function OperatorHome({
   const [freshness, setFreshness] = useState<PointFreshness[]>([]);
   const [alarms, setAlarms] = useState<PointAlarm[]>([]);
   const [named, setNamed] = useState<NamedPoint[]>([]);
+  const [healthSummary, setHealthSummary] = useState<HealthSummary | null>(
+    null,
+  );
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [opsSummary, setOpsSummary] = useState<OperationsSummary | null>(
@@ -114,6 +114,9 @@ export function OperatorHome({
   }, [loaders, buildingDtId]);
 
   // Load the selected floor's points + freshness — or every floor's when "すべてのフロア" is chosen.
+  // Also loads the registered-count / Fresh-rate KPI from the server-side summary (#452), scoped to
+  // the same building/floor selection — a single request for "すべてのフロア" rather than a
+  // per-floor client-side re-aggregation of `loadFreshness` (#451).
   useEffect(() => {
     const floorIds =
       floorDtId === ALL_FLOORS
@@ -121,12 +124,16 @@ export function OperatorHome({
         : floorDtId
           ? [floorDtId]
           : [];
-    if (floorIds.length === 0) {
+    if (!buildingDtId || floorIds.length === 0) {
       setNamed([]);
       setFreshness([]);
       setAlarms([]);
+      setHealthSummary(null);
       return;
     }
+    const scopedBuildingDtId = buildingDtId;
+    const summaryFloorDtId =
+      floorDtId === ALL_FLOORS ? undefined : (floorDtId ?? undefined);
     let active = true;
     setLoadingFloor(true);
     setError(null);
@@ -134,13 +141,16 @@ export function OperatorHome({
     setNamed([]);
     setFreshness([]);
     setAlarms([]);
+    setHealthSummary(null);
     (async () => {
-      const perFloor = await Promise.all(
-        floorIds.map((id) => loaders.loadFloorPoints(id)),
-      );
+      const [perFloor, health] = await Promise.all([
+        Promise.all(floorIds.map((id) => loaders.loadFloorPoints(id))),
+        loaders.loadHealthSummary(scopedBuildingDtId, summaryFloorDtId),
+      ]);
       if (!active) return;
       const points = perFloor.flat();
       setNamed(points);
+      setHealthSummary(health);
       // Freshness (arrival) and alarms (value) are independent axes — fetch both.
       const [fresh, al] = await Promise.all([
         loaders.loadFreshness(points),
@@ -157,9 +167,8 @@ export function OperatorHome({
     return () => {
       active = false;
     };
-  }, [loaders, floorDtId, floors]);
+  }, [loaders, buildingDtId, floorDtId, floors]);
 
-  const summary: FreshnessSummary = summarizeFreshness(freshness);
   // Only alarm on points whose data is fresh — a breach from a stale/missing point is not a live value
   // alarm, and surfaces as its freshness issue instead (#158 Phase 2a).
   const alarms_ = activeAlarms(alarms, freshness);
@@ -226,7 +235,7 @@ export function OperatorHome({
       >
         <SummaryCard
           label="登録ポイント"
-          value={summary.total}
+          value={healthSummary?.totalPoints ?? 0}
           testid="summary-total"
           tone="text-gray-800"
           href="/health"
@@ -237,22 +246,22 @@ export function OperatorHome({
           // 呼び名は freshnessLabel（/health 側）と揃える — 飛んだ先で別の語になると同じ状態に
           // 見えなくなる。
           label="最新"
-          value={summary.fresh}
-          sub={freshRateLabel(summary)}
+          value={healthSummary?.fresh ?? 0}
+          sub={freshRateLabel(healthSummary)}
           testid="summary-fresh"
           tone="text-green-800"
           href="/health?freshness=fresh"
         />
         <SummaryCard
           label="鮮度切れ"
-          value={summary.stale}
+          value={healthSummary?.stale ?? 0}
           testid="summary-stale"
           tone="text-amber-800"
           href="/health?freshness=stale"
         />
         <SummaryCard
           label="欠測"
-          value={summary.missing}
+          value={healthSummary?.missing ?? 0}
           testid="summary-missing"
           tone="text-gray-700"
           href="/health?freshness=missing"
@@ -357,10 +366,10 @@ function attentionLabel(item: AttentionItem): string {
   }
 }
 
-/** Fresh 率（小数 1 桁）。母数 0 のときは率を出さず「—」を表示する。 */
-function freshRateLabel(summary: FreshnessSummary): string {
-  if (summary.total <= 0) return "—";
-  return `${((summary.fresh / summary.total) * 100).toFixed(1)}%`;
+/** Fresh 率（小数 1 桁）。母数 0 のとき（未読み込み含む）は率を出さず「—」を表示する。 */
+function freshRateLabel(summary: HealthSummary | null): string {
+  if (!summary || summary.totalPoints <= 0) return "—";
+  return `${((summary.fresh / summary.totalPoints) * 100).toFixed(1)}%`;
 }
 
 /**
