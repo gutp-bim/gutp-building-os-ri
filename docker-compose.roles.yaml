@@ -76,7 +76,10 @@ services:
       LAKE_COMPACTION_INTERVAL: ${LAKE_COMPACTION_INTERVAL:-}
       LAKE_COMPACTION_SETTLE_MINUTES: ${LAKE_COMPACTION_SETTLE_MINUTES:-}
       LAKE_COMPACTION_MIN_PARTS: ${LAKE_COMPACTION_MIN_PARTS:-}
-      LAKE_RETENTION_DAYS: ${LAKE_RETENTION_DAYS:-365}
+      # Default 0 (unlimited), not 365 — see docker-compose.oss.yaml's LAKE_RETENTION_DAYS comment
+      # (#492): RustFS 1.0.0, the building-os.minio backend, breaks Put/Get/HeadObject outright once
+      # any bucket lifecycle rule exists, which this env var applies unconditionally when positive.
+      LAKE_RETENTION_DAYS: ${LAKE_RETENTION_DAYS:-0}
       PARQUET_STREAM_MAX_BYTES: ${PARQUET_STREAM_MAX_BYTES:-1073741824}
       COLD_EXPORT_INTERVAL: "5"
     ports:
