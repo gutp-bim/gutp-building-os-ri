@@ -1,4 +1,5 @@
 import type { GatewayAdminView } from "@/lib/admin/gateways";
+import type { HealthSummary } from "@/lib/health/repository";
 import type { HomeLoaders } from "@/lib/home/loaders";
 import type { ResourceRef } from "@/lib/resources/types";
 import type { PointAlarm } from "@/lib/telemetry/alarm";
@@ -33,6 +34,18 @@ const freshness: PointFreshness[] = [
   { pointId: "p3", status: "missing", ageSeconds: null },
 ];
 
+const healthSummary: HealthSummary = {
+  totalPoints: 3,
+  fresh: 1,
+  stale: 1,
+  missing: 1,
+  unknown: 0,
+  alarmWarn: 0,
+  alarmCritical: 0,
+  dataComplete: true,
+  indexState: "ready",
+};
+
 function makeLoaders(overrides: Partial<HomeLoaders> = {}): HomeLoaders {
   return {
     loadBuildings: vi.fn().mockResolvedValue([building]),
@@ -45,6 +58,7 @@ function makeLoaders(overrides: Partial<HomeLoaders> = {}): HomeLoaders {
       msgRate1hAvg: null,
       metricsAvailable: false,
     }),
+    loadHealthSummary: vi.fn().mockResolvedValue(healthSummary),
     ...overrides,
   };
 }
@@ -63,9 +77,10 @@ const gateway: GatewayAdminView = {
 
 describe("OperatorHome", () => {
   it("shows fresh/stale/missing counts once a floor auto-loads", async () => {
+    const loadHealthSummary = vi.fn().mockResolvedValue(healthSummary);
     render(
       <OperatorHome
-        loaders={makeLoaders()}
+        loaders={makeLoaders({ loadHealthSummary })}
         isAdmin={false}
         fetchGateways={vi.fn()}
       />,
@@ -82,6 +97,8 @@ describe("OperatorHome", () => {
         within(screen.getByTestId("summary-missing")).getByText("1"),
       ).toBeInTheDocument();
     });
+    // Scoped to the selected building + floor, not re-derived from loadFreshness (#451).
+    expect(loadHealthSummary).toHaveBeenCalledWith("b1", "f1");
   });
 
   it("lists only attention points, missing first then stale", async () => {
@@ -203,10 +220,12 @@ describe("OperatorHome", () => {
           })),
         ),
       );
+    const loadHealthSummary = vi.fn().mockResolvedValue(healthSummary);
     const loaders = makeLoaders({
       loadFloors: vi.fn().mockResolvedValue([floor, floor2]),
       loadFloorPoints,
       loadFreshness,
+      loadHealthSummary,
     });
 
     render(
@@ -219,6 +238,7 @@ describe("OperatorHome", () => {
 
     // The first floor auto-loads (one row); switching to すべてのフロア aggregates both.
     await screen.findAllByTestId("home-attention-row");
+    expect(loadHealthSummary).toHaveBeenCalledWith("b1", "f1");
     await userEvent.selectOptions(
       screen.getByTestId("home-floor-select"),
       "__all__",
@@ -231,6 +251,57 @@ describe("OperatorHome", () => {
     expect(loadFloorPoints).toHaveBeenCalledWith("f2");
     expect(screen.getByText("1F室温")).toBeInTheDocument();
     expect(screen.getByText("2F室温")).toBeInTheDocument();
+    // "すべてのフロア" scopes the server-side summary to the whole building (no floorDtId),
+    // rather than fanning out a per-floor client aggregation (#451).
+    expect(loadHealthSummary).toHaveBeenCalledWith("b1", undefined);
+  });
+
+  it("never queries the new building with the previous building's stale floor id (#497 review)", async () => {
+    const building2: ResourceRef = {
+      type: "building",
+      dtId: "b2",
+      id: "b2",
+      name: "棟B",
+    };
+    const floor2: ResourceRef = {
+      type: "floor",
+      dtId: "g1",
+      id: "g1",
+      name: "1F",
+    };
+    const loadFloors = vi
+      .fn()
+      .mockImplementation((buildingDtId: string) =>
+        Promise.resolve(buildingDtId === "b1" ? [floor] : [floor2]),
+      );
+    const loadHealthSummary = vi.fn().mockResolvedValue(healthSummary);
+    const loaders = makeLoaders({
+      loadBuildings: vi.fn().mockResolvedValue([building, building2]),
+      loadFloors,
+      loadHealthSummary,
+    });
+
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(loadHealthSummary).toHaveBeenCalledWith("b1", "f1"),
+    );
+
+    await userEvent.selectOptions(
+      screen.getByTestId("home-building-select"),
+      "b2",
+    );
+
+    await waitFor(() =>
+      expect(loadHealthSummary).toHaveBeenCalledWith("b2", "g1"),
+    );
+    // b1's floor id must never be paired with b2 — building and floor change atomically.
+    expect(loadHealthSummary.mock.calls).not.toContainEqual(["b2", "f1"]);
   });
 
   it("hides the gateway panel for non-admins and shows it for admins", async () => {
@@ -273,24 +344,22 @@ describe("OperatorHome", () => {
     expect(await screen.findByTestId("home-error")).toHaveTextContent("boom");
   });
 
-  it("shows the registered-point total and the fresh rate (#451 Phase 1)", async () => {
+  it("shows the registered-point total and the fresh rate from the server summary (#451)", async () => {
     // 1,234 points: 1,200 fresh + 34 stale → 97.2%. The thousands separator and the 1-decimal
-    // percentage are part of the contract.
-    const points = Array.from({ length: 1234 }, (_, i) => ({
-      pointId: `p${i}`,
-      name: `点${i}`,
-      deviceName: "AHU-1",
-      spaceName: "会議室A",
-    }));
+    // percentage are part of the contract. The total/fresh rate come from `GET
+    // /api/telemetry/health/summary` (#452) directly, not from re-aggregating `loadFreshness`.
     const loaders = makeLoaders({
-      loadFloorPoints: vi.fn().mockResolvedValue(points),
-      loadFreshness: vi.fn().mockResolvedValue(
-        points.map((p, i) => ({
-          pointId: p.pointId,
-          status: i < 1200 ? ("fresh" as const) : ("stale" as const),
-          ageSeconds: i < 1200 ? 1 : 900,
-        })),
-      ),
+      loadHealthSummary: vi.fn().mockResolvedValue({
+        totalPoints: 1234,
+        fresh: 1200,
+        stale: 34,
+        missing: 0,
+        unknown: 0,
+        alarmWarn: 0,
+        alarmCritical: 0,
+        dataComplete: true,
+        indexState: "ready",
+      } satisfies HealthSummary),
     });
     render(
       <OperatorHome
@@ -316,6 +385,17 @@ describe("OperatorHome", () => {
     const loaders = makeLoaders({
       loadFloorPoints: vi.fn().mockResolvedValue([]),
       loadFreshness: vi.fn().mockResolvedValue([]),
+      loadHealthSummary: vi.fn().mockResolvedValue({
+        totalPoints: 0,
+        fresh: 0,
+        stale: 0,
+        missing: 0,
+        unknown: 0,
+        alarmWarn: 0,
+        alarmCritical: 0,
+        dataComplete: true,
+        indexState: "ready",
+      } satisfies HealthSummary),
     });
     render(
       <OperatorHome
@@ -330,6 +410,24 @@ describe("OperatorHome", () => {
     );
     expect(screen.getByTestId("summary-fresh")).toHaveTextContent("—");
     expect(screen.getByTestId("summary-fresh")).not.toHaveTextContent("%");
+  });
+
+  it("surfaces an error when the health summary fetch fails, instead of showing zero counts (#451)", async () => {
+    const loaders = makeLoaders({
+      loadHealthSummary: vi
+        .fn()
+        .mockRejectedValue(new Error("データ品質の集計取得に失敗しました (503)")),
+    });
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    expect(await screen.findByTestId("home-error")).toHaveTextContent(
+      "データ品質の集計取得に失敗しました",
+    );
   });
 
   it("links each summary card to the matching /health filter (#451 Phase 1)", async () => {
