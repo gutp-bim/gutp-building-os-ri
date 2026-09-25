@@ -40,6 +40,11 @@ function makeLoaders(overrides: Partial<HomeLoaders> = {}): HomeLoaders {
     loadFloorPoints: vi.fn().mockResolvedValue(namedPoints),
     loadFreshness: vi.fn().mockResolvedValue(freshness),
     loadAlarms: vi.fn().mockResolvedValue([]),
+    loadOperationsSummary: vi.fn().mockResolvedValue({
+      msgRate1m: null,
+      msgRate1hAvg: null,
+      metricsAvailable: false,
+    }),
     ...overrides,
   };
 }
@@ -398,5 +403,43 @@ describe("OperatorHome", () => {
       "最新値の一括取得に失敗しました",
     );
     expect(screen.queryByTestId("home-attention-row")).not.toBeInTheDocument();
+  });
+
+  it("shows the data-throughput card with the 1h-average delta when Prometheus is wired (#451 Phase 1)", async () => {
+    const loaders = makeLoaders({
+      loadOperationsSummary: vi.fn().mockResolvedValue({
+        msgRate1m: 1842,
+        msgRate1hAvg: 1790,
+        metricsAvailable: true,
+      }),
+    });
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByTestId("throughput-current")).toHaveTextContent(
+      "1,842 msg/s",
+    );
+    expect(screen.getByTestId("throughput-1h-avg")).toHaveTextContent(
+      "1,790 msg/s",
+    );
+    expect(screen.getByTestId("throughput-delta")).toHaveTextContent("↑ 2.9%");
+  });
+
+  it("hides the data-throughput card when Prometheus is not configured (#451 Phase 1)", async () => {
+    render(
+      <OperatorHome
+        loaders={makeLoaders()}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    await screen.findAllByTestId("home-attention-row");
+    expect(screen.queryByTestId("home-throughput")).not.toBeInTheDocument();
   });
 });
