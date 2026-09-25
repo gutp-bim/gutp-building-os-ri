@@ -50,7 +50,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
     }
 
     [Fact]
-    public async Task SeedService_DataAlreadyPresent_ReimportsWithNewContent()
+    public async Task SeedService_DataAlreadyPresent_SkipsReimport()
     {
         // 既存データを投入
         var ttl = await File.ReadAllTextAsync(SampleTtlPath);
@@ -82,8 +82,12 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         var dataSource = new OxiGraphPointIdDataSource(oxiGraph.Client);
         var infos = await dataSource.GetPointIdInfosAsync();
 
-        Assert.DoesNotContain(infos, i => i.Key == "LOCAL005"); // 旧データは消えている
-        Assert.Contains(infos, i => i.Key == "LOCAL999");       // 新データが存在する
+        // #484: RunAsync now gates the import on the store being empty, precisely so a runtime twin
+        // (here, standing in for admin-API edits since the last seed) is never silently discarded by
+        // a second seed run. A non-empty store must be left untouched — the old content survives and
+        // the new file's content never lands.
+        Assert.Contains(infos, i => i.Key == "LOCAL005");    // 既存データは残っている
+        Assert.DoesNotContain(infos, i => i.Key == "LOCAL999"); // 新データは取り込まれていない
     }
 
     // Regression for #182: building-scoped detail queries join building→equipment via sbco:floor
