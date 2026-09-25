@@ -20,6 +20,9 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lake_s3_client as lakes3  # noqa: E402
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 OUT_DIR = REPO_ROOT / "Tools/e2e-performance/results/monitoring"
 LOG_FILE = OUT_DIR / "monitor_log.json"
@@ -28,6 +31,7 @@ HTML_FILE = REPO_ROOT / "docs/repository-review.html"
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
 NATS_MON = os.environ.get("NATS_MON", "http://localhost:8222")
 HEALTH_PORT = os.environ.get("CONNECTOR_HEALTH", "http://localhost:8081")
+MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000")
 
 MONITORING_HOURS = 12
 INTERVAL_MIN = 30
@@ -83,25 +87,11 @@ def _nats_streams() -> dict[str, dict]:
 
 
 def _minio_count() -> dict:
-    try:
-        r = subprocess.run(
-            ["docker", "exec", "building-os.minio", "sh", "-c",
-             "mc alias set local http://localhost:9000 buildingos buildingos123 --quiet 2>/dev/null && "
-             "mc ls --recursive local/cold/ 2>/dev/null | wc -l"],
-            capture_output=True, text=True, timeout=20,
-        )
-        count = int(r.stdout.strip().split("\n")[-1])
-        # unknown パーティションのみの件数
-        r2 = subprocess.run(
-            ["docker", "exec", "building-os.minio", "sh", "-c",
-             "mc alias set local http://localhost:9000 buildingos buildingos123 --quiet 2>/dev/null && "
-             "mc ls --recursive local/cold/building_id=unknown/ 2>/dev/null | wc -l"],
-            capture_output=True, text=True, timeout=20,
-        )
-        unknown = int(r2.stdout.strip().split("\n")[-1])
-        return {"total_objects": count, "unknown_objects": unknown}
-    except Exception:
-        return {"total_objects": -1, "unknown_objects": -1}
+    # Host-side S3 API against MINIO_ENDPOINT (#491 — building-os.minio now runs RustFS, whose image
+    # ships no `mc` binary, so `docker exec ... mc ...` no longer works).
+    count = len(lakes3.list_keys(MINIO_ENDPOINT, "cold"))
+    unknown = len(lakes3.list_keys(MINIO_ENDPOINT, "cold", prefix="building_id=unknown/"))
+    return {"total_objects": count, "unknown_objects": unknown}
 
 
 def _count_log_events(log: str, since_line: int) -> dict:

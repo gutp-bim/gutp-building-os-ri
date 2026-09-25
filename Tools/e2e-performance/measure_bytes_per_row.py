@@ -13,7 +13,7 @@
 Usage:
   python measure_bytes_per_row.py --out results/E7 [--rows 50000] [--ingress localhost:5051]
       [--oxigraph http://localhost:7878] [--pg "host=localhost port=5433 dbname=buildingos ..."]
-      [--minio-container building-os.minio] [--flush-wait 80]
+      [--minio-endpoint localhost:9000] [--flush-wait 80]
 """
 
 from __future__ import annotations
@@ -21,49 +21,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lake_s3_client as lakes3  # noqa: E402
 import s10_pointlist_integrity as s10  # noqa: E402
 
 
-def lake_bytes(container: str, bucket: str, prefix: str) -> int:
-    subprocess.run(["docker", "exec", container, "mc", "alias", "set", "lake", "http://localhost:9000",
-                    os.environ.get("MINIO_ROOT_USER", "buildingos"),
-                    os.environ.get("MINIO_ROOT_PASSWORD", "buildingos123")],
-                   check=False, capture_output=True, timeout=30)
-    out = subprocess.run(["docker", "exec", container, "mc", "ls", "--recursive", f"lake/{bucket}/{prefix}"],
-                         check=False, capture_output=True, text=True, timeout=60).stdout
-    total = 0
-    for line in out.splitlines():
-        # mc ls --recursive: "[<date> <time> <TZ>] <SIZE> <STORAGECLASS> <key>". The size is the token
-        # right before the storage class (STANDARD), and the key is the last token.
-        parts = line.split()
-        if not parts or not parts[-1].endswith(".parquet"):
-            continue
-        size_tok = parts[-3] if len(parts) >= 3 and parts[-2] in ("STANDARD", "REDUCED_REDUNDANCY") else None
-        if size_tok is None:
-            # fallback: first token that parses to a positive size
-            size_tok = next((t for t in parts if _parse_size(t) > 0), "0")
-        total += _parse_size(size_tok)
-    return total
-
-
-def _parse_size(s: str) -> int:
-    units = {"B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3, "KB": 1000, "MB": 1000**2}
-    for u, mul in sorted(units.items(), key=lambda x: -len(x[0])):
-        if s.endswith(u):
-            try:
-                return int(float(s[:-len(u)]) * mul)
-            except ValueError:
-                return 0
-    try:
-        return int(float(s))
-    except ValueError:
-        return 0
+def lake_bytes(endpoint: str, bucket: str, prefix: str) -> int:
+    return lakes3.total_bytes(endpoint, bucket, prefix)
 
 
 def timescale_bytes_per_row(pg_conn: str, rows: int) -> float | None:
@@ -111,7 +79,7 @@ def main() -> int:
     ap.add_argument("--oxigraph", default=os.environ.get("OXIGRAPH_URL", "http://localhost:7878"))
     ap.add_argument("--pg", default=os.environ.get(
         "PG_CONN", "host=localhost port=5433 dbname=buildingos user=buildingos password=buildingos"))
-    ap.add_argument("--minio-container", default=os.environ.get("MINIO_CONTAINER", "building-os.minio"))
+    ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
     ap.add_argument("--flush-wait", type=int, default=80)
     # TimescaleDB native columnar compression on time-series is typically ~90-95% reduction (公称値).
     # We report the ESTIMATED compressed baseline + ratio using this factor (informational; the gated
@@ -142,7 +110,7 @@ def main() -> int:
         print(f"ingested {accepted} rows; waiting {args.flush_wait}s for flush...")
         time.sleep(args.flush_wait)
 
-        pq_bytes = lake_bytes(args.minio_container, "cold", f"building_id={building}")
+        pq_bytes = lake_bytes(args.minio_endpoint, "cold", f"building_id={building}")
         pq_bpr = pq_bytes / accepted if accepted else None
         ts_bpr = timescale_bytes_per_row(args.pg, accepted)
         ratio = (pq_bpr / ts_bpr) if (pq_bpr and ts_bpr) else None

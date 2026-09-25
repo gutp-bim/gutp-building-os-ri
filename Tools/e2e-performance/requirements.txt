@@ -10,3 +10,5 @@ duckdb>=1.1.0
 # E5 point-list integrity: gRPC GatewayIngress client (proto compiled at runtime via grpcio-tools)
 grpcio>=1.60.0
 grpcio-tools>=1.60.0
+# Host-side S3 client for the Parquet lake (lake_s3_client.py) — RustFS's image ships no `mc` (#491)
+boto3>=1.34.0

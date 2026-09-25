@@ -42,7 +42,7 @@ Usage:
   python s20_retention_compaction.py --out results/E11 [--points 300] [--buildings 3] [--gateways 6]
       [--waves 3] [--retention-days 1] [--target-hours-back 3]
       [--ingress localhost:5051] [--oxigraph http://localhost:7878]
-      [--minio-endpoint localhost:9000] [--minio-container building-os.minio] [--bucket cold]
+      [--minio-endpoint localhost:9000] [--bucket cold]
 """
 
 from __future__ import annotations
@@ -51,13 +51,13 @@ import argparse
 import asyncio
 import json
 import os
-import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lake_retention_kpi as lrk  # noqa: E402
+import lake_s3_client as lakes3  # noqa: E402
 import s10_pointlist_integrity as s10  # noqa: E402
 import s17_multibuilding_scale_sweep as s17  # noqa: E402
 import s19_endurance_soak as s19  # noqa: E402
@@ -188,103 +188,17 @@ def compaction_converged(keys: list[str], prefix: str) -> bool:
     return all(k.rsplit("/", 1)[-1].startswith("compact-") for k in under_prefix)
 
 
-# ── thin I/O: MinIO listing + ILM verification (docker exec mc, same approach as
-#    e2e/runner/normalize_storage.py's E7 listing — kept local so this harness has no import
-#    dependency outside Tools/e2e-performance/) ─────────────────────────────────────────────────────
-# KNOWN BROKEN (#491): building-os.minio now runs RustFS (#489), whose image ships no `mc` binary
-# at all — every `docker exec ... mc ...` call below fails outright, and the MINIO_ROOT_USER/
-# PASSWORD env lookup below also no longer matches the container's actual env
-# (RUSTFS_ACCESS_KEY/SECRET_KEY). Not fixed here: needs a real redesign (host-side mc against
-# localhost:9000, or a different S3 client), not a credential-name patch.
-def _minio_container_env(container: str, var: str) -> str | None:
-    """The value MinIO's own container is actually running `var` with (`docker exec printenv`), not
-    this process's shell env. Compose interpolates MINIO_ROOT_USER/PASSWORD from its own `.env` file
-    into the container at start-up (docker-compose.oss.yaml) without those ever being exported into
-    whatever shell later launches this harness — trusting only `os.environ` here defaults to
-    buildingos/buildingos123 even when the live bucket needs different creds, making every `mc`
-    call below silently fail auth and `list_lake_keys` return an empty listing (a false KPI
-    failure, not a real one)."""
-    try:
-        out = subprocess.run(["docker", "exec", container, "printenv", var],
-                              check=False, capture_output=True, text=True, timeout=10).stdout.strip()
-    except (subprocess.SubprocessError, OSError):
-        return None
-    return out or None
+# ── thin I/O: lake listing + ILM verification, via lake_s3_client (#491 — RustFS's image ships no
+#    `mc` binary, so this talks the S3 API directly against --minio-endpoint instead) ─────────────
+def list_lake_keys(endpoint: str, bucket: str) -> list[str]:
+    return lakes3.list_keys(endpoint, bucket)
 
 
-def _resolve_minio_credentials(container: str) -> tuple[str, str]:
-    """Resolve the mc alias creds the *container* is actually running with: prefer the container's
-    own env (authoritative — see `_minio_container_env`), fall back to this process's host env
-    (matches quality_checker.py / s7_resilience_test.py's convention), then the compose default."""
-    user = (_minio_container_env(container, "MINIO_ROOT_USER")
-            or os.environ.get("MINIO_ROOT_USER") or "buildingos")
-    password = (_minio_container_env(container, "MINIO_ROOT_PASSWORD")
-                or os.environ.get("MINIO_ROOT_PASSWORD") or "buildingos123")
-    return user, password
-
-
-def _configure_mc_alias(container: str) -> None:
-    """Self-contained `mc alias set` so every caller below (listing, ILM check) works standalone
-    and in any order — neither depends on the other having run first."""
-    user, password = _resolve_minio_credentials(container)
-    subprocess.run(
-        ["docker", "exec", container, "mc", "alias", "set", "lake", "http://localhost:9000",
-         user, password],
-        check=False, capture_output=True, timeout=30)
-
-
-def list_lake_keys(container: str, bucket: str) -> list[str]:
-    try:
-        _configure_mc_alias(container)
-        out = subprocess.run(
-            ["docker", "exec", container, "mc", "ls", "--recursive", f"lake/{bucket}"],
-            check=False, capture_output=True, text=True, timeout=60).stdout
-    except (subprocess.SubprocessError, OSError):
-        return []
-    keys = []
-    for line in out.splitlines():
-        parts = line.split()
-        if parts and parts[-1].endswith(".parquet"):
-            keys.append(parts[-1])
-    return keys
-
-
-def check_ilm_rule(container: str, bucket: str, rule_id: str = RETENTION_RULE_ID) -> dict | None:
+def check_ilm_rule(endpoint: str, bucket: str, rule_id: str = RETENTION_RULE_ID) -> dict | None:
     """Best-effort verification that LakeRetentionHostedService actually applied its ILM rule to the
-    live MinIO bucket (#263's "public storage contract" gap — LakeRetentionLifecycleTest.cs only
-    asserts the built config object, never live enforcement). Returns None — not False — on any
-    failure to reach/parse `mc`'s output: an unparseable response means "unknown", and the caller
-    reports that rather than failing the run over a client-tooling quirk. `mc ilm` output shape has
-    changed across MinIO client versions; this tries the modern `--json` form and degrades to None
-    if it doesn't understand what came back."""
-    try:
-        _configure_mc_alias(container)  # self-contained — do not assume list_lake_keys ran first
-        out = subprocess.run(
-            ["docker", "exec", container, "mc", "ilm", "rule", "list", f"lake/{bucket}", "--json"],
-            check=False, capture_output=True, text=True, timeout=30).stdout
-    except (subprocess.SubprocessError, OSError):
-        return None
-    if not out.strip():
-        return None
-    found_any_rule = False
-    for line in out.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            doc = json.loads(line)
-        except ValueError:
-            continue
-        config = doc.get("config", doc) if isinstance(doc, dict) else None
-        if not isinstance(config, dict):
-            continue
-        found_any_rule = True
-        rid = config.get("ID") or config.get("id")
-        if rid == rule_id:
-            expiration = config.get("Expiration") or config.get("expiration") or {}
-            days = expiration.get("Days") if isinstance(expiration, dict) else None
-            return {"applied": True, "days": days}
-    return {"applied": False, "days": None} if found_any_rule else None
+    live bucket (#263's "public storage contract" gap — LakeRetentionLifecycleTest.cs only asserts
+    the built config object, never live enforcement)."""
+    return lakes3.get_ilm_rule(endpoint, bucket, rule_id)
 
 
 # ── gRPC ingest (explicit per-frame timestamps — s10.stream_frames/s19.stream_chunk always use
@@ -367,7 +281,7 @@ async def run(args) -> int:
         # the object count. A later wave's genuinely new part then only restores the count to a
         # prior peak — never past it — so a count-based "increased since last wave" check would
         # misreport that flush as failed. See lake_retention_kpi.new_keys_under_prefixes.
-        seen_keys: set[str] = {k for k in list_lake_keys(args.minio_container, args.bucket)
+        seen_keys: set[str] = {k for k in list_lake_keys(args.minio_endpoint, args.bucket)
                                 if any(k.startswith(prefix) for prefix in prefixes)}
         for wave in range(args.waves):
             frames = [(p.gateway_id, p.point_id, (base_timestamps[i] + timedelta(milliseconds=wave)).isoformat())
@@ -379,7 +293,7 @@ async def run(args) -> int:
             wave_deadline = t0 + wave_gap_s + 30.0
             flushed_at = None
             while True:
-                keys_now = list_lake_keys(args.minio_container, args.bucket)
+                keys_now = list_lake_keys(args.minio_endpoint, args.bucket)
                 new_keys = lrk.new_keys_under_prefixes(keys_now, prefixes, seen_keys)
                 if new_keys:
                     seen_keys |= new_keys
@@ -403,7 +317,7 @@ async def run(args) -> int:
         comp_deadline = comp_start + comp_wait_s
         pending = set(buildings)
         while pending and time.monotonic() < comp_deadline:
-            keys_now = list_lake_keys(args.minio_container, args.bucket)
+            keys_now = list_lake_keys(args.minio_endpoint, args.bucket)
             done_now = {b for b in pending if compaction_converged(keys_now, partition_prefix(b, target_hour))}
             for b in done_now:
                 compaction_events.append({"success": True,
@@ -414,12 +328,12 @@ async def run(args) -> int:
         for _ in pending:
             compaction_events.append({"success": False, "duration_ms": comp_wait_s * 1000.0})
 
-        final_keys = list_lake_keys(args.minio_container, args.bucket)
+        final_keys = list_lake_keys(args.minio_endpoint, args.bucket)
         now_final = datetime.now(timezone.utc)
         retention_report = lrk.retention_boundary_report(
             retention_observations(final_keys, target_hour, now_final, buildings),
             args.retention_days)
-        ilm = check_ilm_rule(args.minio_container, args.bucket)
+        ilm = check_ilm_rule(args.minio_endpoint, args.bucket)
 
         print(f"[s20] reconciling row counts against the lake ({len(buildings)} buildings)")
         expected_total = loss_weighted = dup_count_total = rows_total = 0
@@ -535,7 +449,6 @@ def main() -> int:
     ap.add_argument("--ingress", default=os.environ.get("INGRESS_TARGET", "localhost:5051"))
     ap.add_argument("--oxigraph", default=os.environ.get("OXIGRAPH_URL", "http://localhost:7878"))
     ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
-    ap.add_argument("--minio-container", default=os.environ.get("MINIO_CONTAINER", "building-os.minio"))
     ap.add_argument("--bucket", default=os.environ.get("BUCKET", "cold"))
     ap.add_argument("--containers", default=",".join(DEFAULT_CONTAINERS))
     args = ap.parse_args()
