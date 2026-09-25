@@ -442,4 +442,27 @@ describe("OperatorHome", () => {
     await screen.findAllByTestId("home-attention-row");
     expect(screen.queryByTestId("home-throughput")).not.toBeInTheDocument();
   });
+
+  it("hides the data-throughput card when Prometheus is configured but unreachable (#451 Phase 1)", async () => {
+    // The default docker-compose stack sets PROMETHEUS_URL even without the observability profile
+    // (CLAUDE.md) so Prometheus is unreachable, not "unconfigured" — metricsAvailable comes back
+    // true but both scalars are null. The card must still stay hidden, not show em dashes.
+    const loaders = makeLoaders({
+      loadOperationsSummary: vi.fn().mockResolvedValue({
+        msgRate1m: null,
+        msgRate1hAvg: null,
+        metricsAvailable: true,
+      }),
+    });
+    render(
+      <OperatorHome
+        loaders={loaders}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+
+    await screen.findAllByTestId("home-attention-row");
+    expect(screen.queryByTestId("home-throughput")).not.toBeInTheDocument();
+  });
 });
