@@ -62,7 +62,7 @@ describe("visibleNavItems", () => {
         permission: { resourceType: "point", action: "control" },
       },
     ];
-    const visible = visibleNavItems("platform", ["point:*:control"], items).map((i) => i.label);
+    const visible = visibleNavItems("platform", ["point:p-1:control"], items).map((i) => i.label);
     expect(visible).toEqual(["Gated"]);
   });
 });

@@ -37,5 +37,5 @@ Out of scope:
 - **Never use default credentials** (`buildingos` / `buildingos123`) in production. Override all defaults via environment variables or a secrets manager.
 - The `DISABLE_AUTH=true` flag is for local development only. Production deployments must use Keycloak OIDC.
 - `docker-compose.oss.yaml` is a local development stack. For production, use the Helm charts in `kubernetes/helm/` with proper secret injection.
-- The Keycloak `realm.json` in `oss-stack/keycloak/` contains example users (`admin` / `testoperator`) with development passwords. Replace these before any internet-facing deployment.
+- The Keycloak `realm.json` in `oss-stack/keycloak/` contains an example user (`admin`) with a development password. Replace these before any internet-facing deployment.
 - The `oss-stack/keycloak/realm.json` client secret (`change-me-in-production`) **must** be rotated before production use.

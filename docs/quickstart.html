@@ -187,8 +187,7 @@ docker compose -f docker-compose.oss.yaml up -d</code></pre>
   -d grant_type=password -d client_id=web-client \
   -d username=admin -d password=admin | jq -r .access_token)</code></pre>
       <p class="fineprint">
-        既定の dev realm には <code>admin</code>/<code>admin</code>(全操作可)と
-        <code>testoperator</code>/<code>testpass</code>(読取 + 制御)が投入済みです。
+        既定の dev realm には <code>admin</code>/<code>admin</code>(全操作可)が投入済みです。
         ラボ/CI 専用の既定資格情報なので、本番前に必ず変更してください。
       </p>
     </div>

@@ -150,8 +150,8 @@ yarn install && yarn dev
 **認証は既定で Keycloak に統一されています（#161）。** 既定の OSS スタック
 (`docker compose -f docker-compose.oss.yaml up`)では **API Server も JWT 必須**で、Web Client と
 挙動が揃います(以前の「curl は認証不要なのに画面はログイン必須」という非対称は解消)。既定の dev
-realm(`oss-stack/keycloak/realm.json`)には `admin`/`admin`(全操作可)と
-`testoperator`/`testpass`(読取 + 制御)の2アカウントが自動投入済みです — 詳細は
+realm(`oss-stack/keycloak/realm.json`)には `admin`/`admin`(全操作可)が自動投入済みです
+(operator / viewer はリソースごとの権限を付けて追加) — 詳細は
 [docs/guides/keycloak-user-management.md](keycloak-user-management.md)。
 **ラボ/CI 専用の既定資格情報です — 本番前に必ず変更してください。**
 

@@ -155,45 +155,6 @@
       "attributes": {
         "role": [
           "admin"
-        ],
-        "permissions": [
-          "*:*:*"
-        ]
-      }
-    },
-    {
-      "name": "building-os-operators",
-      "realmRoles": [
-        "building-os-operator"
-      ],
-      "attributes": {
-        "role": [
-          "operator"
-        ],
-        "permissions": [
-          "building:*:read",
-          "floor:*:read",
-          "space:*:read",
-          "device:*:read,control",
-          "point:*:read,write,control"
-        ]
-      }
-    },
-    {
-      "name": "building-os-viewers",
-      "realmRoles": [
-        "building-os-viewer"
-      ],
-      "attributes": {
-        "role": [
-          "viewer"
-        ],
-        "permissions": [
-          "building:*:read",
-          "floor:*:read",
-          "space:*:read",
-          "device:*:read",
-          "point:*:read"
         ]
       }
     }
@@ -219,39 +180,6 @@
       "attributes": {
         "role": [
           "admin"
-        ],
-        "permissions": [
-          "*:*:*"
-        ]
-      }
-    },
-    {
-      "username": "testoperator",
-      "enabled": true,
-      "emailVerified": true,
-      "email": "testoperator@building-os.local",
-      "firstName": "Test",
-      "lastName": "Operator",
-      "credentials": [
-        {
-          "type": "password",
-          "value": "testpass",
-          "temporary": false
-        }
-      ],
-      "groups": [
-        "building-os-operators"
-      ],
-      "attributes": {
-        "role": [
-          "operator"
-        ],
-        "permissions": [
-          "building:*:read",
-          "floor:*:read",
-          "space:*:read",
-          "device:*:read,control",
-          "point:*:read,write,control"
         ]
       }
     }
