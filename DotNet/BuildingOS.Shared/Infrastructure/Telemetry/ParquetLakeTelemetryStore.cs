@@ -162,7 +162,9 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
         var coveredFrom = PartitionKeyRangePlanner.TryParsePartitionStart(newestDropped, out var droppedStart)
             ? droppedStart.AddHours(1) + PartitionKeyRangePlanner.DefaultGrace
             : start;
-        TelemetryQueryCompleteness.ReportTruncated(coveredFrom);
+        // Never past the requested end: a cut inside the newest hour means nothing is known complete,
+        // and a bound beyond the range would send a client re-fetching the gap outside it.
+        TelemetryQueryCompleteness.ReportTruncated(coveredFrom > end ? end : coveredFrom);
 
         return ordered.Take(_options.QueryMaxFiles).ToList();
     }

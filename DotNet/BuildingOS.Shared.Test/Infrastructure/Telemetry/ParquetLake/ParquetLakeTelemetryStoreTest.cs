@@ -114,6 +114,24 @@ public class ParquetLakeTelemetryStoreTest
     }
 
     [Fact]
+    public async Task QueryAsync_OverMaxFiles_WithinTheLastHour_CoveredFromNeverPassesEnd()
+    {
+        // Review of #513: when the cap cuts inside the newest hour, end-of-dropped-hour + grace lies
+        // beyond the requested end. The header must stay inside the range ("nothing is known complete").
+        var s = new InMemoryBlobStorage();
+        var h = new DateTime(2026, 6, 12, 10, 0, 0, DateTimeKind.Utc);
+        await PutAsync(s, LakePartitionKey.For("b1", h, 1, 2), Row("a", "p1", h.AddMinutes(5), 1));
+        await PutAsync(s, LakePartitionKey.For("b1", h, 3, 4), Row("b", "p1", h.AddMinutes(6), 2));
+        var end = h.AddMinutes(30);
+
+        using var completeness = TelemetryQueryCompleteness.Begin();
+        await NewStore(s, maxFiles: 1).QueryAsync("p1", h, end);
+
+        Assert.True(completeness.IsPartial);
+        Assert.Equal(end, completeness.CoveredFrom);
+    }
+
+    [Fact]
     public async Task QueryMultiAsync_OverMaxFiles_ReportsPartialResult()
     {
         var s = new InMemoryBlobStorage();
