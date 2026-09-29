@@ -61,6 +61,15 @@ public static class ControlSchemaIssueReasons
     /// treat this as "no allowed set" and validate permissively.
     /// </summary>
     public const string MalformedEnumLabels = "malformed_enum_labels";
+
+    /// <summary>No control schema resolved for the point at all (control time only, #481).</summary>
+    public const string NoSchema = "no_schema";
+
+    /// <summary>
+    /// <c>bos:dataType</c> is present but not one the validator understands (<c>boolean</c> /
+    /// <c>enum</c> / <c>number</c>), so no value can be checked (control time only, #481).
+    /// </summary>
+    public const string UnknownDataType = "unknown_datatype";
 }
 
 /// <summary>

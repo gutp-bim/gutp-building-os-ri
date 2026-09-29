@@ -34,6 +34,12 @@ public class EnvModule
     // per-query object cap (0 = unlimited).
     public readonly int ParquetLatestLookbackHours =
         int.TryParse(Environment.GetEnvironmentVariable("PARQUET_LATEST_LOOKBACK_HOURS"), out var h) && h > 0 ? h : 24;
+    /// <summary>
+    /// Raw <c>CONTROL_SCHEMA_FAILURE_POLICY</c> (#481): <c>deny</c> refuses a control write whose point
+    /// schema cannot constrain the value; unset/<c>allow</c> keeps the fail-open default.
+    /// </summary>
+    public readonly string? ControlSchemaFailurePolicy =
+        Environment.GetEnvironmentVariable(BuildingOS.Shared.Domain.ControlSafetyOptions.EnvironmentVariable);
     public readonly int ParquetQueryMaxFiles =
         int.TryParse(Environment.GetEnvironmentVariable("PARQUET_QUERY_MAX_FILES"), out var f) && f > 0 ? f : 0;
     /// <summary>

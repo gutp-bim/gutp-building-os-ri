@@ -450,6 +450,7 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 | `KEYCLOAK_ADMIN_CLIENT_ID` | Admin API client ID | — |
 | `KEYCLOAK_ADMIN_CLIENT_SECRET` | Admin API client secret | — |
 | `DISABLE_AUTH` | skip auth (local dev) | `false` |
+| `CONTROL_SCHEMA_FAILURE_POLICY` | #481: `deny` refuses (400 + `reason`) a control write whose point ControlSchema cannot constrain the value (no schema / no or unknown `dataType` / unusable `enumLabels`); `allow` sends it unvalidated (fail-open). Either way counted in `building_os.control.schema_unresolved{reason,policy}`; effective value logged at startup. Under `deny` an OxiGraph outage also refuses control. See `docs/architecture/oss-control-safety.md` §2.5. | `allow` |
 | `CONTROL_RESULT_TIMEOUT_SEC` | Online point-control result wait (`WaitForResult`) timeout in seconds; offline gateways already fail fast with 503 (#186), so this only bounds the "connected but slow" round-trip. | `10` |
 | `WARM_STORE` | Warm-tier storage mode (#216): `parquet` reads the unified Parquet lake (MinIO) for warm+cold+aggregate so TimescaleDB is not required for telemetry; `timescale` opts back into the TimescaleDB warm/aggregate stores (+ MinIO cold reader). **Default `parquet`** (any value except `timescale` → parquet). | `parquet` |
 | `MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | MinIO/S3 for the Parquet lake (read path). Required in parquet mode; the cold-tier reader in timescale mode. | — / `buildingos` / `buildingos123` |

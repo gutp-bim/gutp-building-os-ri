@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using BuildingOS.Shared.Domain.TwinAdmin;
 
 namespace BuildingOS.Shared.Domain;
 
@@ -20,7 +21,7 @@ public static class ControlValueValidator
 {
     public static ControlValidationResult Validate(ControlSchema schema, double value)
     {
-        return (schema.DataType ?? string.Empty).ToLowerInvariant() switch
+        return NormalizedDataType(schema) switch
         {
             "boolean" => value is 0 or 1
                 ? ControlValidationResult.Ok
@@ -30,6 +31,32 @@ public static class ControlValueValidator
             _         => ControlValidationResult.Ok, // unknown/unspecified type → cannot constrain
         };
     }
+
+    /// <summary>
+    /// Why <paramref name="schema"/> cannot constrain a control value, or null when it can (#481). The
+    /// cases are exactly those where <see cref="Validate"/> is permissive for lack of a schema to check
+    /// against — no schema, no or an unknown data type, an enum without a usable labels map — so a
+    /// fail-closed policy refuses what would otherwise be waved through. A number without bounds is
+    /// usable: bounds are optional, and the data type is still enforced.
+    /// </summary>
+    public static string? UnusableReason(ControlSchema? schema)
+    {
+        if (schema is null) return ControlSchemaIssueReasons.NoSchema;
+        return NormalizedDataType(schema) switch
+        {
+            "" => ControlSchemaIssueReasons.MissingDataType,
+            "boolean" or "number" => null,
+            "enum" => ParseAllowedCodes(schema.EnumLabels) is { Count: > 0 }
+                ? null
+                : ControlSchemaIssueReasons.MalformedEnumLabels,
+            _ => ControlSchemaIssueReasons.UnknownDataType,
+        };
+    }
+
+    // One spelling rule for both Validate and UnusableReason, so a type one calls usable the other
+    // enforces (a twin literal such as "number " must not be usable-yet-unchecked).
+    private static string NormalizedDataType(ControlSchema schema)
+        => (schema.DataType ?? string.Empty).Trim().ToLowerInvariant();
 
     private static ControlValidationResult ValidateEnum(ControlSchema schema, double value)
     {

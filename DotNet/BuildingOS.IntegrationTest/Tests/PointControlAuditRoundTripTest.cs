@@ -188,7 +188,8 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
             Mock.Of<IControlResultBus>(),
             publisher.Object,
             scope.ServiceProvider.GetRequiredService<IPointControlRepository>(),
-            auditWriter);
+            auditWriter,
+            new ControlSafetyOptions(ControlSchemaFailurePolicy.Allow));
 
         var httpContext = new DefaultHttpContext();
         httpContext.Items["AuthorizationContext"] =

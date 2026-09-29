@@ -28,7 +28,8 @@ public class PointController(
     IControlResultBus controlResultBus,
     IPointControlCommandPublisher commandPublisher,
     IPointControlRepository pointControlRepository,
-    IControlAuditWriter auditWriter) : ControllerBase
+    IControlAuditWriter auditWriter,
+    ControlSafetyOptions controlSafety) : ControllerBase
 {
     /// <summary>
     /// ポイント情報の一括取得
@@ -93,10 +94,25 @@ public class PointController(
             return BadRequest(new { error = "this point cannot be controlled with its current gateway/identity configuration" });
 
         // Input validation against the point's control schema (#153). The schema (from the point list)
-        // is the source of truth for type / enum allowed-values / number range. When no schema is
-        // resolved the point is unschematized → value validation is skipped (writable gate #139 still
-        // governs authorization).
+        // is the source of truth for type / enum allowed-values / number range. When the schema cannot
+        // constrain the value (none resolved, no/unknown data type, unusable enum labels) the write is
+        // either sent unvalidated (policy allow, the default) or refused (policy deny, #481); both are
+        // counted so an operator can find the incompletely modelled points.
         var schema = await controlSchemaResolver.ResolveAsync(detail.Point, detail.Device).ConfigureAwait(false);
+        if (ControlValueValidator.UnusableReason(schema) is { } unusable)
+        {
+            var deny = controlSafety.OnSchemaResolutionFailure == ControlSchemaFailurePolicy.Deny;
+            BuildingOsMetrics.ControlSchemaUnresolved.Add(1,
+                new KeyValuePair<string, object?>("reason", unusable),
+                new KeyValuePair<string, object?>("policy", deny ? "deny" : "allow"));
+            if (deny)
+                return BadRequest(new
+                {
+                    error = "this point has no usable control schema, so the value cannot be validated; " +
+                            "writes to it are refused (CONTROL_SCHEMA_FAILURE_POLICY=deny)",
+                    reason = unusable,
+                });
+        }
         if (schema is not null)
         {
             var validation = ControlValueValidator.Validate(schema, request.Value.Value);

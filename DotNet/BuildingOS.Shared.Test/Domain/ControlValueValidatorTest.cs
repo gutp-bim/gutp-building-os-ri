@@ -1,5 +1,6 @@
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain;
+using BuildingOS.Shared.Domain.TwinAdmin;
 
 namespace BuildingOS.Shared.Test.Domain;
 
@@ -84,5 +85,68 @@ public class ControlValueValidatorTest
         var result = ControlValueValidator.Validate(new ControlSchema { DataType = "boolean" }, 7);
         Assert.False(result.IsValid);
         Assert.False(string.IsNullOrEmpty(result.Error));
+    }
+
+    // ── data type spelling (review of #514) ─────────────────────────────────
+
+    [Theory]
+    [InlineData("number ")]
+    [InlineData(" Number")]
+    public void PaddedDataType_IsStillValidated(string dataType)
+    {
+        // UnusableReason trims the type and calls it usable; Validate must enforce it the same way, or a
+        // fail-closed deployment would send a padded "number " write unchecked.
+        var schema = new ControlSchema { DataType = dataType, MaxValue = 30 };
+        Assert.Null(ControlValueValidator.UnusableReason(schema));
+        Assert.False(ControlValueValidator.Validate(schema, 9999).IsValid);
+    }
+
+    // ── unusable schema (#481) ───────────────────────────────────────────────
+
+    public static TheoryData<ControlSchema?, string> UnusableSchemas() => new()
+    {
+        { null, ControlSchemaIssueReasons.NoSchema },
+        { new ControlSchema(), ControlSchemaIssueReasons.MissingDataType },
+        { new ControlSchema { DataType = "  " }, ControlSchemaIssueReasons.MissingDataType },
+        { new ControlSchema { DataType = "string" }, ControlSchemaIssueReasons.UnknownDataType },
+        { new ControlSchema { DataType = "enum" }, ControlSchemaIssueReasons.MalformedEnumLabels },
+        { new ControlSchema { DataType = "enum", EnumLabels = "[1,2]" }, ControlSchemaIssueReasons.MalformedEnumLabels },
+        { new ControlSchema { DataType = "enum", EnumLabels = "{not json" }, ControlSchemaIssueReasons.MalformedEnumLabels },
+        { new ControlSchema { DataType = "enum", EnumLabels = "{}" }, ControlSchemaIssueReasons.MalformedEnumLabels },
+    };
+
+    [Theory]
+    [MemberData(nameof(UnusableSchemas))]
+    public void UnusableReason_NamesWhyTheSchemaCannotConstrainAValue(ControlSchema? schema, string expected)
+        => Assert.Equal(expected, ControlValueValidator.UnusableReason(schema));
+
+    public static TheoryData<ControlSchema> UsableSchemas() => new()
+    {
+        new ControlSchema { DataType = "boolean" },
+        new ControlSchema { DataType = "Number" },
+        // Bounds are optional for a number: an unbounded setpoint is a modelling choice, not a failure.
+        new ControlSchema { DataType = "number" },
+        new ControlSchema { DataType = "enum", EnumLabels = """{"1":"cool"}""" },
+    };
+
+    [Theory]
+    [MemberData(nameof(UsableSchemas))]
+    public void UnusableReason_IsNull_ForAUsableSchema(ControlSchema schema)
+        => Assert.Null(ControlValueValidator.UnusableReason(schema));
+
+    [Theory]
+    [InlineData(null, ControlSchemaFailurePolicy.Allow)]
+    [InlineData("", ControlSchemaFailurePolicy.Allow)]
+    [InlineData("allow", ControlSchemaFailurePolicy.Allow)]
+    [InlineData("deny", ControlSchemaFailurePolicy.Deny)]
+    [InlineData(" DENY ", ControlSchemaFailurePolicy.Deny)]
+    public void ControlSchemaFailurePolicy_Parses(string? raw, ControlSchemaFailurePolicy expected)
+        => Assert.Equal(expected, ControlSafetyOptions.ParsePolicy(raw, out _));
+
+    [Fact]
+    public void ControlSchemaFailurePolicy_UnknownValue_FallsBackToAllow_AndSaysSo()
+    {
+        Assert.Equal(ControlSchemaFailurePolicy.Allow, ControlSafetyOptions.ParsePolicy("block", out var recognized));
+        Assert.False(recognized);
     }
 }

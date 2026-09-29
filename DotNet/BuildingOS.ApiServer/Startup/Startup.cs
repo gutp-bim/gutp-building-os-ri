@@ -66,6 +66,9 @@ namespace BuildingOs.ApiServer
             // === Digital twin layer ===
             services.AddScoped<IDigitalTwinDatabase, OxiGraphDigitalTwinDatabase>();
             services.AddScoped<IControlSchemaResolver, OssControlSchemaResolver>();
+            // Control-write fail-closed switch (#481). Parsed once; the effective value is logged in Configure.
+            services.AddSingleton(new BuildingOS.Shared.Domain.ControlSafetyOptions(
+                BuildingOS.Shared.Domain.ControlSafetyOptions.ParsePolicy(_envModule.ControlSchemaFailurePolicy, out _)));
             // Twin admin tools (#322): staged import preview/apply + read-only SPARQL console.
             services.AddScoped<BuildingOS.Shared.Domain.TwinAdmin.ITwinAdminService>(
                 sp => new OxiGraphTwinAdminService(
@@ -427,8 +430,25 @@ namespace BuildingOs.ApiServer
             services.AddSwagger();
         }
 
+        private void LogControlSafety(IServiceProvider services)
+        {
+            var log = services.GetRequiredService<ILogger<Startup>>();
+            var policy = BuildingOS.Shared.Domain.ControlSafetyOptions.ParsePolicy(
+                _envModule.ControlSchemaFailurePolicy, out var recognized);
+            if (!recognized)
+                log.LogWarning(
+                    "{Variable}={Value} is not allow|deny; using {Policy}",
+                    BuildingOS.Shared.Domain.ControlSafetyOptions.EnvironmentVariable,
+                    _envModule.ControlSchemaFailurePolicy, policy);
+            log.LogInformation(
+                "Control writes to a point without a usable control schema: {Policy} ({Variable})",
+                policy, BuildingOS.Shared.Domain.ControlSafetyOptions.EnvironmentVariable);
+        }
+
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            LogControlSafety(app.ApplicationServices);
+
             // EF Core migrations require session-scoped advisory locks.
             // Use POSTGRES_MIGRATION_CONNECTION_STRING (session pool or direct) instead of
             // the transaction-pool connection used for regular app traffic.

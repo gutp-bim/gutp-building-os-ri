@@ -103,6 +103,15 @@ source of truth）に対して値を検証し、不正なら **400** を返す�
 > 障害で全制御が止まるのを避ける選択）。値検証を厳格にしたい運用ではこのフェイルオープンを許容範囲か
 > HITL で確認すること。
 >
+> **フェイルクローズの選択（#481）**: `CONTROL_SCHEMA_FAILURE_POLICY=deny` にすると、スキーマが値を
+> 制約できない書込み（スキーマ無し・`dataType` 無し／未知・enum の `enumLabels` が使えない）を
+> **400**（`reason` 付き）で拒否する。既定は `allow`（上記のフェイルオープン）。`number` で境界が
+> 無いものは拒否しない（境界は任意で、型の検証は効くため）。OxiGraph の一時障害でもスキーマは
+> 「無し」に解決されるので、`deny` では**その間の制御が全て拒否される** — 設備側の安全を優先する
+> 運用で選ぶこと。どちらのモードでも該当件数はメトリクス
+> `building_os.control.schema_unresolved{reason, policy}` に出る（reason: `no_schema` /
+> `missing_datatype` / `unknown_datatype` / `malformed_enum_labels`）。起動時に有効な値をログに出す。
+>
 > **検知は twin 投入経路側の責務（#336）**: `ControlValueValidator` / `OssControlSchemaResolver`
 > 自体はランタイムでは意図的に無言のまま（フェイルオープンの原則どおり）だが、writable なポイントの
 > `bos:` スキーマが解決不能（述語欠落・`enumLabels` が不正な JSON）なことは、twin を投入する2つの
