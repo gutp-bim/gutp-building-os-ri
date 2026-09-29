@@ -88,7 +88,7 @@ paths:
           description: Service Unavailable
         '502':
           description: Bad Gateway
-  /api/v1/Auth/me:
+  /api/v1/auth/me:
     get:
       tags:
         - Auth
@@ -96,7 +96,7 @@ paths:
       responses:
         '200':
           description: OK
-  /api/v1/Auth/check:
+  /api/v1/auth/check:
     get:
       tags:
         - Auth
@@ -480,7 +480,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/v1/Groups:
+  /api/v1/groups:
     get:
       tags:
         - Groups
@@ -568,7 +568,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/v1/Groups/{id}':
+  '/api/v1/groups/{id}':
     get:
       tags:
         - Groups
@@ -701,7 +701,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/v1/Groups/{id}/resources':
+  '/api/v1/groups/{id}/resources':
     post:
       tags:
         - Groups
@@ -772,7 +772,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/v1/Groups/{id}/resources/{itemId}':
+  '/api/v1/groups/{id}/resources/{itemId}':
     delete:
       tags:
         - Groups
@@ -815,7 +815,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/v1/Groups/{id}/resources/bulk':
+  '/api/v1/groups/{id}/resources/bulk':
     post:
       tags:
         - Groups
@@ -874,7 +874,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/v1/MyResources/accessible:
+  /api/v1/my-resources/accessible:
     get:
       tags:
         - MyResources
@@ -891,7 +891,7 @@ paths:
       responses:
         '200':
           description: OK
-  /api/v1/MyResources:
+  /api/v1/my-resources:
     get:
       tags:
         - MyResources
@@ -1107,7 +1107,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/OperationsSummaryResponse'
-  /api/v1/Permissions/resolve:
+  /api/v1/permissions/resolve:
     post:
       tags:
         - Permissions
@@ -2996,7 +2996,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/v1/Users:
+  /api/v1/users:
     get:
       tags:
         - Users
@@ -3034,7 +3034,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/UsersControllerUserResponse'
-  '/api/v1/Users/{id}':
+  '/api/v1/users/{id}':
     get:
       tags:
         - Users
@@ -3084,7 +3084,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/v1/Users/{id}/attributes':
+  '/api/v1/users/{id}/attributes':
     patch:
       tags:
         - Users
@@ -3157,7 +3157,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/v1/Users/roles:
+  /api/v1/users/roles:
     get:
       tags:
         - Users
@@ -3195,7 +3195,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/RoleCatalogEntry'
-  '/api/v1/Users/{id}/enabled':
+  '/api/v1/users/{id}/enabled':
     put:
       tags:
         - Users
@@ -3268,7 +3268,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/v1/Users/{id}/permissions':
+  '/api/v1/users/{id}/permissions':
     post:
       tags:
         - Users

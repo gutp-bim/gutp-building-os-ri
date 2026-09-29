@@ -1,6 +1,6 @@
 /**
  * Pure validation for the group create/edit form (#143). Create requires a well-formed id + name;
- * edit only validates the name (the id is immutable, matching `PUT /api/Groups/{id}`).
+ * edit only validates the name (the id is immutable, matching `PUT /api/v1/groups/{id}`).
  */
 export type GroupFormValidation = { ok: true } | { ok: false; error: string };
 

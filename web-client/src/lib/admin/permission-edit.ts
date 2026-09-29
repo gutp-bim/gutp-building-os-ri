@@ -1,7 +1,7 @@
 /**
  * Pure helpers for building a permission string to add to a user (#143). Mirrors the picker format
  * `{typeAbbr}:{resourceId}:{concatActionAbbr}` (e.g. `d:rawId:rw`). The API canonicalises further on
- * `POST /api/Users/{id}/permissions` — it hashes non-group resource ids and re-abbreviates actions —
+ * `POST /api/v1/users/{id}/permissions` — it hashes non-group resource ids and re-abbreviates actions —
  * so we send a raw resource id and let the server hash it.
  */
 export const EDIT_RESOURCE_TYPES = [
@@ -38,14 +38,17 @@ export type PermissionInput = {
   actions: EditAction[];
 };
 
-export type PermissionInputValidation = { ok: true } | { ok: false; error: string };
+export type PermissionInputValidation =
+  { ok: true } | { ok: false; error: string };
 
 export function validatePermissionInput(input: {
   resourceId: string;
   actions: EditAction[];
 }): PermissionInputValidation {
-  if (!input.resourceId.trim()) return { ok: false, error: "リソース ID は必須です" };
-  if (input.actions.length === 0) return { ok: false, error: "アクションを 1 つ以上選択してください" };
+  if (!input.resourceId.trim())
+    return { ok: false, error: "リソース ID は必須です" };
+  if (input.actions.length === 0)
+    return { ok: false, error: "アクションを 1 つ以上選択してください" };
   return { ok: true };
 }
 

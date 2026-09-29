@@ -28,6 +28,12 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
   なしは `/api/v1/{root}/…` になる（例: `/buildings` → `/api/v1/buildings`、`/api/Groups` → `/api/v1/Groups`、
   `/api/admin/twin` → `/api/v1/admin/twin`）。
 - OpenAPI（Swagger）には `/api/v1` のパスだけが載る。
+- **命名規則: パスのリテラル部分はすべて小文字・ハイフン区切り（lower-kebab）**。`{パラメータ}` だけが例外。
+  版付け前の `[controller]` 由来の PascalCase は v1 で揃えた（`/api/Groups` → `/api/v1/groups`、
+  `/api/Users` → `/api/v1/users`、`/api/Permissions` → `/api/v1/permissions`、`/api/Auth` → `/api/v1/auth`、
+  **`/api/MyResources` → `/api/v1/my-resources`**）。ルーティングは大文字小文字を区別しないので綴りの大小だけの
+  違いは自動で通り、`MyResources` のようにハイフンが増えるものは §2 の書き換えで旧綴り（`/api/MyResources`、
+  短期間公開された `/api/v1/MyResources`）を新綴りへ送る。規則はルートのテストで検査する。
 - 対象外: `/health`（プローブ）、gRPC / gRPC-web（`/{package}.{Service}/{Method}`、proto 側で互換を管理）、
   `/swagger`・`/api-docs`（ドキュメント）。
 - **対象外（セキュリティ上の理由）: gateway の point list `GET /gateways/{gatewayId}/pointlist`（#224）。**

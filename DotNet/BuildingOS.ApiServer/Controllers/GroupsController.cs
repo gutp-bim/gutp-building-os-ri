@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 /// リソースグループ管理API（admin専用）
 /// </summary>
 [ApiController]
-[Route(ApiRoutes.V1 + "/[controller]")]
+[Route(ApiRoutes.V1 + "/groups")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class GroupsController : ControllerBase
