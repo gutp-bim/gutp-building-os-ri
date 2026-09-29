@@ -7,7 +7,7 @@ import type {
   GroupFormValues,
 } from "./types";
 
-/** `GET /api/Groups` — admin-gated list (no members). */
+/** `GET /api/v1/Groups` — admin-gated list (no members). */
 export async function fetchGroups(signal?: AbortSignal): Promise<AdminGroup[]> {
   try {
     return await apiClient().api.v1.Groups.$get({ config: { signal } });
@@ -16,7 +16,7 @@ export async function fetchGroups(signal?: AbortSignal): Promise<AdminGroup[]> {
   }
 }
 
-/** `GET /api/Groups/{id}` — admin-gated detail with members. */
+/** `GET /api/v1/Groups/{id}` — admin-gated detail with members. */
 export async function fetchGroup(
   id: string,
   signal?: AbortSignal,
@@ -30,7 +30,7 @@ export async function fetchGroup(
   }
 }
 
-/** `POST /api/Groups` — creates a group (admin-gated). Returns the created group. */
+/** `POST /api/v1/Groups` — creates a group (admin-gated). Returns the created group. */
 export async function createGroup(
   values: GroupFormValues,
 ): Promise<AdminGroup> {
@@ -47,7 +47,7 @@ export async function createGroup(
   }
 }
 
-/** `PUT /api/Groups/{id}` — updates name/description (admin-gated, id immutable). */
+/** `PUT /api/v1/Groups/{id}` — updates name/description (admin-gated, id immutable). */
 export async function updateGroup(
   id: string,
   values: Pick<GroupFormValues, "name" | "description">,
@@ -66,7 +66,7 @@ export async function updateGroup(
   }
 }
 
-/** `DELETE /api/Groups/{id}` — deletes a group (admin-gated). */
+/** `DELETE /api/v1/Groups/{id}` — deletes a group (admin-gated). */
 export async function deleteGroup(id: string): Promise<void> {
   try {
     await apiClient().api.v1.Groups._id(encodeURIComponent(id)).$delete();
@@ -75,7 +75,7 @@ export async function deleteGroup(id: string): Promise<void> {
   }
 }
 
-/** `POST /api/Groups/{id}/resources` — adds a resource item (raw type/id, no hashing). */
+/** `POST /api/v1/Groups/{id}/resources` — adds a resource item (raw type/id, no hashing). */
 export async function addGroupResource(
   groupId: string,
   resourceType: string,
@@ -92,7 +92,7 @@ export async function addGroupResource(
   }
 }
 
-/** `DELETE /api/Groups/{id}/resources/{itemId}` — removes a resource item. */
+/** `DELETE /api/v1/Groups/{id}/resources/{itemId}` — removes a resource item. */
 export async function removeGroupResource(
   groupId: string,
   itemId: string,

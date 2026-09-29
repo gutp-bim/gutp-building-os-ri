@@ -3,7 +3,7 @@ import { requestError } from "./api-error";
 import type { ResolvedMap } from "./permission-resolve";
 
 /**
- * `POST /api/Permissions/resolve` — resolves hashed resource ids to original id / type / display name
+ * `POST /api/v1/Permissions/resolve` — resolves hashed resource ids to original id / type / display name
  * (admin-gated). Returns a map keyed by hashed id; unresolved ids are simply absent.
  */
 export async function resolvePermissionIds(

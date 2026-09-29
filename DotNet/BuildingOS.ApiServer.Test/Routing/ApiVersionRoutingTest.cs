@@ -122,6 +122,33 @@ public class ApiVersionRoutingTest
     }
 
     [Fact]
+    public async Task Middleware_NonAsciiLegacyPath_GetsAnEncodedLinkHeader()
+    {
+        // Kestrel has already decoded the path; a header must be ASCII, so the successor link is the
+        // URI-encoded form (a Japanese point id would otherwise throw and turn a 200 into a 500).
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/points/温度>1/metadata";
+        ctx.Request.QueryString = QueryString.Create("q", "a b");
+        await new LegacyApiPathRewriter(_ => Task.CompletedTask).InvokeAsync(ctx);
+
+        var link = ctx.Response.Headers["Link"].ToString();
+        Assert.All(link, ch => Assert.InRange(ch, (char)0x20, (char)0x7E));
+        // ">" would end the <URI-Reference> early, so it must be encoded too.
+        Assert.Equal("</api/v1/points/%E6%B8%A9%E5%BA%A6%3E1/metadata?q=a%20b>; rel=\"successor-version\"", link);
+        Assert.Equal("/api/v1/points/温度>1/metadata", ctx.Request.Path.Value);
+    }
+
+    [Fact]
+    public async Task Middleware_KeepsTheOriginalLegacyPath_ForLogsAndTraces()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/telemetries/query";
+        await new LegacyApiPathRewriter(_ => Task.CompletedTask).InvokeAsync(ctx);
+
+        Assert.Equal("/telemetries/query", ctx.Items[LegacyApiPathRewriter.OriginalPathItem]);
+    }
+
+    [Fact]
     public async Task Middleware_LeavesAVersionedRequest_Unmarked()
     {
         string? seenPath = null;

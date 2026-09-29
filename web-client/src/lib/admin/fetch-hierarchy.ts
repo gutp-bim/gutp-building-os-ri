@@ -17,7 +17,7 @@ async function getRows(load: () => Promise<RawNode[]>): Promise<RawNode[]> {
   }
 }
 
-/** `GET /buildings` → root nodes. */
+/** `GET /api/v1/buildings` → root nodes. */
 export async function fetchBuildings(
   signal?: AbortSignal,
 ): Promise<TreeNodeData[]> {

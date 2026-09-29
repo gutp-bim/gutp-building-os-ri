@@ -52,10 +52,13 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
   - `/api/{Auth|Groups|Users|MyResources|Permissions|admin|telemetry|system|operations|assistant}/…`
   - 接頭辞なしの `buildings|floors|spaces|devices|points|telemetries|resources|point-details|device-details`
   - `/api/v{数字}/…` と、それ以外の `/api/…`（例: 存在しなかった `/api/buildings`、打ち間違い）は書き換えない
-    （存在しない後継を指す `Link` を返さないため）。大文字小文字は区別しない（ルーティングと同じ）。
+    （接頭辞の単位で、版付け前に無かったものを後継の `Link` で案内しないため。なお許可リストの接頭辞の
+    配下にある存在しないパス — 例: `/points/PT001/typo` — は書き換えられ、v1 でも 404 になる）。大文字小文字は区別しない（ルーティングと同じ）。
 - `Link` にはクエリ文字列も含める。`Deprecation` と `Link` は CORS で公開し、別オリジンのブラウザからも読める。
 - 旧パスへのリクエストはメトリクス `building_os.api.legacy_requests{root}` で数える（`root` は上の固定の
-  集合なので、カーディナリティは有界）。§4 の条件 4 の根拠になる。
+  集合なので、カーディナリティは有界）。§4 の条件の根拠になる。呼び出し元を特定するため、元のパスは
+  trace タグ `building_os.api.legacy_path` と Debug ログ（User-Agent 付き）に残す（上限の無い値なので
+  メトリクスのラベルにはしない）。
 - `Sunset`（削除日）はまだ付けない。削除日は §4 の条件を満たしてから決め、決めた時点で `Sunset` を付ける。
 
 ### 3. 破壊的変更のポリシー
@@ -76,7 +79,7 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 
 次をすべて満たしてから削除日を決め、`Sunset` を付けて最低 6 か月後に削除する。
 
-1. web-client が `/api/v1` に移行済み（#507 の後続 PR）
+1. web-client が `/api/v1` に移行済み（#507 で移行済み）
 2. リポジトリ内のツール・ドキュメント・テストが `/api/v1` を使っている
 3. 旧パスへのアクセスが `building_os.api.legacy_requests` で一定期間ゼロ（既知の外部アプリへの告知を含む）
 
@@ -85,8 +88,8 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 ## Consequences
 
 - 既存クライアントは変更なしで動き続ける（旧パスは同じコントローラに書き換えられ、応答は同一）。
-- OpenAPI のパスがすべて `/api/v1/…` に変わるので、生成クライアント（aspida / Zodios）は再生成すると新パスを
-  使う。web-client は後続 PR で再生成と移行を行う（それまでは旧パスで動く）。
+- OpenAPI のパスがすべて `/api/v1/…` に変わるので、生成クライアント（aspida）は再生成すると新パスを
+  使う。web-client は本変更と同時に再生成・移行済みで、`/api/v1` だけを呼ぶ（下記のデプロイ順を参照）。
 - `CreatedAtAction` などサーバが組み立てる URL は `/api/v1/…` になる。
 - web-client（Next.js）自身も `/api/…` のルート（例: `/api/health`）を持つ。同じホスト名で API server と
   web-client を配置する場合、`/api` の振り分けは API server 側に `/api/v1` を送るよう Ingress で確認すること。

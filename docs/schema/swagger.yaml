@@ -2188,7 +2188,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /telemetries/query?latest=true`。\nこの per-tier エンドポイントは後方互換のため残置。"
+      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /api/v1/telemetries/query?latest=true`。\nこの per-tier エンドポイントは後方互換のため残置。"
       parameters:
         - name: pointId
           in: query
@@ -2261,7 +2261,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は `GET /telemetries/query`（tier 自動選択）。'
+      summary: '[非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は `GET /api/v1/telemetries/query`（tier 自動選択）。'
       parameters:
         - name: pointId
           in: query
@@ -2349,7 +2349,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は `GET /telemetries/query`（tier 自動選択）。'
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は `GET /api/v1/telemetries/query`（tier 自動選択）。'
       parameters:
         - name: pointId
           in: query
@@ -2437,7 +2437,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は `GET /telemetries/query`。'
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は `GET /api/v1/telemetries/query`。'
       parameters:
         - name: pointIds
           in: query
@@ -3481,7 +3481,7 @@ components:
           items:
             type: string
       additionalProperties: false
-      description: Request body for `POST /telemetries/query/batch-latest` (#182).
+      description: Request body for `POST /api/v1/telemetries/query/batch-latest` (#182).
     Building:
       required:
         - dtId

@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/infra/aspida-client";
 import { errorStatus, mutationError, requestError } from "./api-error";
 
-/** OIDC client summary (`GET /api/admin/oidc-clients`). Never carries the secret (#324). */
+/** OIDC client summary (`GET /api/v1/admin/oidc-clients`). Never carries the secret (#324). */
 export interface OidcClientSummary {
   id: string;
   clientId: string;

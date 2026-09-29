@@ -1,5 +1,5 @@
 /**
- * `GET /api/operations/summary`（#451 Phase 1）のアクセス façade。
+ * `GET /api/v1/operations/summary`（#451 Phase 1）のアクセス façade。
  *
  * Platform 由来（Prometheus 集計）のデータ流量 KPI だけを持つ — Point 母数 / Fresh 率は
  * `@/lib/health/repository`（`telemetry/health/summary`, #452）の責務で、ここには含めない。

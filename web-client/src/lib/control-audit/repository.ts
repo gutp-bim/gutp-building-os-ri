@@ -6,7 +6,7 @@ import type { ControlAuditEntry } from "./types";
  * Fetch a point's control command history (#162), newest first.
  *
  * Uses the bespoke authenticated fetch (Keycloak bearer from the `oidc.access_token` cookie) because
- * the endpoint `GET /points/{pointId}/control-audit` is not yet in the Swagger/aspida schema; wiring
+ * the endpoint `GET /api/v1/points/{pointId}/control-audit` is not yet in the Swagger/aspida schema; wiring
  * it into the generated client is a follow-up (mirrors the admin-endpoints note in CLAUDE.md). All
  * request/response shape handling stays here + `mapping.ts` so the UI is insulated from the API shape.
  */

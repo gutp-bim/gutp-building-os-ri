@@ -2,7 +2,7 @@ import { apiClient } from "@/lib/infra/aspida-client";
 import { mutationError, requestError } from "./api-error";
 import type { AdminUser, RoleCatalogEntry } from "./types";
 
-/** `GET /api/Users` — admin-gated list. */
+/** `GET /api/v1/Users` — admin-gated list. */
 export async function fetchUsers(signal?: AbortSignal): Promise<AdminUser[]> {
   try {
     return await apiClient().api.v1.Users.$get({ config: { signal } });
@@ -11,7 +11,7 @@ export async function fetchUsers(signal?: AbortSignal): Promise<AdminUser[]> {
   }
 }
 
-/** `GET /api/Users/roles` — read-only role catalog (admin/operator/viewer + workspaces). */
+/** `GET /api/v1/Users/roles` — read-only role catalog (admin/operator/viewer + workspaces). */
 export async function fetchRoles(
   signal?: AbortSignal,
 ): Promise<RoleCatalogEntry[]> {
@@ -25,7 +25,7 @@ export async function fetchRoles(
 }
 
 /**
- * `PUT /api/Users/{id}/enabled` — enable/disable a user (reversible). Returns the updated user.
+ * `PUT /api/v1/Users/{id}/enabled` — enable/disable a user (reversible). Returns the updated user.
  * The server returns 409 when the change would lock the actor out or remove the last admin (#325).
  */
 export async function setUserEnabled(
@@ -43,7 +43,7 @@ export async function setUserEnabled(
   }
 }
 
-/** `GET /api/Users/{id}` — admin-gated detail. */
+/** `GET /api/v1/Users/{id}` — admin-gated detail. */
 export async function fetchUser(
   id: string,
   signal?: AbortSignal,
@@ -57,7 +57,7 @@ export async function fetchUser(
   }
 }
 
-/** `POST /api/Users/{id}/permissions` — adds a permission, returns the updated user. */
+/** `POST /api/v1/Users/{id}/permissions` — adds a permission, returns the updated user. */
 export async function addUserPermission(
   id: string,
   permission: string,
@@ -73,7 +73,7 @@ export async function addUserPermission(
   }
 }
 
-/** `DELETE /api/Users/{id}/permissions` — removes a permission, returns the updated user. */
+/** `DELETE /api/v1/Users/{id}/permissions` — removes a permission, returns the updated user. */
 export async function removeUserPermission(
   id: string,
   permission: string,

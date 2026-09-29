@@ -21,7 +21,7 @@ import type {
   TelemetryStateSeries,
 } from "./types";
 
-/** Effective telemetry stale-detection thresholds (#183), served all-role by GET /api/telemetry/config. */
+/** Effective telemetry stale-detection thresholds (#183), served all-role by GET /api/v1/telemetry/config. */
 export type TelemetryConfig = {
   staleThresholdSeconds: number;
   staleIntervalMultiplier: number;
@@ -38,7 +38,7 @@ let telemetryConfigPromise: Promise<TelemetryConfig> | null = null;
 
 /**
  * The effective stale-detection thresholds (system default + admin override) from the all-role
- * `GET /api/telemetry/config` (#183). Falls back to the frontend defaults — which mirror the registry
+ * `GET /api/v1/telemetry/config` (#183). Falls back to the frontend defaults — which mirror the registry
  * defaults — when the endpoint is unavailable, so freshness classification degrades gracefully rather
  * than breaking.
  *
@@ -81,7 +81,7 @@ async function fetchTelemetryConfig(token?: string): Promise<TelemetryConfig> {
 /**
  * Telemetry access façade. Everything routes through the generated Aspida client (`apiClient()`),
  * so callers never choose between hot/warm/cold and an API/Swagger change is absorbed here, not in
- * the UI. The `/telemetries/query` read auto-selects the tier (granularity + latest).
+ * the UI. The `/api/v1/telemetries/query` read auto-selects the tier (granularity + latest).
  */
 
 export async function queryTelemetry(
@@ -159,7 +159,7 @@ export async function latestTelemetrySample(
 export const MAX_BATCH_POINT_IDS = 500;
 
 /**
- * Batch latest-sample fetch (#182): `POST /telemetries/query/batch-latest` for many points, replacing
+ * Batch latest-sample fetch (#182): `POST /api/v1/telemetries/query/batch-latest` for many points, replacing
  * the per-point N+1 the freshness view used to do. Returns each point's last-seen ISO timestamp
  * (null = no data). Points the server omits (a non-admin cannot read them) simply do not appear — the
  * caller fills those as missing.

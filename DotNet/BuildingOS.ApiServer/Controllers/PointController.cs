@@ -231,7 +231,7 @@ public class PointController(
         var decodedPointId = Uri.UnescapeDataString(pointId);
 
         // Read-authorization: the history reveals control activity on the point, so gate it on read
-        // access to the point itself — the same check as GET /points/{id} (admin bypasses via twinView).
+        // access to the point itself — the same check as GET /api/v1/points/{id} (admin bypasses via twinView).
         switch (await twinView.GetPointAsync(auth, decodedPointId, ct).ConfigureAwait(false))
         {
             case TwinGetResult<Point>.Ok: break;

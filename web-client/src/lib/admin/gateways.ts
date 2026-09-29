@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/infra/aspida-client";
 import { mutationError, requestError } from "./api-error";
 
-/** Admin view of one gateway (`GET /api/admin/gateways`). Secret settings are masked server-side (#323). */
+/** Admin view of one gateway (`GET /api/v1/admin/gateways`). Secret settings are masked server-side (#323). */
 export interface GatewayAdminView {
   gatewayId: string;
   bindingType: string;

@@ -22,7 +22,7 @@ async function mutationError(res: Response, fallback: string): Promise<Error> {
   return new Error(detail || `${fallback} (${res.status})`);
 }
 
-/** `GET /api/system/settings` — admin-gated effective settings (defaults merged with overrides). */
+/** `GET /api/v1/system/settings` — admin-gated effective settings (defaults merged with overrides). */
 export async function fetchSettings(
   signal?: AbortSignal,
 ): Promise<SettingView[]> {
@@ -34,7 +34,7 @@ export async function fetchSettings(
   return (await res.json()) as SettingView[];
 }
 
-/** `PUT /api/system/settings/{key}` — updates a value (type-validated server-side). Returns the view. */
+/** `PUT /api/v1/system/settings/{key}` — updates a value (type-validated server-side). Returns the view. */
 export async function updateSetting(
   key: string,
   value: string,
@@ -51,7 +51,7 @@ export async function updateSetting(
   return (await res.json()) as SettingView;
 }
 
-/** `DELETE /api/system/settings/{key}` — resets a setting to its default (removes the override). */
+/** `DELETE /api/v1/system/settings/{key}` — resets a setting to its default (removes the override). */
 export async function resetSetting(key: string): Promise<void> {
   const res = await fetch(
     `${API_BASE_URL}/api/v1/system/settings/${encodeURIComponent(key)}`,

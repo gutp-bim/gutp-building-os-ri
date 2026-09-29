@@ -7,7 +7,7 @@ namespace BuildingOs.ApiServer.Controllers;
 
 /// <summary>
 /// 鮮度判定（#183）に使う telemetry 閾値だけを全ロールへ公開する read サーフェス。編集は管理者限定の
-/// <see cref="SystemConfigController"/>（<c>/api/system/settings</c>）だが、鮮度判定は home / ポイント詳細
+/// <see cref="SystemConfigController"/>（<c>/api/v1/system/settings</c>）だが、鮮度判定は home / ポイント詳細
 /// など**全ロール**の画面で走るため、閾値の実効値（既定 + 管理者 override）を読める非管理者エンドポイントが
 /// 要る。ここでは <see cref="TelemetryThresholds"/> の 2 値だけを返し、他の設定は一切漏らさない。
 /// </summary>
