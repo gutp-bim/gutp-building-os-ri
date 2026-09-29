@@ -16,17 +16,21 @@ public class MyResourcesController : ControllerBase
 {
     private readonly BuildingOS.Shared.Domain.Authorization.IAuthorizationService _authorizationService;
     private readonly IResourceIdMappingRepository _mappingRepository;
+    private readonly IResourceDescendantResolver _descendants;
 
     public MyResourcesController(
         BuildingOS.Shared.Domain.Authorization.IAuthorizationService authorizationService,
-        IResourceIdMappingRepository mappingRepository)
+        IResourceIdMappingRepository mappingRepository,
+        IResourceDescendantResolver descendants)
     {
         _authorizationService = authorizationService;
         _mappingRepository = mappingRepository;
+        _descendants = descendants;
     }
 
     private const string IdFormatHash = "hash";
     private const string IdFormatOriginal = "original";
+    private const string ExpandDescendants = "descendants";
 
     private static readonly string[] ResourceTypes = ["building", "floor", "space", "device", "point"];
 
@@ -87,13 +91,36 @@ public class MyResourcesController : ControllerBase
     /// 元 ID が分からない権限は <c>unresolved</c> にハッシュで分けて返す。#504）。admin は常に
     /// <c>resources: null</c>（全件）。
     /// </param>
+    /// <param name="expand">
+    /// <c>descendants</c> を指定すると、読めるリソースの twin 上の子孫（<c>targetType</c> まで）も各種別に加える
+    /// （#509）。子孫は認可の祖先判定と同じ経路で辿るので、返る ID はすべて読める。業務 ID で返すため
+    /// <c>idFormat=original</c> と併用する（それ以外は 400）。<c>unresolved</c> の権限は twin 上の位置が
+    /// 分からないので展開しない。
+    /// </param>
+    /// <param name="targetType">展開する深さ（building / floor / space / device / point、既定 point）</param>
     /// <param name="ct">キャンセル</param>
     [HttpGet]
     [ProducesResponseType(typeof(MyResourcesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetMyResources([FromQuery] string? idFormat = null, CancellationToken ct = default)
+    public async Task<IActionResult> GetMyResources(
+        [FromQuery] string? idFormat = null,
+        [FromQuery] string? expand = null,
+        [FromQuery] string? targetType = null,
+        CancellationToken ct = default)
     {
         if (!TryParseIdFormat(idFormat, out var original)) return InvalidIdFormat(idFormat);
+        var expandDescendants = false;
+        if (!string.IsNullOrEmpty(expand))
+        {
+            if (!string.Equals(expand, ExpandDescendants, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { error = $"expand must be '{ExpandDescendants}'", expand });
+            if (!original)
+                return BadRequest(new { error = $"expand={ExpandDescendants} returns business ids; use it with idFormat={IdFormatOriginal}" });
+            expandDescendants = true;
+        }
+        targetType = string.IsNullOrEmpty(targetType) ? "point" : targetType.ToLowerInvariant();
+        if (!ResourceTypes.Contains(targetType))
+            return BadRequest(new { error = $"targetType must be one of {string.Join(", ", ResourceTypes)}", targetType });
         var authContext = HttpContext.GetAuthorizationContext();
 
         if (authContext.IsAdmin)
@@ -119,6 +146,19 @@ public class MyResourcesController : ControllerBase
 
                 // ハッシュIDを元IDに逆引き（逆引きできないものはハッシュのまま — 従来の挙動）
                 resources[type] = await ResolveToOriginalIdsAsync(hashedIds, ct).ConfigureAwait(false);
+            }
+        }
+
+        if (expandDescendants)
+        {
+            var roots = resources.SelectMany(kv => kv.Value.Select(id => (kv.Key, id))).ToList();
+            var descendants = roots.Count == 0
+                ? new Dictionary<string, IReadOnlyList<string>>()
+                : await _descendants.GetDescendantsAsync(roots, targetType, ct).ConfigureAwait(false);
+            foreach (var (type, ids) in descendants)
+            {
+                if (ids.Count == 0) continue;
+                resources[type] = resources[type].Concat(ids).Distinct(StringComparer.Ordinal).ToList();
             }
         }
 

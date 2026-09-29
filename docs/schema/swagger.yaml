@@ -931,6 +931,16 @@ paths:
           description: "`hash`（既定。従来どおり）または `original`（`resources` は元の業務 ID だけ。\n            元 ID が分からない権限は `unresolved` にハッシュで分けて返す。#504）。admin は常に\n            `resources: null`（全件）。"
           schema:
             type: string
+        - name: expand
+          in: query
+          description: "`descendants` を指定すると、読めるリソースの twin 上の子孫（`targetType` まで）も各種別に加える\n            （#509）。子孫は認可の祖先判定と同じ経路で辿るので、返る ID はすべて読める。業務 ID で返すため\n            `idFormat=original` と併用する（それ以外は 400）。`unresolved` の権限は twin 上の位置が\n            分からないので展開しない。"
+          schema:
+            type: string
+        - name: targetType
+          in: query
+          description: 展開する深さ（building / floor / space / device / point、既定 point）
+          schema:
+            type: string
       responses:
         '200':
           description: OK

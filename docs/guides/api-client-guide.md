@@ -135,8 +135,20 @@ curl -H "Authorization: Bearer $TOKEN" \
   `unresolved` は `null`。
 - admin は常に `resources: null`（全件）。種別ごとに絞るなら `GET /api/v1/my-resources/accessible?resourceType=space&action=read&idFormat=original`
   （`accessibleResourceIds` と `unresolvedResourceIds`）。
-- 読める範囲は、権限が指す**その種別のリソース**だけ（`space:R501` の権限で配下の device / point は列挙されない。
-  子孫の一括取得は #509）。
+- 既定では、読める範囲は権限が指す**その種別のリソース**だけ（`space:R501` の権限で配下の device / point は
+  列挙されない）。配下まで一括で得るには `expand=descendants` を付ける（#509）:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/v1/my-resources?idFormat=original&expand=descendants&targetType=point"
+# → { "resources": { "space": ["R501"], "device": ["AHU-501"], "point": ["PT-1", "PT-2"], … }, "unresolved": { … } }
+```
+
+  - 子孫は認可の祖先判定と**同じ経路**（Room → Level → Building の `hasPart`、機器の `locatedIn` / `sbco:floor`、
+    `hasPoint`）で辿るので、返る ID はすべて読める。どの建物にも属さない部屋の配下は、権限が届かないので返らない。
+  - `targetType` で深さを止められる（例: `targetType=space` なら建物の権限からフロアと部屋まで）。既定は `point`。
+  - `idFormat=original` との併用が必須（子孫は業務 ID で返る）。`unresolved` の権限は twin 上の位置が分からないので
+    展開しない。
 
 ## 3. テレメトリの読み取り
 

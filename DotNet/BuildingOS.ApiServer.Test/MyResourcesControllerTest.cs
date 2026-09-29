@@ -17,7 +17,10 @@ public class MyResourcesControllerTest
     private static string H(string id) => PermissionHelper.HashResourceId(id);
 
     private static (MyResourcesController controller, Mock<IAuthorizationService> authz, Mock<IResourceIdMappingRepository> mapping)
-        Build(string role = "viewer")
+        Build(string role = "viewer") => Build(role, out _);
+
+    private static (MyResourcesController controller, Mock<IAuthorizationService> authz, Mock<IResourceIdMappingRepository> mapping)
+        Build(string role, out Mock<IResourceDescendantResolver> descendants)
     {
         var authz = new Mock<IAuthorizationService>();
         authz.Setup(a => a.GetAccessibleResourcesAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -27,7 +30,10 @@ public class MyResourcesControllerTest
         var mapping = new Mock<IResourceIdMappingRepository>();
         mapping.Setup(m => m.ResolveOriginalIdsAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, string>());
-        var controller = new MyResourcesController(authz.Object, mapping.Object)
+        descendants = new Mock<IResourceDescendantResolver>();
+        descendants.Setup(d => d.GetDescendantsAsync(It.IsAny<IReadOnlyCollection<(string, string)>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, IReadOnlyList<string>>());
+        var controller = new MyResourcesController(authz.Object, mapping.Object, descendants.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -121,5 +127,68 @@ public class MyResourcesControllerTest
 
         Assert.Equal(["R501"], body.AccessibleResourceIds);
         Assert.Equal([H("R503")], body.UnresolvedResourceIds);
+    }
+
+    // ── expand=descendants (#509) ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task Expand_AddsTheDescendantsOfTheResolvedGrants()
+    {
+        var (controller, authz, _) = Build("viewer", out var descendants);
+        Spaces(authz, new AccessibleResource(H("R501"), "R501"), new AccessibleResource(H("R503"), null));
+        descendants.Setup(d => d.GetDescendantsAsync(
+                It.Is<IReadOnlyCollection<(string Type, string Id)>>(r => r.Count == 1 && r.Any(x => x.Item1 == "space" && x.Item2 == "R501")),
+                "point", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["device"] = ["AHU-501"],
+                ["point"] = ["PT-1", "PT-2"],
+            });
+
+        var ok = Assert.IsType<OkObjectResult>(
+            await controller.GetMyResources(idFormat: "original", expand: "descendants", ct: default));
+        var body = Assert.IsType<MyResourcesResponse>(ok.Value);
+
+        Assert.Equal(["R501"], body.Resources!["space"]);
+        Assert.Equal(["AHU-501"], body.Resources["device"]);
+        Assert.Equal(["PT-1", "PT-2"], body.Resources["point"]);
+        // An unresolved grant cannot be placed in the twin, so it is reported, not expanded.
+        Assert.Equal([H("R503")], body.Unresolved!["space"]);
+    }
+
+    [Fact]
+    public async Task Expand_PassesTheTargetType_AndKeepsDirectGrantsBelowIt()
+    {
+        var (controller, authz, _) = Build("viewer", out var descendants);
+        Spaces(authz, new AccessibleResource(H("R501"), "R501"));
+
+        await controller.GetMyResources(idFormat: "original", expand: "descendants", targetType: "device", ct: default);
+
+        descendants.Verify(d => d.GetDescendantsAsync(
+            It.IsAny<IReadOnlyCollection<(string, string)>>(), "device", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(null, "descendants", null)]      // expand needs business ids
+    [InlineData("hash", "descendants", null)]
+    [InlineData("original", "children", null)]   // unknown expand
+    [InlineData("original", "descendants", "gateway")] // unknown target type
+    public async Task Expand_InvalidCombinations_Are400(string? idFormat, string? expand, string? targetType)
+    {
+        var (controller, _, _) = Build();
+        Assert.IsType<BadRequestObjectResult>(
+            await controller.GetMyResources(idFormat: idFormat, expand: expand, targetType: targetType, ct: default));
+    }
+
+    [Fact]
+    public async Task Expand_ForAnAdmin_IsStillAll()
+    {
+        var (controller, _, _) = Build("admin", out var descendants);
+
+        var ok = Assert.IsType<OkObjectResult>(
+            await controller.GetMyResources(idFormat: "original", expand: "descendants", ct: default));
+
+        Assert.Null(Assert.IsType<MyResourcesResponse>(ok.Value).Resources);
+        descendants.VerifyNoOtherCalls();
     }
 }
