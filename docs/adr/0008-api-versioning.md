@@ -73,7 +73,12 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 - 新しい版を出したら、旧版は **最低 6 か月** 並行提供する。非推奨にした版には `Deprecation` を、削除日を
   決めたら `Sunset` を付け、CHANGELOG の `Deprecated` / `Removed` に記載する。
 - CHANGELOG では破壊的変更を `**BREAKING:**` で明示する（既存の運用を継続）。
-- OpenAPI の差分を `oasdiff` で検査し、`v1` への破壊的変更を PR の段階で検出する（#507 の後続 PR で導入）。
+- OpenAPI の差分を `oasdiff` で検査し、`v1` への破壊的変更を PR の段階で検出する:
+  `make openapi-breaking`（= `Tools/check-openapi-breaking.bash [BASE_REF]`、既定 `origin/main`）。先に
+  `Tools/sync-type.bash` で `docs/schema/swagger.yaml` を再生成してから実行する。ERR 水準の破壊的変更が
+  あれば失敗する（`oasdiff` はダイジェスト固定の Docker イメージ、ローカルにあればそれを使う）。
+  #507 自身の「全パスの `/api/v1` への移動」は OpenAPI 上はパス削除として検出される — 旧パスは
+  書き換えで互換を保っているので、この一回限りの移動は意図どおりである。
 
 ### 4. 旧パス（版なし）の削除条件
 
