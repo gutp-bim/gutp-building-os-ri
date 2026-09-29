@@ -13,8 +13,10 @@ public interface IPointControlRepository
     Task UpdatePointControlInfoAsync(PointControlInfo pointControlInfo, CancellationToken ct = default);
 
     /// <summary>
-    /// 指定ポイントの制御監査エントリを新しい順（CreatedAt 降順）に最大 <paramref name="limit"/> 件返す（#162）。
+    /// 指定ポイントの制御監査エントリを新しい順（CreatedAt 降順、同時刻は Id 降順）に最大
+    /// <c>query.Limit</c> 件返す（#162）。期間 [Start, End) とカーソル（その行より後ろ）で絞る（#478）。
     /// </summary>
-    Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(string pointId, int limit, CancellationToken ct);
+    Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(
+        BuildingOS.Shared.Infrastructure.PointControlRepository.ControlAuditQuery query, CancellationToken ct);
 }
 

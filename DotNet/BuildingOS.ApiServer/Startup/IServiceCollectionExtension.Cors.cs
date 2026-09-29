@@ -15,6 +15,7 @@ public static partial class IServiceCollectionExtension
     {
         TelemetryResponseHeaders.PartialResult,
         TelemetryResponseHeaders.CoveredFrom,
+        Controllers.PointController.ControlAuditNextCursorHeader,
     };
 
     public static IServiceCollection AddCorsForAll(

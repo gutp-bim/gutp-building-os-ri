@@ -8,6 +8,7 @@ using BuildingOS.Shared.Domain.PointControl;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.PointControl;
+using BuildingOS.Shared.Infrastructure.PointControlRepository;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -114,7 +115,7 @@ public class PointControllerTest
                 .ReturnsAsync(pointAccess ?? new TwinGetResult<Point>.Ok(MakePoint()));
 
         var repo = new Mock<IPointControlRepository>();
-        repo.Setup(r => r.ListAuditByPointAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        repo.Setup(r => r.ListAuditByPointAsync(It.IsAny<ControlAuditQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(entries ?? []);
 
         var resolver = new ControlTypeResolver(
@@ -246,7 +247,7 @@ public class PointControllerTest
         entry.ActorName = "Yamada";
         var (controller, _, _) = BuildAuditController([entry]);
 
-        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+        var result = await controller.ControlAudit("PT001", 50, ct: CancellationToken.None);
 
         var response = Assert.Single(Assert.IsType<PointControlAuditResponse[]>(result.Value));
         Assert.Equal("kc-sub-42", response.ActorSub);
@@ -629,7 +630,7 @@ public class PointControllerTest
         };
         var (controller, _, _) = BuildAuditController(entries);
 
-        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+        var result = await controller.ControlAudit("PT001", 50, ct: CancellationToken.None);
 
         var value = Assert.IsType<PointControlAuditResponse[]>(result.Value);
         Assert.Equal(3, value.Length);
@@ -644,10 +645,102 @@ public class PointControllerTest
     {
         var (controller, repo, _) = BuildAuditController();
 
-        await controller.ControlAudit("PT001%2Ftemp", 999, CancellationToken.None);
+        await controller.ControlAudit("PT001%2Ftemp", 999, ct: CancellationToken.None);
 
-        // limit is clamped to [1,200]; the pointId is URL-decoded before the query.
-        repo.Verify(r => r.ListAuditByPointAsync("PT001/temp", 200, It.IsAny<CancellationToken>()), Times.Once);
+        // limit is clamped to [1,200]; the pointId is URL-decoded before the query. One row more than the
+        // page is read to learn whether a next page exists (#478).
+        repo.Verify(r => r.ListAuditByPointAsync(
+            It.Is<ControlAuditQuery>(q => q.PointId == "PT001/temp" && q.Limit == 201), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── range + cursor paging (#478) ─────────────────────────────────────────
+
+    private static PointControlAuditEntry Row(Guid id, DateTime createdAt) => new()
+    {
+        Id = id, PointId = "PT001", Request = "{}", CreatedAt = createdAt, ActorSub = "u1",
+    };
+
+    [Fact]
+    public async Task ControlAudit_PassesRangeAndDecodedCursor_ToRepository()
+    {
+        var (controller, repo, _) = BuildAuditController();
+        var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+        var after = new ControlAuditCursor(new DateTime(2026, 1, 20, 3, 4, 5, DateTimeKind.Utc), Guid.NewGuid());
+
+        await controller.ControlAudit("PT001", 10, start, end, after.Encode(), ct: CancellationToken.None);
+
+        repo.Verify(r => r.ListAuditByPointAsync(
+            It.Is<ControlAuditQuery>(q => q.Start == start && q.End == end && q.After == after && q.Limit == 11),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ControlAudit_NormalisesTheRangeToUtc()
+    {
+        // Model binding turns "…Z" into a Local-kind DateTime, which Npgsql refuses for timestamptz;
+        // an offset-less value is taken as UTC.
+        var (controller, repo, _) = BuildAuditController();
+        var utc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await controller.ControlAudit("PT001", 10, utc.ToLocalTime(), DateTime.SpecifyKind(utc.AddDays(1), DateTimeKind.Unspecified),
+            ct: CancellationToken.None);
+
+        repo.Verify(r => r.ListAuditByPointAsync(
+            It.Is<ControlAuditQuery>(q =>
+                q.Start == utc && q.Start!.Value.Kind == DateTimeKind.Utc &&
+                q.End == utc.AddDays(1) && q.End!.Value.Kind == DateTimeKind.Utc),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ControlAudit_FullPage_ReturnsLimitRows_AndNextCursorOfTheLastOne()
+    {
+        var t = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var rows = Enumerable.Range(0, 3).Select(i => Row(Guid.NewGuid(), t.AddMinutes(-i))).ToList();
+        var (controller, _, _) = BuildAuditController(rows); // repo returns limit + 1 → more exist
+
+        var result = await controller.ControlAudit("PT001", 2, ct: CancellationToken.None);
+
+        var page = Assert.IsType<PointControlAuditResponse[]>(result.Value);
+        Assert.Equal(2, page.Length);
+        var next = ControlAuditCursor.TryDecode(controller.Response.Headers["X-Next-Cursor"].ToString());
+        Assert.Equal(new ControlAuditCursor(rows[1].CreatedAt, rows[1].Id), next);
+    }
+
+    [Fact]
+    public async Task ControlAudit_LastPage_HasNoNextCursor()
+    {
+        var t = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var (controller, _, _) = BuildAuditController(new[] { Row(Guid.NewGuid(), t) });
+
+        await controller.ControlAudit("PT001", 2, ct: CancellationToken.None);
+
+        Assert.False(controller.Response.Headers.ContainsKey("X-Next-Cursor"));
+    }
+
+    [Theory]
+    [InlineData("not-a-cursor")]
+    [InlineData("eyJ9")]
+    public async Task ControlAudit_Returns400_ForAMalformedCursor(string cursor)
+    {
+        var (controller, repo, _) = BuildAuditController();
+
+        var result = await controller.ControlAudit("PT001", 10, cursor: cursor, ct: CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<ControlAuditQuery>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ControlAudit_Returns400_WhenEndBeforeStart()
+    {
+        var (controller, _, _) = BuildAuditController();
+        var start = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var result = await controller.ControlAudit("PT001", 10, start, start.AddDays(-1), ct: CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 
     [Fact]
@@ -655,9 +748,10 @@ public class PointControllerTest
     {
         var (controller, repo, _) = BuildAuditController();
 
-        await controller.ControlAudit("PT001", 0, CancellationToken.None);
+        await controller.ControlAudit("PT001", 0, ct: CancellationToken.None);
 
-        repo.Verify(r => r.ListAuditByPointAsync("PT001", 1, It.IsAny<CancellationToken>()), Times.Once);
+        repo.Verify(r => r.ListAuditByPointAsync(
+            It.Is<ControlAuditQuery>(q => q.PointId == "PT001" && q.Limit == 2), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -665,10 +759,10 @@ public class PointControllerTest
     {
         var (controller, repo, _) = BuildAuditController(pointAccess: new TwinGetResult<Point>.Forbidden());
 
-        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+        var result = await controller.ControlAudit("PT001", 50, ct: CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result.Result);
-        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<ControlAuditQuery>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -676,10 +770,10 @@ public class PointControllerTest
     {
         var (controller, repo, _) = BuildAuditController(pointAccess: new TwinGetResult<Point>.NotFound());
 
-        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+        var result = await controller.ControlAudit("PT001", 50, ct: CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
-        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<ControlAuditQuery>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -687,7 +781,7 @@ public class PointControllerTest
     {
         var (controller, _, _) = BuildAuditController(entries: []);
 
-        var result = await controller.ControlAudit("PT001", 50, CancellationToken.None);
+        var result = await controller.ControlAudit("PT001", 50, ct: CancellationToken.None);
 
         var value = Assert.IsType<PointControlAuditResponse[]>(result.Value);
         Assert.Empty(value);

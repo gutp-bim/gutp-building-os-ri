@@ -114,5 +114,6 @@ public class CorsConfigurationTest
 
         Assert.Contains("X-Partial-Result", policy.ExposedHeaders);
         Assert.Contains("X-Covered-From", policy.ExposedHeaders);
+        Assert.Contains("X-Next-Cursor", policy.ExposedHeaders); // #478
     }
 }

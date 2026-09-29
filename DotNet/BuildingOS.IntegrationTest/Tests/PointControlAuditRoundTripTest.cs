@@ -49,7 +49,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
             pointId, new PointController.PointControlRequest { Value = 21.5 }, CancellationToken.None));
         var controlId = Assert.IsType<PointController.ControlAcceptedResponse>(accepted.Value).ControlId;
 
-        var audit = await controller.ControlAudit(pointId, limit: 10, CancellationToken.None);
+        var audit = await controller.ControlAudit(pointId, limit: 10, ct: CancellationToken.None);
         var entries = Assert.IsType<PointControlAuditResponse[]>(audit.Value);
 
         var entry = Assert.Single(entries);
@@ -86,7 +86,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         await auditWriter.RecordResultAsync(
             controlId.ToString(), success: true, response: "{\"ok\":true}", CancellationToken.None);
 
-        var audit = await controller.ControlAudit(pointId, limit: 10, CancellationToken.None);
+        var audit = await controller.ControlAudit(pointId, limit: 10, ct: CancellationToken.None);
         var entry = Assert.Single(Assert.IsType<PointControlAuditResponse[]>(audit.Value));
 
         Assert.Equal(controlId, entry.ControlId);
@@ -121,7 +121,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
         Assert.IsType<AcceptedResult>(await controller.Control(
             routeValue, new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None));
 
-        var audit = await controller.ControlAudit(routeValue, limit: 10, CancellationToken.None);
+        var audit = await controller.ControlAudit(routeValue, limit: 10, ct: CancellationToken.None);
         var entry = Assert.Single(Assert.IsType<PointControlAuditResponse[]>(audit.Value));
 
         Assert.Equal(decodedPointId, entry.PointId);
@@ -143,7 +143,7 @@ public class PointControlAuditRoundTripTest(PostgresFixture postgres) : Integrat
             pointId, new PointController.PointControlRequest { Value = 1.0 }, CancellationToken.None));
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, response.StatusCode);
 
-        var audit = await controller.ControlAudit(pointId, limit: 10, CancellationToken.None);
+        var audit = await controller.ControlAudit(pointId, limit: 10, ct: CancellationToken.None);
         var entry = Assert.Single(Assert.IsType<PointControlAuditResponse[]>(audit.Value));
 
         Assert.Equal("failed", entry.Status);

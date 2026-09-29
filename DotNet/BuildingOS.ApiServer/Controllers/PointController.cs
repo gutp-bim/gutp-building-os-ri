@@ -6,6 +6,7 @@ using BuildingOS.Shared.Domain.PointControl;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.PointControl;
+using BuildingOS.Shared.Infrastructure.PointControlRepository;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Extensions;
@@ -191,14 +192,40 @@ public class PointController(
     /// ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に
     /// 記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する
     /// （制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。
+    /// <para>
+    /// 期間とページング（#478）: <c>start</c>（含む）/ <c>end</c>（含まない）で <c>createdAt</c> を絞れる。
+    /// 続きがある場合は応答ヘッダ <c>X-Next-Cursor</c> を返すので、同じ条件に <c>cursor</c> として渡すと
+    /// 次の（より古い）ページが得られる。ヘッダが無ければ最後のページ。カーソルは行の位置
+    /// （createdAt, controlId）なので、取得中に新しい制御が記録されてもページはずれない。
+    /// </para>
     /// </summary>
+    /// <param name="pointId">ポイントID</param>
+    /// <param name="limit">1 ページの件数（1〜200、既定 50）</param>
+    /// <param name="start">この時刻以降（含む）の行だけを返す</param>
+    /// <param name="end">この時刻より前（含まない）の行だけを返す</param>
+    /// <param name="cursor">前ページの <c>X-Next-Cursor</c> の値</param>
+    /// <param name="ct">キャンセル</param>
     [HttpGet]
     [Route("{pointId}/control-audit")]
     [ProducesResponseType(typeof(PointControlAuditResponse[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PointControlAuditResponse[]>> ControlAudit(
-        string pointId, [FromQuery] int limit = 50, CancellationToken ct = default)
+        string pointId,
+        [FromQuery] int limit = 50,
+        [FromQuery] DateTime? start = null,
+        [FromQuery] DateTime? end = null,
+        [FromQuery] string? cursor = null,
+        CancellationToken ct = default)
     {
+        start = AsUtc(start);
+        end = AsUtc(end);
+        if (start is { } s && end is { } e && e < s)
+            return BadRequest(new { error = "end must be greater than or equal to start" });
+        ControlAuditCursor? after = null;
+        if (cursor is not null && (after = ControlAuditCursor.TryDecode(cursor)) is null)
+            return BadRequest(new { error = "cursor is not a value returned in X-Next-Cursor" });
+
         var auth = HttpContext.GetAuthorizationContext();
         var decodedPointId = Uri.UnescapeDataString(pointId);
 
@@ -212,12 +239,33 @@ public class PointController(
             default: throw new UnreachableException();
         }
 
-        var capped = Math.Clamp(limit, 1, 200);
+        var capped = Math.Clamp(limit, 1, MaxControlAuditPage);
+        // Read one row past the page: its presence is how we know a next page exists.
         var entries = await pointControlRepository
-            .ListAuditByPointAsync(decodedPointId, capped, ct)
+            .ListAuditByPointAsync(new ControlAuditQuery(decodedPointId, capped + 1, start, end, after), ct)
             .ConfigureAwait(false);
-        return entries.Select(PointControlAuditResponse.From).ToArray();
+        var page = entries.Take(capped).ToList();
+        if (entries.Count > capped)
+        {
+            var last = page[^1];
+            Response.Headers[ControlAuditNextCursorHeader] = new ControlAuditCursor(last.CreatedAt, last.Id).Encode();
+        }
+        return page.Select(PointControlAuditResponse.From).ToArray();
     }
+
+    /// <summary>Response header carrying the cursor of the next control-audit page (#478).</summary>
+    public const string ControlAuditNextCursorHeader = "X-Next-Cursor";
+
+    private const int MaxControlAuditPage = 200;
+
+    // Model binding yields a Local-kind DateTime for "…Z" / "+09:00" (Npgsql refuses Local for
+    // timestamptz); a value without an offset is taken as UTC, matching the stored createdAt.
+    private static DateTime? AsUtc(DateTime? value) => value switch
+    {
+        null => null,
+        { Kind: DateTimeKind.Unspecified } v => DateTime.SpecifyKind(v, DateTimeKind.Utc),
+        { } v => v.ToUniversalTime(),
+    };
 
     public class PointControlRequest
     {
