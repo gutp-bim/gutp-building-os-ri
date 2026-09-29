@@ -40,8 +40,7 @@ Building OS OSS を「誰が・どの目的で」使うかで **3 つのエデ�
 
 - 起動: `docker compose -f docker-compose.oss.yaml up -d`（Web も見るなら `--profile webclient`）。
 - **認証は Keycloak に統一（#161 案B, #226）**: API も Web も JWT 必須で、「curl は素通りなのに画面は
-  ログイン必須」という非対称がない。dev realm（`oss-stack/keycloak/realm.json`）に `admin`/`admin`・
-  `testoperator`/`testpass` が投入済み。curl は [getting-started](../guides/getting-started.md) のトークン取得手順。
+  ログイン必須」という非対称がない。dev realm（`oss-stack/keycloak/realm.json`）に `admin`/`admin` が投入済み。curl は [getting-started](../guides/getting-started.md) のトークン取得手順。
 - 全 API・全画面・コネクタ拡張・twin 編集・制御 binding を一通り触れる。可観測性は必要時のみ
   `--profile observability`、MQTT は `--profile mqtt`、レガシー warm は `WARM_STORE=timescale` +
   `--profile timescale`。

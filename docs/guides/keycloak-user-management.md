@@ -32,10 +32,10 @@ realm とユーザーが自動的にインポートされています（`oss-sta
 | ユーザー名 | パスワード | ロール |
 |------------|------------|--------|
 | `admin` | `admin` | admin（全操作可） |
-| `testoperator` | `testpass` | operator（読取 + 制御） |
 
-> `realm.json` に含まれるのはこの 2 アカウントのみです（`viewer` は既定では未作成——
-> 必要なら「3. ユーザーの作成」で追加してください）。すべてラボ/CI 専用の既定資格情報です。
+> `realm.json` に含まれるのはこの 1 アカウントのみです（operator / viewer は既定では未作成——
+> 必要なら「3. ユーザーの作成」で、リソースごとの `permissions` を付けて追加してください）。
+> ラボ/CI 専用の既定資格情報です。
 
 Web Client（`http://localhost:3000`）にアクセスすると Keycloak ログイン画面にリダイレクトされます。
 
@@ -70,8 +70,8 @@ Web Client（`http://localhost:3000`）にアクセスすると Keycloak ログ�
 
 | Key | Value の例 | 説明 |
 |-----|-----------|------|
-| `role` | `building-os-operator` | ロール識別子（トークンクレーム `building_os_role`） |
-| `permissions` | `building:*:read` | 権限文字列（複数値は Add value で追加） |
+| `role` | `operator` | ロール識別子 `admin` / `operator` / `viewer`（トークンクレーム `building_os_role`） |
+| `permissions` | `b:<56桁hex>:r` / `group:tenant-a:read` | 権限文字列（複数値は Add value で追加。ワイルドカード不可） |
 
 5. **Role mapping** タブ → **Assign role** → 対象 realm ロールを選択
 
@@ -110,15 +110,17 @@ Building OS は Keycloak のロール（粗粒度）と権限文字列（細粒�
 例:
 
 ```
-building:*:read                          # 全建物の読取
-floor:sha256-abc123:read                 # 特定フロアの読取（ID はハッシュ）
-device:*:read,control                    # 全デバイスの読取・制御
-point:sha256-xyz789:read,write,control   # 特定ポイントの読取・書込・制御
-*:*:*                                    # 全リソースの全操作（admin）
+building:<hash>:read                     # 特定建物（と配下）の読取
+point:<hash>:read,write                  # 特定ポイントの読取・書込（制御は write で判定）
+group:tenant-a:read                      # Group tenant-a に登録されたリソースの読取
 ```
 
-`resourceId` にはデジタルツインの dtId の SHA-256 先頭 8 バイトが使われます
-（ただしグループ ID は除く）。
+`resourceId` は SHA-256 の先頭 28 バイト（hex 56 文字）でハッシュ化して保存・比較します
+（ただしグループ ID は除く）。`/admin` の権限タブから付与すると、生の ID が自動でハッシュ化されます。
+
+**型・ID は完全一致のみです。`*` はワイルドカードとして解釈されません**（`building:*:read` のような
+権限は何も許可せず、API サーバが警告ログを出して無視します。#505）。全件アクセスは admin ロール
+（`role=admin`）で表します。
 
 ---
 

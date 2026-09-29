@@ -23,6 +23,15 @@ publishes images for (`v*.*.*`).
 
 ### Removed
 
+- **Permission wildcards are gone from the dev realm and the docs (#505).** The API never interpreted
+  `*` (type and id always matched exactly), so `building:*:read`, `*:*:*` and friends granted nothing:
+  the seeded `testoperator` user and the `building-os-operators` / `building-os-viewers` groups could
+  read nothing despite being documented as "read + control". They are removed, and the realm ships only
+  `admin` / `building-os-admins` (admin is decided by `role=admin`). The API now ignores a wildcard
+  entry with a one-time warning instead of returning `"*"` as an id from `GET /api/MyResources`, and the
+  web client's `hasPermission` no longer treats `*` as a wildcard. An already imported realm keeps the
+  old user and groups; delete them in the Keycloak console if present.
+
 - **BREAKING:** `valueText` and `valueBool` are gone from the telemetry read responses (#359).
   A reading's non-numeric half now travels in the new **`state`** field (`string | boolean | null`).
   It exists for the aggregate bucket, the only row shape carrying two readings at once: `value` is

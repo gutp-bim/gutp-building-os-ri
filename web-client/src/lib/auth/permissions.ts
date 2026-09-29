@@ -1,7 +1,8 @@
 /**
  * Permission strings follow `{resourceType}:{resourceId}:{actions}` where `actions` is a
- * comma-separated list and `*` is a wildcard (e.g. `*:*:*` for admin, `point:*:read,write,control`).
- * This mirrors the API server's AuthorizationContext format.
+ * comma-separated list (e.g. `point:<id>:read,write`). This mirrors the API server's
+ * AuthorizationContext format. `*` is **not** a wildcard — the API never interpreted it (#505), and
+ * admin is decided by the role, not by a permission string.
  *
  * This helper answers a deliberately coarse question — "does the user hold *any* permission of this
  * resourceType + action?" — which is all the nav/shell gating needs. The `resourceId` segment is
@@ -19,9 +20,10 @@ export function hasPermission(
   return permissions.some((perm) => {
     const [permType, , permActions] = perm.split(":");
     if (permType === undefined || permActions === undefined) return false;
-    const typeMatches = permType === "*" || permType === resourceType;
-    if (!typeMatches) return false;
-    const actions = permActions.split(",").map((a) => a.trim());
-    return actions.includes("*") || actions.includes(action);
+    if (permType !== resourceType) return false;
+    return permActions
+      .split(",")
+      .map((a) => a.trim())
+      .includes(action);
   });
 }

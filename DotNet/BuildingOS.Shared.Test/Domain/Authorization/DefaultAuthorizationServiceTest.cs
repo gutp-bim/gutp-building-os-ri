@@ -297,6 +297,33 @@ public class DefaultAuthorizationServiceTest
         Assert.Contains(H("ahu-301"), result);
     }
 
+    // === Wildcards are not part of the permission model (#505) ===
+
+    [Theory]
+    [InlineData("building:*:read")]
+    [InlineData("*:*:*")]
+    [InlineData("*:eng2:read")]
+    public async Task GetAccessibleResourceIdsAsync_WildcardPermission_IsNotReturnedAsAnId(string wildcard)
+    {
+        var context = CreateContext("viewer", new[] { wildcard, P("building", "eng1", "read") });
+
+        var result = await _sut.GetAccessibleResourceIdsAsync(context, "building", "read");
+
+        Assert.Equal(new[] { H("eng1") }, result);
+    }
+
+    [Theory]
+    [InlineData("building:*:read")]
+    [InlineData("*:*:*")]
+    public async Task CanAccessAsync_WildcardPermission_GrantsNothing(string wildcard)
+    {
+        var context = CreateContext("operator", new[] { wildcard });
+
+        var result = await _sut.CanAccessAsync(context, "building", "eng2", "read");
+
+        Assert.False(result);
+    }
+
     [Fact]
     public async Task GetAccessibleResourceIdsAsync_WithAncestorPermission_DoesNotExpandToDescendants()
     {

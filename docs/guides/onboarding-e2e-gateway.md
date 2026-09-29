@@ -1033,10 +1033,9 @@ E2E_BOS_EGRESS_ADDR=localhost:5052 E2E_BOS_API_URL=http://localhost:5000 \
 
 | ユーザー名 | パスワード | ロール | 権限 |
 |------------|------------|--------|------|
-| `admin` | `admin` | admin（全操作可） | `*:*:*` |
-| `testoperator` | `testpass` | operator（読取 + 制御） | `building/floor/space:read`, `device:read,control`, `point:read,write,control` |
+| `admin` | `admin` | admin（全操作可） | 不要（admin は role で決まる） |
 
-> ⚠️ realm.json に含まれるのは上の 2 アカウントだけです（`viewer` などは既定では未作成）。
+> ⚠️ realm.json に含まれるのはこの 1 アカウントだけです（operator / viewer は既定では未作成）。
 > **すべてラボ/CI 専用の既定資格情報**なので、本番では必ず変更してください。
 
 **Keycloak 管理コンソール**（realm・ユーザ・ロールの編集）は `http://localhost:8080/admin`。
@@ -1045,7 +1044,7 @@ E2E_BOS_EGRESS_ADDR=localhost:5052 E2E_BOS_API_URL=http://localhost:5000 \
 コンソール左上で realm を **`building-os`** に切り替えてから Users / Groups / Realm roles を操作します。
 
 **追加ユーザを作りたい場合:** 管理コンソールの Users → Add user → Credentials でパスワード設定
-（`Temporary: OFF`）→ Groups で `building-os-admins` / `building-os-operators` に追加、または
+（`Temporary: OFF`）→ admin なら Groups で `building-os-admins` に追加（operator / viewer は属性 `role` とリソースごとの `permissions` を付与）、または
 Web Client の `/admin` ワークスペース（`http://localhost:3000/admin`、別アプリ不要）から作成します。
 詳細な手順（属性 `role` / `permissions` の付与含む）とトークン取得は
 [`docs/guides/keycloak-user-management.md`](keycloak-user-management.md)、権限モデルは

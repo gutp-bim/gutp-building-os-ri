@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
 namespace BuildingOS.Shared.Domain.Authorization;
@@ -99,6 +100,11 @@ public class DefaultAuthorizationService : IAuthorizationService
             if (parsed == null) continue;
 
             var (type, id, actionsStr) = parsed.Value;
+            if (IsWildcard(type, id))
+            {
+                WarnWildcardOnce(permission);
+                continue;
+            }
             if (!HasMatchingAction(actionsStr, action)) continue;
 
             if (type == resourceType)
@@ -118,6 +124,25 @@ public class DefaultAuthorizationService : IAuthorizationService
         }
 
         return result.ToList();
+    }
+
+    /// <summary>
+    /// `*` is not part of the permission model (#505): type and id match exactly or not at all, so a
+    /// wildcard entry grants nothing. <see cref="HasDirectPermission"/> already never matches one; this
+    /// keeps the listing path from returning the literal <c>"*"</c> as if it were a resource id.
+    /// </summary>
+    private static bool IsWildcard(string type, string id) => type == "*" || id == "*";
+
+    private static readonly ConcurrentDictionary<string, bool> WarnedWildcards = new();
+
+    private void WarnWildcardOnce(string permission)
+    {
+        if (WarnedWildcards.TryAdd(permission, true))
+        {
+            _logger.LogWarning(
+                "Ignoring permission {Permission}: '*' wildcards are not supported; type and id must match exactly",
+                permission);
+        }
     }
 
     private static bool HasMatchingAction(string actionsStr, string action)
