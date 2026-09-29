@@ -12,6 +12,11 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- `GET /api/v1/my-resources?idFormat=original` (and `…/my-resources/accessible?…&idFormat=original`) returns
+  business ids only — a Group member's id, or one the admin UI recorded in the id-mapping table — and lists
+  grants whose original id cannot be recovered under `unresolved` / `unresolvedResourceIds` as hashes,
+  instead of mixing hashes in (#504). Without `idFormat` (or with `idFormat=hash`) the response is unchanged;
+  the new fields are `null` there.
 - `/api/v1` paths are lower-kebab throughout (#507): `/api/v1/groups`, `/api/v1/users`,
   `/api/v1/permissions`, `/api/v1/auth` and **`/api/v1/my-resources`** (was `MyResources`). Routing is
   case-insensitive, so the PascalCase spellings keep working; `/api/MyResources` and the briefly published

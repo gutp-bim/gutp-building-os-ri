@@ -297,6 +297,60 @@ public class DefaultAuthorizationServiceTest
         Assert.Contains(H("ahu-301"), result);
     }
 
+    // === Accessible resources with their original ids (#504 B) ===
+
+    [Fact]
+    public async Task GetAccessibleResourcesAsync_GroupMember_CarriesItsOriginalId()
+    {
+        var context = CreateContext("viewer", new[] { P("group", "tenant-a", "read") });
+        _groupResolverMock
+            .Setup(x => x.GetGroupMembersAsync("tenant-a", "space", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { "R501", "R502" });
+
+        var result = await _sut.GetAccessibleResourcesAsync(context, "space", "read");
+
+        Assert.Equal(
+            new[] { new AccessibleResource(H("R501"), "R501"), new AccessibleResource(H("R502"), "R502") },
+            result.OrderBy(r => r.OriginalId));
+    }
+
+    [Fact]
+    public async Task GetAccessibleResourcesAsync_DirectPermission_IsHashOnly()
+    {
+        // A direct permission is stored hashed; the original id is not recoverable here.
+        var context = CreateContext("viewer", new[] { P("space", "R501", "read") });
+
+        var result = await _sut.GetAccessibleResourcesAsync(context, "space", "read");
+
+        Assert.Equal(new[] { new AccessibleResource(H("R501"), null) }, result);
+    }
+
+    [Fact]
+    public async Task GetAccessibleResourcesAsync_SameResourceDirectAndViaGroup_IsListedOnce_WithTheOriginal()
+    {
+        var context = CreateContext("viewer", new[] { P("space", "R501", "read"), P("group", "tenant-a", "read") });
+        _groupResolverMock
+            .Setup(x => x.GetGroupMembersAsync("tenant-a", "space", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { "R501" });
+
+        var result = await _sut.GetAccessibleResourcesAsync(context, "space", "read");
+
+        Assert.Equal(new[] { new AccessibleResource(H("R501"), "R501") }, result);
+    }
+
+    [Fact]
+    public async Task GetAccessibleResourceIdsAsync_IsTheHashesOfGetAccessibleResources()
+    {
+        var context = CreateContext("viewer", new[] { P("space", "R501", "read"), P("group", "tenant-a", "read") });
+        _groupResolverMock
+            .Setup(x => x.GetGroupMembersAsync("tenant-a", "space", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { "R501", "R502" });
+
+        var ids = await _sut.GetAccessibleResourceIdsAsync(context, "space", "read");
+
+        Assert.Equal(new[] { H("R501"), H("R502") }.OrderBy(x => x), ids.OrderBy(x => x));
+    }
+
     // === Wildcards are not part of the permission model (#505) ===
 
     [Theory]

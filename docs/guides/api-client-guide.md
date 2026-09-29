@@ -115,6 +115,29 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ---
 
+### 自分が読めるリソースの一覧
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/v1/my-resources?idFormat=original"
+```
+
+```json
+{ "isAdmin": false,
+  "resources":  { "building": [], "floor": [], "space": ["R501", "R502"], "device": [], "point": [] },
+  "unresolved": { "building": [], "floor": [], "space": ["9f2c…（56 桁の hex）"], "device": [], "point": [] } }
+```
+
+- `idFormat=original` を付けると、`resources` には**元の業務 ID だけ**が入る（Group 経由の ID と、管理画面で付与して
+  ID 対応表に記録された ID）。元の ID が分からない権限（ハッシュで直接付与され、対応表にも無いもの）は
+  `unresolved` にハッシュのまま分けて返る。
+- `idFormat` を省略（または `hash`）すると従来どおり: 逆引きできない ID はハッシュのまま `resources` に混ざり、
+  `unresolved` は `null`。
+- admin は常に `resources: null`（全件）。種別ごとに絞るなら `GET /api/v1/my-resources/accessible?resourceType=space&action=read&idFormat=original`
+  （`accessibleResourceIds` と `unresolvedResourceIds`）。
+- 読める範囲は、権限が指す**その種別のリソース**だけ（`space:R501` の権限で配下の device / point は列挙されない。
+  子孫の一括取得は #509）。
+
 ## 3. テレメトリの読み取り
 
 統一エンドポイント `GET /api/v1/telemetries/query` が自動的に適切なストア層（Hot/Warm/Cold）を選択します。

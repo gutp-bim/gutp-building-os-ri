@@ -25,41 +25,75 @@ public class MyResourcesController : ControllerBase
         _mappingRepository = mappingRepository;
     }
 
+    private const string IdFormatHash = "hash";
+    private const string IdFormatOriginal = "original";
+
+    private static readonly string[] ResourceTypes = ["building", "floor", "space", "device", "point"];
+
     /// <summary>
     /// 指定リソースタイプのアクセス可能リソースID一覧を取得
     /// </summary>
+    /// <param name="resourceType">building / floor / space / device / point</param>
+    /// <param name="action">read / write など</param>
+    /// <param name="idFormat">
+    /// <c>hash</c>（既定。従来どおり、逆引きできない ID はハッシュのまま混在）または <c>original</c>
+    /// （元の業務 ID だけを <c>accessibleResourceIds</c> に返し、元 ID が分からないものは
+    /// <c>unresolvedResourceIds</c> にハッシュで分けて返す。#504）。
+    /// </param>
+    /// <param name="ct">キャンセル</param>
     [HttpGet("accessible")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AccessibleResourcesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAccessible(
         [FromQuery] string resourceType,
         [FromQuery] string action,
-        CancellationToken ct)
+        [FromQuery] string? idFormat = null,
+        CancellationToken ct = default)
     {
+        if (!TryParseIdFormat(idFormat, out var original)) return InvalidIdFormat(idFormat);
         var authContext = HttpContext.GetAuthorizationContext();
-        var hashedIds = await _authorizationService.GetAccessibleResourceIdsAsync(
-            authContext, resourceType, action, ct).ConfigureAwait(false);
 
-        // ハッシュIDを元IDに逆引き
-        var originalIds = await ResolveToOriginalIdsAsync(hashedIds, ct).ConfigureAwait(false);
-
-        return Ok(new
+        IReadOnlyList<string> ids;
+        IReadOnlyList<string>? unresolved = null;
+        if (original)
         {
-            authContext.UserId,
-            authContext.Role,
-            authContext.IsAdmin,
+            (ids, var rest) = await ResolveOriginalAsync(authContext, resourceType, action, ct).ConfigureAwait(false);
+            unresolved = rest;
+        }
+        else
+        {
+            var hashedIds = await _authorizationService.GetAccessibleResourceIdsAsync(
+                authContext, resourceType, action, ct).ConfigureAwait(false);
+            ids = await ResolveToOriginalIdsAsync(hashedIds, ct).ConfigureAwait(false);
+        }
+
+        return Ok(new AccessibleResourcesResponse
+        {
+            UserId = authContext.UserId,
+            Role = authContext.Role,
+            IsAdmin = authContext.IsAdmin,
             ResourceType = resourceType,
             Action = action,
-            AccessibleResourceIds = originalIds
+            AccessibleResourceIds = ids,
+            UnresolvedResourceIds = unresolved,
         });
     }
 
     /// <summary>
     /// ユーザーのアクセス可能リソース一覧を取得（全リソースタイプ）
     /// </summary>
+    /// <param name="idFormat">
+    /// <c>hash</c>（既定。従来どおり）または <c>original</c>（<c>resources</c> は元の業務 ID だけ。
+    /// 元 ID が分からない権限は <c>unresolved</c> にハッシュで分けて返す。#504）。admin は常に
+    /// <c>resources: null</c>（全件）。
+    /// </param>
+    /// <param name="ct">キャンセル</param>
     [HttpGet]
     [ProducesResponseType(typeof(MyResourcesResponse), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMyResources(CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetMyResources([FromQuery] string? idFormat = null, CancellationToken ct = default)
     {
+        if (!TryParseIdFormat(idFormat, out var original)) return InvalidIdFormat(idFormat);
         var authContext = HttpContext.GetAuthorizationContext();
 
         if (authContext.IsAdmin)
@@ -67,20 +101,64 @@ public class MyResourcesController : ControllerBase
             return Ok(new MyResourcesResponse { IsAdmin = true });
         }
 
-        var resourceTypes = new[] { "building", "floor", "space", "device", "point" };
         var resources = new Dictionary<string, IReadOnlyList<string>>();
+        Dictionary<string, IReadOnlyList<string>>? unresolved = original ? new() : null;
 
-        foreach (var type in resourceTypes)
+        foreach (var type in ResourceTypes)
         {
-            var hashedIds = await _authorizationService.GetAccessibleResourceIdsAsync(
-                authContext, type, "read", ct).ConfigureAwait(false);
+            if (original)
+            {
+                var (ids, rest) = await ResolveOriginalAsync(authContext, type, "read", ct).ConfigureAwait(false);
+                resources[type] = ids;
+                unresolved![type] = rest;
+            }
+            else
+            {
+                var hashedIds = await _authorizationService.GetAccessibleResourceIdsAsync(
+                    authContext, type, "read", ct).ConfigureAwait(false);
 
-            // ハッシュIDを元IDに逆引き
-            var originalIds = await ResolveToOriginalIdsAsync(hashedIds, ct).ConfigureAwait(false);
-            resources[type] = originalIds;
+                // ハッシュIDを元IDに逆引き（逆引きできないものはハッシュのまま — 従来の挙動）
+                resources[type] = await ResolveToOriginalIdsAsync(hashedIds, ct).ConfigureAwait(false);
+            }
         }
 
-        return Ok(new MyResourcesResponse { IsAdmin = false, Resources = resources });
+        return Ok(new MyResourcesResponse { IsAdmin = false, Resources = resources, Unresolved = unresolved });
+    }
+
+    private static bool TryParseIdFormat(string? idFormat, out bool original)
+    {
+        original = string.Equals(idFormat, IdFormatOriginal, StringComparison.OrdinalIgnoreCase);
+        return original || string.IsNullOrEmpty(idFormat)
+            || string.Equals(idFormat, IdFormatHash, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private BadRequestObjectResult InvalidIdFormat(string? idFormat)
+        => BadRequest(new { error = $"idFormat must be '{IdFormatHash}' or '{IdFormatOriginal}'", idFormat });
+
+    /// <summary>
+    /// Original ids for <paramref name="resourceType"/>: those a Group supplies, then those the
+    /// resource-id mapping table knows; hashes resolvable by neither are returned separately.
+    /// </summary>
+    private async Task<(IReadOnlyList<string> Ids, IReadOnlyList<string> Unresolved)> ResolveOriginalAsync(
+        AuthorizationContext authContext, string resourceType, string action, CancellationToken ct)
+    {
+        var accessible = await _authorizationService.GetAccessibleResourcesAsync(
+            authContext, resourceType, action, ct).ConfigureAwait(false);
+
+        var unknown = accessible.Where(r => r.OriginalId is null).Select(r => r.Hash).ToList();
+        var mapping = unknown.Count == 0
+            ? new Dictionary<string, string>()
+            : await _mappingRepository.ResolveOriginalIdsAsync(unknown, ct).ConfigureAwait(false);
+
+        var ids = new List<string>();
+        var unresolved = new List<string>();
+        foreach (var r in accessible)
+        {
+            var id = r.OriginalId ?? (mapping.TryGetValue(r.Hash, out var o) ? o : null);
+            if (id is null) unresolved.Add(r.Hash);
+            else ids.Add(id);
+        }
+        return (ids.Distinct(StringComparer.Ordinal).ToList(), unresolved);
     }
 
     /// <summary>
@@ -103,4 +181,23 @@ public class MyResourcesResponse
 {
     public bool IsAdmin { get; set; }
     public Dictionary<string, IReadOnlyList<string>>? Resources { get; set; }
+
+    /// <summary>
+    /// <c>idFormat=original</c> のときだけ: 元の業務 ID が分からない権限（直接付与され、ID 対応表にも
+    /// 無いもの）の種別ごとのハッシュ。既定では null（#504）。
+    /// </summary>
+    public Dictionary<string, IReadOnlyList<string>>? Unresolved { get; set; }
+}
+
+public class AccessibleResourcesResponse
+{
+    public string UserId { get; set; } = "";
+    public string Role { get; set; } = "";
+    public bool IsAdmin { get; set; }
+    public string ResourceType { get; set; } = "";
+    public string Action { get; set; } = "";
+    public IReadOnlyList<string> AccessibleResourceIds { get; set; } = [];
+
+    /// <summary><c>idFormat=original</c> のときだけ: 元 ID が分からない権限のハッシュ。既定では null（#504）。</summary>
+    public IReadOnlyList<string>? UnresolvedResourceIds { get; set; }
 }
