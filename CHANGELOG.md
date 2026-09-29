@@ -12,6 +12,12 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- `GET /points/{pointId}/control-audit` takes a time range and pages with a cursor (#478): `start`
+  (inclusive) / `end` (exclusive) filter `createdAt`, and when more rows exist the response carries
+  `X-Next-Cursor`, passed back as `cursor` for the next (older) page. The cursor is a keyset position
+  (`createdAt`, `controlId`), so writes recorded while a client pages backwards neither shift nor
+  duplicate rows. The body is still the same array, so existing clients are unaffected; the header is
+  exposed to cross-origin browser clients.
 - `CONTROL_SCHEMA_FAILURE_POLICY=deny` makes control writes fail closed (#481): a write to a point
   whose ControlSchema cannot constrain the value (no schema, no or an unknown `dataType`, unusable
   `enumLabels`) is refused with 400 and a `reason` instead of being sent unvalidated. The default stays

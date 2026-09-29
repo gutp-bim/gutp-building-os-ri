@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.PointControlRepository;
 using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.PointControl;
 using Microsoft.EntityFrameworkCore;
@@ -49,13 +50,26 @@ public sealed class EfPointControlRepository : IPointControlRepository
     }
 
     public async Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(
-        string pointId, int limit, CancellationToken ct)
+        ControlAuditQuery query, CancellationToken ct)
     {
-        return await _context.PointControlAudits
+        var rows = _context.PointControlAudits
             .AsNoTracking()
-            .Where(e => e.PointId == pointId)
+            .Where(e => e.PointId == query.PointId);
+
+        if (query.Start is { } start) rows = rows.Where(e => e.CreatedAt >= start);
+        if (query.End is { } end) rows = rows.Where(e => e.CreatedAt < end);
+        if (query.After is { } after)
+        {
+            // Keyset: strictly before the cursor row in (created_at DESC, id DESC) order. Both the
+            // comparison and the ordering run in PostgreSQL, so uuid ordering is consistent between them.
+            rows = rows.Where(e => e.CreatedAt < after.CreatedAt
+                                   || (e.CreatedAt == after.CreatedAt && e.Id.CompareTo(after.Id) < 0));
+        }
+
+        return await rows
             .OrderByDescending(e => e.CreatedAt)
-            .Take(limit)
+            .ThenByDescending(e => e.Id)
+            .Take(query.Limit)
             .ToListAsync(ct)
             .ConfigureAwait(false);
     }

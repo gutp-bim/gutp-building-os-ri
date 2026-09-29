@@ -251,6 +251,21 @@ NATS → GatewayBridge → egress ストリームへ流すため、フィール�
 | handler 完了時 | `UPDATE` — result, completed_at |
 | handler タイムアウト時 | `UPDATE` — result=`{status: "timeout"}`, completed_at |
 
+### 読み出し（期間指定とページング, #478）
+
+`GET /points/{pointId}/control-audit` は新しい順の配列を返す（閲覧にはポイントの read 権限）。
+
+| クエリ | 意味 |
+|---|---|
+| `limit` | 1 ページの件数（1〜200、既定 50） |
+| `start` / `end` | `createdAt` の範囲。`start` は含み、`end` は含まない。オフセット無しの値は UTC とみなす |
+| `cursor` | 前ページの応答ヘッダ `X-Next-Cursor` の値 |
+
+続きがあると応答ヘッダ `X-Next-Cursor` が付く（最後のページでは付かない）。カーソルは最後の行の
+（`createdAt`, `controlId`）で、次ページは「それより古い行」から始まる（keyset）。件数オフセットではないので、
+取得中に新しい制御が記録されてもページはずれず、取りこぼし・重複が起きない。長期 backfill は
+`start`/`end` を固定したまま `cursor` を辿る。本文は従来どおりの配列なので既存クライアントに影響はない。
+
 ### 保持期間
 
 - **1 年間** PostgreSQL に保持
