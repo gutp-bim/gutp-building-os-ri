@@ -69,12 +69,7 @@ public class HierarchyBusinessIdAuthorizationTest(PostgresFixture postgres, OxiG
         });
         await db.SaveChangesAsync();
 
-        var authz = new DefaultAuthorizationService(
-            new GroupMembershipResolver(new GroupRepository(db, NullLogger<GroupRepository>.Instance)),
-            new OxiGraphHierarchyResolver(oxiGraph.Client),
-            NullLogger<DefaultAuthorizationService>.Instance);
-        var view = new AuthorizedTwinView(
-            new OxiGraphDigitalTwinDatabase(oxiGraph.Client, new MemoryCache(new MemoryCacheOptions())), authz);
+        var (authz, view) = Stack(db);
         var user = new AuthorizationContext
         {
             UserId = "u-office-a", Role = "viewer",
@@ -97,5 +92,63 @@ public class HierarchyBusinessIdAuthorizationTest(PostgresFixture postgres, OxiG
         // The telemetry path answers the same question the same way.
         Assert.True(await authz.CanAccessAsync(user, "point", "P-501-KWH", "read"));
         Assert.False(await authz.CanAccessAsync(user, "point", "P-502-KWH", "read"));
+    }
+
+    [Fact]
+    public async Task BuildingGrantOnTheBusinessId_WalksEveryLevelBelow_ThroughTheRealAncestorChain()
+    {
+        await SeedTwinAsync();
+        await using var db = await NewDbAsync();
+        var (_, view) = Stack(db);
+        var user = new AuthorizationContext
+        {
+            UserId = "u-bm-b1", Role = "viewer",
+            Permissions = [PermissionHelper.BuildPermissionString("building", "B1", "read")],
+        };
+
+        Assert.Equal(["B1"], (await view.ListBuildingsAsync(user, default)).Select(b => b.Id));
+        Assert.Equal(["F5"], (await view.ListFloorsAsync(user, Iri("B1"), default)).Select(f => f.Id));
+        Assert.Equal(2, (await view.ListSpacesAsync(user, Iri("F5"), default)).Length);
+        Assert.Equal(["AHU-502"], (await view.ListDevicesAsync(user, Iri("R502"), default)).Select(d => d.Id));
+        Assert.Equal(["P-502-KWH"], (await view.ListPointsAsync(user, Iri("AHU-502"), default)).Select(p => p.Id));
+        Assert.IsType<TwinGetResult<Space>.Ok>(await view.GetSpaceAsync(user, Iri("R502"), default));
+        Assert.Equal(2, (await view.ListPointDetailsAsync(user, Iri("B1"), default)).Length);
+    }
+
+    [Fact]
+    public async Task FloorGrantOnTheBusinessId_ReachesItsRooms_NotTheBuilding()
+    {
+        await SeedTwinAsync();
+        await using var db = await NewDbAsync();
+        var (_, view) = Stack(db);
+        var user = new AuthorizationContext
+        {
+            UserId = "u-floor", Role = "viewer",
+            Permissions = [PermissionHelper.BuildPermissionString("floor", "F5", "read")],
+        };
+
+        Assert.Equal(2, (await view.ListSpacesAsync(user, Iri("F5"), default)).Length);
+        Assert.Equal(["AHU-501"], (await view.ListDevicesAsync(user, Iri("R501"), default)).Select(d => d.Id));
+        Assert.IsType<TwinGetResult<Building>.Forbidden>(await view.GetBuildingAsync(user, Iri("B1"), default));
+        Assert.Empty(await view.ListBuildingsAsync(user, default));
+    }
+
+    private async Task<RelationalDbContext> NewDbAsync()
+    {
+        var db = new RelationalDbContext(new DbContextOptionsBuilder<RelationalDbContext>()
+            .UseNpgsql(postgres.ConnectionString).Options);
+        await db.Database.MigrateAsync();
+        return db;
+    }
+
+    private (DefaultAuthorizationService Authz, AuthorizedTwinView View) Stack(RelationalDbContext db)
+    {
+        var authz = new DefaultAuthorizationService(
+            new GroupMembershipResolver(new GroupRepository(db, NullLogger<GroupRepository>.Instance)),
+            new OxiGraphHierarchyResolver(oxiGraph.Client),
+            NullLogger<DefaultAuthorizationService>.Instance);
+        var view = new AuthorizedTwinView(
+            new OxiGraphDigitalTwinDatabase(oxiGraph.Client, new MemoryCache(new MemoryCacheOptions())), authz);
+        return (authz, view);
     }
 }

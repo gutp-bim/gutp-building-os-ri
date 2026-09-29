@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Authorization;
 ﻿using BuildingOS.Shared;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOs.ApiServer.Extensions;
@@ -33,8 +34,10 @@ public class PointDetailController(
 
         if (!authContext.IsAdmin)
         {
-            var canAccess = await authorizationService.CanAccessAsync(
-                authContext, "building", buildingDtId, "read", ct).ConfigureAwait(false);
+            // By the building's business id, like the tree reads (#504).
+            var canAccess = await NodeAuthorization.CanAccessByDtIdAsync(
+                digitalTwinDatabase, authorizationService, authContext, "building", buildingDtId, "read", ct)
+                .ConfigureAwait(false);
             if (!canAccess) return Forbid();
         }
 

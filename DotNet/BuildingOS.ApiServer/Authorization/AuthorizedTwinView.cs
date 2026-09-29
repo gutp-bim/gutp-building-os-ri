@@ -44,33 +44,17 @@ public sealed class AuthorizedTwinView(
 
     // ── Id space (#504) ───────────────────────────────────────────────────────
     //
-    // Authorization lives in the business-id space (sbco:id): Group items are stored by business id,
-    // and CanAccessAsync's ancestor chain (OxiGraphHierarchyResolver) matches sbco:id literals and
-    // returns business ids. The hierarchy routes, though, are addressed by dtId (the node IRI). So a
-    // node is authorized by its business id, never by the dtId it was requested with — matching the
-    // dtId made a user granted space:R501 read R501's telemetry yet see nothing under R501 in the tree.
-    //
-    // Migration: a grant recorded against the dtId keeps working (either id's hash matches). It is
-    // only ever a direct grant — no ancestor or group resolution exists in the dtId space.
+    // Nodes are authorized by business id (sbco:id), not by the dtId they are addressed by — see
+    // NodeAuthorization. A grant recorded against a dtId keeps matching during migration.
 
     /// <summary>Whether a hashed id-set grants the node, by business id or (legacy) dtId.</summary>
     private static bool Grants(IReadOnlyCollection<string> hashedIds, string businessId, string dtId)
         => hashedIds.Contains(PermissionHelper.HashResourceId(businessId))
            || hashedIds.Contains(PermissionHelper.HashResourceId(dtId));
 
-    /// <summary>
-    /// Read access to the node the caller addressed by <paramref name="dtId"/>: by its business id
-    /// (ancestors and groups included), then by a legacy grant on the dtId itself. A node that is not in
-    /// the twin has no business id, so only the legacy check applies.
-    /// </summary>
-    private async Task<bool> CanReadNodeAsync(
+    private Task<bool> CanReadNodeAsync(
         AuthorizationContext auth, string resourceType, string dtId, string? businessId, CancellationToken ct)
-    {
-        if (!string.IsNullOrEmpty(businessId)
-            && await authService.CanAccessAsync(auth, resourceType, businessId, "read", ct).ConfigureAwait(false))
-            return true;
-        return await authService.CanAccessAsync(auth, resourceType, dtId, "read", ct).ConfigureAwait(false);
-    }
+        => NodeAuthorization.CanAccessAsync(authService, auth, resourceType, dtId, businessId, "read", ct);
 
     /// <summary>
     /// Get-by-dtId shape shared by the four node types: the node is loaded first (its business id is
@@ -149,16 +133,15 @@ public sealed class AuthorizedTwinView(
         // is simply absent from the twin. See the dtId guard note at the top of this class.
         if (!IsUsableDtId(spaceDtId)) return new TwinGetResult<Space[]>.NotFound();
 
-        if (!auth.IsAdmin)
-        {
-            if (!await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false))
-                return new TwinGetResult<Space[]>.Forbidden();
-        }
-
         // "No such room" and "no neighbours" are the same empty adjacency list, so the subject's
-        // existence is established separately.
-        if (await db.GetSpace(spaceDtId).ConfigureAwait(false) is null)
-            return new TwinGetResult<Space[]>.NotFound();
+        // existence is established separately — and first, since its business id is what authorizes
+        // it (#504). As in GetNodeAsync, a non-admin gets Forbidden for an absent room too.
+        var subject = await db.GetSpace(spaceDtId).ConfigureAwait(false);
+        if (!auth.IsAdmin
+            && (subject is null
+                || !await CanReadNodeAsync(auth, "space", spaceDtId, subject.Id, ct).ConfigureAwait(false)))
+            return new TwinGetResult<Space[]>.Forbidden();
+        if (subject is null) return new TwinGetResult<Space[]>.NotFound();
 
         var neighbours = await db.ListAdjacentSpaces(spaceDtId).ConfigureAwait(false);
         if (auth.IsAdmin) return new TwinGetResult<Space[]>.Ok(neighbours);
@@ -171,7 +154,7 @@ public sealed class AuthorizedTwinView(
         var readable = new List<Space>();
         foreach (var neighbour in neighbours)
         {
-            if (await authService.CanAccessAsync(auth, "space", neighbour.DtId, "read", ct).ConfigureAwait(false))
+            if (await CanReadNodeAsync(auth, "space", neighbour.DtId, neighbour.Id, ct).ConfigureAwait(false))
                 readable.Add(neighbour);
         }
         return new TwinGetResult<Space[]>.Ok(readable.ToArray());
@@ -290,8 +273,15 @@ public sealed class AuthorizedTwinView(
 
     public async Task<bool> CanWriteResourceAsync(
         AuthorizationContext auth, string resourceType, string resourceId, CancellationToken ct)
-        => auth.IsAdmin
-           || await authService.CanAccessAsync(auth, resourceType, resourceId, "write", ct).ConfigureAwait(false);
+    {
+        if (auth.IsAdmin) return true;
+        // A point is addressed by its business id already; the other four types by dtId, so they are
+        // authorized by the business id the node carries, like the reads (#504).
+        return resourceType == "point"
+            ? await authService.CanAccessAsync(auth, "point", resourceId, "write", ct).ConfigureAwait(false)
+            : await NodeAuthorization.CanAccessByDtIdAsync(db, authService, auth, resourceType, resourceId, "write", ct)
+                .ConfigureAwait(false);
+    }
 
     // ── Search ────────────────────────────────────────────────────────────────
 
@@ -330,8 +320,6 @@ public sealed class AuthorizedTwinView(
                 (await db.GetBuilding(buildingDtId).ConfigureAwait(false))?.Id, ct).ConfigureAwait(false))
             return hits;
 
-        var accessibleBuildings = await AccessibleAsync("building").ConfigureAwait(false);
-
         var filtered = new List<ResourceSearchHit>();
         foreach (var h in hits)
         {
@@ -341,13 +329,7 @@ public sealed class AuthorizedTwinView(
             var selfAllowed = h.Type == "point"
                 ? ownIds.Contains(PermissionHelper.HashResourceId(h.Id))
                 : Grants(ownIds, h.Id, h.DtId);
-
-            // Legacy building-ancestor grant recorded against the building's dtId, where the hit
-            // carries it (the business-id ancestor grant is the scoped check above).
-            var ancestorAllowed = !string.IsNullOrEmpty(h.BuildingDtId)
-                && accessibleBuildings.Contains(PermissionHelper.HashResourceId(h.BuildingDtId));
-
-            if (selfAllowed || ancestorAllowed) filtered.Add(h);
+            if (selfAllowed) filtered.Add(h);
         }
         return filtered.ToArray();
     }

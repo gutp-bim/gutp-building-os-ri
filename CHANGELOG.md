@@ -62,10 +62,14 @@ publishes images for (`v*.*.*`).
 
 - The hierarchy reads and search now authorize nodes by their **business id** (`sbco:id`), the id space
   Group items, telemetry and the ancestor chain use (#504). Previously they matched the dtId (IRI), so a
-  user granted e.g. `space:R501` (directly or through a Group) could read R501's telemetry yet got empty
-  `/buildings`, `/floors`, `/spaces`, `/devices`, `/points` lists, 403 on `GET /spaces/{dtId}` and an
-  empty search. Access widens only to what the existing grants already name. A grant recorded against a
-  dtId keeps matching during migration (direct only; points were always matched by business id).
+  user granted e.g. `building:B1` got an empty `/buildings`, and one granted `space:R501` (directly or
+  through a Group) could read R501's telemetry yet got 403 on `GET /spaces/{dtId}`, empty
+  `/devices` / `/points` below it and an empty search. The same applies to `/spaces/{dtId}/adjacent`,
+  `/point-details`, `/device-details` and the metadata write check. Access widens only to what the
+  existing grants already name. A grant recorded against a dtId keeps matching during migration (direct
+  only; points were always matched by business id). Not changed: a grant on a descendant does not list
+  its ancestors, so `space:R501` alone still sees no building or floor in `/buildings` / `/floors`
+  (descendant expansion is #509).
 - `GET /telemetries/query` now says when it returns only part of the requested range (#499). When a
   parquet read exceeds `PARQUET_QUERY_MAX_FILES` (5000 in the OSS compose stack) the store keeps the
   newest partitions, as before, but the response now carries `X-Partial-Result: true` and

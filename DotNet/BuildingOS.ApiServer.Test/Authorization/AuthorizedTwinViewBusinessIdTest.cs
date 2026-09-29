@@ -237,6 +237,70 @@ public class AuthorizedTwinViewBusinessIdTest
         Assert.IsType<TwinGetResult<Device>.Ok>(result);
     }
 
+    // ── Adjacent spaces (review of #516) ─────────────────────────────────────
+
+    [Fact]
+    public async Task ListAdjacentSpaces_SubjectAndNeighboursAuthorizedByBusinessId()
+    {
+        var h = new Harness();
+        h.Db.Setup(d => d.GetSpace(Iri + "R501")).ReturnsAsync(S("R501"));
+        h.Db.Setup(d => d.ListAdjacentSpaces(Iri + "R501")).ReturnsAsync([S("R502"), S("R503")]);
+        h.CanRead("space", "R501");
+        h.CanRead("space", "R503");
+
+        var result = await h.View.ListAdjacentSpacesAsync(UserAuth(), Iri + "R501", default);
+
+        var ok = Assert.IsType<TwinGetResult<Space[]>.Ok>(result);
+        Assert.Equal(["R503"], ok.Resource.Select(s => s.Id));
+    }
+
+    [Fact]
+    public async Task ListAdjacentSpaces_Absent_IsForbidden_ForANonAdmin()
+    {
+        var h = new Harness();
+
+        var result = await h.View.ListAdjacentSpacesAsync(UserAuth(), Iri + "R-missing", default);
+
+        Assert.IsType<TwinGetResult<Space[]>.Forbidden>(result);
+    }
+
+    // ── Metadata write (review of #516) ──────────────────────────────────────
+
+    [Fact]
+    public async Task CanWriteResource_Space_WriteGrantOnTheBusinessId()
+    {
+        var h = new Harness();
+        h.Db.Setup(d => d.GetSpace(Iri + "R501")).ReturnsAsync(S("R501"));
+        h.Auth.Setup(s => s.CanAccessAsync(It.IsAny<AuthorizationContext>(), "space", "R501", "write",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        Assert.True(await h.View.CanWriteResourceAsync(UserAuth(), "space", Iri + "R501", default));
+    }
+
+    [Fact]
+    public async Task CanWriteResource_Space_LegacyDtIdWriteGrant_StillWorks()
+    {
+        var h = new Harness();
+        h.Db.Setup(d => d.GetSpace(Iri + "R501")).ReturnsAsync(S("R501"));
+        h.Auth.Setup(s => s.CanAccessAsync(It.IsAny<AuthorizationContext>(), "space", Iri + "R501", "write",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        Assert.True(await h.View.CanWriteResourceAsync(UserAuth(), "space", Iri + "R501", default));
+    }
+
+    [Fact]
+    public async Task CanWriteResource_Point_StaysOnTheBusinessIdItIsAddressedBy()
+    {
+        var h = new Harness();
+        h.Auth.Setup(s => s.CanAccessAsync(It.IsAny<AuthorizationContext>(), "point", "P-501-KWH", "write",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        Assert.True(await h.View.CanWriteResourceAsync(UserAuth(), "point", "P-501-KWH", default));
+    }
+
     // ── Search ───────────────────────────────────────────────────────────────
 
     [Fact]
