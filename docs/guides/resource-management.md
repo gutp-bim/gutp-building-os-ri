@@ -5,7 +5,7 @@
 
 > **前提:** OxiGraph は Building OS のデジタルツインエンジンです。全リソースは RDF（Turtle 形式）
 > として保管され、ゲートウェイの接続・テレメトリの関連付け・制御経路の解決はすべてこの twin を
-> 起点に行われます。SPARQL ツールとして `GET /api/v1/admin/twin/query` も利用できます。
+> 起点に行われます。SPARQL ツールとして `POST /api/v1/admin/twin/query` も利用できます。
 
 ---
 
@@ -314,7 +314,7 @@ twin インポート後にゲートウェイへ即時反映させる方法:
 
 ```bash
 # ゲートウェイに pointlist の再同期を要求
-curl -X POST "http://localhost:5000/api/v1/admin/gateways/{gatewayId}/pointlist/resync"
+curl -X POST "http://localhost:5000/api/v1/admin/gateways/{gatewayId}/resync-pointlist"
 ```
 
 または twin のインポートが完了すると自動的に NATS 経由で push 通知が飛び（`building-os.pointlist.updated.gw.{id}`）、
