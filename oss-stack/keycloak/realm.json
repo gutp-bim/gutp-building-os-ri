@@ -54,6 +54,7 @@
             "claim.name": "permissions",
             "jsonType.label": "String",
             "multivalued": "true",
+            "aggregate.attrs": "true",
             "id.token.claim": "false",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
