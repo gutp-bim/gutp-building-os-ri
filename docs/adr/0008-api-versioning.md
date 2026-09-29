@@ -74,7 +74,7 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
   決めたら `Sunset` を付け、CHANGELOG の `Deprecated` / `Removed` に記載する。
 - CHANGELOG では破壊的変更を `**BREAKING:**` で明示する（既存の運用を継続）。
 - OpenAPI の差分を `oasdiff` で検査し、`v1` への破壊的変更を PR の段階で検出する:
-  `make openapi-breaking`（= `Tools/check-openapi-breaking.bash [BASE_REF]`、既定 `origin/main`）。先に
+  `make openapi-breaking`（= `Tools/check-openapi-breaking.bash [BASE_REF]`、既定 `origin/main`。比較対象は BASE_REF と HEAD の merge-base なので、分岐後に main へ入った変更で誤検出しない）。先に
   `Tools/sync-type.bash` で `docs/schema/swagger.yaml` を再生成してから実行する。ERR 水準の破壊的変更が
   あれば失敗する（`oasdiff` はダイジェスト固定の Docker イメージ、ローカルにあればそれを使う）。
   #507 自身の「全パスの `/api/v1` への移動」は OpenAPI 上はパス削除として検出される — 旧パスは

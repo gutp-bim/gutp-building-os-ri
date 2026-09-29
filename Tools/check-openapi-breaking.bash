@@ -3,8 +3,9 @@
 #
 # v1 is additive-only: removing or renaming a field, path or parameter, changing a type, making a
 # request field required or narrowing accepted values must ship as a new version (/api/v2) instead.
-# This compares docs/schema/swagger.yaml with the same file at a base ref (default origin/main) using
-# oasdiff and fails on any ERR-level breaking change.
+# This compares docs/schema/swagger.yaml with the same file at the merge-base of a base ref (default
+# origin/main) and HEAD — so what landed on main after the branch split is not blamed on the branch —
+# using oasdiff, and fails on any ERR-level breaking change.
 #
 # Usage:
 #   Tools/check-openapi-breaking.bash [BASE_REF]                       # default BASE_REF=origin/main
@@ -34,8 +35,12 @@ trap 'rm -rf "$work"' EXIT
 if [ -n "$base_file" ]; then
   cp "$base_file" "$work/base.yaml"
 else
-  if ! git -C "$repository_root" show "$base_ref:$SPEC" > "$work/base.yaml" 2>/dev/null; then
-    echo "error: cannot read $SPEC at '$base_ref' (fetch it first, e.g. git fetch origin main)" >&2
+  if ! merge_base=$(git -C "$repository_root" merge-base "$base_ref" HEAD 2>/dev/null); then
+    echo "error: no merge-base between '$base_ref' and HEAD (fetch it first, e.g. git fetch origin main)" >&2
+    exit 2
+  fi
+  if ! git -C "$repository_root" show "$merge_base:$SPEC" > "$work/base.yaml" 2>/dev/null; then
+    echo "error: cannot read $SPEC at $merge_base (merge-base of '$base_ref' and HEAD)" >&2
     exit 2
   fi
 fi
@@ -49,14 +54,21 @@ run_oasdiff() {
   fi
 }
 
-if [ -n "$base_file" ]; then label="$base_file"; else label="$base_ref"; fi
+if [ -n "$base_file" ]; then label="$base_file"; else label="$base_ref (merge-base ${merge_base:0:12})"; fi
 echo "Comparing ${head_file:-$SPEC} against $label"
-if run_oasdiff breaking base.yaml head.yaml --fail-on ERR --format text; then
-  echo "No breaking changes."
-else
-  status=$?
-  echo >&2
-  echo "Breaking change(s) to the v1 API (see above). Per ADR-0008 v1 is additive-only: ship the change" >&2
-  echo "as /api/v2 alongside v1, or make it additive (optional field, new endpoint)." >&2
-  exit "$status"
-fi
+status=0
+run_oasdiff breaking base.yaml head.yaml --fail-on ERR --format text || status=$?
+case "$status" in
+  0) echo "No breaking changes." ;;
+  1)
+    # With --fail-on, oasdiff exits 1 exactly when it found changes at that level.
+    echo >&2
+    echo "Breaking change(s) to the v1 API (see above). Per ADR-0008 v1 is additive-only: ship the change" >&2
+    echo "as /api/v2 alongside v1, or make it additive (optional field, new endpoint)." >&2
+    ;;
+  *)
+    echo "error: could not run oasdiff (exit $status) — is Docker running, or is oasdiff on PATH?" >&2
+    echo "This is a tool/environment failure, not a verdict on the API change." >&2
+    ;;
+esac
+exit "$status"
