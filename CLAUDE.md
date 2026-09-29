@@ -391,7 +391,7 @@ control-write range — `ControlValueValidator` validates against it. `sbco:minP
 
 ### Authorization Model
 
-The `AuthorizationContext` (populated from the Keycloak JWT) carries `IsAdmin`, the user's role, and a list of permission strings. Permission strings follow the format `{resourceType}:{resourceId}:{actions}`. Resource IDs that are not group IDs are hashed (SHA-256 prefix) before storage.
+The `AuthorizationContext` (populated from the Keycloak JWT) carries `IsAdmin`, the user's role, and a list of permission strings. Permission strings follow the format `{resourceType}:{resourceId}:{actions}`. Resource IDs that are not group IDs are hashed (SHA-256 prefix) before storage. The `resourceId` is the node's **business id** (`sbco:id`, e.g. `R501`, `P-501-KWH`) — the id Group items, telemetry and the ancestor chain use — not the dtId (IRI) the hierarchy routes are addressed by; `AuthorizedTwinView` authorizes a dtId-addressed node by its business id (#504). A grant recorded against a dtId still matches directly (migration), but gets no ancestor/group resolution.
 
 Authorization checks: controllers call `HttpContext.GetAuthorizationContext()` then either check `IsAdmin` directly or delegate to `IAuthorizationService.CanAccessAsync()`.
 

@@ -42,6 +42,54 @@ public sealed class AuthorizedTwinView(
     private static bool IsUnusableScopeId(string? scopeDtId)
         => !string.IsNullOrEmpty(scopeDtId) && !IsUsableDtId(scopeDtId);
 
+    // ── Id space (#504) ───────────────────────────────────────────────────────
+    //
+    // Authorization lives in the business-id space (sbco:id): Group items are stored by business id,
+    // and CanAccessAsync's ancestor chain (OxiGraphHierarchyResolver) matches sbco:id literals and
+    // returns business ids. The hierarchy routes, though, are addressed by dtId (the node IRI). So a
+    // node is authorized by its business id, never by the dtId it was requested with — matching the
+    // dtId made a user granted space:R501 read R501's telemetry yet see nothing under R501 in the tree.
+    //
+    // Migration: a grant recorded against the dtId keeps working (either id's hash matches). It is
+    // only ever a direct grant — no ancestor or group resolution exists in the dtId space.
+
+    /// <summary>Whether a hashed id-set grants the node, by business id or (legacy) dtId.</summary>
+    private static bool Grants(IReadOnlyCollection<string> hashedIds, string businessId, string dtId)
+        => hashedIds.Contains(PermissionHelper.HashResourceId(businessId))
+           || hashedIds.Contains(PermissionHelper.HashResourceId(dtId));
+
+    /// <summary>
+    /// Read access to the node the caller addressed by <paramref name="dtId"/>: by its business id
+    /// (ancestors and groups included), then by a legacy grant on the dtId itself. A node that is not in
+    /// the twin has no business id, so only the legacy check applies.
+    /// </summary>
+    private async Task<bool> CanReadNodeAsync(
+        AuthorizationContext auth, string resourceType, string dtId, string? businessId, CancellationToken ct)
+    {
+        if (!string.IsNullOrEmpty(businessId)
+            && await authService.CanAccessAsync(auth, resourceType, businessId, "read", ct).ConfigureAwait(false))
+            return true;
+        return await authService.CanAccessAsync(auth, resourceType, dtId, "read", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Get-by-dtId shape shared by the four node types: the node is loaded first (its business id is
+    /// what authorizes it), and a non-admin gets Forbidden for an absent node exactly as for an
+    /// unreadable one, so the order does not become an existence oracle.
+    /// </summary>
+    private async Task<TwinGetResult<T>> GetNodeAsync<T>(
+        AuthorizationContext auth, string resourceType, string dtId, Func<Task<T?>> load, Func<T, string> businessId,
+        CancellationToken ct) where T : class
+    {
+        if (!IsUsableDtId(dtId)) return new TwinGetResult<T>.NotFound();
+        var resource = await load().ConfigureAwait(false);
+        if (!auth.IsAdmin
+            && (resource is null
+                || !await CanReadNodeAsync(auth, resourceType, dtId, businessId(resource), ct).ConfigureAwait(false)))
+            return new TwinGetResult<T>.Forbidden();
+        return resource is null ? new TwinGetResult<T>.NotFound() : new TwinGetResult<T>.Ok(resource);
+    }
+
     // ── Building ──────────────────────────────────────────────────────────────
 
     public async Task<Building[]> ListBuildingsAsync(AuthorizationContext auth, CancellationToken ct)
@@ -49,20 +97,11 @@ public sealed class AuthorizedTwinView(
         var all = await db.ListBuildings();
         if (auth.IsAdmin) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "building", "read", ct).ConfigureAwait(false);
-        return all.Where(b => ids.Contains(PermissionHelper.HashResourceId(b.DtId))).ToArray();
+        return all.Where(b => Grants(ids, b.Id, b.DtId)).ToArray();
     }
 
-    public async Task<TwinGetResult<Building>> GetBuildingAsync(AuthorizationContext auth, string buildingDtId, CancellationToken ct)
-    {
-        if (!IsUsableDtId(buildingDtId)) return new TwinGetResult<Building>.NotFound();
-        if (!auth.IsAdmin)
-        {
-            if (!await authService.CanAccessAsync(auth, "building", buildingDtId, "read", ct).ConfigureAwait(false))
-                return new TwinGetResult<Building>.Forbidden();
-        }
-        var resource = await db.GetBuilding(buildingDtId);
-        return resource is null ? new TwinGetResult<Building>.NotFound() : new TwinGetResult<Building>.Ok(resource);
-    }
+    public Task<TwinGetResult<Building>> GetBuildingAsync(AuthorizationContext auth, string buildingDtId, CancellationToken ct)
+        => GetNodeAsync(auth, "building", buildingDtId, () => db.GetBuilding(buildingDtId), b => b.Id, ct);
 
     // ── Floor ─────────────────────────────────────────────────────────────────
 
@@ -74,22 +113,14 @@ public sealed class AuthorizedTwinView(
 
         var all = await db.ListFloors(buildingDtId);
         if (auth.IsAdmin) return all;
-        if (await authService.CanAccessAsync(auth, "building", buildingDtId, "read", ct).ConfigureAwait(false)) return all;
+        var parent = await db.GetBuilding(buildingDtId).ConfigureAwait(false);
+        if (await CanReadNodeAsync(auth, "building", buildingDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "floor", "read", ct).ConfigureAwait(false);
-        return all.Where(f => ids.Contains(PermissionHelper.HashResourceId(f.DtId))).ToArray();
+        return all.Where(f => Grants(ids, f.Id, f.DtId)).ToArray();
     }
 
-    public async Task<TwinGetResult<Floor>> GetFloorAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct)
-    {
-        if (!IsUsableDtId(floorDtId)) return new TwinGetResult<Floor>.NotFound();
-        if (!auth.IsAdmin)
-        {
-            if (!await authService.CanAccessAsync(auth, "floor", floorDtId, "read", ct).ConfigureAwait(false))
-                return new TwinGetResult<Floor>.Forbidden();
-        }
-        var resource = await db.GetFloor(floorDtId);
-        return resource is null ? new TwinGetResult<Floor>.NotFound() : new TwinGetResult<Floor>.Ok(resource);
-    }
+    public Task<TwinGetResult<Floor>> GetFloorAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct)
+        => GetNodeAsync(auth, "floor", floorDtId, () => db.GetFloor(floorDtId), f => f.Id, ct);
 
     // ── Space ─────────────────────────────────────────────────────────────────
 
@@ -101,22 +132,14 @@ public sealed class AuthorizedTwinView(
 
         var all = await db.ListSpaces(floorDtId);
         if (auth.IsAdmin) return all;
-        if (await authService.CanAccessAsync(auth, "floor", floorDtId, "read", ct).ConfigureAwait(false)) return all;
+        var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
+        if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "space", "read", ct).ConfigureAwait(false);
-        return all.Where(s => ids.Contains(PermissionHelper.HashResourceId(s.DtId))).ToArray();
+        return all.Where(s => Grants(ids, s.Id, s.DtId)).ToArray();
     }
 
-    public async Task<TwinGetResult<Space>> GetSpaceAsync(AuthorizationContext auth, string spaceDtId, CancellationToken ct)
-    {
-        if (!IsUsableDtId(spaceDtId)) return new TwinGetResult<Space>.NotFound();
-        if (!auth.IsAdmin)
-        {
-            if (!await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false))
-                return new TwinGetResult<Space>.Forbidden();
-        }
-        var resource = await db.GetSpace(spaceDtId);
-        return resource is null ? new TwinGetResult<Space>.NotFound() : new TwinGetResult<Space>.Ok(resource);
-    }
+    public Task<TwinGetResult<Space>> GetSpaceAsync(AuthorizationContext auth, string spaceDtId, CancellationToken ct)
+        => GetNodeAsync(auth, "space", spaceDtId, () => db.GetSpace(spaceDtId), s => s.Id, ct);
 
     public async Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
         AuthorizationContext auth, string spaceDtId, CancellationToken ct)
@@ -164,22 +187,14 @@ public sealed class AuthorizedTwinView(
 
         var all = await db.ListDevices(spaceDtId);
         if (auth.IsAdmin) return all;
-        if (await authService.CanAccessAsync(auth, "space", spaceDtId, "read", ct).ConfigureAwait(false)) return all;
+        var parent = await db.GetSpace(spaceDtId).ConfigureAwait(false);
+        if (await CanReadNodeAsync(auth, "space", spaceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
-        return all.Where(d => ids.Contains(PermissionHelper.HashResourceId(d.DtId))).ToArray();
+        return all.Where(d => Grants(ids, d.Id, d.DtId)).ToArray();
     }
 
-    public async Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct)
-    {
-        if (!IsUsableDtId(deviceDtId)) return new TwinGetResult<Device>.NotFound();
-        if (!auth.IsAdmin)
-        {
-            if (!await authService.CanAccessAsync(auth, "device", deviceDtId, "read", ct).ConfigureAwait(false))
-                return new TwinGetResult<Device>.Forbidden();
-        }
-        var resource = await db.GetDevice(deviceDtId);
-        return resource is null ? new TwinGetResult<Device>.NotFound() : new TwinGetResult<Device>.Ok(resource);
-    }
+    public Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct)
+        => GetNodeAsync(auth, "device", deviceDtId, () => db.GetDevice(deviceDtId), d => d.Id, ct);
 
     // ── Point ─────────────────────────────────────────────────────────────────
 
@@ -194,7 +209,8 @@ public sealed class AuthorizedTwinView(
 
         var all = await db.ListPoints(deviceDtId);
         if (auth.IsAdmin) return all;
-        if (await authService.CanAccessAsync(auth, "device", deviceDtId, "read", ct).ConfigureAwait(false)) return all;
+        var parent = await db.GetDevice(deviceDtId).ConfigureAwait(false);
+        if (await CanReadNodeAsync(auth, "device", deviceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         // Point は DtId ではなくビジネス ID（Point.Id）で権限照合する
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "point", "read", ct).ConfigureAwait(false);
         return all.Where(p => ids.Contains(PermissionHelper.HashResourceId(p.Id))).ToArray();
@@ -233,8 +249,11 @@ public sealed class AuthorizedTwinView(
         // 太らせられる）。読める見込みがゼロなら台帳に触れずに空を返す。
         HashSet<string> pointIds = [];
         HashSet<string> deviceIds = [];
+        // Only the building node (one small read) is loaded ahead of the check, for its business id —
+        // the ledger itself is still not touched until the caller is known to read something.
         var readsWholeBuilding = auth.IsAdmin
-            || await authService.CanAccessAsync(auth, "building", buildingDtId, "read", ct).ConfigureAwait(false);
+            || await CanReadNodeAsync(auth, "building", buildingDtId,
+                (await db.GetBuilding(buildingDtId).ConfigureAwait(false))?.Id, ct).ConfigureAwait(false);
         if (!readsWholeBuilding)
         {
             // 建物の権限が無ければ、直接付与された point / device のぶんだけ見せる（ListPointsAsync の
@@ -256,7 +275,7 @@ public sealed class AuthorizedTwinView(
         if (readsWholeBuilding) return all;
         return all.Where(d =>
                 pointIds.Contains(PermissionHelper.HashResourceId(d.Point.Id))
-                || (d.Device is not null && deviceIds.Contains(PermissionHelper.HashResourceId(d.Device.DtId))))
+                || (d.Device is not null && Grants(deviceIds, d.Device.Id, d.Device.DtId)))
             .ToArray();
     }
 
@@ -302,20 +321,29 @@ public sealed class AuthorizedTwinView(
             return ids;
         }
 
+        // Building-ancestor grant: a user who reads the scoped building sees its descendants. Only a
+        // building-scoped search (?buildingDtId=…) has one building to ask about, so it is authorized
+        // once, by business id (#504); in a global search ancestor grants surface via a
+        // building-scoped search or the tree browse, not the global query.
+        if (!string.IsNullOrEmpty(buildingDtId)
+            && await CanReadNodeAsync(auth, "building", buildingDtId,
+                (await db.GetBuilding(buildingDtId).ConfigureAwait(false))?.Id, ct).ConfigureAwait(false))
+            return hits;
+
         var accessibleBuildings = await AccessibleAsync("building").ConfigureAwait(false);
 
         var filtered = new List<ResourceSearchHit>();
         foreach (var h in hits)
         {
             var ownIds = await AccessibleAsync(h.Type).ConfigureAwait(false);
-            // Point authorizes by its business Id; everything else by DtId (matches the List* methods).
-            var selfKey = PermissionHelper.HashResourceId(h.Type == "point" ? h.Id : h.DtId);
-            var selfAllowed = ownIds.Contains(selfKey);
+            // Every type authorizes by its business id (#504). A legacy dtId grant still matches for
+            // the node types; points were only ever granted by business id, so none exists to honour.
+            var selfAllowed = h.Type == "point"
+                ? ownIds.Contains(PermissionHelper.HashResourceId(h.Id))
+                : Grants(ownIds, h.Id, h.DtId);
 
-            // Building-ancestor grant: a user with read on the owning building sees its descendants.
-            // h.BuildingDtId is only populated for a building-scoped search (?buildingId=...); in a
-            // global search it is null, so ancestor grants surface via building-scoped search or the
-            // tree browse (ListFloors/etc. already honor building grants), not the global query.
+            // Legacy building-ancestor grant recorded against the building's dtId, where the hit
+            // carries it (the business-id ancestor grant is the scoped check above).
             var ancestorAllowed = !string.IsNullOrEmpty(h.BuildingDtId)
                 && accessibleBuildings.Contains(PermissionHelper.HashResourceId(h.BuildingDtId));
 
