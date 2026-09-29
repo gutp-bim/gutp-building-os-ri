@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 namespace BuildingOs.ApiServer.Controllers;
 
 using System.Text.Json;
@@ -13,7 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 /// Azure Entra ID ユーザー管理API（admin専用）
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route(ApiRoutes.V1 + "/[controller]")]
 [Authorize]
 [UserManagementUnavailableFilter]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

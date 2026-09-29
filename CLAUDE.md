@@ -298,6 +298,15 @@ backstop).
    `docs/project/oss-egress-gateway-bridge-plan.md`, `docs/architecture/gateway-bridge-ingress-egress-split.md` and
    `DotNet/BuildingOS.GatewayBridge/README.md`.
 
+### REST API versioning (#507, ADR-0008)
+
+Every REST controller is mounted under **`/api/v1/…`** (`ApiRoutes.V1`); OpenAPI lists only `/api/v1` paths.
+The pre-versioning paths (`/buildings`, `/telemetries/…`, `/gateways/{id}/pointlist`, `/api/Groups`,
+`/api/admin/…`, …) still work: `LegacyApiPathRewriter` rewrites them to `/api/v1` before routing and marks the
+response `Deprecation` + `Link: rel="successor-version"`. New code and docs use `/api/v1`. Breaking changes ship
+only as a new version (`/api/v2`) served alongside v1 for ≥ 6 months — see `docs/adr/0008-api-versioning.md`
+for what counts as breaking. Excluded: `/health`, gRPC/gRPC-web, `/swagger`, `/api-docs`.
+
 ### Frontend API Integration (web-client)
 
 | Client | When to use |

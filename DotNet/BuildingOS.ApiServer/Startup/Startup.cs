@@ -464,6 +464,8 @@ namespace BuildingOs.ApiServer
                 dbContext?.Database.Migrate();
             }
 
+            // Pre-versioning paths (/buildings, /api/Groups, …) → /api/v1 before routing (#507, ADR-0008).
+            app.UseMiddleware<Routing.LegacyApiPathRewriter>();
             app.UseRouting();
             app.UseCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
             app.UseGrpcWeb();

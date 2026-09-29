@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.Globalization;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
@@ -50,7 +51,7 @@ public sealed record PointHealthSummaryResponse(
 /// <c>IHotTelemetryStore</c> を Point 件数ぶん叩くことはしない。</para>
 /// </summary>
 [ApiController]
-[Route("api/telemetry/health")]
+[Route(ApiRoutes.V1 + "/telemetry/health")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

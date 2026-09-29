@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 認可コンテキストの確認用エンドポイント
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route(ApiRoutes.V1 + "/[controller]")]
 [AuthorizeFilter]
 public class AuthController : ControllerBase
 {

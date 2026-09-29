@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.Diagnostics;
 using BuildingOS.Shared;
 using BuildingOs.ApiServer.Authorization;
@@ -8,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BuildingOs.ApiServer.Controllers;
 
 [ApiController]
-[Route("/buildings")]
+[Route(ApiRoutes.V1 + "/buildings")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

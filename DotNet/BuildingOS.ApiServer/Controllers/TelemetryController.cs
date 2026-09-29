@@ -1,4 +1,5 @@
-﻿using BuildingOS.Shared;
+﻿using BuildingOs.ApiServer.Routing;
+using BuildingOS.Shared;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Extensions;
@@ -10,7 +11,7 @@ using AuthorizationService = BuildingOS.Shared.Domain.Authorization.IAuthorizati
 namespace BuildingOs.ApiServer.Controllers;
 
 [ApiController]
-[Route("/telemetries")]
+[Route(ApiRoutes.V1 + "/telemetries")]
 [ProducesResponseType(StatusCodes.Status200OK)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

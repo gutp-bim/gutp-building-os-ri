@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.Configuration;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 要る。ここでは <see cref="TelemetryThresholds"/> の 2 値だけを返し、他の設定は一切漏らさない。
 /// </summary>
 [ApiController]
-[Route("api/telemetry/config")]
+[Route(ApiRoutes.V1 + "/telemetry/config")]
 [AuthorizeFilter]
 public class TelemetryConfigController : ControllerBase
 {

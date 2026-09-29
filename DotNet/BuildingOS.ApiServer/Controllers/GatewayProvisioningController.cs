@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.Text.Json;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
@@ -20,7 +21,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// <c>[AuthorizeFilter]</c> — a gateway authenticates by mTLS, not a user JWT.
 /// </summary>
 [ApiController]
-[Route("/gateways")]
+[Route(ApiRoutes.V1 + "/gateways")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class GatewayProvisioningController(

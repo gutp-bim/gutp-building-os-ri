@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.Configuration;
@@ -13,7 +14,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 取得するため、Grafana を起動していなくても利用できる（Prometheus 未配線時は graceful degrade）。
 /// </summary>
 [ApiController]
-[Route("api/system")]
+[Route(ApiRoutes.V1 + "/system")]
 [AuthorizeFilter]
 public class SystemController : ControllerBase
 {

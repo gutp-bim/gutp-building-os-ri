@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.Assistant;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// ゲートされ、バックドア API ではない。Ollama 任意プロファイル未起動（ASSISTANT_LLM_URL 未設定）なら 503。
 /// </summary>
 [ApiController]
-[Route("api/assistant")]
+[Route(ApiRoutes.V1 + "/assistant")]
 [AuthorizeFilter]
 public class AssistantController : ControllerBase
 {

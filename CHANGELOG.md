@@ -12,6 +12,13 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- **The REST API is versioned under `/api/v1/…`** (#507, ADR-0008). Every endpoint moved there
+  (`/buildings` → `/api/v1/buildings`, `/api/Groups` → `/api/v1/Groups`, `/api/admin/twin` →
+  `/api/v1/admin/twin`, …) and OpenAPI lists only the `/api/v1` paths. **The old paths keep working
+  unchanged** — they are rewritten to `/api/v1` in-process and the response carries `Deprecation` and a
+  `Link: rel="successor-version"` header — so existing clients (web client, gateways polling the point
+  list, external applications) need no change yet. Move to `/api/v1`; a removal date for the old paths
+  will be announced with a `Sunset` header at least 6 months ahead.
 - `GET /points/{pointId}/control-audit` takes a time range and pages with a cursor (#478): `start`
   (inclusive) / `end` (exclusive) filter `createdAt`, and when more rows exist the response carries
   `X-Next-Cursor`, passed back as `cursor` for the next (older) page. The cursor is a keyset position

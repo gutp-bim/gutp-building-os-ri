@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using BuildingOS.Shared;
@@ -17,7 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BuildingOs.ApiServer.Controllers;
 
 [ApiController]
-[Route("/points")]
+[Route(ApiRoutes.V1 + "/points")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

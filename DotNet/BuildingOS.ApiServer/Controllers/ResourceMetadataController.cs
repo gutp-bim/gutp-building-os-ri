@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Extensions;
@@ -27,7 +28,7 @@ public class ResourceMetadataController(
 {
     // ── GET ──────────────────────────────────────────────────────────────────
 
-    [HttpGet("/buildings/{buildingDtId}/metadata")]
+    [HttpGet(ApiRoutes.V1 + "/buildings/{buildingDtId}/metadata")]
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetBuilding(string buildingDtId, CancellationToken ct)
     {
@@ -40,7 +41,7 @@ public class ResourceMetadataController(
         };
     }
 
-    [HttpGet("/floors/{floorDtId}/metadata")]
+    [HttpGet(ApiRoutes.V1 + "/floors/{floorDtId}/metadata")]
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetFloor(string floorDtId, CancellationToken ct)
     {
@@ -53,7 +54,7 @@ public class ResourceMetadataController(
         };
     }
 
-    [HttpGet("/spaces/{spaceDtId}/metadata")]
+    [HttpGet(ApiRoutes.V1 + "/spaces/{spaceDtId}/metadata")]
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetSpace(string spaceDtId, CancellationToken ct)
     {
@@ -66,7 +67,7 @@ public class ResourceMetadataController(
         };
     }
 
-    [HttpGet("/devices/{deviceDtId}/metadata")]
+    [HttpGet(ApiRoutes.V1 + "/devices/{deviceDtId}/metadata")]
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetDevice(string deviceDtId, CancellationToken ct)
     {
@@ -79,7 +80,7 @@ public class ResourceMetadataController(
         };
     }
 
-    [HttpGet("/points/{pointId}/metadata")]
+    [HttpGet(ApiRoutes.V1 + "/points/{pointId}/metadata")]
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetPointMetadata(string pointId, CancellationToken ct)
     {
@@ -94,22 +95,22 @@ public class ResourceMetadataController(
 
     // ── PATCH ─────────────────────────────────────────────────────────────────
 
-    [HttpPatch("/buildings/{buildingDtId}/metadata")]
+    [HttpPatch(ApiRoutes.V1 + "/buildings/{buildingDtId}/metadata")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public Task<IActionResult> PatchBuilding(string buildingDtId, [FromBody] ResourceMetadataPatchRequest req, CancellationToken ct)
         => PatchAsync("building", Uri.UnescapeDataString(buildingDtId), req, ct);
 
-    [HttpPatch("/floors/{floorDtId}/metadata")]
+    [HttpPatch(ApiRoutes.V1 + "/floors/{floorDtId}/metadata")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public Task<IActionResult> PatchFloor(string floorDtId, [FromBody] ResourceMetadataPatchRequest req, CancellationToken ct)
         => PatchAsync("floor", Uri.UnescapeDataString(floorDtId), req, ct);
 
-    [HttpPatch("/spaces/{spaceDtId}/metadata")]
+    [HttpPatch(ApiRoutes.V1 + "/spaces/{spaceDtId}/metadata")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public Task<IActionResult> PatchSpace(string spaceDtId, [FromBody] ResourceMetadataPatchRequest req, CancellationToken ct)
         => PatchAsync("space", Uri.UnescapeDataString(spaceDtId), req, ct);
 
-    [HttpPatch("/devices/{deviceDtId}/metadata")]
+    [HttpPatch(ApiRoutes.V1 + "/devices/{deviceDtId}/metadata")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public Task<IActionResult> PatchDevice(string deviceDtId, [FromBody] ResourceMetadataPatchRequest req, CancellationToken ct)
         => PatchAsync("device", Uri.UnescapeDataString(deviceDtId), req, ct);
@@ -119,7 +120,7 @@ public class ResourceMetadataController(
     /// The logical pointId is resolved to the twin DtId (RDF IRI) before writing SPARQL,
     /// so triples land under the correct subject and are readable via the twin's standard IRI.
     /// </summary>
-    [HttpPatch("/points/{pointId}/metadata")]
+    [HttpPatch(ApiRoutes.V1 + "/points/{pointId}/metadata")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> PatchPoint(string pointId, [FromBody] ResourceMetadataPatchRequest req, CancellationToken ct)
     {
