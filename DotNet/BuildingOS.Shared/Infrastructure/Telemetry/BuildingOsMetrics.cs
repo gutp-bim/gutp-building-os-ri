@@ -100,6 +100,16 @@ public static class BuildingOsMetrics
             unit: "{request}",
             description: "Device control requests handled, by handler and result.");
 
+    /// <summary>
+    /// Control writes whose point schema could not constrain the value (#481). Tags: reason
+    /// (<c>ControlSchemaIssueReasons</c>), policy (<c>allow</c> = sent unvalidated, <c>deny</c> = refused).
+    /// </summary>
+    public static readonly Counter<long> ControlSchemaUnresolved =
+        Meter.CreateCounter<long>(
+            "building_os.control.schema_unresolved",
+            unit: "{request}",
+            description: "Control writes whose control schema could not constrain the value, by reason and policy.");
+
     /// <summary>Rows exported to cold storage (Parquet/MinIO).</summary>
     public static readonly Counter<long> ColdExportRows =
         Meter.CreateCounter<long>(

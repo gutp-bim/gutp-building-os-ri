@@ -10,6 +10,14 @@ publishes images for (`v*.*.*`).
 
 ## [Unreleased]
 
+### Added
+
+- `CONTROL_SCHEMA_FAILURE_POLICY=deny` makes control writes fail closed (#481): a write to a point
+  whose ControlSchema cannot constrain the value (no schema, no or an unknown `dataType`, unusable
+  `enumLabels`) is refused with 400 and a `reason` instead of being sent unvalidated. The default stays
+  `allow`. Both modes count such writes in `building_os.control.schema_unresolved{reason,policy}`, and
+  the effective policy is logged at startup. Under `deny` an OxiGraph outage also refuses control.
+
 ### Changed
 
 - **BREAKING: telemetry read responses now carry one union-typed `value`**

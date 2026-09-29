@@ -39,10 +39,12 @@ public class PointControllerTest
             bool canWrite = true,
             Dictionary<string, string>? connectionTypeMap = null,
             string connectionTypeDefault = "hono",
-            ControlSchema? schema = null)
+            ControlSchema? schema = null,
+            ControlSchemaFailurePolicy schemaFailurePolicy = ControlSchemaFailurePolicy.Allow)
     {
         var (controller, publisher, _, _) = BuildControllerWithResultBus(
-            detail, canWrite, connectionTypeMap, connectionTypeDefault, schema);
+            detail, canWrite, connectionTypeMap, connectionTypeDefault, schema,
+            schemaFailurePolicy: schemaFailurePolicy);
 
         return (controller, publisher);
     }
@@ -54,7 +56,8 @@ public class PointControllerTest
             Dictionary<string, string>? connectionTypeMap = null,
             string connectionTypeDefault = "hono",
             ControlSchema? schema = null,
-            AuthorizationContext? auth = null)
+            AuthorizationContext? auth = null,
+            ControlSchemaFailurePolicy schemaFailurePolicy = ControlSchemaFailurePolicy.Allow)
     {
         var twinView = new Mock<IAuthorizedTwinView>();
         twinView.Setup(v => v.CanWritePointAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -86,7 +89,8 @@ public class PointControllerTest
             resultBus.Object,
             publisher.Object,
             repository.Object,
-            auditWriter.Object);
+            auditWriter.Object,
+            new ControlSafetyOptions(schemaFailurePolicy));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContext(auth ?? AdminAuth()),
@@ -129,7 +133,8 @@ public class PointControllerTest
             resultBus.Object,
             publisher.Object,
             repo.Object,
-            Mock.Of<IControlAuditWriter>())
+            Mock.Of<IControlAuditWriter>(),
+            new ControlSafetyOptions(ControlSchemaFailurePolicy.Allow))
         {
             ControllerContext = new ControllerContext { HttpContext = BuildHttpContext(AdminAuth()) },
         };
@@ -512,6 +517,58 @@ public class PointControllerTest
 
         Assert.IsType<BadRequestObjectResult>(result);
         publisher.Verify(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    public static TheoryData<ControlSchema?> UnusableSchemas() => new()
+    {
+        null,
+        new ControlSchema(),
+        new ControlSchema { DataType = "string" },
+        new ControlSchema { DataType = "enum", EnumLabels = "not json" },
+    };
+
+    [Theory]
+    [MemberData(nameof(UnusableSchemas))]
+    public async Task Control_Returns400_WhenSchemaUnusable_AndPolicyIsDeny(ControlSchema? schema)
+    {
+        // #481: fail-closed — a write the schema cannot check is refused, not waved through.
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(
+            Detail(MakePoint()), schema: schema, schemaFailurePolicy: ControlSchemaFailurePolicy.Deny);
+
+        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 22.0 }, CancellationToken.None);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("reason", System.Text.Json.JsonSerializer.Serialize(bad.Value));
+        publisher.Verify(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Never);
+        auditWriter.Verify(a => a.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnusableSchemas))]
+    public async Task Control_Accepts_WhenSchemaUnusable_AndPolicyIsAllow(ControlSchema? schema)
+    {
+        var (controller, publisher) = BuildController(Detail(MakePoint()), schema: schema);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 22.0 }, CancellationToken.None);
+
+        Assert.IsType<AcceptedResult>(result);
+    }
+
+    [Fact]
+    public async Task Control_Accepts_UsableSchema_WhenPolicyIsDeny()
+    {
+        var (controller, publisher) = BuildController(
+            Detail(MakePoint()),
+            schema: new ControlSchema { DataType = "number" },
+            schemaFailurePolicy: ControlSchemaFailurePolicy.Deny);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        var result = await controller.Control("PT001", new PointController.PointControlRequest { Value = 22.0 }, CancellationToken.None);
+
+        Assert.IsType<AcceptedResult>(result);
     }
 
     [Fact]

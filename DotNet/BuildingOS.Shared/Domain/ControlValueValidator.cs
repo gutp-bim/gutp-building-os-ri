@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using BuildingOS.Shared.Domain.TwinAdmin;
 
 namespace BuildingOS.Shared.Domain;
 
@@ -28,6 +29,28 @@ public static class ControlValueValidator
             "enum"    => ValidateEnum(schema, value),
             "number"  => ValidateNumber(schema, value),
             _         => ControlValidationResult.Ok, // unknown/unspecified type → cannot constrain
+        };
+    }
+
+    /// <summary>
+    /// Why <paramref name="schema"/> cannot constrain a control value, or null when it can (#481). The
+    /// cases are exactly those where <see cref="Validate"/> is permissive for lack of a schema to check
+    /// against — no schema, no or an unknown data type, an enum without a usable labels map — so a
+    /// fail-closed policy refuses what would otherwise be waved through. A number without bounds is
+    /// usable: bounds are optional, and the data type is still enforced.
+    /// </summary>
+    public static string? UnusableReason(ControlSchema? schema)
+    {
+        if (schema is null) return ControlSchemaIssueReasons.NoSchema;
+        var dataType = schema.DataType?.Trim().ToLowerInvariant();
+        return dataType switch
+        {
+            null or "" => ControlSchemaIssueReasons.MissingDataType,
+            "boolean" or "number" => null,
+            "enum" => ParseAllowedCodes(schema.EnumLabels) is { Count: > 0 }
+                ? null
+                : ControlSchemaIssueReasons.MalformedEnumLabels,
+            _ => ControlSchemaIssueReasons.UnknownDataType,
         };
     }
 
