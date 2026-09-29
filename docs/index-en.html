@@ -69,7 +69,7 @@
           mapping to Brick, REC, IFC, and DTDL.</li>
         <li><strong>Tiered telemetry</strong> — latest values in NATS KV (hot), history and
           aggregates in a Parquet lake on MinIO (warm / cold). A single
-          <code>GET /telemetries/query</code> endpoint picks the right tier automatically.</li>
+          <code>GET /api/v1/telemetries/query</code> endpoint picks the right tier automatically.</li>
         <li><strong>Point-level control</strong> — per-gateway routing, immediate 503 fast-fail for
           offline gateways, and a complete audit trail in PostgreSQL.</li>
         <li><strong>Enterprise auth &amp; observability</strong> — Keycloak (OIDC / JWT) for users,
@@ -114,10 +114,10 @@ docker compose -f docker-compose.oss.yaml --profile webclient up -d
 # Swagger: http://localhost:5000/swagger
 
 # Read the latest value of a point
-curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;latest=true'
+curl 'http://localhost:5000/api/v1/telemetries/query?pointId=demo-pt-001&amp;latest=true'
 
 # Send a (simulated, by default) control command
-curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
+curl -X POST 'http://localhost:5000/api/v1/points/demo-pt-001/control' \
   -H 'Content-Type: application/json' -d '{"value": 1}'</code></pre>
       <p>
         For the full walkthrough (twin import, telemetry ingestion, troubleshooting), see

@@ -54,7 +54,7 @@ ingress と egress は**別サービス・別ストリーム・別スケール�
 - 契約: `rpc Connect(stream EgressUp) returns (stream EgressDown)`（`proto/gateway_egress.proto`）。
   ゲートウェイは `Hello{gateway_id}` で接続 → Building OS が `EgressDown{ControlCommand}` を down 送信 →
   ゲートウェイが `EgressUp{ControlResult}` を返す。
-- ルーティング: API `POST /points/{id}/control` → NATS **per-gateway** subject
+- ルーティング: API `POST /api/v1/points/{id}/control` → NATS **per-gateway** subject
   `building-os.control.request.gw.{gatewayId}` → 当該 gateway のストリームを持つ Bridge レプリカが down 送信。
 - **オフライン即時 503**（#186）: per-gateway は NATS *request* で送られ、生存レプリカが ack。購読者が
   いない（gateway 未接続）と no-responders → API は**結果タイムアウトを待たず 503**。

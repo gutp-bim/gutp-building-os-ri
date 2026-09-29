@@ -5,7 +5,7 @@
 
 > **前提:** OxiGraph は Building OS のデジタルツインエンジンです。全リソースは RDF（Turtle 形式）
 > として保管され、ゲートウェイの接続・テレメトリの関連付け・制御経路の解決はすべてこの twin を
-> 起点に行われます。SPARQL ツールとして `GET /api/admin/twin/query` も利用できます。
+> 起点に行われます。SPARQL ツールとして `GET /api/v1/admin/twin/query` も利用できます。
 
 ---
 
@@ -97,7 +97,7 @@ Building OS は **SBCO オントロジー**（`sbco:`）をリソース記述に
 > すでに `bos:adjacentZone` で書かれた入力も同様に対称化されるので、片方向のままで構いません。
 > `bot:` の prefix 宣言（`https://w3id.org/bot#`）を忘れないでください。
 >
-> 読み取り（`GET /spaces/{spaceDtId}/adjacent-spaces`）が返すのは **`sbco:Room` 型で `sbco:id` と
+> 読み取り（`GET /api/v1/spaces/{spaceDtId}/adjacent-spaces`）が返すのは **`sbco:Room` 型で `sbco:id` と
 > `sbco:name` を持つ隣室のみ**です。`sbco:Level` など Room 以外のゾーンを `bot:adjacentZone` で
 > 結んでも結果には現れません（上の最小サンプルは `sbco:id` を省略しているため、API から読む場合は
 > 各部屋に `sbco:id` を付けてください）。書き込み API は未提供で、隣接関係は TTL の取り込みでのみ
@@ -152,7 +152,7 @@ Web クライアントの `/admin/twin` から Turtle ファイルをアップ�
 
 ```bash
 # ─── プレビュー（適用なし） ───────────────────────────────────────────────
-curl -X POST http://localhost:5000/api/admin/twin/import/preview \
+curl -X POST http://localhost:5000/api/v1/admin/twin/import/preview \
   -H "Content-Type: application/json" \
   -d "{\"turtle\": $(cat twin.ttl | jq -Rs .)}"
 
@@ -165,12 +165,12 @@ curl -X POST http://localhost:5000/api/admin/twin/import/preview \
 # }
 
 # ─── 追記適用 ────────────────────────────────────────────────────────────
-curl -X POST http://localhost:5000/api/admin/twin/import/apply \
+curl -X POST http://localhost:5000/api/v1/admin/twin/import/apply \
   -H "Content-Type: application/json" \
   -d "{\"turtle\": $(cat twin.ttl | jq -Rs .), \"mode\": \"append\"}"
 
 # ─── 全置換適用 ──────────────────────────────────────────────────────────
-curl -X POST http://localhost:5000/api/admin/twin/import/apply \
+curl -X POST http://localhost:5000/api/v1/admin/twin/import/apply \
   -H "Content-Type: application/json" \
   -d "{\"turtle\": $(cat twin.ttl | jq -Rs .), \"mode\": \"replace\"}"
 ```
@@ -296,7 +296,7 @@ print(building_permission("https://example.com/bldg/bldg-1"))
 # 2. 削除対象のリソースに関するトリプルを TTL から削除
 # 3. replace モードで適用
 
-curl -X POST http://localhost:5000/api/admin/twin/import/apply \
+curl -X POST http://localhost:5000/api/v1/admin/twin/import/apply \
   -H "Content-Type: application/json" \
   -d "{\"turtle\": $(cat twin_without_deleted.ttl | jq -Rs .), \"mode\": \"replace\"}"
 ```
@@ -314,7 +314,7 @@ twin インポート後にゲートウェイへ即時反映させる方法:
 
 ```bash
 # ゲートウェイに pointlist の再同期を要求
-curl -X POST "http://localhost:5000/api/admin/gateways/{gatewayId}/pointlist/resync"
+curl -X POST "http://localhost:5000/api/v1/admin/gateways/{gatewayId}/pointlist/resync"
 ```
 
 または twin のインポートが完了すると自動的に NATS 経由で push 通知が飛び（`building-os.pointlist.updated.gw.{id}`）、

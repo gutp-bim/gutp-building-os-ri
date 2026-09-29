@@ -74,7 +74,7 @@ POINT_IDS="$("${PYTHON}" "${SCRIPT_DIR}/seed_twin_points.py" \
 # ── k6 ────────────────────────────────────────────────────────────────────────
 RESULT_DIR="${SCRIPT_DIR}/results/${TEST_RUN_ID}"
 mkdir -p "${RESULT_DIR}"
-echo "==> Running k6 (VUS=${VUS}, DURATION=${DURATION}) against /telemetries/query..."
+echo "==> Running k6 (VUS=${VUS}, DURATION=${DURATION}) against /api/v1/telemetries/query..."
 BASE_URL="${BASE_URL}" VUS="${VUS}" DURATION="${DURATION}" POINT_IDS="${POINT_IDS}" TEST_RUN_ID="${TEST_RUN_ID}" \
   k6 run --summary-export="${RESULT_DIR}/k6-summary.json" "${SCRIPT_DIR}/k6/s5_api_read.js" \
   | tee "${RESULT_DIR}/k6-output.txt"

@@ -176,7 +176,7 @@ def collect(prev_log: dict | None) -> dict:
     minio = _minio_count()
 
     # System status
-    status = _http_get(f"{BASE_URL}/api/system/status") or {}
+    status = _http_get(f"{BASE_URL}/api/v1/system/status") or {}
     services_up = sum(1 for s in status.get("services", []) if s.get("status") == "up")
     services_total = len(status.get("services", []))
 

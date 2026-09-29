@@ -13,7 +13,7 @@ Issue #73 成果物
 ### 誰が `building-os.control.request` を publish できるか
 
 ```
-API Client → POST /points/{pointId}/control
+API Client → POST /api/v1/points/{pointId}/control
               │
               ▼ (AuthorizeFilter)
          Keycloak JWT 検証
@@ -51,7 +51,7 @@ p:{56hex}:w
 
 ```
 API Server
-  POST /points/{id}/control
+  POST /api/v1/points/{id}/control
     → PointController.Control()
     → IPointControlCommandPublisher.PublishAsync()
     → NATS (building-os.control.request)
@@ -85,7 +85,7 @@ API Server
 ## 2.5 入力値バリデーション（#153）
 
 writable ゲート（#139）は**認可**（誰がそのポイントを制御できるか）を担保するが、**入力値の妥当性**は
-別問題。`POST /points/{pointId}/control` は publish 前に、ポイントの **ControlSchema**（ポイントリスト=
+別問題。`POST /api/v1/points/{pointId}/control` は publish 前に、ポイントの **ControlSchema**（ポイントリスト=
 source of truth）に対して値を検証し、不正なら **400** を返す（`PointController.Control` →
 `IControlSchemaResolver.ResolveAsync` → `ControlValueValidator.Validate`）。
 
@@ -253,7 +253,7 @@ NATS → GatewayBridge → egress ストリームへ流すため、フィール�
 
 ### 読み出し（期間指定とページング, #478）
 
-`GET /points/{pointId}/control-audit` は新しい順の配列を返す（閲覧にはポイントの read 権限）。
+`GET /api/v1/points/{pointId}/control-audit` は新しい順の配列を返す（閲覧にはポイントの read 権限）。
 
 | クエリ | 意味 |
 |---|---|

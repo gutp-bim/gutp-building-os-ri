@@ -12,7 +12,7 @@ B-BC simulator, via the GatewayBridge. Companion to `docs/project/oss-egress-gat
 ## Full path
 
 ```
-Web/REST  →  ApiServer (POST /points/{id}/control)
+Web/REST  →  ApiServer (POST /api/v1/points/{id}/control)
           →  ControlTypeResolver → connectionType=bacnet-sim, ControlType=BacnetSim, GatewayId
           →  NATS  building-os.control.request.gw.{gatewayId}   (per-gateway subject)
           →  GatewayBridge (the replica holding the gateway's GatewayEgress stream)
@@ -44,7 +44,7 @@ Web/REST  →  ApiServer (POST /points/{id}/control)
 
 1. Start bbc-sim (B-BC) and BOWS; confirm BOWS opens a `GatewayEgress.Connect` stream through the
    north-south gRPC ingress (Traefik per #161) and the mTLS handshake succeeds.
-2. From the Web UI (or `curl`/`grpcurl`), `POST /points/{pointId}/control` with a target value.
+2. From the Web UI (or `curl`/`grpcurl`), `POST /api/v1/points/{pointId}/control` with a target value.
 3. Confirm a `202 Accepted` with a `controlId`.
 4. Observe the WriteProperty hit bbc-sim and the **present-value change** to the target.
 5. Confirm the result is delivered to the UI via `WaitForResult` (success).

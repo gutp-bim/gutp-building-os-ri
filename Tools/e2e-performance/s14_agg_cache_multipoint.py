@@ -106,13 +106,13 @@ def main() -> int:
         agg_hour_cold: list[float] = []
         for p in points:
             agg_hour_cold.append(_get(
-                f"{base}/telemetries/query?pointId={enc(p)}&start={start}&end={end}&granularity=Hour"))
+                f"{base}/api/v1/telemetries/query?pointId={enc(p)}&start={start}&end={end}&granularity=Hour"))
         agg_hour_p95 = percentile(agg_hour_cold, 0.95)
 
         # ── agg_day cache-hit: warm once per point, then measure repeated (cached) reads ──
         cache_hits: list[float] = []
         for p in points:
-            agg_url = f"{base}/telemetries/query?pointId={enc(p)}&start={start}&end={end}&granularity=Day"
+            agg_url = f"{base}/api/v1/telemetries/query?pointId={enc(p)}&start={start}&end={end}&granularity=Day"
             _get(agg_url)  # warm (populates the 5-min router cache for this point/window)
             for _ in range(max(1, args.cache_reads // len(points))):
                 cache_hits.append(_get(agg_url))
@@ -120,9 +120,9 @@ def main() -> int:
 
         # ── multipoint scaling: one shared lake scan (cold-multi-point, K points) vs single reads ──
         mp_q = "".join(f"&pointIds={enc(p)}" for p in points)
-        mp_url = f"{base}/telemetries/cold-multi-point?startTime={start}&endTime={end}{mp_q}"
+        mp_url = f"{base}/api/v1/telemetries/cold-multi-point?startTime={start}&endTime={end}{mp_q}"
         mp_times = [_get(mp_url) for _ in range(args.mp_trials)]
-        single_times = [_get(f"{base}/telemetries/query?pointId={enc(p)}&start={start}&end={end}")
+        single_times = [_get(f"{base}/api/v1/telemetries/query?pointId={enc(p)}&start={start}&end={end}")
                         for p in points for _ in range(max(1, args.mp_trials // len(points)))]
         mp_p95 = percentile(mp_times, 0.95)
         single_p95 = percentile(single_times, 0.95)

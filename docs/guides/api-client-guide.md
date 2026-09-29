@@ -84,7 +84,7 @@ URL クエリパラメータとして渡す際は `encodeURIComponent` でエン
 ```bash
 # 隣接スペース一覧（dtId はパスセグメントなのでエンコードする）
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/spaces/urn%3Anexus%3Aroom%3Arm-1/adjacent-spaces"
+  "http://localhost:5000/api/v1/spaces/urn%3Anexus%3Aroom%3Arm-1/adjacent-spaces"
 ```
 
 - `spaceDtId` はパスセグメントに入るため `encodeURIComponent` 相当のエンコードが必要です
@@ -106,24 +106,24 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```bash
 # テキスト検索（ポイント名・デバイス名など）
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/resources/search?q=temperature"
+  "http://localhost:5000/api/v1/resources/search?q=temperature"
 
 # カスタムタグで絞り込み
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/resources/search?customTags=HVAC,sensor"
+  "http://localhost:5000/api/v1/resources/search?customTags=HVAC,sensor"
 ```
 
 ---
 
 ## 3. テレメトリの読み取り
 
-統一エンドポイント `GET /telemetries/query` が自動的に適切なストア層（Hot/Warm/Cold）を選択します。
+統一エンドポイント `GET /api/v1/telemetries/query` が自動的に適切なストア層（Hot/Warm/Cold）を選択します。
 
 ### 最新値（Hot KV）
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/telemetries/query?pointId=<point_id>&latest=true"
+  "http://localhost:5000/api/v1/telemetries/query?pointId=<point_id>&latest=true"
 ```
 
 レスポンス例:
@@ -142,7 +142,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```bash
 # 過去 24 時間の時間集計
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/telemetries/query?pointId=<point_id>&start=2026-06-21T00:00:00Z&end=2026-06-22T00:00:00Z&granularity=Hour"
+  "http://localhost:5000/api/v1/telemetries/query?pointId=<point_id>&start=2026-06-21T00:00:00Z&end=2026-06-22T00:00:00Z&granularity=Hour"
 ```
 
 `granularity` の選択肢: `None`（生データ）/ `Hour` / `Day`
@@ -221,10 +221,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 # API サーバーと依存サービスの稼働状況
-curl http://localhost:5000/api/system/status
+curl http://localhost:5000/api/v1/system/status
 
 # API サーバーの有効設定（管理者のみ）
-curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/system/config
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/v1/system/config
 ```
 
 ---
@@ -284,16 +284,16 @@ npx @openapitools/openapi-generator-cli generate \
 | 建物一覧 | `GET /api/buildings` |
 | フロア一覧 | `GET /api/floors?buildingDtId=` |
 | スペース一覧 | `GET /api/spaces?floorDtId=` |
-| 隣接スペース一覧 | `GET /spaces/{spaceDtId}/adjacent-spaces` |
+| 隣接スペース一覧 | `GET /api/v1/spaces/{spaceDtId}/adjacent-spaces` |
 | デバイス一覧 | `GET /api/devices?spaceDtId=` |
 | ポイント一覧 | `GET /api/points?deviceDtId=` |
-| リソース検索 | `GET /resources/search?q=` |
-| 最新テレメトリ | `GET /telemetries/query?pointId=&latest=true` |
-| 期間テレメトリ | `GET /telemetries/query?pointId=&start=&end=&granularity=` |
+| リソース検索 | `GET /api/v1/resources/search?q=` |
+| 最新テレメトリ | `GET /api/v1/telemetries/query?pointId=&latest=true` |
+| 期間テレメトリ | `GET /api/v1/telemetries/query?pointId=&start=&end=&granularity=` |
 | 制御指令 | `POST /api/points/{id}/control` |
 | ゲートウェイ一覧 | `GET /api/gateways` |
 | ポイントリスト | `GET /api/gateways/{id}/pointlist` |
-| システム状態 | `GET /api/system/status` |
+| システム状態 | `GET /api/v1/system/status` |
 
 ---
 

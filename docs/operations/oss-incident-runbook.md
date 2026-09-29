@@ -19,7 +19,7 @@ Building OS OSS の主要依存（NATS / MinIO / PostgreSQL / Keycloak / ゲー�
 |---|---|
 | API 生存 | `GET http://<api>:5000/health`（匿名） |
 | ConnectorWorker readiness | `GET http://<worker>:8081/health/ready`（**role 依存**, #145/#399 — 下表） |
-| サービス別 up/down | `GET /api/system/status`（`SYSTEM_STATUS_HEALTH_TARGETS` の `/health` ファンアウト） |
+| サービス別 up/down | `GET /api/v1/system/status`（`SYSTEM_STATUS_HEALTH_TARGETS` の `/health` ファンアウト） |
 | NATS 状態 | `http://<nats>:8222/varz`・`/jsz`（JetStream） |
 | メトリクス（任意） | Prometheus/Grafana（`--profile observability` 時のみ。既定では無し） |
 
@@ -41,7 +41,7 @@ role の capability set が実際に必要とする依存だけを報告する�
   劣化を全面停止に変えてしまう。
 - `all` で MinIO 断も 200 なのは、同一プロセスが ingest/control でもあり（どちらも MinIO 不要）、
   かつ `make wait-oss-stack` がこのエンドポイントを `curl -sf` で待つため。
-- ⚠️ **`/api/system/status` は 2xx をすべて `up` に潰す**（`HttpServiceHealthProbe`）。したがって
+- ⚠️ **`/api/v1/system/status` は 2xx をすべて `up` に潰す**（`HttpServiceHealthProbe`）。したがって
   **`connector-worker=up` は「依存が全部健全」を意味しない** — Degraded も up に見える。
   同じ表の **`oxigraph` / `minio` 行を必ず併読**するか、worker の `/health/ready` の
   **レスポンスボディ**（`Healthy` / `Degraded` / `Unhealthy`）を直接見ること。
@@ -84,7 +84,7 @@ operator-home が全 Point stale/missing 化。
 **切り分け**: `GET http://<minio>:9000/health` 応答なし(#489: ローカル/OSS スタックの
 `building-os.minio` は実体が RustFS — MinIO 固有パス `/minio/health/live` ではなく `/health`)。
 `all` 構成では
-`/api/system/status` の `connector-worker` は up のままなので、同表の `minio` 行を見ること。
+`/api/v1/system/status` の `connector-worker` は up のままなので、同表の `minio` 行を見ること。
 
 **一次対応 / 復旧**:
 1. MinIO を復旧（再起動 / ストレージ確認 / ディスク空き）。データは `rustfs_data`（S3 バケット `cold`、#489 で実体を RustFS に変更）。

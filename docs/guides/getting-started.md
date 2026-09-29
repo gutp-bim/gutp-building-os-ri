@@ -162,7 +162,7 @@ TOKEN=$(curl -s http://localhost:8080/realms/building-os/protocol/openid-connect
   -d grant_type=password -d client_id=web-client \
   -d username=admin -d password=admin | jq -r .access_token)
 curl -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:5000/telemetries/query?pointId=SOS-PT-001&latest=true'
+  'http://localhost:5000/api/v1/telemetries/query?pointId=SOS-PT-001&latest=true'
 ```
 
 **トークン無しで叩きたい場合**は、`DISABLE_AUTH` を開発者向けオプトインとして有効化します
@@ -291,17 +291,17 @@ docker compose -f docker-compose.yml -f docker-compose.live-bos.yml up --build
 
 ```bash
 # 最新値（Hot KV、cold 時はレイク fallback）
-curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&latest=true'
+curl 'http://localhost:5000/api/v1/telemetries/query?pointId=demo-pt-001&latest=true'
 
 # 期間レンジ（tier 自動選択: warm/cold/集計）
-curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&start=2026-06-15T00:00:00Z&end=2026-06-16T00:00:00Z&granularity=Hour'
+curl 'http://localhost:5000/api/v1/telemetries/query?pointId=demo-pt-001&start=2026-06-15T00:00:00Z&end=2026-06-16T00:00:00Z&granularity=Hour'
 
 # 点の制御（202 + controlId、結果は building-os.control.result.{controlId} に非同期）
-curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
+curl -X POST 'http://localhost:5000/api/v1/points/demo-pt-001/control' \
   -H 'Content-Type: application/json' -d '{"value": 1}'
 ```
 
-統一読み取りエンドポイント `GET /telemetries/query` が tier（latest / warm / cold / 集計）を自動選択します。
+統一読み取りエンドポイント `GET /api/v1/telemetries/query` が tier（latest / warm / cold / 集計）を自動選択します。
 
 UI で確認する場合:
 
@@ -324,7 +324,7 @@ UI で確認する場合:
 | 制御が常に成功扱いで 503 にならない | OSS 既定は `ENABLE_SIM_CONTROL=true`（シミュレート制御）。実 egress は gateway binding を `bacnet-sim` にし GatewayBridge 経由 |
 | gateway 再接続後も制御が届かない | 同一 `gateway_id` の新規接続は既存接続を supersede（最新優先）するので通常は再接続だけで復旧。`building-os.gateway-bridge` の再起動は不要。ただし同じ `gateway_id` を複数プロセスで常駐させると supersede し合うので 1 プロセス 1 ID に保つ |
 | latest/range が空 | point が twin 未登録（404）／flush 前（既定 5 分、テストは `PARQUET_FLUSH_INTERVAL=1`） |
-| 各サービスの health | `GET /api/system/status`（API）、`/health/ready`（worker 8081）、MinIO console 9001、Grafana 3010（`--profile observability` 起動時のみ） |
+| 各サービスの health | `GET /api/v1/system/status`（API）、`/health/ready`（worker 8081）、MinIO console 9001、Grafana 3010（`--profile observability` 起動時のみ） |
 
 ---
 

@@ -152,7 +152,7 @@ ORDER BY ?id
 `AuthorizedTwinView.ListAdjacentSpacesAsync` then filters the result per neighbour
 (`CanAccessAsync("space", …, "read")`), after establishing the subject room's own readability and
 existence — otherwise "room you may not read" and "room with no neighbours" would be the same empty
-array. `GET /spaces/{spaceDtId}/adjacent-spaces` is the REST surface.
+array. `GET /api/v1/spaces/{spaceDtId}/adjacent-spaces` is the REST surface.
 
 ---
 
@@ -368,7 +368,7 @@ Update: `POST http://localhost:7878/update` (body: `update=...`)
 
 SBCO の `customTags` は `map(string → boolean)`、`identifiers` は `map(string → string)` で定義される。
 RDF では各エントリを `sbco:KeyBoolMapEntry` / `sbco:KeyStringMapEntry`（リソースまたは blank node）として表現し、
-`sbco:key` / `sbco:value` を持たせる。`/resources/search?tag=...` は **`customTags[key] == true`** に一致する
+`sbco:key` / `sbco:value` を持たせる。`/api/v1/resources/search?tag=...` は **`customTags[key] == true`** に一致する
 リソースを返す（`false` は明示無効として不一致）。複数 `tag` は **AND**。
 
 ### RDF 表現（customTags / KeyBoolMapEntry）
@@ -403,9 +403,9 @@ FILTER EXISTS {
 ### API 例
 
 ```
-GET /resources/search?tag=hvac
-GET /resources/search?tag=hvac&tag=temperature      # AND
-GET /resources/search?q=temp&type=point&tag=hvac    # q / type / buildingId と併用可
+GET /api/v1/resources/search?tag=hvac
+GET /api/v1/resources/search?tag=hvac&tag=temperature      # AND
+GET /api/v1/resources/search?q=temp&type=point&tag=hvac    # q / type / buildingId と併用可
 ```
 
 | パラメータ | 型 | 説明 |

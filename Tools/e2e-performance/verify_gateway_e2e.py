@@ -406,7 +406,7 @@ def run_control_phase(base_url: str, csv_rows: list[dict]) -> dict:
     # writable=false → 403
     readonly_results = []
     for pid in readonly_pts:
-        url = f"{base_url.rstrip('/')}/points/{urllib.parse.quote(pid)}/control"
+        url = f"{base_url.rstrip('/')}/api/v1/points/{urllib.parse.quote(pid)}/control"
         status, _ = _api_post(url, {"value": 1.0})
         readonly_results.append((pid, status))
 
@@ -418,7 +418,7 @@ def run_control_phase(base_url: str, csv_rows: list[dict]) -> dict:
     # writable=true → 4xx でないこと (200 ok または 503 gateway offline)
     writable_results = []
     for pid in writable_pts:
-        url = f"{base_url.rstrip('/')}/points/{urllib.parse.quote(pid)}/control"
+        url = f"{base_url.rstrip('/')}/api/v1/points/{urllib.parse.quote(pid)}/control"
         status, _ = _api_post(url, {"value": 1.0})
         writable_results.append((pid, status))
 
