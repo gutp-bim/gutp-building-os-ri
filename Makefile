@@ -1,6 +1,6 @@
 .PHONY: local-up-azure local-up-oss local-up-dual local-up-minimal local-up-dev \
         local-down-azure local-down-oss local-down-all local-down-minimal local-down-dev \
-        demo demo-e2e demo-down test-oss-stack wait-oss-stack validate-oss-issues doctor mvp-test help
+        demo demo-e2e demo-down test-oss-stack wait-oss-stack validate-oss-issues openapi-breaking doctor mvp-test help
 
 # ── Azure ローカル互換スタック (既存 docker-compose.yaml) ─────────────────────
 local-up-azure:
@@ -104,6 +104,10 @@ doctor:
 validate-oss-issues:
 	@bash scripts/validate-oss-issue-readiness.sh
 
+# REST API v1 is additive-only (ADR-0008): fail on a breaking OpenAPI change vs BASE (default origin/main).
+openapi-breaking:
+	@bash Tools/check-openapi-breaking.bash $(BASE)
+
 # ── MVP ゲート ────────────────────────────────────────────────────────────────
 # MVP として出せる状態かを一発で検証する集約ゲート（#304 Phase 0）。ローカル一次ゲート
 # （CI テストは手動起動のみ）。各段の失敗で即時に非ゼロ終了する。
@@ -144,4 +148,5 @@ help:
 	@echo "  make test-oss-stack    Run health-check tests against OSS stack"
 	@echo "  make doctor            Diagnose a running stack; print a fix hint for each failed check"
 	@echo "  make validate-oss-issues Validate OSS issue readiness checks"
+	@echo "  make openapi-breaking   Fail on a breaking REST API (OpenAPI) change vs origin/main (BASE=ref)"
 	@echo "  make mvp-test          MVP gate: dotnet test → web typecheck/build → stack health → E2E runner"

@@ -12,6 +12,9 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- `make openapi-breaking` (`Tools/check-openapi-breaking.bash`) fails on a breaking change to the REST
+  API's OpenAPI document versus `origin/main` (oasdiff, pinned image), enforcing ADR-0008's additive-only
+  v1 (#507).
 - **The REST API is versioned under `/api/v1/…`** (#507, ADR-0008). Every endpoint moved there
   (`/buildings` → `/api/v1/buildings`, `/api/Groups` → `/api/v1/Groups`, `/api/admin/twin` →
   `/api/v1/admin/twin`, …) and OpenAPI lists only the `/api/v1` paths. **The old paths keep working
