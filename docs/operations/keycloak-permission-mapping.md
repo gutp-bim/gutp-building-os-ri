@@ -79,8 +79,14 @@ kcadm.sh update "client-scopes/$SCOPE_ID/protocol-mappers/models/$MAPPER_ID" -r 
   -s 'config."aggregate.attrs"=true'
 ```
 
-Access widens for users in more than one permission-carrying group, so review multi-group
-memberships before applying it. Tokens issued before the change keep the old claim until they expire.
+Access can widen for two kinds of user, so review both before applying it:
+
+- users in **more than one** permission-carrying group (previously only one group counted);
+- users who have their **own** `permissions` attribute **and** belong to any permission-carrying group.
+  Previously the user attribute replaced the group attribute entirely, so a narrower per-user value
+  (e.g. one building) could deliberately mask a broader group grant; now both are unioned.
+
+Tokens issued before the change keep the old claim until they expire.
 
 ## Azure AD Migration Source
 
