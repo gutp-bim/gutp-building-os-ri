@@ -72,6 +72,19 @@ Argo が検知して同期します（`.github/workflows/argocd-image-update.yml
 5. `GET /health`（API）/ `GET /health/ready`（connector-worker、NATS 接続）で readiness を確認。
 6. 検証（§5）。
 
+### REST API の版とデプロイ順（ADR-0008、#507）
+
+web-client は **`/api/v1` だけ**を呼ぶ。`/api/v1` を持たない API Server（#507 より前）と組み合わさると、UI の
+API 呼び出しがすべて 404 になる。したがって:
+
+- **API Server を先に**更新し、ready になってから web-client を更新する。`argocd-image-update` は両方のタグを
+  同じコミットで更新するため、同期直後のロールアウト中だけ新 web-client が旧 API Server に当たる時間が
+  生じうる（数分。ADR-0008 で許容と判断）。停止を避けたい環境では、web-client の Application の同期を
+  一時的に止め（Argo CD の手動同期）、API Server が ready になってから同期する。
+- 旧パス（`/buildings`、`/api/Groups` など）は API Server 側で `/api/v1` に書き換えられるので、外部
+  アプリ・スクリプトは更新しなくても動く（応答に `Deprecation` が付く）。旧パスの利用状況は
+  `building_os.api.legacy_requests{root}` で確認する。
+
 ### compose（単一ホスト）での等価
 
 ```bash
@@ -85,6 +98,9 @@ docker compose -f docker-compose.oss.yaml logs -f building-os.api   # マイグ�
 
 ## 4. ロールバック
 
+- **REST API の版（ADR-0008）**: ロールバックは**デプロイと逆順**。web-client を先に戻し、その後で
+  API Server を戻す。**API Server だけを #507 より前へ戻さない**こと（新 web-client の呼び出しがすべて
+  404 になる）。
 - **アプリ（コード）**: ArgoCD は Git が正本。`argocd/values/<env>.yaml` のイメージタグを**前のタグへ
   revert してコミット**すれば Argo が旧バージョンへ同期する。compose なら旧タグで `up -d`。
 - **DB マイグレーション**: EF の前進的変更は**自動では戻らない**。
@@ -102,7 +118,8 @@ docker compose -f docker-compose.oss.yaml logs -f building-os.api   # マイグ�
 
 - [ ] API 起動ログに保留マイグレーションの適用完了が出て、例外がない。
 - [ ] `GET /health`（API 200）/ `GET /health/ready`（connector-worker 200 = NATS Open）。
-- [ ] 主要フロー: `/resources` 表示、`GET /telemetries/query?...&latest=true`、制御 1 件が成功。
+- [ ] 主要フロー: `/resources` 表示、`GET /api/v1/telemetries/query?...&latest=true`、制御 1 件が成功。
+- [ ] web-client のブラウザ開発者ツールで、API 呼び出しが `/api/v1/…` へ飛び 404 が出ていない。
 - [ ] ローリング更新中にエラー率・レイテンシが跳ねていない（Prometheus/Grafana を使う場合）。
 - [ ] `point_control_audit` に新規行が記録される（制御の end-to-end 生存確認）。
 
