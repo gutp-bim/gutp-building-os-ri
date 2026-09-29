@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -16,7 +17,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 全置換/追記を選択して適用。SPARQL は SELECT/ASK のみ。全操作を共有 admin 監査に記録する。管理者のみ。
 /// </summary>
 [ApiController]
-[Route("api/admin/twin")]
+[Route(ApiRoutes.V1 + "/admin/twin")]
 [AuthorizeFilter]
 public class TwinAdminController : ControllerBase
 {

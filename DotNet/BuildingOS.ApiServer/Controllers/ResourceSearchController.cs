@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOS.Shared;
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Extensions;
@@ -7,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BuildingOs.ApiServer.Controllers;
 
 [ApiController]
-[Route("/resources")]
+[Route(ApiRoutes.V1 + "/resources")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

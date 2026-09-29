@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Infrastructure.Monitoring;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public sealed record OperationsSummaryResponse(
 /// なので admin 専用にはしない（集計値のみで Point/建物の情報を含まない）。
 /// </summary>
 [ApiController]
-[Route("api/operations")]
+[Route(ApiRoutes.V1 + "/operations")]
 [AuthorizeFilter]
 public class OperationsController : ControllerBase
 {

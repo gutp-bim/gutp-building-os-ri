@@ -12,6 +12,18 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- **The REST API is versioned under `/api/v1/…`** (#507, ADR-0008). Every endpoint moved there
+  (`/buildings` → `/api/v1/buildings`, `/api/Groups` → `/api/v1/Groups`, `/api/admin/twin` →
+  `/api/v1/admin/twin`, …) and OpenAPI lists only the `/api/v1` paths. **The old paths keep working
+  unchanged** — they are rewritten to `/api/v1` in-process and the response carries `Deprecation` and a
+  `Link: rel="successor-version"` header — so existing clients (web client, gateways polling the point
+  list, external applications) need no change yet. Move to `/api/v1`; a removal date for the old paths
+  will be announced with a `Sunset` header at least 6 months ahead. The web client already calls `/api/v1` (regenerated
+  aspida client and the hand-written fetches), so **upgrade the API server before the web client** and roll
+  back in the reverse order — the new web client gets 404s from an API server without `/api/v1`. Not
+  versioned: the gateway point list stays at `GET /gateways/{gatewayId}/pointlist`, since it is authenticated
+  by a header only the mTLS ingress may set and must not be reachable through the `/api` ingress route.
+  Legacy-path traffic is counted in `building_os.api.legacy_requests{root}`.
 - `GET /points/{pointId}/control-audit` takes a time range and pages with a cursor (#478): `start`
   (inclusive) / `end` (exclusive) filter `createdAt`, and when more rows exist the response carries
   `X-Next-Cursor`, passed back as `cursor` for the next (older) page. The cursor is a keyset position

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // this suite exercises the shared pattern once against the buildings page.
 const floorsGet = vi.fn();
 vi.mock("@/lib/infra/aspida-client", () => ({
-  apiClient: () => ({ floors: { $get: floorsGet } }),
+  apiClient: () => ({ api: { v1: { floors: { $get: floorsGet } } } }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
@@ -33,7 +33,9 @@ beforeEach(() => {
 
 describe("BuildingDetailPageComponent (#195)", () => {
   it("shows a text loading state then keyboard-accessible floor cards", async () => {
-    floorsGet.mockResolvedValueOnce([{ id: "floor:1", dtId: "urn:floor:1", name: "1F" }]);
+    floorsGet.mockResolvedValueOnce([
+      { id: "floor:1", dtId: "urn:floor:1", name: "1F" },
+    ]);
     render(<BuildingDetailPageComponent buildingId="urn:bldg:1" />);
 
     expect(screen.getByText("読み込み中…")).toBeInTheDocument();

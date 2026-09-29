@@ -3,9 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
 vi.mock("@/lib/infra/aspida-client", () => ({
   apiClient: () => ({
-    devices: { _deviceDtId: () => ({ $get: getMock }) },
-    floors: { _floorDtId: () => ({ $get: getMock }) },
-    spaces: { _spaceDtId: () => ({ $get: getMock }) },
+    api: {
+      v1: {
+        devices: { _deviceDtId: () => ({ $get: getMock }) },
+        floors: { _floorDtId: () => ({ $get: getMock }) },
+        spaces: { _spaceDtId: () => ({ $get: getMock }) },
+      },
+    },
   }),
 }));
 

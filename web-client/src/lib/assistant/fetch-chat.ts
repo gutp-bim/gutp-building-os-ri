@@ -5,7 +5,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 /**
- * `POST /api/assistant/chat` (#151). JWT-gated server-side (no backdoor). Returns the assistant reply.
+ * `POST /api/v1/assistant/chat` (#151). JWT-gated server-side (no backdoor). Returns the assistant reply.
  * A 503 means the assistant is disabled (Ollama optional profile not configured); 502 means the
  * upstream LLM failed.
  */
@@ -13,7 +13,7 @@ export async function postAssistantChat(
   request: AssistantChatRequest,
   signal?: AbortSignal,
 ): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/assistant/chat`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${Cookies.get("oidc.access_token") || ""}`,

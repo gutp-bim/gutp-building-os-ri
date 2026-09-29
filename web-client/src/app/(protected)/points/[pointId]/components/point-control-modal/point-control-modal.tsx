@@ -73,7 +73,7 @@ export function PointControlModal({
       setIsLoading(true);
 
       const { controlId } = await apiClient()
-        .points._pointId(pointDetail.point.id)
+        .api.v1.points._pointId(pointDetail.point.id)
         .control.$post({
           body: { value: toControlValue(value) },
         });

@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.Globalization;
 using System.Text.Json;
 using BuildingOS.Shared;
@@ -21,7 +22,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// トラストアンカーは mTLS クライアント証明書（OIDC クライアントの secret とは別系統）。管理者のみ。
 /// </summary>
 [ApiController]
-[Route("api/admin/gateways")]
+[Route(ApiRoutes.V1 + "/admin/gateways")]
 [AuthorizeFilter]
 public class GatewaysController : ControllerBase
 {

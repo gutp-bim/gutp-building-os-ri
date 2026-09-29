@@ -36,7 +36,7 @@ export type AssistantHelpContext = {
   terms?: AssistantContextTerm[] | undefined;
 }
 
-/** Request body for `POST /telemetries/query/batch-latest` (#182). */
+/** Request body for `POST /api/v1/telemetries/query/batch-latest` (#182). */
 export type BatchLatestRequest = {
   pointIds?: string[] | undefined;
 }

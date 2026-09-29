@@ -23,7 +23,8 @@ export interface TwinOrphanResource {
 }
 
 /** Why a writable point's bos: control schema could not be resolved to a usable shape (#336). */
-export type ControlSchemaIssueReason = "missing_datatype" | "malformed_enum_labels";
+export type ControlSchemaIssueReason =
+  "missing_datatype" | "malformed_enum_labels";
 
 export interface TwinControlSchemaIssue {
   pointId: string;
@@ -67,7 +68,10 @@ export function orphanReasonLabel(reason: string): string {
     : reason;
 }
 
-const CONTROL_SCHEMA_ISSUE_REASON_LABELS: Record<ControlSchemaIssueReason, string> = {
+const CONTROL_SCHEMA_ISSUE_REASON_LABELS: Record<
+  ControlSchemaIssueReason,
+  string
+> = {
   missing_datatype: "制御スキーマ未設定（dataType 欠落）",
   malformed_enum_labels: "enumLabels が不正な JSON",
 };
@@ -83,7 +87,10 @@ export function controlSchemaIssueReasonLabel(reason: string): string {
  * Pure: an import may be applied only when the preview reports no gateway_id collisions (#322) and
  * no resources outside the building hierarchy — the latter waivable by an explicit override (#291).
  */
-export function canApplyImport(preview: TwinImportPreview | null, allowOrphans = false): boolean {
+export function canApplyImport(
+  preview: TwinImportPreview | null,
+  allowOrphans = false,
+): boolean {
   if (preview === null) return false;
   if (preview.collisions.length > 0) return false;
   return preview.orphanCount === 0 || allowOrphans;
@@ -93,15 +100,23 @@ export function canApplyImport(preview: TwinImportPreview | null, allowOrphans =
 export function previewSummary(preview: TwinImportPreview): string {
   const base = `${preview.tripleCount} トリプル / ${preview.gatewayCount} ゲートウェイ`;
   const issues: string[] = [];
-  if (preview.collisions.length > 0) issues.push(`gateway_id 重複 ${preview.collisions.length} 件`);
-  if (preview.orphanCount > 0) issues.push(`階層未接続 ${preview.orphanCount} 件`);
-  if (preview.controlSchemaIssueCount > 0) issues.push(`制御スキーマ不整合 ${preview.controlSchemaIssueCount} 件`);
-  return issues.length === 0 ? `${base} — 検証 OK` : `${base} — ${issues.join(" / ")}`;
+  if (preview.collisions.length > 0)
+    issues.push(`gateway_id 重複 ${preview.collisions.length} 件`);
+  if (preview.orphanCount > 0)
+    issues.push(`階層未接続 ${preview.orphanCount} 件`);
+  if (preview.controlSchemaIssueCount > 0)
+    issues.push(`制御スキーマ不整合 ${preview.controlSchemaIssueCount} 件`);
+  return issues.length === 0
+    ? `${base} — 検証 OK`
+    : `${base} — ${issues.join(" / ")}`;
 }
 
-export async function runReadOnlySparql(query: string, maxRows = 200): Promise<SparqlQueryResult> {
+export async function runReadOnlySparql(
+  query: string,
+  maxRows = 200,
+): Promise<SparqlQueryResult> {
   try {
-    return (await apiClient().api.admin.twin.query.$post({
+    return (await apiClient().api.v1.admin.twin.query.$post({
       body: { query, maxRows },
     })) as SparqlQueryResult;
   } catch (e) {
@@ -118,7 +133,7 @@ export async function previewTwinImport(
   mode: TwinImportMode,
 ): Promise<TwinImportPreview> {
   try {
-    return (await apiClient().api.admin.twin.import.preview.$post({
+    return (await apiClient().api.v1.admin.twin.import.preview.$post({
       body: { turtle, mode },
     })) as TwinImportPreview;
   } catch (e) {
@@ -132,7 +147,7 @@ export async function applyTwinImport(
   allowOrphans = false,
 ): Promise<TwinImportPreview> {
   try {
-    return (await apiClient().api.admin.twin.import.apply.$post({
+    return (await apiClient().api.v1.admin.twin.import.apply.$post({
       body: { turtle, mode, allowOrphans },
     })) as TwinImportPreview;
   } catch (e) {

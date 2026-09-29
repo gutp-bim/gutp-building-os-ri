@@ -3,7 +3,7 @@ import { loginAs } from "./support/auth";
 
 test.beforeEach(async ({ context, page }) => {
   await loginAs(context, "admin");
-  await page.route("http://localhost:5000/devices/**", async (route) => {
+  await page.route("http://localhost:5000/api/v1/devices/**", async (route) => {
     await route.fulfill({
       json: {
         id: "device:1",
@@ -17,7 +17,7 @@ test.beforeEach(async ({ context, page }) => {
       },
     });
   });
-  await page.route("http://localhost:5000/points?**", async (route) => {
+  await page.route("http://localhost:5000/api/v1/points?**", async (route) => {
     await route.fulfill({
       json: [
         {
@@ -33,7 +33,9 @@ test.beforeEach(async ({ context, page }) => {
   });
 });
 
-test("device detail renders metadata and supports keyboard point navigation", async ({ page }) => {
+test("device detail renders metadata and supports keyboard point navigation", async ({
+  page,
+}) => {
   await page.goto("/devices/urn%3Adev%3A1");
 
   await expect(page.getByRole("heading", { name: "AHU-1" })).toBeVisible();

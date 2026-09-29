@@ -1,5 +1,6 @@
+﻿using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Authorization;
-﻿using BuildingOS.Shared;
+using BuildingOS.Shared;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
@@ -26,7 +27,7 @@ public class PointDetailController(
     /// <param name="buildingDtId">ビルのdtId</param>
     /// <returns></returns>
     [HttpGet]
-    [Route("point-details")]
+    [Route(ApiRoutes.V1 + "/point-details")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PointDetail[]>> List([FromQuery] string buildingDtId, CancellationToken ct)
     {
@@ -64,7 +65,7 @@ public class PointDetailController(
     /// <param name="pointId">ポイントID（ビジネスID）</param>
     /// <returns></returns>
     [HttpGet]
-    [Route("point-details/{pointId}")]
+    [Route(ApiRoutes.V1 + "/point-details/{pointId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PointDetail>> Get(string pointId, CancellationToken ct)
     {

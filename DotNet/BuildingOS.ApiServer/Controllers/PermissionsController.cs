@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 namespace BuildingOs.ApiServer.Controllers;
 
 using BuildingOs.ApiServer.Extensions;
@@ -9,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 /// パーミッション解決API（admin専用）
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route(ApiRoutes.V1 + "/[controller]")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class PermissionsController : ControllerBase

@@ -1,5 +1,6 @@
+﻿using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Authorization;
-﻿using BuildingOs.ApiServer.Extensions;
+using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Infrastructure;
@@ -22,7 +23,7 @@ public class DeviceDetailController(IDigitalTwinDatabase digitalTwinDatabase, Au
     /// <param name="buildingDtId">ビルのdtId</param>
     /// <returns></returns>
     [HttpGet]
-    [Route("device-details")]
+    [Route(ApiRoutes.V1 + "/device-details")]
     public async Task<ActionResult<DeviceDetail[]>> List([FromQuery] string buildingDtId, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();

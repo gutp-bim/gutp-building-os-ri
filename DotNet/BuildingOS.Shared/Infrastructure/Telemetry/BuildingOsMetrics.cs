@@ -110,6 +110,17 @@ public static class BuildingOsMetrics
             unit: "{request}",
             description: "Control writes whose control schema could not constrain the value, by reason and policy.");
 
+    /// <summary>
+    /// Requests that arrived on a pre-versioning REST path and were rewritten to <c>/api/v1</c>
+    /// (#507, ADR-0008). Tag: root (a fixed set, e.g. <c>telemetries</c>, <c>api/groups</c>). Zero for
+    /// a sustained period is the gate for announcing the old paths' removal.
+    /// </summary>
+    public static readonly Counter<long> ApiLegacyRequests =
+        Meter.CreateCounter<long>(
+            "building_os.api.legacy_requests",
+            unit: "{request}",
+            description: "REST requests on a pre-versioning path, rewritten to /api/v1, by root.");
+
     /// <summary>Rows exported to cold storage (Parquet/MinIO).</summary>
     public static readonly Counter<long> ColdExportRows =
         Meter.CreateCounter<long>(

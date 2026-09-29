@@ -16,6 +16,9 @@ public static partial class IServiceCollectionExtension
         TelemetryResponseHeaders.PartialResult,
         TelemetryResponseHeaders.CoveredFrom,
         Controllers.PointController.ControlAuditNextCursorHeader,
+        // A legacy path's deprecation notice (#507, ADR-0008).
+        "Deprecation",
+        "Link",
     };
 
     public static IServiceCollection AddCorsForAll(

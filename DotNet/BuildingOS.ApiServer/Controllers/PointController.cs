@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using BuildingOS.Shared;
@@ -17,7 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BuildingOs.ApiServer.Controllers;
 
 [ApiController]
-[Route("/points")]
+[Route(ApiRoutes.V1 + "/points")]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -230,7 +231,7 @@ public class PointController(
         var decodedPointId = Uri.UnescapeDataString(pointId);
 
         // Read-authorization: the history reveals control activity on the point, so gate it on read
-        // access to the point itself — the same check as GET /points/{id} (admin bypasses via twinView).
+        // access to the point itself — the same check as GET /api/v1/points/{id} (admin bypasses via twinView).
         switch (await twinView.GetPointAsync(auth, decodedPointId, ct).ConfigureAwait(false))
         {
             case TwinGetResult<Point>.Ok: break;

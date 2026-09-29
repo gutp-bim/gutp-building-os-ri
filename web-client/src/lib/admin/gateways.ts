@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/infra/aspida-client";
 import { mutationError, requestError } from "./api-error";
 
-/** Admin view of one gateway (`GET /api/admin/gateways`). Secret settings are masked server-side (#323). */
+/** Admin view of one gateway (`GET /api/v1/admin/gateways`). Secret settings are masked server-side (#323). */
 export interface GatewayAdminView {
   gatewayId: string;
   bindingType: string;
@@ -73,7 +73,9 @@ export type PointlistSyncTone = "ok" | "warn" | "unknown";
  */
 export type GatewayConnectionTone = "connected" | "disconnected" | "unknown";
 
-export function connectedTone(connected: boolean | null): GatewayConnectionTone {
+export function connectedTone(
+  connected: boolean | null,
+): GatewayConnectionTone {
   if (connected === null) return "unknown";
   return connected ? "connected" : "disconnected";
 }
@@ -117,7 +119,7 @@ export async function fetchGateways(
   signal?: AbortSignal,
 ): Promise<GatewayAdminView[]> {
   try {
-    return (await apiClient().api.admin.gateways.$get({
+    return (await apiClient().api.v1.admin.gateways.$get({
       config: { signal },
     })) as GatewayAdminView[];
   } catch (e) {
@@ -131,7 +133,7 @@ export async function resyncGatewayPointList(id: string): Promise<string> {
     // Swagger documents the 202 without a body, so the generated method is typed void — the server
     // does return `{ revision }` (see GatewayAdminController); read it from the raw response.
     const res = await apiClient()
-      .api.admin.gateways._id(encodeURIComponent(id))
+      .api.v1.admin.gateways._id(encodeURIComponent(id))
       .resync_pointlist.post();
     return (res.body as unknown as { revision: string }).revision;
   } catch (e) {

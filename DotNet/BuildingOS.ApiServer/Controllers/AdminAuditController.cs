@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.AdminAudit;
@@ -11,7 +12,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 管理者のみ。
 /// </summary>
 [ApiController]
-[Route("api/admin/audit")]
+[Route(ApiRoutes.V1 + "/admin/audit")]
 [AuthorizeFilter]
 public class AdminAuditController : ControllerBase
 {

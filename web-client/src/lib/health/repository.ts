@@ -172,7 +172,7 @@ export async function fetchPointHealth(
 
   let wire: unknown;
   try {
-    wire = await apiClient(token).api.telemetry.health.$get({
+    wire = await apiClient(token).api.v1.telemetry.health.$get({
       query: listParams(q),
     });
   } catch (e) {
@@ -206,7 +206,7 @@ export async function fetchPointHealthSummary(
 
   let wire: unknown;
   try {
-    wire = await apiClient(token).api.telemetry.health.summary.$get({
+    wire = await apiClient(token).api.v1.telemetry.health.summary.$get({
       query: summaryParams(q),
     });
   } catch (e) {

@@ -1,4 +1,5 @@
-﻿using BuildingOS.Shared;
+﻿using BuildingOs.ApiServer.Routing;
+using BuildingOS.Shared;
 using BuildingOS.Shared.Infrastructure;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOs.ApiServer.Extensions;
@@ -10,7 +11,7 @@ using AuthorizationService = BuildingOS.Shared.Domain.Authorization.IAuthorizati
 namespace BuildingOs.ApiServer.Controllers;
 
 [ApiController]
-[Route("/telemetries")]
+[Route(ApiRoutes.V1 + "/telemetries")]
 [ProducesResponseType(StatusCodes.Status200OK)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -23,7 +24,7 @@ public class TelemetryController(
     : ControllerBase
 {
     /// <summary>
-    /// [非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は <c>GET /telemetries/query?latest=true</c>。
+    /// [非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は <c>GET /api/v1/telemetries/query?latest=true</c>。
     /// この per-tier エンドポイントは後方互換のため残置。
     /// </summary>
     /// <param name="pointId">必須. ポイントID</param>
@@ -55,7 +56,7 @@ public class TelemetryController(
     }
 
     /// <summary>
-    /// [非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は <c>GET /telemetries/query</c>（tier 自動選択）。
+    /// [非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は <c>GET /api/v1/telemetries/query</c>（tier 自動選択）。
     /// </summary>
     [Obsolete("Use GET /telemetries/query (canonical, auto tier-selection). Retained for backward compatibility.")]
     [HttpGet("warm")]
@@ -93,7 +94,7 @@ public class TelemetryController(
     }
 
     /// <summary>
-    /// [非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は <c>GET /telemetries/query</c>（tier 自動選択）。
+    /// [非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は <c>GET /api/v1/telemetries/query</c>（tier 自動選択）。
     /// </summary>
     [Obsolete("Use GET /telemetries/query (canonical, auto tier-selection). Retained for backward compatibility.")]
     [HttpGet("cold")]
@@ -131,7 +132,7 @@ public class TelemetryController(
     }
 
     /// <summary>
-    /// [非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は <c>GET /telemetries/query</c>。
+    /// [非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は <c>GET /api/v1/telemetries/query</c>。
     /// </summary>
     [Obsolete("Use GET /telemetries/query (canonical, auto tier-selection). Retained for backward compatibility.")]
     [HttpGet("cold-multi-point")]
@@ -311,7 +312,7 @@ public class TelemetryController(
     private const int MaxBatchPointIds = 500;
 }
 
-/// <summary>Request body for <c>POST /telemetries/query/batch-latest</c> (#182).</summary>
+/// <summary>Request body for <c>POST /api/v1/telemetries/query/batch-latest</c> (#182).</summary>
 public sealed record BatchLatestRequest(string[] PointIds);
 
 /// <summary>

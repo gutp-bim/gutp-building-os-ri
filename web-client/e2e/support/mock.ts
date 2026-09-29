@@ -1,7 +1,11 @@
 import type { Page, Route } from "@playwright/test";
 
 /** Fulfill a route with a JSON body. */
-export function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+export function fulfillJson(
+  route: Route,
+  body: unknown,
+  status = 200,
+): Promise<void> {
   return route.fulfill({
     status,
     contentType: "application/json",
@@ -15,11 +19,18 @@ export function isoSecondsAgo(secondsAgo: number): string {
 }
 
 // Shared twin fixtures (shape = aspida Building/Floor `{ dtId, id, name }`).
-export const BUILDING = { dtId: "bldg-e2e", id: "bldg-e2e", name: "E2E Demo Building" };
+export const BUILDING = {
+  dtId: "bldg-e2e",
+  id: "bldg-e2e",
+  name: "E2E Demo Building",
+};
 export const FLOOR = { dtId: "floor-1", id: "floor-1", name: "1F オフィス" };
 
 /** Stub the resource tree's root load (`GET /buildings`). */
-export async function mockBuildings(page: Page, buildings = [BUILDING]): Promise<void> {
+export async function mockBuildings(
+  page: Page,
+  buildings = [BUILDING],
+): Promise<void> {
   await page.route("**/buildings*", (route) => fulfillJson(route, buildings));
 }
 
@@ -38,7 +49,10 @@ export async function mockSpaces(page: Page, spaces = [SPACE]): Promise<void> {
 }
 
 /** Stub the space→device expansion (`GET /devices?spaceDtId=...`). */
-export async function mockDevices(page: Page, devices = [DEVICE]): Promise<void> {
+export async function mockDevices(
+  page: Page,
+  devices = [DEVICE],
+): Promise<void> {
   await page.route("**/devices*", (route) => fulfillJson(route, devices));
 }
 
@@ -92,7 +106,7 @@ export async function mockLatestTelemetryFailure(
  * Keeping this beside the batch mock prevents route-mock tests from waiting for a real API timeout.
  */
 async function mockTelemetryConfig(page: Page): Promise<void> {
-  await page.route("**/api/telemetry/config", (route) =>
+  await page.route("**/api/v1/telemetry/config", (route) =>
     fulfillJson(route, {
       staleThresholdSeconds: 300,
       staleIntervalMultiplier: 3,

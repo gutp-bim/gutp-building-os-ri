@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.Configuration;
@@ -11,7 +12,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// インフラ/シークレット設定は読み取り専用の実効値ビュー（#147）側で扱う。
 /// </summary>
 [ApiController]
-[Route("api/system/settings")]
+[Route(ApiRoutes.V1 + "/system/settings")]
 [AuthorizeFilter]
 public class SystemConfigController : ControllerBase
 {

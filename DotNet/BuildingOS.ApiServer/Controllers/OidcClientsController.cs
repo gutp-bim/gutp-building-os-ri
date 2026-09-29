@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using System.Text.Json;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
@@ -14,7 +15,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 一覧/詳細・監査には残さない。管理者のみ。未設定時は 503。
 /// </summary>
 [ApiController]
-[Route("api/admin/oidc-clients")]
+[Route(ApiRoutes.V1 + "/admin/oidc-clients")]
 [AuthorizeFilter]
 public class OidcClientsController : ControllerBase
 {

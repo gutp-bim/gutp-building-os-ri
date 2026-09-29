@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared.Domain.Authorization;
@@ -9,7 +10,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// ユーザーのアクセス可能リソース取得エンドポイント
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route(ApiRoutes.V1 + "/[controller]")]
 [AuthorizeFilter]
 public class MyResourcesController : ControllerBase
 {

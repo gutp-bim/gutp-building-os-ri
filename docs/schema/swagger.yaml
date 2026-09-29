@@ -4,7 +4,7 @@ info:
   description: An ASP.NET Core API for Building OS
   version: v1
 paths:
-  /api/admin/audit:
+  /api/v1/admin/audit:
     get:
       tags:
         - AdminAudit
@@ -55,7 +55,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/assistant/chat:
+  /api/v1/assistant/chat:
     post:
       tags:
         - Assistant
@@ -88,7 +88,7 @@ paths:
           description: Service Unavailable
         '502':
           description: Bad Gateway
-  /api/Auth/me:
+  /api/v1/Auth/me:
     get:
       tags:
         - Auth
@@ -96,7 +96,7 @@ paths:
       responses:
         '200':
           description: OK
-  /api/Auth/check:
+  /api/v1/Auth/check:
     get:
       tags:
         - Auth
@@ -117,7 +117,7 @@ paths:
       responses:
         '200':
           description: OK
-  /buildings:
+  /api/v1/buildings:
     get:
       tags:
         - Building
@@ -143,7 +143,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Building'
-  '/buildings/{buildingDtId}':
+  '/api/v1/buildings/{buildingDtId}':
     get:
       tags:
         - Building
@@ -179,7 +179,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/devices/{deviceDtId}':
+  '/api/v1/devices/{deviceDtId}':
     get:
       tags:
         - Device
@@ -215,7 +215,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /devices:
+  /api/v1/devices:
     get:
       tags:
         - Device
@@ -246,7 +246,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Device'
-  /device-details:
+  /api/v1/device-details:
     get:
       tags:
         - DeviceDetail
@@ -278,7 +278,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DeviceDetail'
-  '/floors/{floorDtId}':
+  '/api/v1/floors/{floorDtId}':
     get:
       tags:
         - Floor
@@ -314,7 +314,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /floors:
+  /api/v1/floors:
     get:
       tags:
         - Floor
@@ -382,7 +382,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/admin/gateways:
+  /api/v1/admin/gateways:
     get:
       tags:
         - Gateways
@@ -418,7 +418,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/admin/gateways/{id}':
+  '/api/v1/admin/gateways/{id}':
     get:
       tags:
         - Gateways
@@ -454,7 +454,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/admin/gateways/{id}/resync-pointlist':
+  '/api/v1/admin/gateways/{id}/resync-pointlist':
     post:
       tags:
         - Gateways
@@ -480,7 +480,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/Groups:
+  /api/v1/Groups:
     get:
       tags:
         - Groups
@@ -568,7 +568,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/Groups/{id}':
+  '/api/v1/Groups/{id}':
     get:
       tags:
         - Groups
@@ -701,7 +701,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/Groups/{id}/resources':
+  '/api/v1/Groups/{id}/resources':
     post:
       tags:
         - Groups
@@ -772,7 +772,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/Groups/{id}/resources/{itemId}':
+  '/api/v1/Groups/{id}/resources/{itemId}':
     delete:
       tags:
         - Groups
@@ -815,7 +815,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/Groups/{id}/resources/bulk':
+  '/api/v1/Groups/{id}/resources/bulk':
     post:
       tags:
         - Groups
@@ -874,7 +874,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/MyResources/accessible:
+  /api/v1/MyResources/accessible:
     get:
       tags:
         - MyResources
@@ -891,7 +891,7 @@ paths:
       responses:
         '200':
           description: OK
-  /api/MyResources:
+  /api/v1/MyResources:
     get:
       tags:
         - MyResources
@@ -909,7 +909,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/MyResourcesResponse'
-  /api/admin/oidc-clients:
+  /api/v1/admin/oidc-clients:
     get:
       tags:
         - OidcClients
@@ -985,7 +985,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/admin/oidc-clients/{id}':
+  '/api/v1/admin/oidc-clients/{id}':
     get:
       tags:
         - OidcClients
@@ -1032,7 +1032,7 @@ paths:
       responses:
         '204':
           description: No Content
-  '/api/admin/oidc-clients/{id}/rotate-secret':
+  '/api/v1/admin/oidc-clients/{id}/rotate-secret':
     post:
       tags:
         - OidcClients
@@ -1055,7 +1055,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/OidcClientsControllerRotatedSecretResponse'
-  '/api/admin/oidc-clients/{id}/enabled':
+  '/api/v1/admin/oidc-clients/{id}/enabled':
     put:
       tags:
         - OidcClients
@@ -1089,7 +1089,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/OidcClientDetail'
-  /api/operations/summary:
+  /api/v1/operations/summary:
     get:
       tags:
         - Operations
@@ -1107,7 +1107,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/OperationsSummaryResponse'
-  /api/Permissions/resolve:
+  /api/v1/Permissions/resolve:
     post:
       tags:
         - Permissions
@@ -1160,7 +1160,7 @@ paths:
                 type: object
                 additionalProperties:
                   $ref: '#/components/schemas/PermissionsControllerResolvedPermissionInfo'
-  /points:
+  /api/v1/points:
     get:
       tags:
         - Point
@@ -1191,7 +1191,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Point'
-  '/points/{pointId}':
+  '/api/v1/points/{pointId}':
     get:
       tags:
         - Point
@@ -1227,7 +1227,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/points/{pointId}/control':
+  '/api/v1/points/{pointId}/control':
     post:
       tags:
         - Point
@@ -1274,23 +1274,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/points/{pointId}/control-audit':
+  '/api/v1/points/{pointId}/control-audit':
     get:
       tags:
         - Point
-      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に\n記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。"
+      summary: "ポイントの制御コマンド履歴（point_control_audit）を新しい順に取得する（#162）。制御実行時に\n記録された監査行を閲覧する。閲覧にはポイントの**読み取り**権限を要求する\n（制御=書き込み権限とは別軸で、履歴の閲覧は読み取りで許可する）。管理者は全ポイントを閲覧可。\n\n期間とページング（#478）: `start`（含む）/ `end`（含まない）で `createdAt` を絞れる。\n続きがある場合は応答ヘッダ `X-Next-Cursor` を返すので、同じ条件に `cursor` として渡すと\n次の（より古い）ページが得られる。ヘッダが無ければ最後のページ。カーソルは行の位置\n（createdAt, controlId）なので、取得中に新しい制御が記録されてもページはずれない。"
       parameters:
         - name: pointId
           in: path
+          description: ポイントID
           required: true
           schema:
             type: string
         - name: limit
           in: query
+          description: 1 ページの件数（1〜200、既定 50）
           schema:
             type: integer
             format: int32
             default: 50
+        - name: start
+          in: query
+          description: この時刻以降（含む）の行だけを返す
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          description: この時刻より前（含まない）の行だけを返す
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          description: 前ページの `X-Next-Cursor` の値
+          schema:
+            type: string
       responses:
         '401':
           description: Unauthorized
@@ -1312,13 +1331,19 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PointControlAuditResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '404':
           description: Not Found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /point-details:
+  /api/v1/point-details:
     get:
       tags:
         - PointDetail
@@ -1356,7 +1381,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/point-details/{pointId}':
+  '/api/v1/point-details/{pointId}':
     get:
       tags:
         - PointDetail
@@ -1393,7 +1418,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/buildings/{buildingDtId}/metadata':
+  '/api/v1/buildings/{buildingDtId}/metadata':
     get:
       tags:
         - ResourceMetadata
@@ -1469,7 +1494,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '204':
           description: No Content
-  '/floors/{floorDtId}/metadata':
+  '/api/v1/floors/{floorDtId}/metadata':
     get:
       tags:
         - ResourceMetadata
@@ -1545,7 +1570,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '204':
           description: No Content
-  '/spaces/{spaceDtId}/metadata':
+  '/api/v1/spaces/{spaceDtId}/metadata':
     get:
       tags:
         - ResourceMetadata
@@ -1621,7 +1646,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '204':
           description: No Content
-  '/devices/{deviceDtId}/metadata':
+  '/api/v1/devices/{deviceDtId}/metadata':
     get:
       tags:
         - ResourceMetadata
@@ -1697,7 +1722,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '204':
           description: No Content
-  '/points/{pointId}/metadata':
+  '/api/v1/points/{pointId}/metadata':
     get:
       tags:
         - ResourceMetadata
@@ -1774,7 +1799,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '204':
           description: No Content
-  /resources/search:
+  /api/v1/resources/search:
     get:
       tags:
         - ResourceSearch
@@ -1843,7 +1868,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/spaces/{spaceDtId}':
+  '/api/v1/spaces/{spaceDtId}':
     get:
       tags:
         - Space
@@ -1879,7 +1904,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/spaces/{spaceDtId}/adjacent-spaces':
+  '/api/v1/spaces/{spaceDtId}/adjacent-spaces':
     get:
       tags:
         - Space
@@ -1918,7 +1943,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /spaces:
+  /api/v1/spaces:
     get:
       tags:
         - Space
@@ -1949,7 +1974,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Space'
-  /api/system/status:
+  /api/v1/system/status:
     get:
       tags:
         - System
@@ -1979,7 +2004,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/system/config:
+  /api/v1/system/config:
     get:
       tags:
         - System
@@ -2009,7 +2034,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/system/ingress-rejections:
+  /api/v1/system/ingress-rejections:
     get:
       tags:
         - System
@@ -2039,7 +2064,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/system/settings:
+  /api/v1/system/settings:
     get:
       tags:
         - SystemConfig
@@ -2075,7 +2100,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/system/settings/{key}':
+  '/api/v1/system/settings/{key}':
     put:
       tags:
         - SystemConfig
@@ -2159,11 +2184,11 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /telemetries/hot:
+  /api/v1/telemetries/hot:
     get:
       tags:
         - Telemetry
-      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /telemetries/query?latest=true`。\nこの per-tier エンドポイントは後方互換のため残置。"
+      summary: "[非推奨] 最新のテレメトリデータを取得（Hot 層 直接）。正本は `GET /api/v1/telemetries/query?latest=true`。\nこの per-tier エンドポイントは後方互換のため残置。"
       parameters:
         - name: pointId
           in: query
@@ -2232,11 +2257,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
       deprecated: true
-  /telemetries/warm:
+  /api/v1/telemetries/warm:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は `GET /telemetries/query`（tier 自動選択）。'
+      summary: '[非推奨] 指定期間の Warm テレメトリデータを取得（Warm 層 直接）。正本は `GET /api/v1/telemetries/query`（tier 自動選択）。'
       parameters:
         - name: pointId
           in: query
@@ -2320,11 +2345,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
       deprecated: true
-  /telemetries/cold:
+  /api/v1/telemetries/cold:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は `GET /telemetries/query`（tier 自動選択）。'
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（Cold 層 直接）。正本は `GET /api/v1/telemetries/query`（tier 自動選択）。'
       parameters:
         - name: pointId
           in: query
@@ -2408,11 +2433,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
       deprecated: true
-  /telemetries/cold-multi-point:
+  /api/v1/telemetries/cold-multi-point:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は `GET /telemetries/query`。'
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は `GET /api/v1/telemetries/query`。'
       parameters:
         - name: pointIds
           in: query
@@ -2492,11 +2517,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
       deprecated: true
-  /telemetries/query:
+  /api/v1/telemetries/query:
     get:
       tags:
         - Telemetry
-      summary: "テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を\n自動選択する。per-tier の `/hot`・`/warm`・`/cold`・`/cold-multi-point` は非推奨。"
+      summary: "テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を\n自動選択する。per-tier の `/hot`・`/warm`・`/cold`・`/cold-multi-point` は非推奨。\n読み取りファイル数の上限（`PARQUET_QUERY_MAX_FILES`）を超えた場合は新しい側だけの部分応答になり、\n応答ヘッダ `X-Partial-Result: true` と `X-Covered-From`（その時刻以降はデータが揃っている、\nISO-8601 UTC）で示す（#499）。それより前は期間を分けて再取得すること。"
       parameters:
         - name: pointId
           in: query
@@ -2593,7 +2618,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /telemetries/query/batch-latest:
+  /api/v1/telemetries/query/batch-latest:
     post:
       tags:
         - Telemetry
@@ -2664,7 +2689,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/telemetry/config:
+  /api/v1/telemetry/config:
     get:
       tags:
         - TelemetryConfig
@@ -2694,7 +2719,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/telemetry/health:
+  /api/v1/telemetry/health:
     get:
       tags:
         - TelemetryHealth
@@ -2803,7 +2828,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/telemetry/health/summary:
+  /api/v1/telemetry/health/summary:
     get:
       tags:
         - TelemetryHealth
@@ -2860,7 +2885,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PointHealthSummaryResponse'
-  /api/admin/twin/query:
+  /api/v1/admin/twin/query:
     post:
       tags:
         - TwinAdmin
@@ -2901,7 +2926,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/admin/twin/import/preview:
+  /api/v1/admin/twin/import/preview:
     post:
       tags:
         - TwinAdmin
@@ -2930,7 +2955,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/TwinImportPreview'
-  /api/admin/twin/import/apply:
+  /api/v1/admin/twin/import/apply:
     post:
       tags:
         - TwinAdmin
@@ -2971,7 +2996,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/Users:
+  /api/v1/Users:
     get:
       tags:
         - Users
@@ -3009,7 +3034,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/UsersControllerUserResponse'
-  '/api/Users/{id}':
+  '/api/v1/Users/{id}':
     get:
       tags:
         - Users
@@ -3059,7 +3084,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/Users/{id}/attributes':
+  '/api/v1/Users/{id}/attributes':
     patch:
       tags:
         - Users
@@ -3132,7 +3157,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  /api/Users/roles:
+  /api/v1/Users/roles:
     get:
       tags:
         - Users
@@ -3170,7 +3195,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/RoleCatalogEntry'
-  '/api/Users/{id}/enabled':
+  '/api/v1/Users/{id}/enabled':
     put:
       tags:
         - Users
@@ -3243,7 +3268,7 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-  '/api/Users/{id}/permissions':
+  '/api/v1/Users/{id}/permissions':
     post:
       tags:
         - Users
@@ -3456,7 +3481,7 @@ components:
           items:
             type: string
       additionalProperties: false
-      description: Request body for `POST /telemetries/query/batch-latest` (#182).
+      description: Request body for `POST /api/v1/telemetries/query/batch-latest` (#182).
     Building:
       required:
         - dtId
