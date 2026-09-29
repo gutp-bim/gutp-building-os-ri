@@ -100,12 +100,16 @@ public class AuthorizedTwinViewSearchTest
     [Fact]
     public async Task Search_User_BuildingAncestorGrant_IncludesDescendant()
     {
-        // device itself not directly granted, but its building is → visible via ancestor.
+        // device itself not directly granted, but its building is → visible via ancestor. Hits carry
+        // BuildingDtId only in a building-scoped search (it is the scope echoed back), so that is the
+        // shape tested; the scope building is authorized once (#504; here a legacy dtId grant).
         var hits = new[] { Hit("device", "urn:dev1", "DEV1", "AC", buildingDtId: "urn:b1") };
         var (view, auth) = Build(hits);
-        GrantType(auth, "building", "urn:b1");
+        auth.Setup(s => s.CanAccessAsync(
+                It.IsAny<AuthorizationContext>(), "building", "urn:b1", "read", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
-        var result = await view.SearchAsync(UserAuth(), "AC", null, null, [], 50, 0, default);
+        var result = await view.SearchAsync(UserAuth(), "AC", null, "urn:b1", [], 50, 0, default);
 
         Assert.Single(result);
         Assert.Equal("urn:dev1", result[0].DtId);

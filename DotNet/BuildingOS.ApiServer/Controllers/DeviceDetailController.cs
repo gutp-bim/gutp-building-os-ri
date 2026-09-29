@@ -1,3 +1,4 @@
+using BuildingOs.ApiServer.Authorization;
 ﻿using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOS.Shared;
@@ -28,8 +29,10 @@ public class DeviceDetailController(IDigitalTwinDatabase digitalTwinDatabase, Au
 
         if (!authContext.IsAdmin)
         {
-            var canAccess = await authorizationService.CanAccessAsync(
-                authContext, "building", buildingDtId, "read", ct).ConfigureAwait(false);
+            // By the building's business id, like the tree reads (#504).
+            var canAccess = await NodeAuthorization.CanAccessByDtIdAsync(
+                digitalTwinDatabase, authorizationService, authContext, "building", buildingDtId, "read", ct)
+                .ConfigureAwait(false);
             if (!canAccess) return Forbid();
         }
 
