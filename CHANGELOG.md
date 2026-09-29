@@ -37,6 +37,13 @@ publishes images for (`v*.*.*`).
 
 ### Fixed
 
+- The `permissions` access-token claim is now the union of the user's attribute and **every** group's
+  attribute (`aggregate.attrs=true` on the `building-os-permissions` mapper, #508). Previously a user
+  in two or more groups carrying `permissions` received only one group's permissions, and a user with
+  their own `permissions` attribute received none of their groups'. Access widens for both kinds of
+  user, so review multi-group memberships and per-user `permissions` attributes before upgrading. An already
+  imported realm keeps the old mapper config — apply the change with the `kcadm.sh` command in
+  `docs/operations/keycloak-permission-mapping.md`.
 - Updated the demo and performance gRPC telemetry feeders for the discriminated
   `TelemetryFrame.value_num` contract, restoring live demo data and full-stack UI E2E coverage.
 - Made demo E2E authentication handle demo auto-login reliably and isolated route-mocked UI tests

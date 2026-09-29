@@ -45,7 +45,7 @@ The `building-os-api` client scope emits two access-token claims, read directly 
 | Claim | Source attribute | AuthorizationContext field |
 |---|---|---|
 | `building_os_role` (single) | user attr `role` | `Role` |
-| `permissions` (multivalued) | user attr `permissions` | `Permissions` |
+| `permissions` (multivalued) | user attr `permissions` ∪ every group's `permissions` | `Permissions` |
 | `idtyp=app` (client credentials) | — | `Role=admin` (service account) |
 
 The middleware reads these **Keycloak-native** names first and falls back to the legacy
@@ -55,6 +55,38 @@ travel in the token, the common path needs **no per-request Keycloak Admin API c
 (`KeycloakUserManagementService`) is a fallback only (for tokens without the claims) and its result is
 cached for 5 minutes. _(#10 sign-off fix, 2026-06-14: previously the middleware read only the Azure-AD
 names, so real Keycloak tokens missed the claim path and every request hit the Admin API.)_
+
+### Multiple groups: `permissions` is a union
+
+The `building-os-permissions` mapper sets `aggregate.attrs=true`, so the `permissions` claim is the
+**union of the user's own attribute and the attribute of every group the user belongs to**. A user in
+both a tenant-A group and a tenant-B group gets both groups' permission strings. Without it Keycloak
+uses the user attribute alone, or — when the user has none — only the **first** group it finds, which
+makes group-composed permissions silently drop all but one group (#508).
+
+`building_os_role` stays single-valued; it is not aggregated.
+
+A realm imported before this setting keeps the old mapper config (`--import-realm` skips an existing
+realm). Apply it to a running Keycloak with:
+
+```bash
+kcadm.sh config credentials --server "$KC_URL" --realm master --user "$KC_ADMIN" --password "$KC_ADMIN_PASSWORD"
+SCOPE_ID=$(kcadm.sh get client-scopes -r building-os --fields id,name --format csv --noquotes \
+  | awk -F, '$2=="building-os-api"{print $1}')
+MAPPER_ID=$(kcadm.sh get "client-scopes/$SCOPE_ID/protocol-mappers/models" -r building-os \
+  --fields id,name --format csv --noquotes | awk -F, '$2=="building-os-permissions"{print $1}')
+kcadm.sh update "client-scopes/$SCOPE_ID/protocol-mappers/models/$MAPPER_ID" -r building-os \
+  -s 'config."aggregate.attrs"=true'
+```
+
+Access can widen for two kinds of user, so review both before applying it:
+
+- users in **more than one** permission-carrying group (previously only one group counted);
+- users who have their **own** `permissions` attribute **and** belong to any permission-carrying group.
+  Previously the user attribute replaced the group attribute entirely, so a narrower per-user value
+  (e.g. one building) could deliberately mask a broader group grant; now both are unioned.
+
+Tokens issued before the change keep the old claim until they expire.
 
 ## Azure AD Migration Source
 

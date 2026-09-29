@@ -51,6 +51,20 @@ roles = {role.get("name") for role in realm.get("roles", {}).get("realm", [])}
 for role in ("building-os-admin", "building-os-operator", "building-os-viewer"):
     if role not in roles:
         raise SystemExit(f"missing realm role: {role}")
+
+# #508: permissions must be the union of the user's and every group's attribute.
+# Without aggregate.attrs Keycloak emits only the first group's permissions.
+mappers = [
+    mapper
+    for scope in realm.get("clientScopes", [])
+    for mapper in scope.get("protocolMappers", [])
+    if mapper.get("name") == "building-os-permissions"
+]
+if not mappers:
+    raise SystemExit("missing building-os-permissions protocol mapper")
+for mapper in mappers:
+    if mapper.get("config", {}).get("aggregate.attrs") != "true":
+        raise SystemExit("building-os-permissions mapper must set aggregate.attrs=true")
 PY
 
 python3 - <<'PY'
