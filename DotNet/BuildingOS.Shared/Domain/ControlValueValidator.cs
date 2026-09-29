@@ -21,7 +21,7 @@ public static class ControlValueValidator
 {
     public static ControlValidationResult Validate(ControlSchema schema, double value)
     {
-        return (schema.DataType ?? string.Empty).ToLowerInvariant() switch
+        return NormalizedDataType(schema) switch
         {
             "boolean" => value is 0 or 1
                 ? ControlValidationResult.Ok
@@ -42,10 +42,9 @@ public static class ControlValueValidator
     public static string? UnusableReason(ControlSchema? schema)
     {
         if (schema is null) return ControlSchemaIssueReasons.NoSchema;
-        var dataType = schema.DataType?.Trim().ToLowerInvariant();
-        return dataType switch
+        return NormalizedDataType(schema) switch
         {
-            null or "" => ControlSchemaIssueReasons.MissingDataType,
+            "" => ControlSchemaIssueReasons.MissingDataType,
             "boolean" or "number" => null,
             "enum" => ParseAllowedCodes(schema.EnumLabels) is { Count: > 0 }
                 ? null
@@ -53,6 +52,11 @@ public static class ControlValueValidator
             _ => ControlSchemaIssueReasons.UnknownDataType,
         };
     }
+
+    // One spelling rule for both Validate and UnusableReason, so a type one calls usable the other
+    // enforces (a twin literal such as "number " must not be usable-yet-unchecked).
+    private static string NormalizedDataType(ControlSchema schema)
+        => (schema.DataType ?? string.Empty).Trim().ToLowerInvariant();
 
     private static ControlValidationResult ValidateEnum(ControlSchema schema, double value)
     {

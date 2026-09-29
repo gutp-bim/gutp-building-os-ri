@@ -87,6 +87,20 @@ public class ControlValueValidatorTest
         Assert.False(string.IsNullOrEmpty(result.Error));
     }
 
+    // ── data type spelling (review of #514) ─────────────────────────────────
+
+    [Theory]
+    [InlineData("number ")]
+    [InlineData(" Number")]
+    public void PaddedDataType_IsStillValidated(string dataType)
+    {
+        // UnusableReason trims the type and calls it usable; Validate must enforce it the same way, or a
+        // fail-closed deployment would send a padded "number " write unchecked.
+        var schema = new ControlSchema { DataType = dataType, MaxValue = 30 };
+        Assert.Null(ControlValueValidator.UnusableReason(schema));
+        Assert.False(ControlValueValidator.Validate(schema, 9999).IsValid);
+    }
+
     // ── unusable schema (#481) ───────────────────────────────────────────────
 
     public static TheoryData<ControlSchema?, string> UnusableSchemas() => new()
