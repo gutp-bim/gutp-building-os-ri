@@ -37,6 +37,11 @@ publishes images for (`v*.*.*`).
 
 ### Fixed
 
+- `GET /telemetries/query` now says when it returns only part of the requested range (#499). When a
+  parquet read exceeds `PARQUET_QUERY_MAX_FILES` (5000 in the OSS compose stack) the store keeps the
+  newest partitions, as before, but the response now carries `X-Partial-Result: true` and
+  `X-Covered-From` (ISO-8601 UTC instant from which the data is complete) instead of a silent 200.
+  Both headers are exposed to cross-origin browser clients via CORS.
 - The `permissions` access-token claim is now the union of the user's attribute and **every** group's
   attribute (`aggregate.attrs=true` on the `building-os-permissions` mapper, #508). Previously a user
   in two or more groups carrying `permissions` received only one group's permissions, and a user with

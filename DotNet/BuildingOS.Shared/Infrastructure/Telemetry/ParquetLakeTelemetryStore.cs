@@ -149,9 +149,21 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             "over PARQUET_QUERY_MAX_FILES={Max}; returning a partial result from the most recent {Max} objects",
             queryLabel, start, end, keys.Count, _options.QueryMaxFiles);
 
-        return keys
+        var ordered = keys
             .OrderByDescending(k => PartitionKeyRangePlanner.TryParsePartitionStart(k, out var t) ? t : DateTime.MinValue)
-            .Take(_options.QueryMaxFiles)
             .ToList();
+
+        // Tell the caller (#499): data is only complete from the end of the newest dropped partition.
+        // The grace mirrors the read planner's — a legacy key's hour is its window start, so its rows
+        // can run past the partition hour. An unparseable dropped key sorts last (MinValue) and so only
+        // decides the bound when every dropped key is unparseable; then nothing is known to be covered
+        // and the requested start is the honest bound.
+        var newestDropped = ordered[_options.QueryMaxFiles];
+        var coveredFrom = PartitionKeyRangePlanner.TryParsePartitionStart(newestDropped, out var droppedStart)
+            ? droppedStart.AddHours(1) + PartitionKeyRangePlanner.DefaultGrace
+            : start;
+        TelemetryQueryCompleteness.ReportTruncated(coveredFrom);
+
+        return ordered.Take(_options.QueryMaxFiles).ToList();
     }
 }

@@ -114,7 +114,7 @@ key:    building_id={building}/year={YYYY}/month={MM}/day={DD}/hour={HH}/
 - multi-point: `QueryMultiAsync` で 1 スキャン複数 point（N 倍読み回避、#215）。
 - Hour/Day 集計: v1 は **aggregate-on-read**（pure `TelemetryAggregator` + Router 既存 5 分
   キャッシュ）。値の意味は TimescaleDB `time_bucket` の avg/min/max と同義。
-- 大範囲ガード: `PARQUET_QUERY_MAX_FILES`。
+- 大範囲ガード: `PARQUET_QUERY_MAX_FILES`。超過時は新しい側のパーティションだけを読んだ部分応答になり、`GET /telemetries/query` はそれを応答ヘッダ `X-Partial-Result: true` と `X-Covered-From`（そこから後はデータが揃っている時刻、ISO-8601 UTC）で示す（#499）。続きは期間を分けて取得する。
 
 ### 3.4 鮮度のセマンティクス（SLA）
 

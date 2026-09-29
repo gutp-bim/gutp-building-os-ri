@@ -107,6 +107,40 @@ public class TelemetryControllerTest
 
     /// <summary>The runtime body has always been the array; this pins it alongside the signature.</summary>
     [Fact]
+    public async Task Query_MarksAPartialResult_WithHeaders()
+    {
+        // #499: a store that hit PARQUET_QUERY_MAX_FILES reports it; the response must carry it.
+        var (controller, router, _, _, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+        var coveredFrom = new DateTime(2026, 6, 12, 11, 0, 0, DateTimeKind.Utc);
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .Returns(() =>
+              {
+                  TelemetryQueryCompleteness.ReportTruncated(coveredFrom);
+                  return Task.FromResult(Array.Empty<ValidTelemetryData>());
+              });
+
+        var result = await controller.Query("p1", coveredFrom.AddHours(-5), coveredFrom.AddHours(2));
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        var headers = controller.Response.Headers;
+        Assert.Equal("true", headers["X-Partial-Result"].ToString());
+        Assert.Equal("2026-06-12T11:00:00.0000000Z", headers["X-Covered-From"].ToString());
+    }
+
+    [Fact]
+    public async Task Query_CompleteResult_HasNoPartialHeaders()
+    {
+        var (controller, _, _, _, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+
+        await controller.Query("p1", DateTime.UtcNow.AddHours(-1), DateTime.UtcNow);
+
+        Assert.False(controller.Response.Headers.ContainsKey("X-Partial-Result"));
+        Assert.False(controller.Response.Headers.ContainsKey("X-Covered-From"));
+    }
+
+    [Fact]
     public async Task GetWarm_ReturnsTheWarmRowsAsAnArray()
     {
         var (controller, _, _, telemetryDb, twin) = BuildWithStores();
