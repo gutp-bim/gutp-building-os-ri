@@ -14,6 +14,11 @@ namespace BuildingOs.ApiServer.Authorization;
 /// space). Shared by <see cref="AuthorizedTwinView"/> and the building-scoped detail controllers so
 /// every read of the same node gives the same answer.
 /// </para>
+/// <para>
+/// Assumes <c>sbco:id</c> is unique per resource type across the twin: a business id shared by two
+/// nodes (room "501" in two buildings) makes one grant cover both. Telemetry, Group items and the
+/// ancestor chain already rely on the same assumption; it is not enforced at import yet.
+/// </para>
 /// </summary>
 public static class NodeAuthorization
 {
