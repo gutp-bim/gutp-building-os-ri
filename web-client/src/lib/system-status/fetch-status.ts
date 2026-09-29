@@ -9,9 +9,11 @@ const API_BASE_URL =
  * token mirrors the rest of the web client (OIDC access token cookie). Browsers must never scrape
  * `/metrics` directly — the API server aggregates and gates it (#144).
  */
-export async function fetchSystemStatus(signal?: AbortSignal): Promise<SystemStatus> {
+export async function fetchSystemStatus(
+  signal?: AbortSignal,
+): Promise<SystemStatus> {
   const token = Cookies.get("oidc.access_token") || "";
-  const res = await fetch(`${API_BASE_URL}/api/system/status`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/system/status`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
   });

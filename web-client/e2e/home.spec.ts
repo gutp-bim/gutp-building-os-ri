@@ -118,7 +118,7 @@ test("gateway panel is hidden for operators", async ({ context, page }) => {
 test("gateway panel is shown for admins", async ({ context, page }) => {
   await loginAs(context, "admin");
   await mockTwin(page);
-  await page.route("**/api/admin/gateways*", (route) =>
+  await page.route("**/api/v1/admin/gateways*", (route) =>
     fulfillJson(route, [
       {
         gatewayId: "GW-SOS-001",

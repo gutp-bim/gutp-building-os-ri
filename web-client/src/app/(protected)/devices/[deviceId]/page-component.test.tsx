@@ -5,8 +5,12 @@ const deviceGet = vi.fn();
 const pointsGet = vi.fn();
 vi.mock("@/lib/infra/aspida-client", () => ({
   apiClient: () => ({
-    devices: { _deviceDtId: () => ({ $get: deviceGet }) },
-    points: { $get: pointsGet },
+    api: {
+      v1: {
+        devices: { _deviceDtId: () => ({ $get: deviceGet }) },
+        points: { $get: pointsGet },
+      },
+    },
   }),
 }));
 vi.mock("next/navigation", () => ({

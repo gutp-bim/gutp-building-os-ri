@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // 生成された aspida クライアントをモックする。呼び出し経路は
-// `apiClient(token).api.telemetry.health.$get` / `....health.summary.$get`。
+// `apiClient(token).api.v1.telemetry.health.$get` / `....health.summary.$get`。
 const { listGet, summaryGet, seenTokens } = vi.hoisted(() => ({
   listGet: vi.fn(),
   summaryGet: vi.fn(),
@@ -13,8 +13,10 @@ vi.mock("@/lib/infra/aspida-client", () => ({
     seenTokens.push(token);
     return {
       api: {
-        telemetry: {
-          health: { $get: listGet, summary: { $get: summaryGet } },
+        v1: {
+          telemetry: {
+            health: { $get: listGet, summary: { $get: summaryGet } },
+          },
         },
       },
     };

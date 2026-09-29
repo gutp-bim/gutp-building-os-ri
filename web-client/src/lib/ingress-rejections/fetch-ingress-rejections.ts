@@ -12,7 +12,7 @@ export async function fetchIngressRejectionStats(
   signal?: AbortSignal,
 ): Promise<IngressRejectionStats> {
   const token = Cookies.get("oidc.access_token") || "";
-  const res = await fetch(`${API_BASE_URL}/api/system/ingress-rejections`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/system/ingress-rejections`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
   });

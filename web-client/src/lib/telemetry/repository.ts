@@ -1,8 +1,11 @@
 import { API_BASE_URL, authHeaders } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
-import { DEFAULT_STALE_THRESHOLD_SECONDS, type PointLastSeen } from "./freshness";
-import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "./freshness-threshold";
 import type { LatestSample } from "@/lib/infra/aspida-client/generated/@types";
+import {
+  DEFAULT_STALE_THRESHOLD_SECONDS,
+  type PointLastSeen,
+} from "./freshness";
+import { DEFAULT_STALE_INTERVAL_MULTIPLIER } from "./freshness-threshold";
 import {
   toGranularityParam,
   toLatestSample,
@@ -44,7 +47,9 @@ let telemetryConfigPromise: Promise<TelemetryConfig> | null = null;
  */
 export function getTelemetryConfig(token?: string): Promise<TelemetryConfig> {
   if (!telemetryConfigPromise) {
-    telemetryConfigPromise = fetchTelemetryConfig(token).catch(() => DEFAULT_TELEMETRY_CONFIG);
+    telemetryConfigPromise = fetchTelemetryConfig(token).catch(
+      () => DEFAULT_TELEMETRY_CONFIG,
+    );
   }
   return telemetryConfigPromise;
 }
@@ -56,7 +61,9 @@ export function resetTelemetryConfigCache(): void {
 
 async function fetchTelemetryConfig(token?: string): Promise<TelemetryConfig> {
   const headers = token ? { Authorization: `Bearer ${token}` } : authHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/telemetry/config`, { headers });
+  const res = await fetch(`${API_BASE_URL}/api/v1/telemetry/config`, {
+    headers,
+  });
   if (!res.ok) throw new Error(`telemetry config (${res.status})`);
   const body = (await res.json()) as Partial<TelemetryConfig>;
   return {
@@ -81,7 +88,7 @@ export async function queryTelemetry(
   q: TelemetryQuery,
   token?: string,
 ): Promise<TelemetrySeries> {
-  const res = await apiClient(token).telemetries.query.$get({
+  const res = await apiClient(token).api.v1.telemetries.query.$get({
     query: {
       pointId: q.pointId,
       start: q.start?.toISOString(),
@@ -104,7 +111,7 @@ export async function queryTelemetryWithState(
   q: TelemetryQuery,
   token?: string,
 ): Promise<{ series: TelemetrySeries; state: TelemetryStateSeries }> {
-  const res = await apiClient(token).telemetries.query.$get({
+  const res = await apiClient(token).api.v1.telemetries.query.$get({
     query: {
       pointId: q.pointId,
       start: q.start?.toISOString(),
@@ -138,7 +145,7 @@ export async function latestTelemetrySample(
   pointId: string,
   token?: string,
 ): Promise<TelemetryLatestSample | null> {
-  const res = await apiClient(token).telemetries.query.$get({
+  const res = await apiClient(token).api.v1.telemetries.query.$get({
     query: { pointId, latest: true },
   });
   return toLatestSample(res);
@@ -176,10 +183,12 @@ export async function latestTelemetryBatch(
   return results.flat();
 }
 
-async function fetchLatestBatchChunk(pointIds: string[]): Promise<PointLastSeen[]> {
+async function fetchLatestBatchChunk(
+  pointIds: string[],
+): Promise<PointLastSeen[]> {
   let rows: LatestSample[];
   try {
-    rows = await apiClient().telemetries.query.batch_latest.$post({
+    rows = await apiClient().api.v1.telemetries.query.batch_latest.$post({
       body: { pointIds },
     });
   } catch (e) {

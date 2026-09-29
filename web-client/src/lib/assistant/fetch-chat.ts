@@ -13,7 +13,7 @@ export async function postAssistantChat(
   request: AssistantChatRequest,
   signal?: AbortSignal,
 ): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/assistant/chat`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${Cookies.get("oidc.access_token") || ""}`,

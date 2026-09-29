@@ -13,7 +13,7 @@ async function mockTwinPreview(
   body: unknown,
   status = 200,
 ): Promise<void> {
-  await page.route("**/api/admin/twin/import/preview", (route) =>
+  await page.route("**/api/v1/admin/twin/import/preview", (route) =>
     fulfillJson(route, body, status),
   );
 }
@@ -32,7 +32,7 @@ test.describe("Twin RDF import", () => {
       orphans: [],
       valid: true,
     });
-    await page.route("**/api/admin/twin/import/apply", (route) =>
+    await page.route("**/api/v1/admin/twin/import/apply", (route) =>
       fulfillJson(route, {
         tripleCount: 42,
         gatewayCount: 1,
@@ -161,7 +161,7 @@ test.describe("Registered gateways", () => {
   test("lists gateways with binding, point count, last-seen and revision", async ({
     page,
   }) => {
-    await page.route("**/api/admin/gateways*", (route) =>
+    await page.route("**/api/v1/admin/gateways*", (route) =>
       fulfillJson(route, [
         {
           gatewayId: "GW-SOS-001",
@@ -211,7 +211,7 @@ test.describe("Registered gateways", () => {
   test("shows a success toast (not an inline notice) after a resync (#162)", async ({
     page,
   }) => {
-    await page.route("**/api/admin/gateways", (route) =>
+    await page.route("**/api/v1/admin/gateways", (route) =>
       fulfillJson(route, [
         {
           gatewayId: "GW-SOS-001",
@@ -241,7 +241,7 @@ test.describe("Registered gateways", () => {
   test("shows the empty state when no gateway is registered", async ({
     page,
   }) => {
-    await page.route("**/api/admin/gateways*", (route) =>
+    await page.route("**/api/v1/admin/gateways*", (route) =>
       fulfillJson(route, []),
     );
     await page.goto("/admin/gateways");

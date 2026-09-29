@@ -14,7 +14,7 @@ export async function fetchControlAudit(
   pointId: string,
   limit = 50,
 ): Promise<ControlAuditEntry[]> {
-  const url = `${API_BASE_URL}/points/${encodeURIComponent(pointId)}/control-audit?limit=${limit}`;
+  const url = `${API_BASE_URL}/api/v1/points/${encodeURIComponent(pointId)}/control-audit?limit=${limit}`;
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) {
     throw new Error(`制御履歴の取得に失敗しました (${res.status})`);

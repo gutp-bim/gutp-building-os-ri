@@ -17,7 +17,7 @@ export type OperationsSummary = {
 export async function fetchOperationsSummary(
   token?: string,
 ): Promise<OperationsSummary> {
-  const wire = await apiClient(token).api.operations.summary.$get();
+  const wire = await apiClient(token).api.v1.operations.summary.$get();
   return {
     msgRate1m: wire.msgRate1m ?? null,
     msgRate1hAvg: wire.msgRate1hAvg ?? null,

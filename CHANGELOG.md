@@ -18,7 +18,8 @@ publishes images for (`v*.*.*`).
   unchanged** — they are rewritten to `/api/v1` in-process and the response carries `Deprecation` and a
   `Link: rel="successor-version"` header — so existing clients (web client, gateways polling the point
   list, external applications) need no change yet. Move to `/api/v1`; a removal date for the old paths
-  will be announced with a `Sunset` header at least 6 months ahead.
+  will be announced with a `Sunset` header at least 6 months ahead. The web client already calls `/api/v1` (regenerated
+  aspida client and the hand-written fetches).
 - `GET /points/{pointId}/control-audit` takes a time range and pages with a cursor (#478): `start`
   (inclusive) / `end` (exclusive) filter `createdAt`, and when more rows exist the response carries
   `X-Next-Cursor`, passed back as `cursor` for the next (older) page. The cursor is a keyset position

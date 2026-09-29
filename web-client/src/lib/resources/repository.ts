@@ -29,7 +29,7 @@ import type {
 const enc = encodeURIComponent;
 
 export async function listBuildings(token?: string): Promise<ResourceRef[]> {
-  const res = await apiClient(token).buildings.$get();
+  const res = await apiClient(token).api.v1.buildings.$get();
   return res.map((b) => toRef("building", b));
 }
 
@@ -37,7 +37,9 @@ export async function listFloors(
   buildingDtId: string,
   token?: string,
 ): Promise<ResourceRef[]> {
-  const res = await apiClient(token).floors.$get({ query: { buildingDtId } });
+  const res = await apiClient(token).api.v1.floors.$get({
+    query: { buildingDtId },
+  });
   return res.map((f) => toRef("floor", f));
 }
 
@@ -45,7 +47,9 @@ export async function listSpaces(
   floorDtId: string,
   token?: string,
 ): Promise<ResourceRef[]> {
-  const res = await apiClient(token).spaces.$get({ query: { floorDtId } });
+  const res = await apiClient(token).api.v1.spaces.$get({
+    query: { floorDtId },
+  });
   return res.map((s) => toRef("space", s));
 }
 
@@ -58,7 +62,9 @@ export async function listDevices(
   spaceDtId: string,
   token?: string,
 ): Promise<DeviceResource[]> {
-  const res = await apiClient(token).devices.$get({ query: { spaceDtId } });
+  const res = await apiClient(token).api.v1.devices.$get({
+    query: { spaceDtId },
+  });
   return res.map(toDeviceResource);
 }
 
@@ -66,7 +72,9 @@ export async function listPoints(
   deviceDtId: string,
   token?: string,
 ): Promise<PointResource[]> {
-  const res = await apiClient(token).points.$get({ query: { deviceDtId } });
+  const res = await apiClient(token).api.v1.points.$get({
+    query: { deviceDtId },
+  });
   return res.map(toPointResource);
 }
 
@@ -94,7 +102,7 @@ export async function getPointDetail(
   token?: string,
 ): Promise<PointDetailResource> {
   return toPointDetail(
-    await apiClient(token).point_details._pointId(enc(pointId)).$get(),
+    await apiClient(token).api.v1.point_details._pointId(enc(pointId)).$get(),
   );
 }
 
@@ -114,7 +122,7 @@ export async function getDevice(
   token?: string,
 ): Promise<DeviceResource> {
   return toDeviceResource(
-    await apiClient(token).devices._deviceDtId(enc(deviceDtId)).$get(),
+    await apiClient(token).api.v1.devices._deviceDtId(enc(deviceDtId)).$get(),
   );
 }
 
@@ -124,7 +132,7 @@ export async function getFloorRef(
 ): Promise<ResourceRef> {
   return toRef(
     "floor",
-    await apiClient(token).floors._floorDtId(enc(floorDtId)).$get(),
+    await apiClient(token).api.v1.floors._floorDtId(enc(floorDtId)).$get(),
   );
 }
 
@@ -134,7 +142,7 @@ export async function getSpaceRef(
 ): Promise<ResourceRef> {
   return toRef(
     "space",
-    await apiClient(token).spaces._spaceDtId(enc(spaceDtId)).$get(),
+    await apiClient(token).api.v1.spaces._spaceDtId(enc(spaceDtId)).$get(),
   );
 }
 
@@ -153,19 +161,25 @@ export async function resolveRef(
       case "building":
         return toRef(
           "building",
-          await c.buildings._buildingDtId(enc(idOrDtId)).$get(),
+          await c.api.v1.buildings._buildingDtId(enc(idOrDtId)).$get(),
         );
       case "floor":
-        return toRef("floor", await c.floors._floorDtId(enc(idOrDtId)).$get());
+        return toRef(
+          "floor",
+          await c.api.v1.floors._floorDtId(enc(idOrDtId)).$get(),
+        );
       case "space":
-        return toRef("space", await c.spaces._spaceDtId(enc(idOrDtId)).$get());
+        return toRef(
+          "space",
+          await c.api.v1.spaces._spaceDtId(enc(idOrDtId)).$get(),
+        );
       case "device":
         return toRef(
           "device",
-          await c.devices._deviceDtId(enc(idOrDtId)).$get(),
+          await c.api.v1.devices._deviceDtId(enc(idOrDtId)).$get(),
         );
       case "point": {
-        const pd = await c.point_details._pointId(enc(idOrDtId)).$get();
+        const pd = await c.api.v1.point_details._pointId(enc(idOrDtId)).$get();
         return toPointResource(pd.point);
       }
     }
@@ -179,7 +193,7 @@ export async function searchResources(
   token?: string,
 ): Promise<SearchHit[]> {
   const query = normalizeSearchParams(params);
-  const res = await apiClient(token).resources.search.$get({ query });
+  const res = await apiClient(token).api.v1.resources.search.$get({ query });
   return res.map(toSearchHit);
 }
 
@@ -193,7 +207,7 @@ function metadataPath(type: ResourceType, id: string): string {
     device: "devices",
     point: "points",
   };
-  return `${API_BASE_URL}/${pathMap[type]}/${encodeURIComponent(id)}/metadata`;
+  return `${API_BASE_URL}/api/v1/${pathMap[type]}/${encodeURIComponent(id)}/metadata`;
 }
 
 /** Fetch identifiers/customTags for a resource. Returns empty maps when none exist. */
