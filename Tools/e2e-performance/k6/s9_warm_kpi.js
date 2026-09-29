@@ -84,17 +84,17 @@ export default function () {
   // probes go through /telemetries/query (latest / range / granularity).
 
   // latest value (hot KV; lake-latest fallback when KV cold)
-  get(`${BASE_URL}/telemetries/query?pointId=${enc(p)}&latest=true`, latest);
+  get(`${BASE_URL}/api/v1/telemetries/query?pointId=${enc(p)}&latest=true`, latest);
 
   // warm 24h range
-  get(`${BASE_URL}/telemetries/query?pointId=${enc(p)}&start=${enc(iso(day))}&end=${enc(iso(0))}`, warm24h);
+  get(`${BASE_URL}/api/v1/telemetries/query?pointId=${enc(p)}&start=${enc(iso(day))}&end=${enc(iso(0))}`, warm24h);
 
   // cold 7d range (router selects the cold/lake tier)
-  get(`${BASE_URL}/telemetries/query?pointId=${enc(p)}&start=${enc(iso(7 * day))}&end=${enc(iso(0))}`, cold7d);
+  get(`${BASE_URL}/api/v1/telemetries/query?pointId=${enc(p)}&start=${enc(iso(7 * day))}&end=${enc(iso(0))}`, cold7d);
 
   // hour & day aggregate (aggregate-on-read in parquet mode; continuous aggregate in timescale)
-  get(`${BASE_URL}/telemetries/query?pointId=${enc(p)}&start=${enc(iso(7 * day))}&end=${enc(iso(0))}&granularity=Hour`, aggHour);
-  get(`${BASE_URL}/telemetries/query?pointId=${enc(p)}&start=${enc(iso(30 * day))}&end=${enc(iso(0))}&granularity=Day`, aggDay);
+  get(`${BASE_URL}/api/v1/telemetries/query?pointId=${enc(p)}&start=${enc(iso(7 * day))}&end=${enc(iso(0))}&granularity=Hour`, aggHour);
+  get(`${BASE_URL}/api/v1/telemetries/query?pointId=${enc(p)}&start=${enc(iso(30 * day))}&end=${enc(iso(0))}&granularity=Day`, aggDay);
 
   // multi-point: /telemetries/query is single-point, so probe 3 points and record the total wall time
   // (parquet reads them in one lake scan server-side via QueryMultiAsync where wired; here we sum the
@@ -102,7 +102,7 @@ export default function () {
   const t0 = Date.now();
   let multiOk = true;
   for (const x of POINT_IDS.slice(0, 3)) {
-    const r = http.get(`${BASE_URL}/telemetries/query?pointId=${enc(x)}&start=${enc(iso(day))}&end=${enc(iso(0))}`, { tags });
+    const r = http.get(`${BASE_URL}/api/v1/telemetries/query?pointId=${enc(x)}&start=${enc(iso(day))}&end=${enc(iso(0))}`, { tags });
     if (r.status !== 200) multiOk = false;
   }
   if (multiOk) multiPoint.add(Date.now() - t0);

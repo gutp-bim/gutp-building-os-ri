@@ -52,7 +52,7 @@ gRPC `GatewayIngress`（`DotNet/BuildingOS.ConnectorWorker/Connectors/GatewayIng
   `result` には `no_building_path` / `no_device_link` を含む全ゲートの理由が入る
   （`DotNet/BuildingOS.Shared/Infrastructure/Telemetry/BuildingOsMetrics.cs`）。
 - **ログ**: 各ゲートで `LogWarning`（構造化ログ、理由・`gateway_id`・`point_id` 付き）。
-- **管理画面（#292 で追加）**: `GET /api/system/ingress-rejections`（管理者のみ、
+- **管理画面（#292 で追加）**: `GET /api/v1/system/ingress-rejections`（管理者のみ、
   `IngressRejectionStatsService` が上記 Prometheus カウンターを `result` でグルーピングして
   `published` 以外を返す）と、web-client の `/platform/ingress-rejections`
   （`IngressRejectionsView` / `IngressRejectionsDashboard`）。他の `/platform/*` 画面

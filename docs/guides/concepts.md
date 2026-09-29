@@ -100,7 +100,7 @@ GatewayBridge）。詳細は [gateway-integration.md](gateway-integration.md)。
 | **Hot** | NATS KV | **最新値**（即時参照） |
 | **Warm / Cold** | MinIO 上の Parquet レイク | **履歴**（時系列・集計） |
 
-API 側は `GET /telemetries/query` が層を自動選択するため、利用者が層を指定する必要はありません。
+API 側は `GET /api/v1/telemetries/query` が層を自動選択するため、利用者が層を指定する必要はありません。
 鮮度モデルの詳細は [oss-sla-freshness.md](../operations/oss-sla-freshness.md)、階層の設計は
 [oss-tier-architecture.md](../architecture/oss-tier-architecture.md) を参照してください。
 

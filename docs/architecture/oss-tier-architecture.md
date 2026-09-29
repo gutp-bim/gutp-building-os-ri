@@ -38,7 +38,7 @@ MinIO "cold/" バケット（Parquet/Zstd） [Cold]
 
                                 API Server
                                   │
-                    GET /telemetries/query
+                    GET /api/v1/telemetries/query
                                   │
                           OssTelemetryQueryRouter
                          /         |          \
@@ -135,12 +135,12 @@ granularity=Raw  → telemetry テーブル直読み
 
 | エンドポイント | 説明 |
 |--------------|------|
-| `GET /telemetries/query?pointId=&start=&end=&granularity=&latest=` | **正本**: 自動 tier 選択（hot/warm/cold/集計）。UI・ゲートウェイはこれを使う |
-| `GET /telemetries/hot?pointId=` | 〔非推奨〕Hot 層 直接（後方互換） |
-| `GET /telemetries/warm?pointId=&startTime=&endTime=` | 〔非推奨〕Warm 層 直接（後方互換） |
-| `GET /telemetries/cold?pointId=&startTime=&endTime=` | 〔非推奨〕Cold 層 直接（後方互換） |
+| `GET /api/v1/telemetries/query?pointId=&start=&end=&granularity=&latest=` | **正本**: 自動 tier 選択（hot/warm/cold/集計）。UI・ゲートウェイはこれを使う |
+| `GET /api/v1/telemetries/hot?pointId=` | 〔非推奨〕Hot 層 直接（後方互換） |
+| `GET /api/v1/telemetries/warm?pointId=&startTime=&endTime=` | 〔非推奨〕Warm 層 直接（後方互換） |
+| `GET /api/v1/telemetries/cold?pointId=&startTime=&endTime=` | 〔非推奨〕Cold 層 直接（後方互換） |
 
-> **正本 API（#304）**: テレメトリ取得は `GET /telemetries/query` を正本とする（tier 自動選択）。per-tier の
+> **正本 API（#304）**: テレメトリ取得は `GET /api/v1/telemetries/query` を正本とする（tier 自動選択）。per-tier の
 > `/hot` `/warm` `/cold` `/cold-multi-point` は Swagger 上 deprecated 表示で、後方互換のため残置。新規実装は
 > `/telemetries/query` を使うこと。
 
@@ -243,7 +243,7 @@ IoT ビルディングデータの **Hot/Warm/Cold 分離パターン**のリフ
 | 最新値キャッシュ | NATS KV | `sbco:PointExt` の現在状態 |
 | 時系列範囲クエリ | TimescaleDB Hypertable | `sbco:PointExt` の `time`-`value` 系列 |
 | 長期アーカイブ | Parquet on MinIO | コールドデータ解析・規制対応 |
-| 自動 tier 選択 | `OssTelemetryQueryRouter` | `GET /telemetries/query` |
+| 自動 tier 選択 | `OssTelemetryQueryRouter` | `GET /api/v1/telemetries/query` |
 
 最小プロファイル (`docker-compose.minimal.yaml`) では NATS + TimescaleDB + pgBouncer のみ起動。
 Cold tier (MinIO / ColdExportWorker) と観測スタックはオプション。

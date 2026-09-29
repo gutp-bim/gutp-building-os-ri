@@ -133,7 +133,7 @@ REC 由来の階層（`rec:hasPart` 等）と併用できるよう設計され�
 > （API・将来の経路探索・検索）が UNION を書き忘れうる — #294 / #298 で実際に起きた
 > 「読み取りパスごとのドリフト」と同型の事故になるため。
 
-読み取り API は `GET /spaces/{spaceDtId}/adjacent-spaces`（`SpaceController`）。返すのは
+読み取り API は `GET /api/v1/spaces/{spaceDtId}/adjacent-spaces`（`SpaceController`）。返すのは
 `sbco:Room` の隣室のみで、BOT が許す Level 同士等のゾーン隣接は対象外。書き込み API は未提供。
 
 ---

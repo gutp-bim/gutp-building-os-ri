@@ -7,7 +7,7 @@ visible via the latest API (event → Hot KV reflection), and how often a latest
 The gRPC ingress publishes to building-os.validated.telemetry, which the ingress bus mirrors into the
 NATS KV hot store; the router's latest path reads the hot KV first. So per trial we:
   1. send ONE TelemetryFrame for a point with a UNIQUE value (timestamp = send time),
-  2. poll GET /telemetries/query?latest=true until the returned value == the sent value (reflected),
+  2. poll GET /api/v1/telemetries/query?latest=true until the returned value == the sent value (reflected),
   3. record the reflection delay (send → reflected).
 
   latest_freshness_p95_ms = p95 of reflection delays.
@@ -34,7 +34,7 @@ import s10_pointlist_integrity as s10  # noqa: E402 (reuse ingress/seed plumbing
 
 
 def latest_value(base_url: str, pid: str) -> float | None:
-    url = f"{base_url.rstrip('/')}/telemetries/query?pointId={urllib.parse.quote(pid)}&latest=true"
+    url = f"{base_url.rstrip('/')}/api/v1/telemetries/query?pointId={urllib.parse.quote(pid)}&latest=true"
     try:
         with urllib.request.urlopen(url, timeout=10) as r:  # noqa: S310
             doc = json.loads(r.read())

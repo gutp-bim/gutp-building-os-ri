@@ -65,7 +65,7 @@ function buildPayload(value) {
 export default function () {
   // Phase A: Valid control submission
   group("phase_a_valid_submission", () => {
-    const url = `${BASE_URL}/points/${encodeURIComponent(CONTROL_POINT_ID)}/control`;
+    const url = `${BASE_URL}/api/v1/points/${encodeURIComponent(CONTROL_POINT_ID)}/control`;
     const payload = buildPayload(Math.round(Math.random() * 1000) / 10);
 
     const res = http.post(url, payload, commonParams);
@@ -94,7 +94,7 @@ export default function () {
 
   // Phase B: Non-existent point → expect 404
   group("phase_b_not_found", () => {
-    const url = `${BASE_URL}/points/nonexistent-s6-test-point-000/control`;
+    const url = `${BASE_URL}/api/v1/points/nonexistent-s6-test-point-000/control`;
     const payload = buildPayload(0);
 
     const res = http.post(url, payload, commonParams);
@@ -113,7 +113,7 @@ export default function () {
 
   // Phase C: Missing value → expect 400
   group("phase_c_bad_request", () => {
-    const url = `${BASE_URL}/points/${encodeURIComponent(CONTROL_POINT_ID)}/control`;
+    const url = `${BASE_URL}/api/v1/points/${encodeURIComponent(CONTROL_POINT_ID)}/control`;
     const payload = JSON.stringify({}); // no value → 400 "value is required"
 
     const res = http.post(url, payload, commonParams);

@@ -40,7 +40,7 @@
                                              ║   │ latest      │        └─────────┬──────────┘
                                              ║   └──────┬──────┘                  │
                                              ║          │   ┌───────────────── Query Router ─────────────────┐
-        ブラウザ (operator) ────HTTPS────────────────────► │ ApiServer (REST + gRPC)  GET /telemetries/query │
+        ブラウザ (operator) ────HTTPS────────────────────► │ ApiServer (REST + gRPC)  GET /api/v1/telemetries/query │
                                              ║          └──►│  Hot / Warm(tail-merge) / Cold / 集計 自動選択   │
                                              ║              └───┬───────────────┬───────────────┬────────────┘
                                              ║                  │ OxiGraph      │ PostgreSQL    │ Keycloak (OIDC)
@@ -157,7 +157,7 @@ Degraded＝**HTTP 200** のシグナルに留める（probe は成功し、Pod �
   `periodSeconds` のみ指定）。
 - どの check がどちらで効いているかは起動ログの `readiness:` フィールド（例: `nats(gating), twin(signal)`）で
   確認できる。Degraded かどうかは `/health/ready` のレスポンスボディで判別する
-  （`GET /api/system/status` からは判別できない — [oss-incident-runbook.md](oss-incident-runbook.md) §0）。
+  （`GET /api/v1/system/status` からは判別できない — [oss-incident-runbook.md](oss-incident-runbook.md) §0）。
 
 ---
 

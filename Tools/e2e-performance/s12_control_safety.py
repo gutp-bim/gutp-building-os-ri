@@ -62,7 +62,7 @@ def delete_point(oxi: str, pid: str) -> None:
 
 
 def post_control(base_url: str, pid: str, value: float = 1.0) -> tuple[int, dict]:
-    url = f"{base_url.rstrip('/')}/points/{urllib.parse.quote(pid)}/control"
+    url = f"{base_url.rstrip('/')}/api/v1/points/{urllib.parse.quote(pid)}/control"
     req = urllib.request.Request(url, data=json.dumps({"value": value}).encode(),
                                  headers={"Content-Type": "application/json"}, method="POST")
     try:

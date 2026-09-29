@@ -86,7 +86,7 @@ def test_buildings_endpoint(proxy_url: str) -> bool:
     print_info("Building一覧エンドポイントをテスト中...")
     
     try:
-        response = requests.get(f"{proxy_url}/buildings", timeout=10)
+        response = requests.get(f"{proxy_url}/api/v1/buildings", timeout=10)
         
         if response.status_code == 200:
             print_success(f"Building一覧取得成功 (Status: {response.status_code})")

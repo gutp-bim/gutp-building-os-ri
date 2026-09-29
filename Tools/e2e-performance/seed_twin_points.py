@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Seed the OxiGraph digital twin with the load generator's synthetic points (S5 prep).
 
-The API read path (`/telemetries/query`, `/telemetries/warm`) resolves/authorizes a point via the
+The API read path (`/api/v1/telemetries/query`, `/api/v1/telemetries/warm`) resolves/authorizes a point via the
 twin (`digitalTwinDatabase.GetPoint` → `?pt a sbco:PointExt ; sbco:id "<id>" ; sbco:name "..."`) and
 returns 404 for unknown points. The load generator emits synthetic `perf-point-...` ids that are not in
 the twin, so warm/range/query reads 404 for them. This inserts matching `sbco:PointExt` nodes via

@@ -1,6 +1,6 @@
 # SLA / 鮮度モデル — テレメトリの「いつ読めるか」
 
-Building OS のテレメトリ読み取りは Hot / Warm / Cold の 3 層を `GET /telemetries/query` が自動選択します
+Building OS のテレメトリ読み取りは Hot / Warm / Cold の 3 層を `GET /api/v1/telemetries/query` が自動選択します
 （[oss-tier-architecture.md](../architecture/oss-tier-architecture.md)）。層によって**鮮度（イベント発生から読めるまでの遅延）**
 が異なるため、運用者・利用者が「どのクエリは即時で、どのクエリは何分遅れるか」を判断できるよう本書にまとめます。
 
@@ -25,7 +25,7 @@ Building OS のテレメトリ読み取りは Hot / Warm / Cold の 3 層を `GE
   一時的に非公開化され、その間の送信元 publish が gateway に point-list miss として捨てられていた場合、
   再公開後の `latest=true` は非公開化「前」の保存済み行を返しうる——`datetime` が取り込み時刻より古くなり
   うる。値の新鮮さは応答の `datetime` を実際に見て判定すること（レイテンシは低いままでも、返る値自体が
-  古いことがある）。詳細は `GET /telemetries/query` の `latest` パラメータの API ドキュメントを参照。
+  古いことがある）。詳細は `GET /api/v1/telemetries/query` の `latest` パラメータの API ドキュメントを参照。
 
 **要点**: 「最新値」と「直近レンジ末尾」は即時。「過去レンジ（flush 済み区間）」だけが flush 間隔ぶん遅れます。
 
@@ -225,17 +225,17 @@ point-specific expected interval   （Twin / Point metadata の sbco:interval）
 | 期待周期→閾値（純粋関数） | `web-client/src/lib/telemetry/freshness-threshold.ts`（`resolveExpectedIntervalSeconds` / `resolveStaleThresholdSeconds`, `DEFAULT_STALE_INTERVAL_MULTIPLIER`） |
 | Point 別閾値の適用 | `classifyPointFreshness`（`PointLastSeen.thresholdSeconds` で per-point 上書き）／ `loadPointsFreshness`（期待周期マップ + 倍率から各点の閾値を算出） |
 | 期待周期の供給 | `Point.interval`（aspida `interval`／`sbco:interval`）。Twin seed は既に `sbco:interval` を書き込むが、読み取り経路（OxiGraph mapper / SPARQL projection）が未配線だったのを本スライスで有効化 |
-| 既定値・設定 | `SettingsRegistry`（#148, 管理者が編集）: `telemetry.staleThresholdSeconds`（300, 周期未設定時の既定閾値）と `telemetry.staleIntervalMultiplier`（3, 倍率 N）。両方の**実効値**（既定 + 管理者 override）は全ロール可の `GET /api/telemetry/config`（`TelemetryConfigController`, `TelemetryThresholds`）で公開 |
+| 既定値・設定 | `SettingsRegistry`（#148, 管理者が編集）: `telemetry.staleThresholdSeconds`（300, 周期未設定時の既定閾値）と `telemetry.staleIntervalMultiplier`（3, 倍率 N）。両方の**実効値**（既定 + 管理者 override）は全ロール可の `GET /api/v1/telemetry/config`（`TelemetryConfigController`, `TelemetryThresholds`）で公開 |
 | 閾値の供給 | フロントは façcade の `getTelemetryConfig()`（`lib/telemetry/repository.ts`, セッションキャッシュ + 失敗時は定数へフォールバック）で上記を取得し、home loaders / ポイント詳細（`TelemetryHotData`）へ配線。管理者が倍率を変更すると同一 interval/age の判定が stale⇄fresh に切り替わる（回帰: `telemetry-config.test.ts`） |
 
 > **all-role read サーフェス（#183, #210 レビュー対応で実装）**: 鮮度判定は home / ポイント詳細など**全ロール**の
-> 画面で走るため、閾値を editable 設定にするには非管理者でも読めるサーフェスが要る（`GET /api/system/settings` は
-> admin 限定）。そこで実効閾値の 2 値だけを返す `GET /api/telemetry/config` を追加し（他の設定は漏らさない）、
+> 画面で走るため、閾値を editable 設定にするには非管理者でも読めるサーフェスが要る（`GET /api/v1/system/settings` は
+> admin 限定）。そこで実効閾値の 2 値だけを返す `GET /api/v1/telemetry/config` を追加し（他の設定は漏らさない）、
 > フロントの `getTelemetryConfig()` 経由で home / ポイント詳細の両方へ同じ値を配線した。これで管理者の倍率変更が
 > runtime で反映される（旧 false affordance の解消）。
 >
 > **残りのフォローアップ**: device / gateway 既定周期は Twin 未モデル化のため resolver は受け口のみ（point +
-> system の 2 段で稼働）。`GET /api/telemetry/config` の aspida 型生成（現状は bespoke fetch）も後続。
+> system の 2 段で稼働）。`GET /api/v1/telemetry/config` の aspida 型生成（現状は bespoke fetch）も後続。
 
 ---
 

@@ -196,14 +196,14 @@ docker compose -f docker-compose.oss.yaml up -d</code></pre>
   <section class="section section--alt">
     <div class="container">
       <h2>5. API で読み出す</h2>
-      <p>統一エンドポイント <code>GET /telemetries/query</code> が、最新値・履歴・集計の置き場所を自動選択します。</p>
+      <p>統一エンドポイント <code>GET /api/v1/telemetries/query</code> が、最新値・履歴・集計の置き場所を自動選択します。</p>
       <pre><code># 最新値(Hot KV)
 curl -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;latest=true'
+  'http://localhost:5000/api/v1/telemetries/query?pointId=demo-pt-001&amp;latest=true'
 
 # 期間レンジ(tier 自動選択: warm / cold / 集計)
 curl -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:5000/telemetries/query?pointId=demo-pt-001&amp;start=2026-06-15T00:00:00Z&amp;end=2026-06-16T00:00:00Z&amp;granularity=Hour'</code></pre>
+  'http://localhost:5000/api/v1/telemetries/query?pointId=demo-pt-001&amp;start=2026-06-15T00:00:00Z&amp;end=2026-06-16T00:00:00Z&amp;granularity=Hour'</code></pre>
       <p class="fineprint">※ <code>pointId</code> はデジタルツインに登録済みのポイント ID を指定します(未登録は 404)。</p>
     </div>
   </section>
@@ -211,7 +211,7 @@ curl -H "Authorization: Bearer $TOKEN" \
   <section class="section">
     <div class="container">
       <h2>6. ポイントを制御する</h2>
-      <pre><code>curl -X POST 'http://localhost:5000/points/demo-pt-001/control' \
+      <pre><code>curl -X POST 'http://localhost:5000/api/v1/points/demo-pt-001/control' \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"value": 1}'</code></pre>
       <p>

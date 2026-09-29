@@ -135,7 +135,7 @@ Store-and-Forward → gRPC で Building OS の `GatewayIngress` へ → NATS 検
 Hot KV（最新値）と Parquet レイク（履歴）へ。
 
 **制御の流れ（下り = コマンド）:**
-API `POST /points/{id}/control` → NATS per-gateway subject → GatewayBridge(`GatewayEgress`) →
+API `POST /api/v1/points/{id}/control` → NATS per-gateway subject → GatewayBridge(`GatewayEgress`) →
 nexus-gateway の Egress Agent → コネクタが `WriteProperty`（BACnet）/ `Write`（OPC-UA）を実行。
 
 ---
@@ -369,7 +369,7 @@ Windows には `make` が同梱されていません。Makefile のターゲッ�
 
 ```powershell
 docker compose -f docker-compose.oss.yaml ps
-curl http://localhost:5000/api/system/status   # API 経由の疎通
+curl http://localhost:5000/api/v1/system/status   # API 経由の疎通
 ```
 
 > ⚠️ `make wait-oss-stack` / `make mvp-test` などは内部で `bash` / `timeout` / `python3` を使う
@@ -585,8 +585,8 @@ curl でも同じことができます（詳細は [`resource-management.md`](re
 **CLI（curl）で確認:**
 
 ```bash
-curl http://localhost:5000/api/system/status      # API 全体
-curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&latest=true'  # 最新値（空でOK）
+curl http://localhost:5000/api/v1/system/status      # API 全体
+curl 'http://localhost:5000/api/v1/telemetries/query?pointId=demo-pt-001&latest=true'  # 最新値（空でOK）
 # MinIO console http://localhost:9001（可観測性 profile 起動時は Grafana http://localhost:3010 も）
 ```
 
@@ -596,7 +596,7 @@ curl 'http://localhost:5000/telemetries/query?pointId=demo-pt-001&latest=true'  
 
 | 見たいもの | URL | 画面の内容 |
 |---|---|---|
-| システム稼働状況 | `http://localhost:3000/platform/status` | API / 各サービスの up/down・KPI（`/api/system/status` の UI 版） |
+| システム稼働状況 | `http://localhost:3000/platform/status` | API / 各サービスの up/down・KPI（`/api/v1/system/status` の UI 版） |
 | 資源ツリー（twin） | `http://localhost:3000/resources` | 建物 → フロア → 部屋 → 機器 → 点の階層。twin 投入後に階層が見える |
 | 点の最新値・履歴 | `http://localhost:3000/points/{pointId}` | Hot（最新値）・Warm（24h グラフ）・制御・Cold ダウンロード |
 | MinIO（Parquet 実体） | `http://localhost:9001` | オブジェクトストレージのコンソール（バケット `buildingos`） |
@@ -942,7 +942,7 @@ Building OS の Hot KV に最新値が反映されることを確認します。
 
 ```bash
 # ingress の受理挙動（既知 point は Accepted、未知 point_id / 他 gateway 所有は skip）
-curl 'http://localhost:5000/telemetries/query?pointId=SOS-PT-001&latest=true'
+curl 'http://localhost:5000/api/v1/telemetries/query?pointId=SOS-PT-001&latest=true'
 ```
 
 **UI（ブラウザ）:** `http://localhost:3000/points/SOS-PT-001`（または `/resources` から点を辿る）を開き、
@@ -958,7 +958,7 @@ curl 'http://localhost:5000/telemetries/query?pointId=SOS-PT-001&latest=true'
 
 ```bash
 # writable な点に制御指令（202 + controlId、結果は非同期）
-curl -X POST 'http://localhost:5000/points/SOS-PT-004/control' \
+curl -X POST 'http://localhost:5000/api/v1/points/SOS-PT-004/control' \
   -H 'Content-Type: application/json' -d '{"value": 1}'
 ```
 
@@ -1297,14 +1297,14 @@ rm -rf /tmp/mtls-demo
 
 - [ ] **環境**: `docker --version` / `go version` / `dotnet --version` / `node -v` / `uv --version`
 - [ ] **配置**: `nexus-gateway` と `../bacnet-sim-gateway` / `../opcua-sim-gateway` が並んでいる
-- [ ] **Building OS**: `make wait-oss-stack`（Windows は `docker compose ... ps`）が成功、`/api/system/status` が OK
+- [ ] **Building OS**: `make wait-oss-stack`（Windows は `docker compose ... ps`）が成功、`/api/v1/system/status` が OK
 - [ ] **twin**: `/admin/twin` に Point List 投入、`/resources` で階層が見える
 - [ ] **gateway 単体**: `curl :18080/health` が healthy
 - [ ] **シミュレータ**: `--profile opcua`（または `bacnet`）で sim + connector が起動
 - [ ] **ingress 有効化**: Building OS を `GRPC_INGRESS_PORT=5051` で recreate
 - [ ] **上り**: gateway を `GATEWAY_ID/BOS_ADDR` で起動 → `/telemetries/query?...&latest=true` に値
       （UI: `/points/{id}` の Hot に最新値、Warm グラフに系列）
-- [ ] **下り**: `POST /points/{writable}/control` → 202、非 writable → 403
+- [ ] **下り**: `POST /api/v1/points/{writable}/control` → 202、非 writable → 403
       （UI: `/points/{writable}` の制御パネルから送信）
 - [ ] **認証**: Keycloak トークンで `/connectors` が叩ける（operator）
       （UI: `http://localhost:3000` に既定 `admin`/`admin` でログインできる）

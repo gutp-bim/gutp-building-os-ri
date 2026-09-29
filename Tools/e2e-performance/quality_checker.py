@@ -211,7 +211,7 @@ def check_api(run_id: str, api_base: str) -> int:
     """Probe API Server reachability via GET /health. Returns 1 if reachable (200), -1 otherwise.
 
     #342: this previously queried `/api/telemetry/search?test_run_id=...`, a route that has never
-    existed in TelemetryController. The only real telemetry read endpoint, GET /telemetries/query,
+    existed in TelemetryController. The only real telemetry read endpoint, GET /api/v1/telemetries/query,
     requires a single required pointId, sits behind [AuthorizeFilter], and needs OxiGraph
     twin-seeding (seed_twin_points.py) that only the dedicated s5_api_read.sh performs — wiring
     that into every quality_checker.py caller is out of scope here (evaluate() doesn't gate

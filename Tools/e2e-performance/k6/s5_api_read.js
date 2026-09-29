@@ -40,7 +40,7 @@ export const options = {
 const tags = { test_run_id: TEST_RUN_ID };
 
 function getBuildings() {
-  const res = http.get(`${BASE_URL}/buildings`, { tags });
+  const res = http.get(`${BASE_URL}/api/v1/buildings`, { tags });
   const ok = check(res, {
     "buildings status 200": (r) => r.status === 200,
     "buildings body is array": (r) => {
@@ -59,7 +59,7 @@ function getBuildings() {
 // /telemetries/hot and /telemetries/warm endpoints return empty in parquet mode (Oss stub), so S5
 // exercises /telemetries/query — latest=true for the hot path, start/end for the warm range path.
 function getLatestValue(pointId) {
-  const url = `${BASE_URL}/telemetries/query?pointId=${encodeURIComponent(pointId)}&latest=true`;
+  const url = `${BASE_URL}/api/v1/telemetries/query?pointId=${encodeURIComponent(pointId)}&latest=true`;
   const res = http.get(url, { tags });
   latestValueTrend.add(res.timings.duration);
   const ok = check(res, {
@@ -71,7 +71,7 @@ function getLatestValue(pointId) {
 
 function getRangeQuery(pointId, fromISO, toISO) {
   const url =
-    `${BASE_URL}/telemetries/query` +
+    `${BASE_URL}/api/v1/telemetries/query` +
     `?pointId=${encodeURIComponent(pointId)}` +
     `&start=${encodeURIComponent(fromISO)}` +
     `&end=${encodeURIComponent(toISO)}`;
@@ -102,7 +102,7 @@ let knownPointIds = __ENV.POINT_IDS
     ];
 
 export function setup() {
-  const res = http.get(`${BASE_URL}/buildings`, { tags });
+  const res = http.get(`${BASE_URL}/api/v1/buildings`, { tags });
   if (res.status !== 200) {
     return { pointIds: knownPointIds };
   }

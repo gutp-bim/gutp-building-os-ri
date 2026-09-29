@@ -20,7 +20,7 @@ cleans them up. ``IPointMetadataCache`` has a 5-min TTL + 30s miss-refresh, so n
 become visible within ~30s (verified by polling); a *remap* of an existing id is not a cache miss, so
 the connector-worker is restarted to force a fresh load (deterministic, ~15s) unless --no-restart.
 
-Twin-lookup latency is measured as the p95 of ``GET /telemetries/query?...&latest=true`` (resolves the
+Twin-lookup latency is measured as the p95 of ``GET /api/v1/telemetries/query?...&latest=true`` (resolves the
 point through the twin metadata path); it is an upper bound (also touches Hot KV / lake) and reported
 as such.
 
@@ -145,7 +145,7 @@ def measure_twin_lookup_p95(base_url: str, pids: list[str], samples: int = 60) -
     durations: list[float] = []
     for i in range(samples):
         pid = pids[i % len(pids)]
-        url = f"{base_url.rstrip('/')}/telemetries/query?pointId={urllib.parse.quote(pid)}&latest=true"
+        url = f"{base_url.rstrip('/')}/api/v1/telemetries/query?pointId={urllib.parse.quote(pid)}&latest=true"
         t0 = time.perf_counter()
         try:
             with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310
@@ -262,7 +262,7 @@ def main() -> int:
                 "twin_lookup_p95_ms": "< 50",
             },
             "remap_evaluated": remap_supported,
-            "twin_lookup_note": "proxy: GET /telemetries/query?latest (resolves via twin metadata); "
+            "twin_lookup_note": "proxy: GET /api/v1/telemetries/query?latest (resolves via twin metadata); "
                                 "upper bound (also touches Hot KV / lake)",
         }
 
