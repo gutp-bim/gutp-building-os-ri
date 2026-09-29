@@ -882,20 +882,55 @@ paths:
       parameters:
         - name: resourceType
           in: query
+          description: building / floor / space / device / point
           schema:
             type: string
         - name: action
           in: query
+          description: read / write など
+          schema:
+            type: string
+        - name: idFormat
+          in: query
+          description: "`hash`（既定。従来どおり、逆引きできない ID はハッシュのまま混在）または `original`\n            （元の業務 ID だけを `accessibleResourceIds` に返し、元 ID が分からないものは\n            `unresolvedResourceIds` にハッシュで分けて返す。#504）。"
           schema:
             type: string
       responses:
         '200':
           description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/AccessibleResourcesResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessibleResourcesResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/AccessibleResourcesResponse'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v1/my-resources:
     get:
       tags:
         - MyResources
       summary: ユーザーのアクセス可能リソース一覧を取得（全リソースタイプ）
+      parameters:
+        - name: idFormat
+          in: query
+          description: "`hash`（既定。従来どおり）または `original`（`resources` は元の業務 ID だけ。\n            元 ID が分からない権限は `unresolved` にハッシュで分けて返す。#504）。admin は常に\n            `resources: null`（全件）。"
+          schema:
+            type: string
       responses:
         '200':
           description: OK
@@ -909,6 +944,18 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/MyResourcesResponse'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v1/admin/oidc-clients:
     get:
       tags:
@@ -3391,6 +3438,30 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
 components:
   schemas:
+    AccessibleResourcesResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+        isAdmin:
+          type: boolean
+        resourceType:
+          type: string
+        action:
+          type: string
+        accessibleResourceIds:
+          type: array
+          items:
+            type: string
+        unresolvedResourceIds:
+          type: array
+          items:
+            type: string
+          description: '`idFormat=original` のときだけ: 元 ID が分からない権限のハッシュ。既定では null（#504）。'
+          nullable: true
+      additionalProperties: false
     AdminAuditResponse:
       type: object
       properties:
@@ -3922,6 +3993,14 @@ components:
             type: array
             items:
               type: string
+          nullable: true
+        unresolved:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: "`idFormat=original` のときだけ: 元の業務 ID が分からない権限（直接付与され、ID 対応表にも\n            無いもの）の種別ごとのハッシュ。既定では null（#504）。"
           nullable: true
       additionalProperties: false
     NativeAddressingDto:

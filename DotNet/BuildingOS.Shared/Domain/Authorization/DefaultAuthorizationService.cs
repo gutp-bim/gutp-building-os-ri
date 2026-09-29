@@ -85,14 +85,25 @@ public class DefaultAuthorizationService : IAuthorizationService
         string resourceType,
         string action,
         CancellationToken cancellationToken = default)
+        => (await GetAccessibleResourcesAsync(context, resourceType, action, cancellationToken).ConfigureAwait(false))
+            .Select(r => r.Hash)
+            .ToList();
+
+    public async Task<IReadOnlyList<AccessibleResource>> GetAccessibleResourcesAsync(
+        AuthorizationContext context,
+        string resourceType,
+        string action,
+        CancellationToken cancellationToken = default)
     {
         if (context.IsAdmin)
         {
             // admin は全リソースアクセス可能（呼び出し元で全件取得の意味）
-            return Array.Empty<string>();
+            return Array.Empty<AccessibleResource>();
         }
 
-        var result = new HashSet<string>();
+        // hash → original id (null until known). A resource reached both directly and through a Group
+        // is listed once, keeping the original id the Group supplies.
+        var result = new Dictionary<string, string?>(StringComparer.Ordinal);
 
         foreach (var permission in context.Permissions)
         {
@@ -109,21 +120,22 @@ public class DefaultAuthorizationService : IAuthorizationService
 
             if (type == resourceType)
             {
-                result.Add(id);
+                // A direct permission's id is stored hashed; its original is not recoverable here.
+                result.TryAdd(id, null);
             }
             else if (type == "group")
             {
-                // グループ権限: 同タイプのメンバーを展開
+                // グループ権限: 同タイプのメンバーを展開（メンバーは元 ID で保存されている）
                 var members = await _groupResolver.GetGroupMembersAsync(
                     id, resourceType, cancellationToken).ConfigureAwait(false);
                 foreach (var member in members)
                 {
-                    result.Add(PermissionHelper.HashResourceId(member));
+                    result[PermissionHelper.HashResourceId(member)] = member;
                 }
             }
         }
 
-        return result.ToList();
+        return result.Select(kv => new AccessibleResource(kv.Key, kv.Value)).ToList();
     }
 
     /// <summary>

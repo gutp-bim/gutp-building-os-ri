@@ -562,24 +562,31 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
         },
         my_resources: {
           accessible: {
+            /**
+             * @returns OK
+             */
             get: (option?: { query?: Methods_d74guw['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<void, BasicHeaders, Methods_d74guw['get']['status']>(prefix, PATH21, GET, option).send(),
+              fetch<Methods_d74guw['get']['resBody'], BasicHeaders, Methods_d74guw['get']['status']>(prefix, PATH21, GET, option).json(),
+            /**
+             * @returns OK
+             */
             $get: (option?: { query?: Methods_d74guw['get']['query'] | undefined, config?: T | undefined } | undefined) =>
-              fetch<void, BasicHeaders, Methods_d74guw['get']['status']>(prefix, PATH21, GET, option).send().then(r => r.body),
+              fetch<Methods_d74guw['get']['resBody'], BasicHeaders, Methods_d74guw['get']['status']>(prefix, PATH21, GET, option).json().then(r => r.body),
             $path: (option?: { method?: 'get' | undefined; query: Methods_d74guw['get']['query'] } | undefined) =>
               `${prefix}${PATH21}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
           },
           /**
            * @returns OK
            */
-          get: (option?: { config?: T | undefined } | undefined) =>
+          get: (option?: { query?: Methods_1uepmg5['get']['query'] | undefined, config?: T | undefined } | undefined) =>
             fetch<Methods_1uepmg5['get']['resBody'], BasicHeaders, Methods_1uepmg5['get']['status']>(prefix, PATH20, GET, option).json(),
           /**
            * @returns OK
            */
-          $get: (option?: { config?: T | undefined } | undefined) =>
+          $get: (option?: { query?: Methods_1uepmg5['get']['query'] | undefined, config?: T | undefined } | undefined) =>
             fetch<Methods_1uepmg5['get']['resBody'], BasicHeaders, Methods_1uepmg5['get']['status']>(prefix, PATH20, GET, option).json().then(r => r.body),
-          $path: () => `${prefix}${PATH20}`,
+          $path: (option?: { method?: 'get' | undefined; query: Methods_1uepmg5['get']['query'] } | undefined) =>
+            `${prefix}${PATH20}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
         },
         operations: {
           summary: {

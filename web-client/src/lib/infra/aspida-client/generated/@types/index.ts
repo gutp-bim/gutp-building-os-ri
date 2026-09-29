@@ -1,4 +1,15 @@
 /* eslint-disable */
+export type AccessibleResourcesResponse = {
+  userId?: string | undefined;
+  role?: string | undefined;
+  isAdmin?: boolean | undefined;
+  resourceType?: string | undefined;
+  action?: string | undefined;
+  accessibleResourceIds?: string[] | undefined;
+  /** `idFormat=original` のときだけ: 元 ID が分からない権限のハッシュ。既定では null（#504）。 */
+  unresolvedResourceIds?: string[] | null | undefined;
+}
+
 /** API レスポンス DTO。監査ドメイン型をそのまま露出せず、result 文字列化して返す。 */
 export type AdminAuditResponse = {
   id?: string | undefined;
@@ -300,6 +311,14 @@ export type MyResourcesResponse = {
   isAdmin?: boolean | undefined;
 
   resources?: {
+    [key: string]: string[];
+  } | null | undefined;
+
+  /**
+   * `idFormat=original` のときだけ: 元の業務 ID が分からない権限（直接付与され、ID 対応表にも
+   *             無いもの）の種別ごとのハッシュ。既定では null（#504）。
+   */
+  unresolved?: {
     [key: string]: string[];
   } | null | undefined;
 }
