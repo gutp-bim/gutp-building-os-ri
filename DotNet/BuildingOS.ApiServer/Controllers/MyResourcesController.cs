@@ -10,7 +10,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// ユーザーのアクセス可能リソース取得エンドポイント
 /// </summary>
 [ApiController]
-[Route(ApiRoutes.V1 + "/[controller]")]
+[Route(ApiRoutes.V1 + "/my-resources")]
 [AuthorizeFilter]
 public class MyResourcesController : ControllerBase
 {

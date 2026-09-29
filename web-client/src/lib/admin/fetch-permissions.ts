@@ -3,7 +3,7 @@ import { requestError } from "./api-error";
 import type { ResolvedMap } from "./permission-resolve";
 
 /**
- * `POST /api/v1/Permissions/resolve` — resolves hashed resource ids to original id / type / display name
+ * `POST /api/v1/permissions/resolve` — resolves hashed resource ids to original id / type / display name
  * (admin-gated). Returns a map keyed by hashed id; unresolved ids are simply absent.
  */
 export async function resolvePermissionIds(
@@ -12,7 +12,7 @@ export async function resolvePermissionIds(
 ): Promise<ResolvedMap> {
   if (hashedIds.length === 0) return {};
   try {
-    return await apiClient().api.v1.Permissions.resolve.$post({
+    return await apiClient().api.v1.permissions.resolve.$post({
       body: hashedIds,
       config: { signal },
     });

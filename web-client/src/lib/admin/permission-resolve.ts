@@ -2,7 +2,7 @@ import { parsePermission } from "./permissions-display";
 
 /**
  * Resolution of hashed permission resource ids to human names (#143). The backend hashes non-group
- * resource ids; `POST /api/Permissions/resolve` maps a hash back to its original id / type / display
+ * resource ids; `POST /api/v1/permissions/resolve` maps a hash back to its original id / type / display
  * name. Group permissions store the raw id (not hashed), so they are not resolved here.
  */
 export type ResolvedResourceInfo = {

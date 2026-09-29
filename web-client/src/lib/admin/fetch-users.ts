@@ -2,21 +2,21 @@ import { apiClient } from "@/lib/infra/aspida-client";
 import { mutationError, requestError } from "./api-error";
 import type { AdminUser, RoleCatalogEntry } from "./types";
 
-/** `GET /api/v1/Users` — admin-gated list. */
+/** `GET /api/v1/users` — admin-gated list. */
 export async function fetchUsers(signal?: AbortSignal): Promise<AdminUser[]> {
   try {
-    return await apiClient().api.v1.Users.$get({ config: { signal } });
+    return await apiClient().api.v1.users.$get({ config: { signal } });
   } catch (e) {
     throw requestError(e, "users request failed");
   }
 }
 
-/** `GET /api/v1/Users/roles` — read-only role catalog (admin/operator/viewer + workspaces). */
+/** `GET /api/v1/users/roles` — read-only role catalog (admin/operator/viewer + workspaces). */
 export async function fetchRoles(
   signal?: AbortSignal,
 ): Promise<RoleCatalogEntry[]> {
   try {
-    return (await apiClient().api.v1.Users.roles.$get({
+    return (await apiClient().api.v1.users.roles.$get({
       config: { signal },
     })) as RoleCatalogEntry[];
   } catch (e) {
@@ -25,7 +25,7 @@ export async function fetchRoles(
 }
 
 /**
- * `PUT /api/v1/Users/{id}/enabled` — enable/disable a user (reversible). Returns the updated user.
+ * `PUT /api/v1/users/{id}/enabled` — enable/disable a user (reversible). Returns the updated user.
  * The server returns 409 when the change would lock the actor out or remove the last admin (#325).
  */
 export async function setUserEnabled(
@@ -34,7 +34,7 @@ export async function setUserEnabled(
 ): Promise<AdminUser> {
   try {
     return await apiClient()
-      .api.v1.Users._id(encodeURIComponent(id))
+      .api.v1.users._id(encodeURIComponent(id))
       .enabled.$put({
         body: { enabled },
       });
@@ -43,28 +43,28 @@ export async function setUserEnabled(
   }
 }
 
-/** `GET /api/v1/Users/{id}` — admin-gated detail. */
+/** `GET /api/v1/users/{id}` — admin-gated detail. */
 export async function fetchUser(
   id: string,
   signal?: AbortSignal,
 ): Promise<AdminUser> {
   try {
     return await apiClient()
-      .api.v1.Users._id(encodeURIComponent(id))
+      .api.v1.users._id(encodeURIComponent(id))
       .$get({ config: { signal } });
   } catch (e) {
     throw requestError(e, "user request failed");
   }
 }
 
-/** `POST /api/v1/Users/{id}/permissions` — adds a permission, returns the updated user. */
+/** `POST /api/v1/users/{id}/permissions` — adds a permission, returns the updated user. */
 export async function addUserPermission(
   id: string,
   permission: string,
 ): Promise<AdminUser> {
   try {
     return await apiClient()
-      .api.v1.Users._id(encodeURIComponent(id))
+      .api.v1.users._id(encodeURIComponent(id))
       .permissions.$post({
         body: { permission },
       });
@@ -73,14 +73,14 @@ export async function addUserPermission(
   }
 }
 
-/** `DELETE /api/v1/Users/{id}/permissions` — removes a permission, returns the updated user. */
+/** `DELETE /api/v1/users/{id}/permissions` — removes a permission, returns the updated user. */
 export async function removeUserPermission(
   id: string,
   permission: string,
 ): Promise<AdminUser> {
   try {
     return await apiClient()
-      .api.v1.Users._id(encodeURIComponent(id))
+      .api.v1.users._id(encodeURIComponent(id))
       .permissions.$delete({
         body: { permission },
       });

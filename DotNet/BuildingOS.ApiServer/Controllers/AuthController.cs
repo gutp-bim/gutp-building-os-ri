@@ -9,7 +9,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// 認可コンテキストの確認用エンドポイント
 /// </summary>
 [ApiController]
-[Route(ApiRoutes.V1 + "/[controller]")]
+[Route(ApiRoutes.V1 + "/auth")]
 [AuthorizeFilter]
 public class AuthController : ControllerBase
 {

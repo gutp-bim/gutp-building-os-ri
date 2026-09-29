@@ -44,6 +44,12 @@ public class ApiVersionRoutingTest
         Assert.DoesNotContain(templates, t => t.StartsWith("api/", StringComparison.OrdinalIgnoreCase)
                                               && t.EndsWith("/{gatewayId}/pointlist", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(templates, t => t == ApiRoutes.GatewayProvisioning + "/{gatewayId}/pointlist");
+        // Naming rule (ADR-0008 §1): every literal segment is lower-kebab; only {parameters} may differ.
+        var badlyNamed = templates
+            .Where(t => t.Split('/').Any(seg => !seg.StartsWith('{')
+                && !System.Text.RegularExpressions.Regex.IsMatch(seg, "^[a-z0-9]+(-[a-z0-9]+)*$")))
+            .ToList();
+        Assert.True(badlyNamed.Count == 0, "Not lower-kebab: " + string.Join(", ", badlyNamed));
         // A formerly absolute action route ("/buildings/{id}/metadata") must not have been combined
         // with a controller prefix into "api/v1/…/api/v1/…".
         var doubled = templates.Where(t => t.IndexOf(ApiRoutes.V1, 1, StringComparison.Ordinal) >= 0).ToList();
@@ -51,8 +57,8 @@ public class ApiVersionRoutingTest
         // Every alias the rewriter creates lands on a real v1 route, so it never points at nothing.
         foreach (var root in LegacyApiPathRewriter.LegacyRoots)
             Assert.Contains(templates, t => t.StartsWith($"{ApiRoutes.V1}/{root}", StringComparison.OrdinalIgnoreCase));
-        foreach (var segment in LegacyApiPathRewriter.LegacyApiSegments)
-            Assert.Contains(templates, t => t.StartsWith($"{ApiRoutes.V1}/{segment}", StringComparison.OrdinalIgnoreCase));
+        foreach (var target in LegacyApiPathRewriter.LegacyApiSegments.Values)
+            Assert.Contains(templates, t => t.StartsWith($"{ApiRoutes.V1}/{target}", StringComparison.Ordinal));
     }
 
     // ── legacy paths are rewritten, nothing else is ──────────────────────────
@@ -69,8 +75,18 @@ public class ApiVersionRoutingTest
     [InlineData("/point-details", "/api/v1/point-details")]
     [InlineData("/device-details", "/api/v1/device-details")]
     [InlineData("/Buildings", "/api/v1/Buildings")] // routing is case-insensitive, so is the alias
-    [InlineData("/api/Groups", "/api/v1/Groups")]
-    [InlineData("/api/MyResources", "/api/v1/MyResources")]
+    // The pre-versioning PascalCase segments land on the lower-kebab v1 spelling (ADR-0008 §1).
+    [InlineData("/api/Groups", "/api/v1/groups")]
+    [InlineData("/api/Groups/g1/resources/bulk", "/api/v1/groups/g1/resources/bulk")]
+    [InlineData("/api/MyResources", "/api/v1/my-resources")]
+    [InlineData("/api/MyResources/accessible", "/api/v1/my-resources/accessible")]
+    [InlineData("/api/myresources", "/api/v1/my-resources")]
+    [InlineData("/api/Users/u1/permissions", "/api/v1/users/u1/permissions")]
+    [InlineData("/api/Permissions/resolve", "/api/v1/permissions/resolve")]
+    [InlineData("/api/Auth/me", "/api/v1/auth/me")]
+    // The PascalCase v1 spelling that briefly existed before the casing fix keeps working.
+    [InlineData("/api/v1/MyResources", "/api/v1/my-resources")]
+    [InlineData("/api/v1/MyResources/accessible", "/api/v1/my-resources/accessible")]
     [InlineData("/api/admin/twin/import/apply", "/api/v1/admin/twin/import/apply")]
     [InlineData("/api/telemetry/health/summary", "/api/v1/telemetry/health/summary")]
     [InlineData("/api/system/status", "/api/v1/system/status")]
@@ -83,6 +99,8 @@ public class ApiVersionRoutingTest
     [Theory]
     [InlineData("/api/v1/buildings")]
     [InlineData("/api/V1/buildings")]
+    [InlineData("/api/v1/my-resources")]
+    [InlineData("/api/v1/Groups")] // differs only in case: routing is case-insensitive, no alias needed
     [InlineData("/api/v2/buildings")] // a future version is not a legacy path
     [InlineData("/api/v1")]
     [InlineData("/health")]

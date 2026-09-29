@@ -301,6 +301,7 @@ backstop).
 ### REST API versioning (#507, ADR-0008)
 
 Every REST controller is mounted under **`/api/v1/…`** (`ApiRoutes.V1`); OpenAPI lists only `/api/v1` paths.
+Path literals are **lower-kebab** (`/api/v1/my-resources`, `/api/v1/groups`) — never `[controller]`; a route test enforces it.
 The pre-versioning paths (`/buildings`, `/telemetries/…`, `/api/Groups`, `/api/admin/…`, …) still work: `LegacyApiPathRewriter` rewrites them to `/api/v1` before routing and marks the
 response `Deprecation` + `Link: rel="successor-version"`. New code and docs use `/api/v1`. Breaking changes ship
 only as a new version (`/api/v2`) served alongside v1 for ≥ 6 months — see `docs/adr/0008-api-versioning.md`
@@ -319,7 +320,7 @@ the web client (the web client calls only `/api/v1`).
 | bespoke authenticated fetch (`src/lib/admin/http.ts`) | the few endpoints still outside the Aspida schema — resource-metadata writes and telemetry/control-audit reads that need custom response handling |
 | resource/telemetry façade (`src/lib/resources/`, `src/lib/telemetry/`) | resource hierarchy + telemetry reads — **UI calls these, not aspida directly** |
 
-The admin API (`/api/v1/Users`, `/api/v1/Groups`, `/api/v1/Permissions`) is now in Swagger and the `(admin)` workspace modules (`src/lib/admin/fetch-{users,groups,permissions,hierarchy}.ts`) call the generated Aspida client via `apiClient().api.v1.Users…` (#38 / #143, B-8). The bespoke `src/lib/admin/http.ts` helpers (Keycloak bearer token from the `oidc.access_token` cookie) now only back the resource/telemetry/control-audit repositories.
+The admin API (`/api/v1/users`, `/api/v1/groups`, `/api/v1/permissions`) is now in Swagger and the `(admin)` workspace modules (`src/lib/admin/fetch-{users,groups,permissions,hierarchy}.ts`) call the generated Aspida client via `apiClient().api.v1.users…` (#38 / #143, B-8). The bespoke `src/lib/admin/http.ts` helpers (Keycloak bearer token from the `oidc.access_token` cookie) now only back the resource/telemetry/control-audit repositories.
 
 Aspida client is auto-generated from Swagger. After API changes, run `./sync-type.bash` to update frontend types.
 

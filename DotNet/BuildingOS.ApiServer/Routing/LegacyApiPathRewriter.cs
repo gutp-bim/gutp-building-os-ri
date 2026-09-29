@@ -36,15 +36,26 @@ public sealed class LegacyApiPathRewriter(RequestDelegate next, ILogger<LegacyAp
     };
 
     /// <summary>
-    /// The first segments under <c>/api/</c> that existed before versioning. Only these are aliased —
-    /// not any <c>/api/…</c> path — so no path that was never an endpoint becomes one, and a versioned
-    /// path (<c>/api/v1/…</c>) is never touched.
+    /// The first segments under <c>/api/</c> that existed before versioning, and the v1 segment each
+    /// maps to (v1 is lower-kebab, ADR-0008 §1: <c>MyResources</c> → <c>my-resources</c>). Only these are
+    /// aliased — not any <c>/api/…</c> path — so no path that was never an endpoint becomes one.
     /// </summary>
-    internal static readonly IReadOnlySet<string> LegacyApiSegments = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Auth", "Groups", "Users", "MyResources", "Permissions", "admin", "telemetry", "system",
-        "operations", "assistant",
-    };
+    internal static readonly IReadOnlyDictionary<string, string> LegacyApiSegments =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Auth"] = "auth", ["Groups"] = "groups", ["Users"] = "users", ["MyResources"] = "my-resources",
+            ["Permissions"] = "permissions", ["admin"] = "admin", ["telemetry"] = "telemetry",
+            ["system"] = "system", ["operations"] = "operations", ["assistant"] = "assistant",
+        };
+
+    /// <summary>
+    /// v1 segments first published in another spelling and renamed by the lower-kebab rule, which a
+    /// case-insensitive route does not cover on its own (<c>/api/v1/MyResources</c> briefly existed).
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> RenamedV1Segments =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["MyResources"] = "my-resources" };
+
+    private static readonly PathString V1 = new("/" + ApiRoutes.V1);
 
     private static readonly PathString Api = new("/api");
 
@@ -60,12 +71,23 @@ public sealed class LegacyApiPathRewriter(RequestDelegate next, ILogger<LegacyAp
         rewritten = default;
         root = "";
 
-        // "/api/{segment}[/…]" → "/api/v1/{segment}[/…]" for the pre-versioning segments only.
+        // "/api/v1/MyResources[/…]" → "/api/v1/my-resources[/…]" (renamed within v1).
+        if (path.StartsWithSegments(V1, StringComparison.OrdinalIgnoreCase, out var v1Rest))
+        {
+            var segment = FirstSegment(v1Rest);
+            if (!RenamedV1Segments.TryGetValue(segment, out var renamed)
+                || string.Equals(segment, renamed, StringComparison.OrdinalIgnoreCase)) return false;
+            rewritten = V1.Add("/" + renamed + v1Rest.Value![(segment.Length + 1)..]);
+            root = "api/v1/" + segment.ToLowerInvariant();
+            return true;
+        }
+
+        // "/api/{segment}[/…]" → "/api/v1/{v1-segment}[/…]" for the pre-versioning segments only.
         if (path.StartsWithSegments(Api, StringComparison.OrdinalIgnoreCase, out var rest))
         {
             var segment = FirstSegment(rest);
-            if (!LegacyApiSegments.Contains(segment)) return false;
-            rewritten = new PathString("/" + ApiRoutes.V1).Add(rest);
+            if (!LegacyApiSegments.TryGetValue(segment, out var target)) return false;
+            rewritten = V1.Add("/" + target + rest.Value![(segment.Length + 1)..]);
             root = "api/" + segment.ToLowerInvariant();
             return true;
         }

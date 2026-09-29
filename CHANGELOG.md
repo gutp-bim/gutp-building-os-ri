@@ -12,6 +12,10 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- `/api/v1` paths are lower-kebab throughout (#507): `/api/v1/groups`, `/api/v1/users`,
+  `/api/v1/permissions`, `/api/v1/auth` and **`/api/v1/my-resources`** (was `MyResources`). Routing is
+  case-insensitive, so the PascalCase spellings keep working; `/api/MyResources` and the briefly published
+  `/api/v1/MyResources` are rewritten to `/api/v1/my-resources` with a `Deprecation` header.
 - `make openapi-breaking` (`Tools/check-openapi-breaking.bash`) fails on a breaking change to the REST
   API's OpenAPI document versus `origin/main` (oasdiff, pinned image), enforcing ADR-0008's additive-only
   v1 (#507).

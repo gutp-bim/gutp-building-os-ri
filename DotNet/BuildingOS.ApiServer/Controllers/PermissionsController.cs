@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 /// パーミッション解決API（admin専用）
 /// </summary>
 [ApiController]
-[Route(ApiRoutes.V1 + "/[controller]")]
+[Route(ApiRoutes.V1 + "/permissions")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class PermissionsController : ControllerBase
