@@ -124,9 +124,16 @@ public class OssTelemetryQueryRouter : ITelemetryQueryRouter
     {
         var cacheKey = $"router:{pointId}:{granularity}:{start:yyyyMMddHH}:{end:yyyyMMddHH}";
 
-        if (_cache.TryGetValue(cacheKey, out ValidTelemetryData[]? cached) && cached is not null)
-            return cached;
+        if (_cache.TryGetValue(cacheKey, out CachedAggregate? cached) && cached is not null)
+        {
+            // The partial-result marker (#499) is part of the answer: replay it on a hit, which never
+            // reaches the (capped) store that raised it.
+            if (cached.CoveredFrom is { } cachedFrom) TelemetryQueryCompleteness.ReportTruncated(cachedFrom);
+            return cached.Rows;
+        }
 
+        // Capture what the stores report for this computation alone, so it can be cached with it.
+        using var completeness = TelemetryQueryCompleteness.Begin();
         ValidTelemetryData[] result;
         if (_agg is not null)
         {
@@ -153,7 +160,13 @@ public class OssTelemetryQueryRouter : ITelemetryQueryRouter
                 : Array.Empty<ValidTelemetryData>();
         }
 
-        _cache.Set(cacheKey, result, CacheDuration);
+        var coveredFrom = completeness.CoveredFrom;
+        completeness.Dispose(); // back to the caller's scope before forwarding the marker to it
+        if (coveredFrom is { } from) TelemetryQueryCompleteness.ReportTruncated(from);
+
+        _cache.Set(cacheKey, new CachedAggregate(result, coveredFrom), CacheDuration);
         return result;
     }
+
+    private sealed record CachedAggregate(ValidTelemetryData[] Rows, DateTime? CoveredFrom);
 }

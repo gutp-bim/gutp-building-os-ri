@@ -95,6 +95,90 @@ public class ParquetLakeTelemetryStoreTest
     }
 
     [Fact]
+    public async Task QueryAsync_OverMaxFiles_ReportsPartialResult_CoveredFromAfterNewestDroppedHour()
+    {
+        // #499: the cap drops the OLD side of the range; the caller must be told, not just the log.
+        var s = new InMemoryBlobStorage();
+        var hOld = new DateTime(2026, 6, 12, 10, 0, 0, DateTimeKind.Utc);
+        var hNew = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        await PutAsync(s, LakePartitionKey.For("b1", hOld, 1, 2), Row("old", "p1", hOld.AddMinutes(5), 1));
+        await PutAsync(s, LakePartitionKey.For("b1", hNew, 3, 4), Row("new", "p1", hNew.AddMinutes(5), 2));
+
+        using var completeness = TelemetryQueryCompleteness.Begin();
+        await NewStore(s, maxFiles: 1).QueryAsync("p1", hOld, hNew.AddHours(1));
+
+        Assert.True(completeness.IsPartial);
+        // Complete only from the end of the newest dropped partition plus the planner's grace (a legacy
+        // key's rows can run past its hour), i.e. 10:00 + 1h + 1h.
+        Assert.Equal(hOld.AddHours(2), completeness.CoveredFrom);
+    }
+
+    [Fact]
+    public async Task QueryAsync_OverMaxFiles_WithinTheLastHour_CoveredFromNeverPassesEnd()
+    {
+        // Review of #513: when the cap cuts inside the newest hour, end-of-dropped-hour + grace lies
+        // beyond the requested end. The header must stay inside the range ("nothing is known complete").
+        var s = new InMemoryBlobStorage();
+        var h = new DateTime(2026, 6, 12, 10, 0, 0, DateTimeKind.Utc);
+        await PutAsync(s, LakePartitionKey.For("b1", h, 1, 2), Row("a", "p1", h.AddMinutes(5), 1));
+        await PutAsync(s, LakePartitionKey.For("b1", h, 3, 4), Row("b", "p1", h.AddMinutes(6), 2));
+        var end = h.AddMinutes(30);
+
+        using var completeness = TelemetryQueryCompleteness.Begin();
+        await NewStore(s, maxFiles: 1).QueryAsync("p1", h, end);
+
+        Assert.True(completeness.IsPartial);
+        Assert.Equal(end, completeness.CoveredFrom);
+    }
+
+    [Fact]
+    public async Task QueryMultiAsync_OverMaxFiles_ReportsPartialResult()
+    {
+        var s = new InMemoryBlobStorage();
+        var hOld = new DateTime(2026, 6, 12, 10, 0, 0, DateTimeKind.Utc);
+        var hNew = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        await PutAsync(s, LakePartitionKey.For("b1", hOld, 1, 2), Row("old", "p1", hOld.AddMinutes(5), 1));
+        await PutAsync(s, LakePartitionKey.For("b1", hNew, 3, 4), Row("new", "p1", hNew.AddMinutes(5), 2));
+
+        using var completeness = TelemetryQueryCompleteness.Begin();
+        await NewStore(s, maxFiles: 1).QueryMultiAsync(new[] { "p1" }, hOld, hNew.AddHours(1));
+
+        Assert.True(completeness.IsPartial);
+        Assert.Equal(hOld.AddHours(2), completeness.CoveredFrom);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithinMaxFiles_IsNotPartial()
+    {
+        var s = new InMemoryBlobStorage();
+        var hOld = new DateTime(2026, 6, 12, 10, 0, 0, DateTimeKind.Utc);
+        var hNew = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        await PutAsync(s, LakePartitionKey.For("b1", hOld, 1, 2), Row("old", "p1", hOld.AddMinutes(5), 1));
+        await PutAsync(s, LakePartitionKey.For("b1", hNew, 3, 4), Row("new", "p1", hNew.AddMinutes(5), 2));
+
+        using var completeness = TelemetryQueryCompleteness.Begin();
+        var rows = await NewStore(s, maxFiles: 2).QueryAsync("p1", hOld, hNew.AddHours(1));
+
+        Assert.Equal(2, rows.Length);
+        Assert.False(completeness.IsPartial);
+        Assert.Null(completeness.CoveredFrom);
+    }
+
+    [Fact]
+    public async Task QueryAsync_OverMaxFiles_WithoutAScope_StillReturnsThePartialRows()
+    {
+        var s = new InMemoryBlobStorage();
+        var hOld = new DateTime(2026, 6, 12, 10, 0, 0, DateTimeKind.Utc);
+        var hNew = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        await PutAsync(s, LakePartitionKey.For("b1", hOld, 1, 2), Row("old", "p1", hOld.AddMinutes(5), 1));
+        await PutAsync(s, LakePartitionKey.For("b1", hNew, 3, 4), Row("new", "p1", hNew.AddMinutes(5), 2));
+
+        var rows = await NewStore(s, maxFiles: 1).QueryAsync("p1", hOld, hNew.AddHours(1));
+
+        Assert.Single(rows);
+    }
+
+    [Fact]
     public async Task QueryLatestAsync_ReturnsNewestWithinLookback()
     {
         var s = new InMemoryBlobStorage();

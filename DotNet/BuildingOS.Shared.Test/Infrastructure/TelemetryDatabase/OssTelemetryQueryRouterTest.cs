@@ -186,6 +186,52 @@ public class OssTelemetryQueryRouterTest
     }
 
     [Fact]
+    public async Task QueryAsync_Hour_CacheHit_StillReportsAPartialResult()
+    {
+        // #499: the aggregate fallback reads the capped lake. A cached partial result must stay marked
+        // on the next request, which never reaches the store.
+        var start = DateTime.UtcNow.AddHours(-24);
+        var end = DateTime.UtcNow;
+        var coveredFrom = start.AddHours(6);
+        _agg.Setup(a => a.QueryHourlyAsync("p1", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                TelemetryQueryCompleteness.ReportTruncated(coveredFrom);
+                return Task.FromResult(new[] { new ValidTelemetryData { PointId = "p1" } });
+            });
+
+        var sut = CreateSut();
+        var req = new TelemetryQueryRequest("p1", start, end, TelemetryGranularity.Hour);
+        using (var first = TelemetryQueryCompleteness.Begin())
+        {
+            await sut.QueryAsync(req);
+            Assert.Equal(coveredFrom, first.CoveredFrom);
+        }
+        using var second = TelemetryQueryCompleteness.Begin();
+        await sut.QueryAsync(req);
+
+        _agg.Verify(a => a.QueryHourlyAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(coveredFrom, second.CoveredFrom);
+    }
+
+    [Fact]
+    public async Task QueryAsync_Hour_CacheHit_OfACompleteResult_IsNotPartial()
+    {
+        var start = DateTime.UtcNow.AddHours(-24);
+        var end = DateTime.UtcNow;
+        _agg.Setup(a => a.QueryHourlyAsync("p1", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new ValidTelemetryData { PointId = "p1" } });
+
+        var sut = CreateSut();
+        var req = new TelemetryQueryRequest("p1", start, end, TelemetryGranularity.Hour);
+        await sut.QueryAsync(req);
+        using var second = TelemetryQueryCompleteness.Begin();
+        await sut.QueryAsync(req);
+
+        Assert.False(second.IsPartial);
+    }
+
+    [Fact]
     public async Task QueryAsync_Hour_FallsBackToWarm_WhenAggStoreNull()
     {
         var start = DateTime.UtcNow.AddDays(-7);

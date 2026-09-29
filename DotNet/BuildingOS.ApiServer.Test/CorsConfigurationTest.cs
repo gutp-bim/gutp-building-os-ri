@@ -103,4 +103,16 @@ public class CorsConfigurationTest
         var policy = GetPolicy("https://a.example.com");
         Assert.True(policy.AllowAnyHeader);
     }
+
+    [Theory]
+    [InlineData(null, "Development")]
+    [InlineData("https://portal.example", "Production")]
+    public void Policy_ExposesThePartialResultHeaders(string? origins, string environment)
+    {
+        // #499: browsers hide non-safelisted response headers from cross-origin JS unless exposed.
+        var policy = GetPolicy(origins, environment);
+
+        Assert.Contains("X-Partial-Result", policy.ExposedHeaders);
+        Assert.Contains("X-Covered-From", policy.ExposedHeaders);
+    }
 }

@@ -170,6 +170,9 @@ public class TelemetryController(
     /// <summary>
     /// テレメトリ取得の正本エンドポイント。期間・粒度・latest を指定し、tier（hot/warm/cold/集計）を
     /// 自動選択する。per-tier の <c>/hot</c>・<c>/warm</c>・<c>/cold</c>・<c>/cold-multi-point</c> は非推奨。
+    /// 読み取りファイル数の上限（<c>PARQUET_QUERY_MAX_FILES</c>）を超えた場合は新しい側だけの部分応答になり、
+    /// 応答ヘッダ <c>X-Partial-Result: true</c> と <c>X-Covered-From</c>（その時刻以降はデータが揃っている、
+    /// ISO-8601 UTC）で示す（#499）。それより前は期間を分けて再取得すること。
     /// </summary>
     /// <param name="pointId">必須. ポイントID</param>
     /// <param name="start">開始時刻（latest=true の場合は不要）</param>
@@ -211,10 +214,19 @@ public class TelemetryController(
         if (!latest && end.HasValue && start.HasValue && end.Value < start.Value)
             return BadRequest("end must be greater than or equal to start");
 
+        using var completeness = TelemetryQueryCompleteness.Begin();
         var result = await telemetryQueryRouter.QueryAsync(
             new TelemetryQueryRequest(pointId, start, end, granularity, latest), ct);
 
         Response.Headers["Cache-Control"] = "max-age=60";
+        if (completeness.CoveredFrom is { } coveredFrom)
+        {
+            // #499: a store dropped the older side of the range (PARQUET_QUERY_MAX_FILES). Say so
+            // rather than let a 200 imply the whole range came back; query from coveredFrom onward
+            // or split the range to get the rest.
+            Response.Headers[TelemetryResponseHeaders.PartialResult] = "true";
+            Response.Headers[TelemetryResponseHeaders.CoveredFrom] = coveredFrom.ToString("O");
+        }
         return Ok(TelemetryReading.From(result));
     }
 
