@@ -7,4 +7,12 @@ namespace BuildingOs.ApiServer.Routing;
 public static class ApiRoutes
 {
     public const string V1 = "api/v1";
+
+    /// <summary>
+    /// The gateway point-list endpoint (#224) is deliberately <b>not</b> versioned under <c>/api</c>: it
+    /// authenticates the gateway by a trusted header that only the mTLS ingress may set, and the
+    /// general <c>PathPrefix(/api)</c> ingress route neither requires mTLS nor strips that header.
+    /// Keeping it at <c>/gateways/…</c> keeps it off that route (ADR-0008 §1).
+    /// </summary>
+    public const string GatewayProvisioning = "gateways";
 }

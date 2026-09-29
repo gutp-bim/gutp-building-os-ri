@@ -21,7 +21,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// <c>[AuthorizeFilter]</c> — a gateway authenticates by mTLS, not a user JWT.
 /// </summary>
 [ApiController]
-[Route(ApiRoutes.V1 + "/gateways")]
+[Route(ApiRoutes.GatewayProvisioning)]
 [Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class GatewayProvisioningController(

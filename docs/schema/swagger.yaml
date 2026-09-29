@@ -345,7 +345,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Floor'
-  '/api/v1/gateways/{gatewayId}/pointlist':
+  '/gateways/{gatewayId}/pointlist':
     get:
       tags:
         - GatewayProvisioning

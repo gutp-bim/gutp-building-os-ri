@@ -30,6 +30,12 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 - OpenAPI（Swagger）には `/api/v1` のパスだけが載る。
 - 対象外: `/health`（プローブ）、gRPC / gRPC-web（`/{package}.{Service}/{Method}`、proto 側で互換を管理）、
   `/swagger`・`/api-docs`（ドキュメント）。
+- **対象外（セキュリティ上の理由）: gateway の point list `GET /gateways/{gatewayId}/pointlist`（#224）。**
+  この経路は、mTLS の Ingress だけが設定できる信頼ヘッダ（`X-Gateway-Id`）で gateway を認証する。
+  一般の `PathPrefix(/api)` の Ingress ルートは mTLS を要求せず、そのヘッダを取り除きもしないので、
+  `/api` 配下に置くとヘッダの偽装で point list を読めてしまう。したがって `/gateways/…` に据え置き
+  （`ApiRoutes.GatewayProvisioning`）、旧パスの書き換え対象にも含めない。`/api` 配下に
+  `…/{gatewayId}/pointlist` が現れないことをテストで保証する。
 - 版の選び方は**パス**とする。独自ヘッダ（`Api-Version`）やクエリも検討したが、(a) URL だけで版が分かり
   ログ・curl・ドキュメントで追いやすい、(b) Ingress がパスで振り分けている（Helm の Traefik は
   `PathPrefix(/api)` を API server へ送る — `/api/v1` への統一でこの規則に全 API が収まる）、(c) 生成クライアント
@@ -42,8 +48,14 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 - 書き換えた応答には次を付ける。
   - `Deprecation: @1790640000`（RFC 9745、非推奨化した日 = 2026-09-29）
   - `Link: </api/v1/…>; rel="successor-version"`
-- 書き換えの対象は `/api/…`（`/api/v{数字}/…` を除く）と、上表の接頭辞なしの先頭セグメントに限る。
-  大文字小文字は区別しない（ルーティングと同じ）。
+- 書き換えの対象は、**版付け前に実在した接頭辞だけ**に限る（許可リスト）。
+  - `/api/{Auth|Groups|Users|MyResources|Permissions|admin|telemetry|system|operations|assistant}/…`
+  - 接頭辞なしの `buildings|floors|spaces|devices|points|telemetries|resources|point-details|device-details`
+  - `/api/v{数字}/…` と、それ以外の `/api/…`（例: 存在しなかった `/api/buildings`、打ち間違い）は書き換えない
+    （存在しない後継を指す `Link` を返さないため）。大文字小文字は区別しない（ルーティングと同じ）。
+- `Link` にはクエリ文字列も含める。`Deprecation` と `Link` は CORS で公開し、別オリジンのブラウザからも読める。
+- 旧パスへのリクエストはメトリクス `building_os.api.legacy_requests{root}` で数える（`root` は上の固定の
+  集合なので、カーディナリティは有界）。§4 の条件 4 の根拠になる。
 - `Sunset`（削除日）はまだ付けない。削除日は §4 の条件を満たしてから決め、決めた時点で `Sunset` を付ける。
 
 ### 3. 破壊的変更のポリシー
@@ -66,8 +78,9 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 
 1. web-client が `/api/v1` に移行済み（#507 の後続 PR）
 2. リポジトリ内のツール・ドキュメント・テストが `/api/v1` を使っている
-3. gateway（nexus-gateway）の point list ポーリングが `/api/v1/gateways/{id}/pointlist` に移行済み
-4. 旧パスへのアクセスがログ／メトリクスで一定期間ゼロ（既知の外部アプリへの告知を含む）
+3. 旧パスへのアクセスが `building_os.api.legacy_requests` で一定期間ゼロ（既知の外部アプリへの告知を含む）
+
+（gateway の point list は §1 のとおり版付けの対象外なので、gateway 側の移行は不要。）
 
 ## Consequences
 
@@ -78,3 +91,8 @@ REST API のパスにはバージョンが無く、接頭辞も 3 系統が混�
 - web-client（Next.js）自身も `/api/…` のルート（例: `/api/health`）を持つ。同じホスト名で API server と
   web-client を配置する場合、`/api` の振り分けは API server 側に `/api/v1` を送るよう Ingress で確認すること。
 - 版の番号は `ApiRoutes` の定数 1 か所にあり、`v2` を出すときはコントローラ単位で `v2` のルートを追加する。
+  ルートは各コントローラに明示する（全体に接頭辞を付ける規約は採らない — grep で経路を追えることを優先し、
+  付け忘れはリフレクションのテストで検出する）。
+- **デプロイ順**: 新しい web-client は `/api/v1` だけを呼ぶので、`/api/v1` を持たない古い API server とは
+  組み合わせられない。**API server を先に**更新し、web-client はその後に更新する。ロールバックは逆順
+  （web-client を先に戻す）。古い API server だけを戻すと web-client の API 呼び出しがすべて 404 になる。

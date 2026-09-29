@@ -34,16 +34,25 @@ public class ApiVersionRoutingTest
             .ToList();
 
         Assert.NotEmpty(templates);
-        var unversioned = templates.Where(t => !t.StartsWith(ApiRoutes.V1 + "/", StringComparison.Ordinal)).ToList();
+        // The gateway point list is the one deliberate exception: machine auth behind the mTLS ingress,
+        // so it must stay off /api (whose ingress route neither requires mTLS nor strips X-Gateway-Id).
+        var unversioned = templates
+            .Where(t => !t.StartsWith(ApiRoutes.V1 + "/", StringComparison.Ordinal)
+                        && !t.StartsWith(ApiRoutes.GatewayProvisioning + "/", StringComparison.Ordinal))
+            .ToList();
         Assert.True(unversioned.Count == 0, "Not under api/v1: " + string.Join(", ", unversioned));
+        Assert.DoesNotContain(templates, t => t.StartsWith("api/", StringComparison.OrdinalIgnoreCase)
+                                              && t.EndsWith("/{gatewayId}/pointlist", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(templates, t => t == ApiRoutes.GatewayProvisioning + "/{gatewayId}/pointlist");
         // A formerly absolute action route ("/buildings/{id}/metadata") must not have been combined
         // with a controller prefix into "api/v1/…/api/v1/…".
         var doubled = templates.Where(t => t.IndexOf(ApiRoutes.V1, 1, StringComparison.Ordinal) >= 0).ToList();
         Assert.True(doubled.Count == 0, "Doubled prefix: " + string.Join(", ", doubled));
-        // Every pre-versioning root still has a v1 home, so the rewriter never points at nothing.
-        foreach (var root in new[] { "buildings", "floors", "spaces", "devices", "points", "telemetries",
-                     "resources", "gateways", "point-details", "device-details" })
+        // Every alias the rewriter creates lands on a real v1 route, so it never points at nothing.
+        foreach (var root in LegacyApiPathRewriter.LegacyRoots)
             Assert.Contains(templates, t => t.StartsWith($"{ApiRoutes.V1}/{root}", StringComparison.OrdinalIgnoreCase));
+        foreach (var segment in LegacyApiPathRewriter.LegacyApiSegments)
+            Assert.Contains(templates, t => t.StartsWith($"{ApiRoutes.V1}/{segment}", StringComparison.OrdinalIgnoreCase));
     }
 
     // ── legacy paths are rewritten, nothing else is ──────────────────────────
@@ -57,7 +66,6 @@ public class ApiVersionRoutingTest
     [InlineData("/points/PT001/control", "/api/v1/points/PT001/control")]
     [InlineData("/telemetries/query", "/api/v1/telemetries/query")]
     [InlineData("/resources/search", "/api/v1/resources/search")]
-    [InlineData("/gateways/gw-1/pointlist", "/api/v1/gateways/gw-1/pointlist")]
     [InlineData("/point-details", "/api/v1/point-details")]
     [InlineData("/device-details", "/api/v1/device-details")]
     [InlineData("/Buildings", "/api/v1/Buildings")] // routing is case-insensitive, so is the alias
@@ -85,6 +93,12 @@ public class ApiVersionRoutingTest
     [InlineData("/")]
     [InlineData("/buildingsX")] // only whole first segments match
     [InlineData("/api")]
+    // Never aliased: the point list is not versioned, and must not become reachable under /api.
+    [InlineData("/gateways/gw-1/pointlist")]
+    [InlineData("/api/gateways/gw-1/pointlist")]
+    // Only prefixes that existed before versioning are aliased, not any /api path.
+    [InlineData("/api/buildings/x")]
+    [InlineData("/api/typo")]
     public void NonLegacyPath_IsLeftAlone(string path)
         => Assert.False(LegacyApiPathRewriter.TryRewrite(new PathString(path), out _));
 
@@ -104,7 +118,7 @@ public class ApiVersionRoutingTest
         Assert.Equal("/api/v1/points/PT001", seenPath);
         Assert.Equal("?x=1", ctx.Request.QueryString.Value);
         Assert.StartsWith("@", ctx.Response.Headers["Deprecation"].ToString());
-        Assert.Equal("</api/v1/points/PT001>; rel=\"successor-version\"", ctx.Response.Headers["Link"].ToString());
+        Assert.Equal("</api/v1/points/PT001?x=1>; rel=\"successor-version\"", ctx.Response.Headers["Link"].ToString());
     }
 
     [Fact]
@@ -119,5 +133,41 @@ public class ApiVersionRoutingTest
 
         Assert.Equal("/api/v1/points/PT001", seenPath);
         Assert.False(ctx.Response.Headers.ContainsKey("Deprecation"));
+    }
+
+    [Fact]
+    public async Task Middleware_CountsLegacyRequests_ByRoot()
+    {
+        // ADR-0008 §4: removing the old paths needs evidence that nobody still calls them.
+        var seen = new List<(long Value, string? Root)>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Name == "building_os.api.legacy_requests") l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            string? root = null;
+            foreach (var tag in tags) if (tag.Key == "root") root = tag.Value as string;
+            lock (seen) seen.Add((value, root));
+        });
+        listener.Start();
+
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/api/Groups/g1";
+        await new LegacyApiPathRewriter(_ => Task.CompletedTask).InvokeAsync(ctx);
+        ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/Telemetries/query";
+        await new LegacyApiPathRewriter(_ => Task.CompletedTask).InvokeAsync(ctx);
+        ctx = new DefaultHttpContext();
+        ctx.Request.Path = "/api/v1/buildings";
+        await new LegacyApiPathRewriter(_ => Task.CompletedTask).InvokeAsync(ctx);
+
+        lock (seen)
+        {
+            Assert.Contains((1L, "api/groups"), seen);
+            Assert.Contains((1L, "telemetries"), seen);
+            Assert.Equal(2, seen.Count);
+        }
     }
 }
