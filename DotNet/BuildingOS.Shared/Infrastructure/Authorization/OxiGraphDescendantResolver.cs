@@ -6,11 +6,13 @@ namespace BuildingOS.Shared.Infrastructure.Authorization;
 using static OxiGraphOntology;
 
 /// <summary>
-/// <see cref="IResourceDescendantResolver"/> backed by OxiGraph SPARQL (#509). Every pattern here is the
-/// inverse of one in <see cref="OxiGraphHierarchyResolver"/>, with the same class checks and the same
-/// completeness requirements — e.g. a room's grant reaches its equipment only when the room sits on a
-/// level of a building, because that is when the equipment's ancestor chain contains the room. Keep the
-/// two in step: <c>DescendantExpansionTest</c> checks every expanded id against CanAccessAsync.
+/// <see cref="IResourceDescendantResolver"/> backed by OxiGraph SPARQL (#509), traversing topology only
+/// (hasPart / locatedIn / hasPoint). Every pattern here is the inverse of one in
+/// <see cref="OxiGraphHierarchyResolver"/>, with the same class checks and the same completeness
+/// requirements — e.g. a room's grant reaches its equipment only when the room sits on a level of a
+/// building, because that is when the equipment's ancestor chain contains the room. The ancestor side
+/// is the union of every placement, so following every placement here is exact. Keep the two in step:
+/// <c>DescendantExpansionTest</c> checks every expanded id against CanAccessAsync.
 /// </summary>
 public sealed class OxiGraphDescendantResolver(OxiGraphClient client) : IResourceDescendantResolver
 {
@@ -24,6 +26,8 @@ public sealed class OxiGraphDescendantResolver(OxiGraphClient client) : IResourc
         var targetRank = Rank(targetType);
         var found = Types.ToDictionary(t => t, _ => new SortedSet<string>(StringComparer.Ordinal));
 
+        // One query per (root type, child type); independent, so issued concurrently.
+        var queries = new List<(string ChildType, Task<IReadOnlyList<IReadOnlyDictionary<string, string>>> Rows)>();
         foreach (var group in roots.Where(r => Rank(r.ResourceType) >= 0).GroupBy(r => r.ResourceType))
         {
             var rootType = group.Key;
@@ -33,18 +37,25 @@ public sealed class OxiGraphDescendantResolver(OxiGraphClient client) : IResourc
                 var childType = Types[rank];
                 var pattern = ChildPattern(rootType, childType);
                 if (pattern is null) continue;
-                var rows = await client.QueryAsync(Query(rootType, ids, pattern), ct).ConfigureAwait(false);
-                foreach (var row in rows)
-                    if (row.TryGetValue("nid", out var nid)) found[childType].Add(nid);
+                queries.Add((childType, client.QueryAsync(Query(rootType, ids, pattern), ct)));
             }
         }
+        await Task.WhenAll(queries.Select(q => q.Rows)).ConfigureAwait(false);
+        foreach (var (childType, rows) in queries)
+            foreach (var row in await rows.ConfigureAwait(false))
+                if (row.TryGetValue("nid", out var nid)) found[childType].Add(nid);
 
         return Types
             .Where(t => Rank(t) <= targetRank)
             .ToDictionary(t => t, t => (IReadOnlyList<string>)found[t].ToList());
     }
 
-    private static int Rank(string type) => Types.ToList().IndexOf(type);
+    private static int Rank(string type)
+    {
+        for (var i = 0; i < Types.Count; i++)
+            if (Types[i] == type) return i;
+        return -1;
+    }
 
     private static string RootClass(string type) => type switch
     {
@@ -66,21 +77,19 @@ SELECT DISTINCT ?nid WHERE {{
 }}";
     }
 
-    // Equipment {e} under ?root, per the three placements GetDeviceAncestors accepts. Each branch keeps
+    // Equipment {e} under ?root, per the two placements GetDeviceAncestors accepts. Each branch keeps
     // the full chain up to a Building, as the ancestor query requires it to report that level.
     private static string EquipmentUnder(string rootType, string e) => rootType switch
     {
         "building" => $@"
   {e} a <{Cls_Equipment}> .
   {{ {e} <{Prop_LocatedIn}> ?s . ?s a <{Cls_Space}> . ?f <{Prop_HasPart}> ?s . ?f a <{Cls_Level}> . ?root <{Prop_HasPart}> ?f . }}
-  UNION {{ {e} <{Prop_LocatedIn}> ?f . ?f a <{Cls_Level}> . ?root <{Prop_HasPart}> ?f . }}
-  UNION {{ {e} <{Prop_Floor}> ?fn . ?f a <{Cls_Level}> ; <{Prop_Name}> ?fn . ?root <{Prop_HasPart}> ?f . }}",
+  UNION {{ {e} <{Prop_LocatedIn}> ?f . ?f a <{Cls_Level}> . ?root <{Prop_HasPart}> ?f . }}",
         "floor" => $@"
   ?b a <{Cls_Building}> ; <{Prop_HasPart}> ?root .
   {e} a <{Cls_Equipment}> .
   {{ {e} <{Prop_LocatedIn}> ?s . ?s a <{Cls_Space}> . ?root <{Prop_HasPart}> ?s . }}
-  UNION {{ {e} <{Prop_LocatedIn}> ?root . }}
-  UNION {{ {e} <{Prop_Floor}> ?fn . ?root <{Prop_Name}> ?fn . }}",
+  UNION {{ {e} <{Prop_LocatedIn}> ?root . }}",
         "space" => $@"
   ?f a <{Cls_Level}> ; <{Prop_HasPart}> ?root .
   ?b a <{Cls_Building}> ; <{Prop_HasPart}> ?f .
@@ -110,5 +119,11 @@ SELECT DISTINCT ?nid WHERE {{
         _ => null,
     };
 
-    private static string EscapeLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    // SPARQL short string literal: backslash first, then quote, then the control characters that are
+    // illegal raw in a short literal (a raw newline in one id would otherwise break the whole VALUES).
+    private static string EscapeLiteral(string s) => s
+        .Replace("\\", "\\\\")
+        .Replace("\"", "\\\"")
+        .Replace("\r", "\\r")
+        .Replace("\n", "\\n");
 }

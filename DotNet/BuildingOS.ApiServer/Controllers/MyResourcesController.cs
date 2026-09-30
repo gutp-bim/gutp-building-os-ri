@@ -32,7 +32,13 @@ public class MyResourcesController : ControllerBase
     private const string IdFormatOriginal = "original";
     private const string ExpandDescendants = "descendants";
 
-    private static readonly string[] ResourceTypes = ["building", "floor", "space", "device", "point"];
+    private static readonly IReadOnlyList<string> ResourceTypes = IResourceDescendantResolver.Types;
+
+    /// <summary>
+    /// Upper bound on the ids one <c>expand=descendants</c> response may carry (#509). A building grant on a
+    /// large twin expands to every point in it; past this the caller narrows <c>targetType</c> instead.
+    /// </summary>
+    public const int MaxExpandedIds = 50_000;
 
     /// <summary>
     /// 指定リソースタイプのアクセス可能リソースID一覧を取得
@@ -97,11 +103,15 @@ public class MyResourcesController : ControllerBase
     /// <c>idFormat=original</c> と併用する（それ以外は 400）。<c>unresolved</c> の権限は twin 上の位置が
     /// 分からないので展開しない。
     /// </param>
-    /// <param name="targetType">展開する深さ（building / floor / space / device / point、既定 point）</param>
+    /// <param name="targetType">
+    /// 展開する深さ（building / floor / space / device / point、既定 point）。<c>expand</c> が無ければ無視。
+    /// 展開後の ID が <see cref="MaxExpandedIds"/> を超えると 422（浅い <c>targetType</c> を指定する）。
+    /// </param>
     /// <param name="ct">キャンセル</param>
     [HttpGet]
     [ProducesResponseType(typeof(MyResourcesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> GetMyResources(
         [FromQuery] string? idFormat = null,
         [FromQuery] string? expand = null,
@@ -119,7 +129,8 @@ public class MyResourcesController : ControllerBase
             expandDescendants = true;
         }
         targetType = string.IsNullOrEmpty(targetType) ? "point" : targetType.ToLowerInvariant();
-        if (!ResourceTypes.Contains(targetType))
+        // Only meaningful with expand; without it the parameter is ignored rather than validated.
+        if (expandDescendants && !ResourceTypes.Contains(targetType))
             return BadRequest(new { error = $"targetType must be one of {string.Join(", ", ResourceTypes)}", targetType });
         var authContext = HttpContext.GetAuthorizationContext();
 
@@ -157,9 +168,19 @@ public class MyResourcesController : ControllerBase
                 : await _descendants.GetDescendantsAsync(roots, targetType, ct).ConfigureAwait(false);
             foreach (var (type, ids) in descendants)
             {
-                if (ids.Count == 0) continue;
+                if (ids.Count == 0 || !resources.ContainsKey(type)) continue;
                 resources[type] = resources[type].Concat(ids).Distinct(StringComparer.Ordinal).ToList();
             }
+
+            var total = resources.Values.Sum(v => v.Count);
+            if (total > MaxExpandedIds)
+                return StatusCode(StatusCodes.Status422UnprocessableEntity, new
+                {
+                    error = $"the expansion yields {total} ids, over the limit of {MaxExpandedIds}; " +
+                            "use a shallower targetType (e.g. device or space)",
+                    count = total,
+                    limit = MaxExpandedIds,
+                });
         }
 
         return Ok(new MyResourcesResponse { IsAdmin = false, Resources = resources, Unresolved = unresolved });

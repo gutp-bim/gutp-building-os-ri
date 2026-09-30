@@ -161,18 +161,46 @@ public class MyResourcesControllerTest
     {
         var (controller, authz, _) = Build("viewer", out var descendants);
         Spaces(authz, new AccessibleResource(H("R501"), "R501"));
+        authz.Setup(a => a.GetAccessibleResourcesAsync(It.IsAny<AuthorizationContext>(), "point", "read", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new AccessibleResource(H("PT-9"), "PT-9")]);
 
-        await controller.GetMyResources(idFormat: "original", expand: "descendants", targetType: "device", ct: default);
+        var ok = Assert.IsType<OkObjectResult>(
+            await controller.GetMyResources(idFormat: "original", expand: "descendants", targetType: "space", ct: default));
 
         descendants.Verify(d => d.GetDescendantsAsync(
-            It.IsAny<IReadOnlyCollection<(string, string)>>(), "device", It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<IReadOnlyCollection<(string, string)>>(), "space", It.IsAny<CancellationToken>()), Times.Once);
+        // targetType bounds the expansion, not the grants: a direct point grant stays listed.
+        Assert.Equal(["PT-9"], Assert.IsType<MyResourcesResponse>(ok.Value).Resources!["point"]);
+    }
+
+    [Fact]
+    public async Task TargetType_WithoutExpand_IsIgnored()
+    {
+        var (controller, _, _) = Build();
+        Assert.IsType<OkObjectResult>(await controller.GetMyResources(idFormat: "original", targetType: "gateway", ct: default));
+    }
+
+    [Fact]
+    public async Task Expand_OverTheCap_Is422_WithAHint()
+    {
+        var (controller, authz, _) = Build("viewer", out var descendants);
+        Spaces(authz, new AccessibleResource(H("R501"), "R501"));
+        var many = Enumerable.Range(0, MyResourcesController.MaxExpandedIds + 1).Select(i => $"PT-{i}").ToList();
+        descendants.Setup(d => d.GetDescendantsAsync(
+                It.IsAny<IReadOnlyCollection<(string, string)>>(), "point", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, IReadOnlyList<string>> { ["point"] = many });
+
+        var result = await controller.GetMyResources(idFormat: "original", expand: "descendants", ct: default);
+
+        var status = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, status.StatusCode);
     }
 
     [Theory]
     [InlineData(null, "descendants", null)]      // expand needs business ids
     [InlineData("hash", "descendants", null)]
     [InlineData("original", "children", null)]   // unknown expand
-    [InlineData("original", "descendants", "gateway")] // unknown target type
+    [InlineData("original", "descendants", "gateway")] // unknown target type, with expand
     public async Task Expand_InvalidCombinations_Are400(string? idFormat, string? expand, string? targetType)
     {
         var (controller, _, _) = Build();

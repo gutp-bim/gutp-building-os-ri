@@ -6,6 +6,7 @@ using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.Grouping.Entities;
 using BuildingOS.Shared.Infrastructure.Authorization;
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,8 +18,9 @@ namespace BuildingOS.IntegrationTest.Tests;
 /// <summary>
 /// #509 against a real twin: descendant expansion follows the same paths as the ancestor chain, so
 /// every expanded id is readable through CanAccessAsync and every node it leaves out is not. The twin
-/// covers each device placement the ancestor query accepts (in a room, directly on a level, joined by
-/// the sbco:floor name literal) and a room with no level, which grants on the building never reach.
+/// covers each device placement the ancestor query accepts (in a room, directly on a level), a device
+/// placed both ways, equipment named only by the sbco:floor literal (placed nowhere — traversal is
+/// topology only), a room with no level, and a second building with a same-named floor.
 /// </summary>
 [Collection(Names.Postgres)]
 public class DescendantExpansionTest(PostgresFixture postgres, OxiGraphFixture oxiGraph)
@@ -43,6 +45,12 @@ public class DescendantExpansionTest(PostgresFixture postgres, OxiGraphFixture o
           <{{Iri("AHU-502")}}> a sbco:EquipmentExt ; sbco:id "AHU-502" ; sbco:name "b" ; sbco:locatedIn <{{Iri("R502")}}> ; sbco:hasPoint <{{Iri("PT-3")}}> .
           <{{Iri("PUMP-5F")}}> a sbco:EquipmentExt ; sbco:id "PUMP-5F" ; sbco:name "c" ; sbco:locatedIn <{{Iri("F5")}}> ; sbco:hasPoint <{{Iri("PT-4")}}> .
           <{{Iri("FAN-6F")}}> a sbco:EquipmentExt ; sbco:id "FAN-6F" ; sbco:name "d" ; sbco:floor "6F" ; sbco:hasPoint <{{Iri("PT-5")}}> .
+          <{{Iri("DUAL")}}> a sbco:EquipmentExt ; sbco:id "DUAL" ; sbco:name "f" ; sbco:locatedIn <{{Iri("R502")}}> , <{{Iri("F6")}}> ; sbco:hasPoint <{{Iri("PT-7")}}> .
+          <{{Iri("PT-7")}}> a sbco:PointExt ; sbco:id "PT-7" ; sbco:name "p7" .
+          <{{Iri("B2")}}> a sbco:Building ; sbco:id "B2" ; sbco:name "Annex" ; sbco:hasPart <{{Iri("B2-F5")}}> .
+          <{{Iri("B2-F5")}}> a sbco:Level ; sbco:id "B2-F5" ; sbco:name "5F" .
+          <{{Iri("B2-AHU")}}> a sbco:EquipmentExt ; sbco:id "B2-AHU" ; sbco:name "g" ; sbco:locatedIn <{{Iri("B2-F5")}}> ; sbco:floor "5F" ; sbco:hasPoint <{{Iri("PT-8")}}> .
+          <{{Iri("PT-8")}}> a sbco:PointExt ; sbco:id "PT-8" ; sbco:name "p8" .
           <{{Iri("LOST")}}> a sbco:EquipmentExt ; sbco:id "LOST" ; sbco:name "e" ; sbco:locatedIn <{{Iri("R-ORPHAN")}}> ; sbco:hasPoint <{{Iri("PT-6")}}> .
           <{{Iri("PT-1")}}> a sbco:PointExt ; sbco:id "PT-1" ; sbco:name "p1" .
           <{{Iri("PT-2")}}> a sbco:PointExt ; sbco:id "PT-2" ; sbco:name "p2" .
@@ -55,20 +63,27 @@ public class DescendantExpansionTest(PostgresFixture postgres, OxiGraphFixture o
 
     private static readonly (string Type, string Id)[] AllNodes =
     [
-        ("building", "B1"), ("floor", "F5"), ("floor", "F6"), ("space", "R501"), ("space", "R502"), ("space", "R-ORPHAN"),
+        ("building", "B1"), ("building", "B2"), ("floor", "F5"), ("floor", "F6"), ("floor", "B2-F5"),
+        ("space", "R501"), ("space", "R502"), ("space", "R-ORPHAN"),
         ("device", "AHU-501"), ("device", "AHU-502"), ("device", "PUMP-5F"), ("device", "FAN-6F"), ("device", "LOST"),
+        ("device", "DUAL"), ("device", "B2-AHU"),
         ("point", "PT-1"), ("point", "PT-2"), ("point", "PT-3"), ("point", "PT-4"), ("point", "PT-5"), ("point", "PT-6"),
+        ("point", "PT-7"), ("point", "PT-8"),
     ];
 
     public static TheoryData<string, string, string[]> Cases() => new()
     {
         { "space", "R501", ["device:AHU-501", "point:PT-1", "point:PT-2"] },
-        { "floor", "F5", ["space:R501", "space:R502", "device:AHU-501", "device:AHU-502", "device:PUMP-5F",
-                          "point:PT-1", "point:PT-2", "point:PT-3", "point:PT-4"] },
-        { "floor", "F6", ["device:FAN-6F", "point:PT-5"] },
+        { "space", "R502", ["device:AHU-502", "device:DUAL", "point:PT-3", "point:PT-7"] },
+        { "floor", "F5", ["space:R501", "space:R502", "device:AHU-501", "device:AHU-502", "device:PUMP-5F", "device:DUAL",
+                          "point:PT-1", "point:PT-2", "point:PT-3", "point:PT-4", "point:PT-7"] },
+        // FAN-6F names 6F only through the literal: placed nowhere. DUAL is directly on 6F too.
+        { "floor", "F6", ["device:DUAL", "point:PT-7"] },
         { "building", "B1", ["floor:F5", "floor:F6", "space:R501", "space:R502",
-                             "device:AHU-501", "device:AHU-502", "device:PUMP-5F", "device:FAN-6F",
-                             "point:PT-1", "point:PT-2", "point:PT-3", "point:PT-4", "point:PT-5"] },
+                             "device:AHU-501", "device:AHU-502", "device:PUMP-5F", "device:DUAL",
+                             "point:PT-1", "point:PT-2", "point:PT-3", "point:PT-4", "point:PT-7"] },
+        // B2's floor is also named "5F": no name join, so nothing of B1 leaks in (and vice versa above).
+        { "building", "B2", ["floor:B2-F5", "device:B2-AHU", "point:PT-8"] },
         { "device", "AHU-502", ["point:PT-3"] },
     };
 
@@ -158,12 +173,6 @@ public class DescendantExpansionTest(PostgresFixture postgres, OxiGraphFixture o
         Assert.Equal(["PT-1", "PT-2"], body.Resources["point"].OrderBy(x => x));
         Assert.Empty(body.Resources["building"]);
         foreach (var pointId in body.Resources["point"])
-            Assert.True(await authz.CanAccessAsync(controller.HttpContext.GetAuthorizationContextForTest(), "point", pointId, "read"));
+            Assert.True(await authz.CanAccessAsync(controller.HttpContext.GetAuthorizationContext(), "point", pointId, "read"));
     }
-}
-
-internal static class HttpContextTestExtensions
-{
-    public static AuthorizationContext GetAuthorizationContextForTest(this HttpContext ctx)
-        => (AuthorizationContext)ctx.Items["AuthorizationContext"]!;
 }
