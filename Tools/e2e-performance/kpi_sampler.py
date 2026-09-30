@@ -73,6 +73,45 @@ def sample_pending(nats_url: str, stream_filter: str) -> tuple[int, dict[str, in
     return sum(per.values()), per
 
 
+def _walk_streams(node):
+    """Yield every stream entry (a dict under a `stream_detail` list) from a nested /jsz tree."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k == "stream_detail" and isinstance(v, list):
+                yield from (s for s in v if isinstance(s, dict))
+            else:
+                yield from _walk_streams(v)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _walk_streams(item)
+
+
+def stream_state_from_jsz(jsz: dict, stream_filter: str) -> dict[str, int]:
+    """Storage footprint and redelivery for the streams whose name matches the filter (#535).
+
+    bytes/messages come from each stream's `state`; redelivered sums `num_redelivered` over that
+    stream's consumers (messages still outstanding that were redelivered at least once)."""
+    out = {"bytes": 0, "messages": 0, "redelivered": 0}
+    for stream in _walk_streams(jsz):
+        name = str(stream.get("name", ""))
+        if stream_filter and stream_filter.upper() not in name.upper():
+            continue
+        state = stream.get("state") or {}
+        out["bytes"] += int(state.get("bytes", 0))
+        out["messages"] += int(state.get("messages", 0))
+        for c in stream.get("consumer_detail") or []:
+            if isinstance(c, dict):
+                out["redelivered"] += int(c.get("num_redelivered", 0))
+    return out
+
+
+def sample_stream_state(nats_url: str, stream_filter: str) -> dict[str, int]:
+    """Poll /jsz and return stream_state_from_jsz() for the matching streams."""
+    r = requests.get(f"{nats_url.rstrip('/')}/jsz?consumers=1&streams=1", timeout=5)
+    r.raise_for_status()
+    return stream_state_from_jsz(r.json(), stream_filter)
+
+
 def prom_instant(prom_url: str, query: str) -> float | None:
     try:
         r = requests.get(
