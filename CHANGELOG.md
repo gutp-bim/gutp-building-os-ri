@@ -12,6 +12,13 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- The twin import preview reports `sbco:id` values shared by two or more nodes of one resource type
+  (`idCollisionCount` / `idCollisions`), and apply refuses such an import even with `allowOrphans` (#517):
+  authorization identifies a node by its business id, so a room `501` in each of two buildings would share
+  every `space:501` grant. An append is checked against the existing twin (re-importing the same node is
+  not a duplicate; duplicates already in the twin are not blamed on it). The startup seed logs duplicates
+  as an ERROR without stopping startup.
+
 - `GET /api/v1/my-resources?idFormat=original&expand=descendants[&targetType=point]` adds the twin
   descendants of what a user can read, down to `targetType`, in one call (#509) — e.g. a Group grant on a
   room yields its equipment and points. Descendants follow exactly the paths the authorization ancestor

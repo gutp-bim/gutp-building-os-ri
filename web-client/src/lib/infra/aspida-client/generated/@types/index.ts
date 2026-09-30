@@ -722,6 +722,12 @@ export type TwinControlSchemaIssue = {
   reason?: string | undefined;
 }
 
+export type TwinIdCollision = {
+  resourceType?: string | undefined;
+  id?: string | undefined;
+  nodeCount?: number | undefined;
+}
+
 export type TwinImportPreview = {
   tripleCount?: number | undefined;
   gatewayCount?: number | undefined;
@@ -730,6 +736,8 @@ export type TwinImportPreview = {
   orphans?: TwinOrphanResource[] | undefined;
   controlSchemaIssueCount?: number | undefined;
   controlSchemaIssues?: TwinControlSchemaIssue[] | undefined;
+  idCollisionCount?: number | undefined;
+  idCollisions?: TwinIdCollision[] | undefined;
   valid?: boolean | undefined;
 }
 

@@ -32,6 +32,16 @@ export interface TwinControlSchemaIssue {
   reason: ControlSchemaIssueReason;
 }
 
+/**
+ * Two or more nodes of one type sharing a business id (#517). Authorization identifies a node by its
+ * sbco:id, so they would share every grant; the import is never applied.
+ */
+export interface TwinIdCollision {
+  resourceType: string;
+  id: string;
+  nodeCount: number;
+}
+
 export interface TwinImportPreview {
   tripleCount: number;
   gatewayCount: number;
@@ -46,6 +56,12 @@ export interface TwinImportPreview {
    */
   controlSchemaIssueCount: number;
   controlSchemaIssues: TwinControlSchemaIssue[];
+  /**
+   * Business ids shared by nodes of one type (#517); `idCollisions` is a capped sample. Optional: an
+   * API server older than #517 does not send them.
+   */
+  idCollisionCount?: number;
+  idCollisions?: TwinIdCollision[];
   valid: boolean;
 }
 
@@ -88,8 +104,9 @@ export function controlSchemaIssueReasonLabel(reason: string): string {
 }
 
 /**
- * Pure: an import may be applied only when the preview reports no gateway_id collisions (#322) and
- * no resources outside the building hierarchy — the latter waivable by an explicit override (#291).
+ * Pure: an import may be applied only when the preview reports no gateway_id collisions (#322), no
+ * business ids shared by nodes of one type (#517), and no resources outside the building hierarchy —
+ * only the last waivable by an explicit override (#291).
  */
 export function canApplyImport(
   preview: TwinImportPreview | null,
@@ -97,6 +114,7 @@ export function canApplyImport(
 ): boolean {
   if (preview === null) return false;
   if (preview.collisions.length > 0) return false;
+  if ((preview.idCollisionCount ?? 0) > 0) return false;
   return preview.orphanCount === 0 || allowOrphans;
 }
 
@@ -106,6 +124,8 @@ export function previewSummary(preview: TwinImportPreview): string {
   const issues: string[] = [];
   if (preview.collisions.length > 0)
     issues.push(`gateway_id 重複 ${preview.collisions.length} 件`);
+  if ((preview.idCollisionCount ?? 0) > 0)
+    issues.push(`sbco:id 重複 ${preview.idCollisionCount} 件`);
   if (preview.orphanCount > 0)
     issues.push(`階層未接続 ${preview.orphanCount} 件`);
   if (preview.controlSchemaIssueCount > 0)

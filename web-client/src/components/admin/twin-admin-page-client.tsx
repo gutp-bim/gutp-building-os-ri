@@ -204,6 +204,15 @@ export function TwinAdminPageClient() {
                 ))}
               </ul>
             )}
+            {(preview.idCollisions?.length ?? 0) > 0 && (
+              <ul className="mt-1 list-disc pl-5 text-red-600" data-testid="preview-id-collisions">
+                {preview.idCollisions!.map((c) => (
+                  <li key={`${c.resourceType}:${c.id}`}>
+                    {c.resourceType} {c.id}: {c.nodeCount} ノードが同じ sbco:id を使っています（権限が共有されます）
+                  </li>
+                ))}
+              </ul>
+            )}
             {preview.orphanCount > 0 && (
               <div data-testid="preview-orphans">
                 <ul className="mt-1 list-disc pl-5 text-red-600">

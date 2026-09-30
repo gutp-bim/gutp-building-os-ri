@@ -108,6 +108,11 @@ public sealed class OxiGraphSeedHostedService(
             // sbco:floor literal is in no Level or Building. The admin import reports this as the
             // floor_literal_only orphan reason, but the seed skips that path — so warn here. Non-fatal.
             await LogFloorLiteralOnlyEquipmentAsync(ct).ConfigureAwait(false);
+
+            // #517: authorization identifies a node by its sbco:id (#504), so two nodes of one type
+            // sharing one share every grant. The admin import refuses them; the seed skips that path,
+            // so log them as an error — but still start, since an existing twin may already hold some.
+            await LogIdCollisionsAsync(ct).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrEmpty(templatePath))
@@ -248,6 +253,53 @@ SELECT DISTINCT ?devId WHERE {
 ORDER BY ?devId";
 
     private const int FloorLiteralExamples = 10;
+
+    /// <summary>
+    /// (class, id) pairs held by more than one node of that class — the same definition as the admin
+    /// import's id-collision check (#517). internal so test fakes can route on the exact query text.
+    /// </summary>
+    internal const string IdCollisionQuery = @"PREFIX sbco: <https://www.sbco.or.jp/ont/>
+SELECT ?cls ?id (COUNT(DISTINCT ?node) AS ?n) WHERE {
+  VALUES ?cls { sbco:Building sbco:Level sbco:Room sbco:EquipmentExt sbco:PointExt }
+  ?node a ?cls ; sbco:id ?id .
+}
+GROUP BY ?cls ?id
+HAVING (COUNT(DISTINCT ?node) > 1)
+ORDER BY ?cls ?id";
+
+    private static readonly Dictionary<string, string> ResourceTypeByClass = new()
+    {
+        ["https://www.sbco.or.jp/ont/Building"] = "building",
+        ["https://www.sbco.or.jp/ont/Level"] = "floor",
+        ["https://www.sbco.or.jp/ont/Room"] = "space",
+        ["https://www.sbco.or.jp/ont/EquipmentExt"] = "device",
+        ["https://www.sbco.or.jp/ont/PointExt"] = "point",
+    };
+
+    private async Task LogIdCollisionsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var rows = await client.QueryAsync(IdCollisionQuery, ct).ConfigureAwait(false);
+            if (rows.Count == 0) return;
+            var examples = string.Join(", ", rows.Take(FloorLiteralExamples).Select(r =>
+            {
+                var cls = r.GetValueOrDefault("cls", "?");
+                var type = ResourceTypeByClass.GetValueOrDefault(cls, cls);
+                return $"{type} {r.GetValueOrDefault("id", "?")} ({r.GetValueOrDefault("n", "?")} nodes)";
+            }));
+            logger.LogError(
+                "{Count} business id(s) are shared by more than one node of the same type. Authorization " +
+                "identifies a node by its sbco:id, so those nodes share every grant (a grant on one reaches the " +
+                "others). Give each node a unique sbco:id in the twin builder. Examples: {Examples}",
+                rows.Count, examples);
+        }
+        // As for the floor-literal check: a timeout must not stop startup, only a real shutdown may propagate.
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Business-id uniqueness check after seed failed; continuing startup");
+        }
+    }
 
     private async Task LogFloorLiteralOnlyEquipmentAsync(CancellationToken ct)
     {

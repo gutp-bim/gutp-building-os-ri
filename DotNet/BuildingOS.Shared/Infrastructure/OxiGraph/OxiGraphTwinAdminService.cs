@@ -92,6 +92,21 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
                     r.GetValueOrDefault("reason", "")))
                 .ToList();
 
+            // Business-id uniqueness (#517): authorization identifies a node by its sbco:id, so two
+            // nodes of one type sharing it would share every grant. Count every colliding (type, id),
+            // then enumerate a capped sample.
+            var idCollisionPattern = IdCollisionPattern(materializedGraph, mode);
+            var idCollisionTotal = await ScalarCountAsync(
+                $"SELECT (COUNT(?id) AS ?n) WHERE {{ {{ {idCollisionPattern} }} }}", ct).ConfigureAwait(false);
+            var idCollisionRows = await _client.QueryAsync(
+                $"{idCollisionPattern} ORDER BY ?cls ?id LIMIT {MaxOrphans}", ct).ConfigureAwait(false);
+            var idCollisions = idCollisionRows
+                .Select(r => new TwinIdCollision(
+                    ResourceTypeOf(r.GetValueOrDefault("cls", "")),
+                    r.GetValueOrDefault("id", ""),
+                    int.TryParse(r.GetValueOrDefault("n", "0"), out var c) ? c : 0))
+                .ToList();
+
             // Control-schema completeness (#336): a writable point missing/malformed bos: schema
             // fails open at control time (ControlValueValidator skips validation) with no signal —
             // surface it here, at import time, purely as a count (never blocks apply).
@@ -101,7 +116,7 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
 
             return new TwinImportPreview(
                 triples, (int)gateways, collisions, (int)orphanTotal, orphans,
-                schemaIssueCount, schemaIssues);
+                schemaIssueCount, schemaIssues, (int)idCollisionTotal, idCollisions);
         }
         finally
         {
@@ -242,6 +257,34 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     //
     // internal: ControlSchemaIssueDetection (#336) reuses this to scope its own candidate/lookup
     // triples the same way, for both admin preview and OxiGraphSeedHostedService's post-seed check.
+    // The resource classes whose sbco:id authorization relies on, and the API type name of each.
+    private static readonly (string Class, string Type)[] IdentifiedClasses =
+    [
+        ("Building", "building"), ("Level", "floor"), ("Room", "space"), ("EquipmentExt", "device"), ("PointExt", "point"),
+    ];
+
+    private static string ResourceTypeOf(string classIri)
+        => IdentifiedClasses.FirstOrDefault(c => classIri == $"{Sbco}{c.Class}").Type ?? classIri;
+
+    // (class, id) pairs held by more than one node of that class in the graphs the import leaves behind
+    // (#517). The group is anchored on a node of the staging graph, so an append is judged only on what
+    // it brings in — a duplicate already inside the twin is not blamed on it — while the same IRI
+    // re-imported is one node, not two. The anchor's type may come from the twin: an append can add just an
+    // sbco:id to a node typed there. Shared by the count and the enumeration.
+    private static string IdCollisionPattern(string graph, TwinImportMode mode)
+    {
+        var classes = string.Join(" ", IdentifiedClasses.Select(c => $"<{Sbco}{c.Class}>"));
+        return $@"SELECT ?cls ?id (COUNT(DISTINCT ?node) AS ?n) WHERE {{
+  VALUES ?cls {{ {classes} }}
+  GRAPH <{graph}> {{ ?staged <{Sbco}id> ?id . }}
+  {Link(graph, mode, "?staged a ?cls .")}
+  {Link(graph, mode, "?node a ?cls .")}
+  {Link(graph, mode, $"?node <{Sbco}id> ?id .")}
+}}
+GROUP BY ?cls ?id
+HAVING (COUNT(DISTINCT ?node) > 1)";
+    }
+
     internal static string Link(string graph, TwinImportMode mode, string triple) =>
         mode == TwinImportMode.Replace
             ? $"GRAPH <{graph}> {{ {triple} }}"
