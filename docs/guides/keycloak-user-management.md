@@ -87,6 +87,20 @@ Web Client の `/admin` ワークスペース（管理者ロールでログイ�
 2. **ユーザーを追加** → ユーザー名・メール・パスワードを入力
 3. **グループ** タブでグループへの追加、**権限** タブで個別パーミッションの付与が可能
 
+> **属性名（#519）:** 管理 UI が読み書きするのは 3-a と同じ `role` / `permissions` 属性です
+> （トークンのマッパーが読む属性。名前の定義は `KeycloakUserAttributes` の 1 か所）。
+> 管理 UI で付けた権限はそのままトークンの `permissions` クレームに載り、所属グループの
+> `permissions` とも合算されます（#508）。
+>
+> #519 より前の管理 UI は `buildingos_role` / `buildingos_permissions` に書いていたため、
+> その権限はトークンに載っていませんでした。移行期間中は Admin API 経路で旧属性も読み合わせ
+> （role は `role` 優先・空なら `buildingos_role`、permissions は両方の和集合）、管理 UI で
+> そのユーザーを更新すると新属性に書き込んで旧属性を削除します。既存ユーザーの一括移行
+> （`kcadm.sh` + `jq`）と、realm のユーザープロファイル設定（`unmanagedAttributePolicy: ADMIN_EDIT`
+> — これが無いと Keycloak 24+ は `role` / `permissions` を黙って捨てる）は
+> [keycloak-permission-mapping.md の「Admin UI writes the same attributes」](../operations/keycloak-permission-mapping.md#admin-ui-writes-the-same-attributes-519)
+> を参照してください。
+
 ---
 
 ## 4. ロールと権限モデル

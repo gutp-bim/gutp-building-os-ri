@@ -68,6 +68,8 @@ public class AuthorizationContextMiddleware
         }
 
         // 3. Keycloak Admin API 経由で role/permissions を取得（トークンにクレームが無い場合のフォールバック）。
+        //    属性名はトークン経路と同じ `role` / `permissions`（KeycloakUserAttributes が唯一の定義）。
+        //    移行期間中は #519 以前の buildingos_* も KeycloakUserManagementService が読み合わせる。
         var userService = context.RequestServices.GetService<IUserManagementService>();
         if (userService != null)
         {

@@ -96,35 +96,211 @@ public class KeycloakUserManagementServiceTest
     }
 
     [Fact]
-    public async Task UpdateUserAttributesAsync_PutsAttributesAndReturnsUpdatedUser()
+    public async Task UpdateUserAttributesAsync_WritesTheAttributesTheTokenMapperReads()
     {
-        string? capturedBody = null;
+        // #519: the realm's building-os-api mappers turn the `role` / `permissions` user attributes
+        // into the building_os_role / permissions claims. A grant written anywhere else never reaches
+        // the token.
+        var keycloak = new FakeKeycloakUser("id1", "alice", new());
+        var service = CreateService(keycloak.Handle);
+
+        var updated = await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Role = "operator",
+            Permissions = ["floor:2:write"]
+        });
+
+        var attrs = keycloak.LastPutAttributes!;
+        Assert.Equal(["operator"], attrs["role"]);
+        Assert.Equal(["floor:2:write"], attrs["permissions"]);
+        Assert.False(attrs.ContainsKey("buildingos_role"));
+        Assert.False(attrs.ContainsKey("buildingos_permissions"));
+
+        Assert.Equal("operator", updated.Role);
+        Assert.Equal(["floor:2:write"], updated.Permissions);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_MigratesLegacyAttributes_AndClearsThem()
+    {
+        // A user granted before #519 has only buildingos_*. Adding one permission must carry the old
+        // grants and role over to the new attributes and drop the legacy ones, otherwise the next read
+        // would merge a permission the admin just removed back in.
+        var keycloak = new FakeKeycloakUser("id1", "alice", new()
+        {
+            ["buildingos_role"] = ["operator"],
+            ["buildingos_permissions"] = ["floor:1:read"],
+            ["locale"] = ["ja"],
+        });
+        var service = CreateService(keycloak.Handle);
+
+        var updated = await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Permissions = ["floor:1:read", "floor:2:write"]
+        });
+
+        var attrs = keycloak.LastPutAttributes!;
+        Assert.Equal(["operator"], attrs["role"]);
+        Assert.Equal(["floor:1:read", "floor:2:write"], attrs["permissions"]);
+        Assert.False(attrs.ContainsKey("buildingos_role"));
+        Assert.False(attrs.ContainsKey("buildingos_permissions"));
+        // Keycloak replaces the whole attribute map on PUT: unrelated attributes must be sent back.
+        Assert.Equal(["ja"], attrs["locale"]);
+
+        Assert.Equal("operator", updated.Role);
+        Assert.Equal(["floor:1:read", "floor:2:write"], updated.Permissions);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_SendsTheFullRepresentation_SoProfileFieldsSurvive()
+    {
+        // Keycloak 24+ (user profile) treats a PUT that carries `attributes` as a full profile update:
+        // an absent email / firstName / lastName is cleared, and a user missing required profile
+        // fields can no longer log in ("Account is not fully set up"). Verified against Keycloak 26.7.
+        var keycloak = new FakeKeycloakUser("id1", "alice", new() { ["role"] = ["viewer"] },
+            email: "alice@example.com", firstName: "Alice", lastName: "Liddell");
+        var service = CreateService(keycloak.Handle);
+
+        await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Permissions = ["floor:2:read"]
+        });
+
+        var body = keycloak.LastPutBody!.RootElement;
+        Assert.Equal("alice", body.GetProperty("username").GetString());
+        Assert.Equal("alice@example.com", body.GetProperty("email").GetString());
+        Assert.Equal("Alice", body.GetProperty("firstName").GetString());
+        Assert.Equal("Liddell", body.GetProperty("lastName").GetString());
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_PermissionsOnly_KeepsExistingRole()
+    {
+        // Keycloak's PUT replaces the attribute map, so a permissions-only update that sent just
+        // `permissions` would silently strip the user's role.
+        var keycloak = new FakeKeycloakUser("id1", "alice", new() { ["role"] = ["viewer"] });
+        var service = CreateService(keycloak.Handle);
+
+        await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Permissions = ["floor:2:read"]
+        });
+
+        Assert.Equal(["viewer"], keycloak.LastPutAttributes!["role"]);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_RemovingTheLastPermission_ClearsTheAttribute()
+    {
+        var keycloak = new FakeKeycloakUser("id1", "alice", new()
+        {
+            ["role"] = ["viewer"],
+            ["buildingos_permissions"] = ["floor:1:read"],
+        });
+        var service = CreateService(keycloak.Handle);
+
+        var updated = await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Permissions = []
+        });
+
+        Assert.False(keycloak.LastPutAttributes!.ContainsKey("permissions"));
+        Assert.False(keycloak.LastPutAttributes!.ContainsKey("buildingos_permissions"));
+        Assert.Empty(updated.Permissions);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_HonorsLegacyAttributes()
+    {
         var service = CreateService(req =>
         {
             if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token"))
                 return TokenResponse();
-            if (req.Method == HttpMethod.Put)
+            return JsonResponse(BuildKeycloakUserWithAttributes("id1", "alice", new()
             {
-                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-                return new HttpResponseMessage(HttpStatusCode.NoContent);
-            }
-            return SingleUserResponse("id1", "alice", "alice@example.com", "manager", ["floor:2:write"]);
+                ["buildingos_role"] = ["operator"],
+                ["buildingos_permissions"] = ["floor:1:read"],
+            }));
         });
 
-        var updated = await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        var user = await service.GetUserByIdAsync("id1");
+
+        Assert.Equal("operator", user!.Role);
+        Assert.Equal(["floor:1:read"], user.Permissions);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_BothPresent_RolePrefersNewAndPermissionsAreUnioned()
+    {
+        var service = CreateService(req =>
         {
-            Role = "manager",
-            Permissions = ["floor:2:write"]
+            if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token"))
+                return TokenResponse();
+            return JsonResponse(BuildKeycloakUserWithAttributes("id1", "alice", new()
+            {
+                ["role"] = ["viewer"],
+                ["permissions"] = ["floor:2:read", "floor:1:read"],
+                ["buildingos_role"] = ["operator"],
+                ["buildingos_permissions"] = ["floor:1:read", "floor:3:write"],
+            }));
         });
 
-        Assert.NotNull(capturedBody);
-        var doc = JsonDocument.Parse(capturedBody!);
-        var attrs = doc.RootElement.GetProperty("attributes");
-        Assert.Equal("manager", attrs.GetProperty("buildingos_role")[0].GetString());
-        Assert.Equal("floor:2:write", attrs.GetProperty("buildingos_permissions")[0].GetString());
+        var user = await service.GetUserByIdAsync("id1");
 
-        Assert.Equal("manager", updated.Role);
-        Assert.Equal(["floor:2:write"], updated.Permissions);
+        Assert.Equal("viewer", user!.Role);
+        Assert.Equal(["floor:2:read", "floor:1:read", "floor:3:write"], user.Permissions);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_EmptyNewRole_FallsBackToLegacy()
+    {
+        var service = CreateService(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token"))
+                return TokenResponse();
+            return JsonResponse(BuildKeycloakUserWithAttributes("id1", "alice", new()
+            {
+                ["role"] = [""],
+                ["buildingos_role"] = ["operator"],
+            }));
+        });
+
+        var user = await service.GetUserByIdAsync("id1");
+
+        Assert.Equal("operator", user!.Role);
+    }
+
+    [Fact]
+    public void AttributeNames_MatchTheRealmTokenMappers()
+    {
+        // One definition of the names, pinned to the realm the stack actually imports.
+        var realmPath = FindRepoFile(Path.Combine("oss-stack", "keycloak", "realm.json"));
+        using var realm = JsonDocument.Parse(File.ReadAllText(realmPath));
+        var mapped = realm.RootElement.GetProperty("clientScopes").EnumerateArray()
+            .SelectMany(s => s.TryGetProperty("protocolMappers", out var m) ? m.EnumerateArray() : Enumerable.Empty<JsonElement>())
+            .Where(m => m.GetProperty("protocolMapper").GetString() == "oidc-usermodel-attribute-mapper")
+            .ToDictionary(
+                m => m.GetProperty("config").GetProperty("claim.name").GetString()!,
+                m => m.GetProperty("config").GetProperty("user.attribute").GetString()!);
+
+        Assert.Equal(KeycloakUserAttributes.Role, mapped["building_os_role"]);
+        Assert.Equal(KeycloakUserAttributes.Permissions, mapped["permissions"]);
+    }
+
+    [Fact]
+    public void Realm_LetsTheAdminApiStoreTheBuildingOsAttributes()
+    {
+        // Keycloak 24+ drops attributes the user profile does not declare unless the realm allows
+        // unmanaged attributes — a PUT of `role` / `permissions` would return 204 and store nothing.
+        // ADMIN_EDIT lets only admins (the Admin API) write them; users cannot see or edit them.
+        var realmPath = FindRepoFile(Path.Combine("oss-stack", "keycloak", "realm.json"));
+        using var realm = JsonDocument.Parse(File.ReadAllText(realmPath));
+        var provider = realm.RootElement.GetProperty("components")
+            .GetProperty("org.keycloak.userprofile.UserProfileProvider")[0];
+        var config = provider.GetProperty("config").GetProperty("kc.user.profile.config")[0].GetString()!;
+        using var profile = JsonDocument.Parse(config);
+
+        Assert.Equal("ADMIN_EDIT", profile.RootElement.GetProperty("unmanagedAttributePolicy").GetString());
     }
 
     [Fact]
@@ -210,8 +386,8 @@ public class KeycloakUserManagementServiceTest
         string id, string username, string email, string? role, string[] permissions, bool enabled)
     {
         var attributes = new Dictionary<string, string[]>();
-        if (role != null) attributes["buildingos_role"] = [role];
-        if (permissions.Length > 0) attributes["buildingos_permissions"] = permissions;
+        if (role != null) attributes[KeycloakUserAttributes.Role] = [role];
+        if (permissions.Length > 0) attributes[KeycloakUserAttributes.Permissions] = permissions;
         return new
         {
             id,
@@ -238,8 +414,8 @@ public class KeycloakUserManagementServiceTest
         string id, string username, string email, string? role, string[] permissions)
     {
         var attributes = new Dictionary<string, string[]>();
-        if (role != null) attributes["buildingos_role"] = [role];
-        if (permissions.Length > 0) attributes["buildingos_permissions"] = permissions;
+        if (role != null) attributes[KeycloakUserAttributes.Role] = [role];
+        if (permissions.Length > 0) attributes[KeycloakUserAttributes.Permissions] = permissions;
         return new
         {
             id,
@@ -256,9 +432,74 @@ public class KeycloakUserManagementServiceTest
         string email, string? role, string[] permissions)
     {
         var attributes = new Dictionary<string, string[]>();
-        if (role != null) attributes["buildingos_role"] = [role];
-        if (permissions.Length > 0) attributes["buildingos_permissions"] = permissions;
+        if (role != null) attributes[KeycloakUserAttributes.Role] = [role];
+        if (permissions.Length > 0) attributes[KeycloakUserAttributes.Permissions] = permissions;
         return new { id, username, email, firstName, lastName, attributes = (object)attributes };
+    }
+
+    private static object BuildKeycloakUserWithAttributes(
+        string id, string username, Dictionary<string, string[]> attributes) =>
+        new
+        {
+            id,
+            username,
+            email = (string?)null,
+            firstName = (string?)null,
+            lastName = (string?)null,
+            attributes = (object)attributes
+        };
+
+    private static string FindRepoFile(string relative)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, relative);
+            if (File.Exists(candidate)) return candidate;
+        }
+        throw new FileNotFoundException($"{relative} not found above {AppContext.BaseDirectory}");
+    }
+
+    /// <summary>A single Keycloak user whose PUT replaces the whole attribute map, as Keycloak does.</summary>
+    private sealed class FakeKeycloakUser(
+        string id,
+        string username,
+        Dictionary<string, string[]> attributes,
+        string? email = null,
+        string? firstName = null,
+        string? lastName = null)
+    {
+        private Dictionary<string, string[]> _attributes = attributes;
+
+        public Dictionary<string, string[]>? LastPutAttributes { get; private set; }
+        public JsonDocument? LastPutBody { get; private set; }
+
+        public HttpResponseMessage Handle(HttpRequestMessage req)
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token"))
+                return TokenResponse();
+            if (req.Method == HttpMethod.Put)
+            {
+                var body = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                LastPutBody = JsonDocument.Parse(body);
+                if (LastPutBody.RootElement.TryGetProperty("attributes", out var attrs))
+                {
+                    _attributes = JsonSerializer.Deserialize<Dictionary<string, string[]>>(attrs.GetRawText())!;
+                    LastPutAttributes = _attributes;
+                }
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            return JsonResponse(new
+            {
+                id,
+                username,
+                email,
+                firstName,
+                lastName,
+                enabled = true,
+                emailVerified = true,
+                attributes = (object)_attributes
+            });
+        }
     }
 
     private static HttpResponseMessage JsonResponse(object obj)
