@@ -318,18 +318,78 @@ public class KeycloakUserManagementServiceTest
     }
 
     [Fact]
-    public async Task GetUserRoleStateAsync_ResolvesOneUser()
+    public async Task RoleLookup_ResolvesOneUser_WithoutListing()
     {
         var realm = new FakeRealm();
         realm.AddGroup("g1", "/admins", role: "admin");
         realm.AddUser("u1", "u1", new(), groups: ["g1"]);
         realm.AddUser("u2", "u2", new() { ["role"] = ["viewer"] });
 
-        var state = await CreateService(realm).GetUserRoleStateAsync("u1");
+        var lookup = await CreateService(realm).CreateRoleLookupAsync();
+        var state = await lookup.GetUserAsync("u1", includeGroupRole: false);
 
         Assert.Equal("admin", state!.EffectiveRole);
         Assert.Equal(0, realm.UserListGets);
-        Assert.Null(await CreateService(realm).GetUserRoleStateAsync("ghost"));
+        Assert.Null(await lookup.GetUserAsync("ghost", includeGroupRole: false));
+    }
+
+    [Fact]
+    public async Task RoleLookup_IncludeGroupRole_ResolvesTheGroupsEvenWithAnOwnRole()
+    {
+        // Clearing an own `admin` falls back to the groups; the guard needs that value even though the
+        // own role hides it today.
+        var realm = new FakeRealm();
+        realm.AddGroup("g1", "/admins", role: "admin");
+        realm.AddUser("u1", "u1", new() { ["role"] = ["admin"] }, groups: ["g1"]);
+
+        var lookup = await CreateService(realm).CreateRoleLookupAsync();
+
+        Assert.Null((await lookup.GetUserAsync("u1", includeGroupRole: false))!.GroupRole);
+        Assert.Equal("admin", (await lookup.GetUserAsync("u1", includeGroupRole: true))!.GroupRole);
+    }
+
+    [Fact]
+    public async Task RoleLookup_TargetAndSnapshot_ShareOneTokenAndTheGroupCache()
+    {
+        var realm = new FakeRealm();
+        realm.AddGroup("g2", "/ops", role: "admin");
+        realm.AddGroup("g3", "/ops/tokyo", parentId: "g2");
+        realm.AddUser("u1", "u1", new(), groups: ["g3"]);
+        realm.AddUser("u2", "u2", new(), groups: ["g3"]);
+
+        var lookup = await CreateService(realm).CreateRoleLookupAsync();
+        var target = await lookup.GetUserAsync("u1", includeGroupRole: false);
+        var all = await lookup.GetAllAsync();
+
+        Assert.Equal("admin", target!.EffectiveRole);
+        Assert.All(all, s => Assert.Equal("admin", s.EffectiveRole));
+        Assert.Equal(1, realm.TokenRequests);
+        Assert.Single(realm.GroupListGets, "u1"); // the target's groups are not fetched twice
+        Assert.Equal(["g2"], realm.GroupByIdGets);
+    }
+
+    [Fact]
+    public async Task GetUserRoleStatesAsync_ManyUsers_KeepsTheListOrder_AndFetchesEachParentOnce()
+    {
+        // Group lookups run concurrently (bounded); the result must still follow Keycloak's user order,
+        // and concurrent users of one parent group must share one fetch.
+        var realm = new FakeRealm { Delay = TimeSpan.FromMilliseconds(5) };
+        realm.AddGroup("g2", "/ops", role: "admin");
+        realm.AddGroup("g3", "/ops/tokyo", parentId: "g2");
+        realm.AddGroup("gv", "/viewers", role: "viewer");
+        var ids = Enumerable.Range(0, 40).Select(i => $"u{i:D2}").ToList();
+        foreach (var (id, i) in ids.Select((id, i) => (id, i)))
+            realm.AddUser(id, id, new(), groups: [i % 2 == 0 ? "g3" : "gv"]);
+
+        var states = await CreateService(realm).GetUserRoleStatesAsync();
+        var users = await CreateService(realm).GetUsersAsync();
+
+        Assert.Equal(ids, states.Select(s => s.Id));
+        Assert.Equal(ids, users.Select(u => u.Id));
+        Assert.All(states.Select((s, i) => (s, i)), x =>
+            Assert.Equal(x.i % 2 == 0 ? "admin" : "viewer", x.s.EffectiveRole));
+        Assert.Equal(2, realm.GroupByIdGets.Count); // once per service call
+        Assert.InRange(realm.MaxConcurrentRequests, 2, 8);
     }
 
     // ── Writes ───────────────────────────────────────────────────────────────
@@ -450,9 +510,33 @@ public class KeycloakUserManagementServiceTest
         var realm = new FakeRealm { DropAttributeWrites = true };
         realm.AddUser("id1", "alice", new() { ["role"] = ["viewer"] });
 
-        await Assert.ThrowsAsync<UserAttributesNotPersistedException>(() =>
+        var ex = await Assert.ThrowsAsync<UserAttributesNotPersistedException>(() =>
             CreateService(realm).UpdateUserAttributesAsync("id1",
                 new UpdateUserAttributesRequest { Permissions = ["floor:2:read"] }));
+
+        // The caller learns what Keycloak actually returns: none of the Building OS attributes.
+        Assert.Empty(ex.StoredAttributes);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_ConcurrentOverwrite_IsNotReportedAsDropped()
+    {
+        // Another admin changing the user between our PUT and the re-read is not a dropped write.
+        var realm = new FakeRealm
+        {
+            AfterPut = attrs =>
+            {
+                attrs["role"] = ["operator"];
+                attrs["permissions"] = ["floor:9:read"];
+            },
+        };
+        realm.AddUser("id1", "alice", new() { ["role"] = ["viewer"] });
+
+        var updated = await CreateService(realm).UpdateUserAttributesAsync("id1",
+            new UpdateUserAttributesRequest { Permissions = ["floor:2:read"] });
+
+        Assert.Equal("operator", updated.Role);
+        Assert.Equal(["floor:9:read"], updated.Permissions);
     }
 
     [Fact]
@@ -668,7 +752,10 @@ public class KeycloakUserManagementServiceTest
         /// <summary>Keycloak &lt; 23 does not emit <c>parentId</c>.</summary>
         public bool EmitParentId { get; init; } = true;
 
-        /// <summary>Simulates a realm without <c>unmanagedAttributePolicy</c>: the PUT answers 204, stores nothing.</summary>
+        /// <summary>
+        /// Simulates a realm without <c>unmanagedAttributePolicy</c>: the PUT answers 204 and stores nothing,
+        /// and a GET returns none of the undeclared (role / permission) attributes.
+        /// </summary>
         public bool DropAttributeWrites { get; init; }
 
         /// <summary>Stores multi-valued attributes in another order (Keycloak does not promise one).</summary>
@@ -697,7 +784,33 @@ public class KeycloakUserManagementServiceTest
         public void AddGroup(string id, string path, string? role = null, string? parentId = null) =>
             _groups[id] = new Group(id, path, parentId, role);
 
+        /// <summary>Simulates another admin changing the user right after our PUT (before the re-read).</summary>
+        public Action<Dictionary<string, string[]>>? AfterPut { get; init; }
+
+        /// <summary>Per-request latency, so concurrent requests actually overlap.</summary>
+        public TimeSpan Delay { get; init; }
+
+        public int MaxConcurrentRequests { get; private set; }
+
+        private readonly object _gate = new();
+        private int _inFlight;
+
         public HttpResponseMessage Handle(HttpRequestMessage req)
+        {
+            var now = Interlocked.Increment(ref _inFlight);
+            try
+            {
+                lock (_gate) MaxConcurrentRequests = Math.Max(MaxConcurrentRequests, now);
+                if (Delay > TimeSpan.Zero) Thread.Sleep(Delay);
+                lock (_gate) return HandleCore(req);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _inFlight);
+            }
+        }
+
+        private HttpResponseMessage HandleCore(HttpRequestMessage req)
         {
             var path = req.RequestUri!.AbsolutePath;
             if (path.Contains("openid-connect/token"))
@@ -754,6 +867,7 @@ public class KeycloakUserManagementServiceTest
                     {
                         user.Attributes = LastPutAttributes.ToDictionary(
                             kv => kv.Key, kv => ReverseStoredValues ? kv.Value.Reverse().ToArray() : kv.Value);
+                        AfterPut?.Invoke(user.Attributes);
                     }
                 }
                 if (LastPutBody.RootElement.TryGetProperty("enabled", out var enabled))
@@ -762,7 +876,7 @@ public class KeycloakUserManagementServiceTest
             }
 
             UserGets++;
-            return JsonResponse(UserJson(user));
+            return JsonResponse(UserJson(DropAttributeWrites ? WithoutUnmanaged(user) : user));
         }
 
         private object GroupJson(Group g)
@@ -799,6 +913,15 @@ public class KeycloakUserManagementServiceTest
         }
 
         private static HttpResponseMessage NotFound() => new(HttpStatusCode.NotFound);
+
+        private static User WithoutUnmanaged(User u) => new()
+        {
+            Id = u.Id, Username = u.Username, Email = u.Email, FirstName = u.FirstName, LastName = u.LastName,
+            Enabled = u.Enabled, Groups = u.Groups,
+            Attributes = u.Attributes
+                .Where(kv => kv.Key is not ("role" or "permissions" or "buildingos_role" or "buildingos_permissions"))
+                .ToDictionary(kv => kv.Key, kv => kv.Value),
+        };
     }
 }
 

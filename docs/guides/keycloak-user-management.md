@@ -100,7 +100,10 @@ Web Client の `/admin` ワークスペース（管理者ロールでログイ�
 > role は**明示的に role を変更したときだけ** `role` に書き込んで `buildingos_role` を削除し、権限だけの
 > 更新では両方ともそのまま残します。どの更新でも旧 `buildingos_permissions` が
 > トークンに載る `permissions` に移るので、更新前にそのユーザーの旧権限を確認してください。また、Keycloak が
-> 書き込みを保存しなかった場合（`unmanagedAttributePolicy` 未設定など）は成功扱いにせず 502 を返します。既存ユーザーの一括移行
+> 書き込みをまったく保存しなかった場合（`unmanagedAttributePolicy` 未設定など）は成功扱いにせず 502
+> （本文に Keycloak が返した role / permissions 属性 `stored`）を返します（他の管理者による同時更新は失敗扱いにしません）。
+> 一括移行の jq は旧 role を**先頭の値をそのまま**（空白を含む・空の場合やグループ所属の場合は手動確認に回す）
+> コピーします — トリムすると今は admin でないユーザーが admin になり得るためです。既存ユーザーの一括移行
 > （`kcadm.sh` + `jq`）と、realm のユーザープロファイル設定（`unmanagedAttributePolicy: ADMIN_EDIT`
 > — これが無いと Keycloak 24+ は `role` / `permissions` を黙って捨てる）は
 > [keycloak-permission-mapping.md の「Admin UI writes the same attributes」](../operations/keycloak-permission-mapping.md#admin-ui-writes-the-same-attributes-519)

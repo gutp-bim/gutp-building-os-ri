@@ -1,6 +1,23 @@
 namespace BuildingOS.Shared.Domain.UserManagement;
 
 /// <summary>
+/// Role states resolved for one lockout-guard evaluation (<see cref="UserAdminGuard"/>), sharing one admin
+/// token and group cache, so resolving the target and then the full snapshot does not repeat work.
+/// </summary>
+public interface IUserRoleLookup
+{
+    /// <summary>
+    /// One user's state; <c>null</c> when the user does not exist. <paramref name="includeGroupRole"/>
+    /// resolves <see cref="UserRoleState.GroupRole"/> even when the user's own role hides it (needed when
+    /// the own role is about to be cleared).
+    /// </summary>
+    Task<UserRoleState?> GetUserAsync(string userId, bool includeGroupRole, CancellationToken cancellationToken = default);
+
+    /// <summary>Every user's state (as <see cref="IUserManagementService.GetUserRoleStatesAsync"/>).</summary>
+    Task<IReadOnlyList<UserRoleState>> GetAllAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Service for managing Azure Entra ID users and their Building OS attributes
 /// </summary>
 public interface IUserManagementService
@@ -18,10 +35,10 @@ public interface IUserManagementService
     Task<IReadOnlyList<UserRoleState>> GetUserRoleStatesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// One user's role/enabled state (as in <see cref="GetUserRoleStatesAsync"/>), so the guard can decide
-    /// most operations without listing every user; <c>null</c> when the user does not exist.
+    /// Opens a role lookup for one guard evaluation: one admin token and one group cache shared by the
+    /// target lookup and (only if needed) the full snapshot.
     /// </summary>
-    Task<UserRoleState?> GetUserRoleStateAsync(string userId, CancellationToken cancellationToken = default);
+    Task<IUserRoleLookup> CreateRoleLookupAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get a specific user by ID. <see cref="EntraUser.Role"/> is the role that reaches authorization:

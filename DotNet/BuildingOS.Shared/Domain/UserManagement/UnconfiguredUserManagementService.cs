@@ -25,7 +25,7 @@ public sealed class UnconfiguredUserManagementService : IUserManagementService
     public Task<IReadOnlyList<UserRoleState>> GetUserRoleStatesAsync(CancellationToken cancellationToken = default) =>
         throw New();
 
-    public Task<UserRoleState?> GetUserRoleStateAsync(string userId, CancellationToken cancellationToken = default) =>
+    public Task<IUserRoleLookup> CreateRoleLookupAsync(CancellationToken cancellationToken = default) =>
         throw New();
 
     public Task<EntraUser?> GetUserByIdAsync(string userId, CancellationToken cancellationToken = default) => throw New();

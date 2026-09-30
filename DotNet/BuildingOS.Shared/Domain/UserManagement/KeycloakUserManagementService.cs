@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -50,40 +51,49 @@ public class KeycloakUserManagementService : IUserManagementService
 
     public async Task<IReadOnlyList<EntraUser>> GetUsersAsync(CancellationToken cancellationToken = default)
     {
-        var token = await GetAdminTokenAsync(cancellationToken);
-        var users = await ListUserDtosAsync(token, cancellationToken);
-        var groups = new GroupRoleLookup(this, token);
-
-        var result = new List<EntraUser>(users.Count);
-        foreach (var dto in users)
-        {
-            var role = await ResolveRoleAsync(groups, dto, cancellationToken);
-            result.Add(MapToEntraUser(dto, role.AuthorizationRole));
-        }
-        return result;
+        var groups = new GroupRoleLookup(this, await GetAdminTokenAsync(cancellationToken));
+        var resolved = await ResolveAllAsync(groups, cancellationToken);
+        return resolved.Select(r => MapToEntraUser(r.Dto, r.Role.AuthorizationRole)).ToList();
     }
 
-    public async Task<IReadOnlyList<UserRoleState>> GetUserRoleStatesAsync(CancellationToken cancellationToken = default)
-    {
-        var token = await GetAdminTokenAsync(cancellationToken);
-        var users = await ListUserDtosAsync(token, cancellationToken);
-        // One lookup per call, so each ancestor group is fetched at most once.
-        var groups = new GroupRoleLookup(this, token);
+    public async Task<IReadOnlyList<UserRoleState>> GetUserRoleStatesAsync(CancellationToken cancellationToken = default) =>
+        await (await CreateRoleLookupAsync(cancellationToken)).GetAllAsync(cancellationToken);
 
-        var states = new List<UserRoleState>(users.Count);
-        foreach (var dto in users)
+    public async Task<IUserRoleLookup> CreateRoleLookupAsync(CancellationToken cancellationToken = default) =>
+        new RoleLookup(this, new GroupRoleLookup(this, await GetAdminTokenAsync(cancellationToken)));
+
+    /// <summary>One guard evaluation's lookups: one token, one group cache (<see cref="IUserRoleLookup"/>).</summary>
+    private sealed class RoleLookup(KeycloakUserManagementService service, GroupRoleLookup groups) : IUserRoleLookup
+    {
+        public async Task<UserRoleState?> GetUserAsync(
+            string userId, bool includeGroupRole, CancellationToken cancellationToken = default)
         {
-            states.Add((await ResolveRoleAsync(groups, dto, cancellationToken)).State);
+            var user = await service.ReadUserAsync(groups.Token, userId, cancellationToken);
+            if (user is null) return null;
+            return (await ResolveRoleAsync(groups, user.Value.Dto, includeGroupRole, cancellationToken)).State;
         }
-        return states;
+
+        public async Task<IReadOnlyList<UserRoleState>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            (await service.ResolveAllAsync(groups, cancellationToken)).Select(r => r.Role.State).ToList();
     }
 
-    public async Task<UserRoleState?> GetUserRoleStateAsync(string userId, CancellationToken cancellationToken = default)
+    /// <summary>Upper bound on concurrent per-user group lookups when resolving the whole user list.</summary>
+    private const int MaxConcurrentGroupLookups = 8;
+
+    /// <summary>
+    /// Lists users and resolves each one's role. Per-user group lookups run concurrently (bounded by
+    /// <see cref="MaxConcurrentGroupLookups"/>); the result keeps Keycloak's user order.
+    /// </summary>
+    private async Task<IReadOnlyList<(KeycloakUserDto Dto, ResolvedRole Role)>> ResolveAllAsync(
+        GroupRoleLookup groups, CancellationToken cancellationToken)
     {
-        var token = await GetAdminTokenAsync(cancellationToken);
-        var user = await ReadUserAsync(token, userId, cancellationToken);
-        if (user is null) return null;
-        return (await ResolveRoleAsync(new GroupRoleLookup(this, token), user.Value.Dto, cancellationToken)).State;
+        var users = await ListUserDtosAsync(groups.Token, cancellationToken);
+        var results = new (KeycloakUserDto Dto, ResolvedRole Role)[users.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, users.Count),
+            new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentGroupLookups, CancellationToken = cancellationToken },
+            async (i, ct) => results[i] = (users[i], await ResolveRoleAsync(groups, users[i], includeGroupRole: false, ct)));
+        return results;
     }
 
     public async Task<EntraUser?> GetUserByIdAsync(string userId, CancellationToken cancellationToken = default)
@@ -124,14 +134,16 @@ public class KeycloakUserManagementService : IUserManagementService
         body["attributes"] = JsonSerializer.SerializeToNode(attributes);
         await PutUserAsync(token, userId, body, cancellationToken);
 
+        // Only "dropped entirely" fails: a concurrent write by another admin between the PUT and this
+        // read may legitimately change the values (see LooksPersisted).
         var stored = (await ReadUserAsync(token, userId, cancellationToken))?.Dto
                      ?? throw new UserNotFoundException(userId);
-        if (!KeycloakUserAttributes.MatchesStored(attributes, stored.Attributes))
+        if (!KeycloakUserAttributes.LooksPersisted(attributes, stored.Attributes))
         {
             _logger.LogError(
                 "Keycloak accepted the attribute update for user {UserId} but did not store it; " +
                 "check the realm's unmanagedAttributePolicy (ADMIN_EDIT)", userId);
-            throw new UserAttributesNotPersistedException(userId);
+            throw new UserAttributesNotPersistedException(userId, KeycloakUserAttributes.Pick(stored.Attributes));
         }
 
         _logger.LogInformation(
@@ -168,11 +180,13 @@ public class KeycloakUserManagementService : IUserManagementService
     /// <c>buildingos_role</c> the Admin-API fallback reads. Groups are looked up only without an own role.
     /// </summary>
     private static async Task<ResolvedRole> ResolveRoleAsync(
-        GroupRoleLookup groups, KeycloakUserDto dto, CancellationToken cancellationToken)
+        GroupRoleLookup groups, KeycloakUserDto dto, bool includeGroupRole, CancellationToken cancellationToken)
     {
         var own = KeycloakUserAttributes.ReadMappedRole(dto.Attributes);
         var legacy = KeycloakUserAttributes.ReadLegacyRole(dto.Attributes);
-        var groupRoles = own is null
+        // An own role hides the group role in the token, so it is skipped — unless the caller needs it
+        // (clearing the own role falls back to it).
+        var groupRoles = own is null || includeGroupRole
             ? await groups.GetUserGroupRolesAsync(dto.Id, cancellationToken)
             : GroupRoles.None;
 
@@ -184,7 +198,7 @@ public class KeycloakUserManagementService : IUserManagementService
 
     private async Task<EntraUser> MapWithRoleAsync(string token, KeycloakUserDto dto, CancellationToken cancellationToken)
     {
-        var role = await ResolveRoleAsync(new GroupRoleLookup(this, token), dto, cancellationToken);
+        var role = await ResolveRoleAsync(new GroupRoleLookup(this, token), dto, includeGroupRole: false, cancellationToken);
         return MapToEntraUser(dto, role.AuthorizationRole);
     }
 
@@ -208,16 +222,24 @@ public class KeycloakUserManagementService : IUserManagementService
     }
 
     /// <summary>
-    /// Resolves group roles with one admin token, caching each ancestor group for the lifetime of one call.
+    /// Resolves group roles with one admin token, caching each user's group roles and each ancestor group
+    /// for the lifetime of one lookup. Safe for concurrent use: a key being fetched is shared, not refetched.
     /// A group's own <c>role</c> wins, else its nearest ancestor's — walked by <c>parentId</c> (Keycloak 23+),
     /// or, when a group carries none (Keycloak &lt; 23), by its path, honouring the <c>~/</c> escape.
     /// </summary>
     private sealed class GroupRoleLookup(KeycloakUserManagementService service, string token)
     {
-        private readonly Dictionary<string, KeycloakGroupDto?> _byId = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, KeycloakGroupDto?> _byPath = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, Lazy<Task<KeycloakGroupDto?>>> _byId = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, Lazy<Task<KeycloakGroupDto?>>> _byPath = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, Lazy<Task<GroupRoles>>> _byUser = new(StringComparer.Ordinal);
 
-        public async Task<GroupRoles> GetUserGroupRolesAsync(string userId, CancellationToken cancellationToken)
+        public string Token => token;
+
+        public Task<GroupRoles> GetUserGroupRolesAsync(string userId, CancellationToken cancellationToken) =>
+            _byUser.GetOrAdd(userId, id => new Lazy<Task<GroupRoles>>(() => FetchUserGroupRolesAsync(id, cancellationToken)))
+                .Value;
+
+        private async Task<GroupRoles> FetchUserGroupRolesAsync(string userId, CancellationToken cancellationToken)
         {
             var groups = await service.GetJsonAsync<KeycloakGroupDto[]>(token,
                 $"users/{Uri.EscapeDataString(userId)}/groups?briefRepresentation=false", cancellationToken) ?? [];
@@ -258,16 +280,11 @@ public class KeycloakUserManagementService : IUserManagementService
             }
         }
 
-        private async Task<KeycloakGroupDto?> GetCachedAsync(
-            Dictionary<string, KeycloakGroupDto?> cache, string key, string relativeUrl, CancellationToken cancellationToken)
-        {
-            if (!cache.TryGetValue(key, out var group))
-            {
-                group = await service.GetJsonAsync<KeycloakGroupDto>(token, relativeUrl, cancellationToken);
-                cache[key] = group;
-            }
-            return group;
-        }
+        private Task<KeycloakGroupDto?> GetCachedAsync(
+            ConcurrentDictionary<string, Lazy<Task<KeycloakGroupDto?>>> cache, string key, string relativeUrl,
+            CancellationToken cancellationToken) =>
+            cache.GetOrAdd(key, _ => new Lazy<Task<KeycloakGroupDto?>>(
+                () => service.GetJsonAsync<KeycloakGroupDto>(token, relativeUrl, cancellationToken))).Value;
 
         /// <summary>The parent of a group path (<c>/ops/tokyo</c> → <c>/ops</c>); <c>null</c> for a top-level group.</summary>
         private static string? ParentPath(string? path)

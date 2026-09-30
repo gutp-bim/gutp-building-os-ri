@@ -142,18 +142,28 @@ public static class KeycloakUserAttributes
     }
 
     /// <summary>
-    /// Whether Keycloak stored what <see cref="BuildUpdate"/> wrote for the Building OS attributes
-    /// (<see cref="Role"/>, <see cref="Permissions"/> and the legacy two). Keycloak 24+ without
-    /// <c>unmanagedAttributePolicy</c> answers the PUT with 204 and stores nothing, so the PUT's status
-    /// alone proves nothing. Values are compared as sets (Keycloak does not promise their order); other
-    /// attributes are ignored.
+    /// Whether the re-read after a PUT shows the write landed at all. Keycloak 24+ without
+    /// <c>unmanagedAttributePolicy</c> answers the PUT with 204, stores nothing, and returns none of the
+    /// undeclared attributes — so a write whose every non-empty <see cref="Role"/> / <see cref="Permissions"/>
+    /// key is absent on re-read was dropped. Values are deliberately <b>not</b> compared: another admin
+    /// writing the same user between the PUT and the re-read changes them legitimately, and reporting
+    /// that as "not persisted" would be a false failure. Consequently this cannot detect a realm that
+    /// keeps showing old values while ignoring writes (e.g. <c>ADMIN_VIEW</c>), nor a write that only
+    /// cleared both attributes (nothing to look for).
     /// </summary>
-    public static bool MatchesStored(
+    public static bool LooksPersisted(
         IReadOnlyDictionary<string, string[]> written,
-        IReadOnlyDictionary<string, string[]>? stored) =>
-        new[] { Role, Permissions, LegacyRole, LegacyPermissions }.All(key =>
-            Values(written, key).ToHashSet(StringComparer.Ordinal)
-                .SetEquals(Values(stored, key)));
+        IReadOnlyDictionary<string, string[]>? stored)
+    {
+        var writtenKeys = new[] { Role, Permissions }.Where(k => Values(written, k).Any()).ToList();
+        return writtenKeys.Count == 0 || writtenKeys.Any(k => Values(stored, k).Any());
+    }
+
+    /// <summary>The Building OS attribute values (role / permissions, new and legacy) out of a full map.</summary>
+    public static IReadOnlyDictionary<string, string[]> Pick(IReadOnlyDictionary<string, string[]>? attributes) =>
+        new[] { Role, Permissions, LegacyRole, LegacyPermissions }
+            .Where(k => Values(attributes, k).Any())
+            .ToDictionary(k => k, k => Values(attributes, k).ToArray(), StringComparer.Ordinal);
 
     private static string? FirstValue(IReadOnlyDictionary<string, string[]>? attributes, string key)
     {

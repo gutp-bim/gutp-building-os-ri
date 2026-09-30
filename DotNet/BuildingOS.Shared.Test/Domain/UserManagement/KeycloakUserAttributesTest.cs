@@ -191,8 +191,10 @@ public class KeycloakUserAttributesTest
     // ── Persist verification ─────────────────────────────────────────────────
 
     [Fact]
-    public void MatchesStored_IgnoresPermissionOrderAndUnrelatedAttributes()
+    public void LooksPersisted_ToleratesAConcurrentOverwrite()
     {
+        // Another admin writing the same user between our PUT and the re-read is not "Keycloak dropped
+        // the write": different values (or order) under the written keys still prove the keys are stored.
         var written = new Dictionary<string, string[]>
         {
             ["role"] = ["viewer"],
@@ -200,35 +202,38 @@ public class KeycloakUserAttributesTest
         };
         var stored = new Dictionary<string, string[]>
         {
-            ["role"] = ["viewer"],
-            ["permissions"] = ["b:2:read", "a:1:read"],
-            ["locale"] = ["en"],
+            ["role"] = ["operator"],
+            ["permissions"] = ["c:3:read"],
         };
 
-        Assert.True(KeycloakUserAttributes.MatchesStored(written, stored));
+        Assert.True(KeycloakUserAttributes.LooksPersisted(written, stored));
+        // One of the keys cleared concurrently still leaves evidence the write landed.
+        Assert.True(KeycloakUserAttributes.LooksPersisted(written,
+            new Dictionary<string, string[]> { ["permissions"] = ["a:1:read"] }));
     }
 
     [Fact]
-    public void MatchesStored_DetectsADroppedAttribute()
+    public void LooksPersisted_DetectsAWriteDroppedEntirely()
     {
-        // Keycloak 24+ without unmanagedAttributePolicy answers 204 and stores nothing.
-        var written = new Dictionary<string, string[]> { ["role"] = ["viewer"] };
-
-        Assert.False(KeycloakUserAttributes.MatchesStored(written, new Dictionary<string, string[]>()));
-        Assert.False(KeycloakUserAttributes.MatchesStored(written, null));
-    }
-
-    [Fact]
-    public void MatchesStored_DetectsALegacyAttributeThatSurvived()
-    {
-        var written = new Dictionary<string, string[]> { ["role"] = ["viewer"] };
-        var stored = new Dictionary<string, string[]>
+        // Keycloak 24+ without unmanagedAttributePolicy answers 204, stores nothing and returns none of them.
+        var written = new Dictionary<string, string[]>
         {
             ["role"] = ["viewer"],
-            ["buildingos_role"] = ["admin"],
+            ["permissions"] = ["a:1:read"],
+            ["locale"] = ["ja"],
         };
 
-        Assert.False(KeycloakUserAttributes.MatchesStored(written, stored));
+        Assert.False(KeycloakUserAttributes.LooksPersisted(written,
+            new Dictionary<string, string[]> { ["locale"] = ["ja"] }));
+        Assert.False(KeycloakUserAttributes.LooksPersisted(written, null));
+    }
+
+    [Fact]
+    public void LooksPersisted_NothingToVerify_WhenNothingWasWritten()
+    {
+        // Clearing both the role and every permission leaves nothing whose presence could be checked.
+        Assert.True(KeycloakUserAttributes.LooksPersisted(
+            new Dictionary<string, string[]> { ["locale"] = ["ja"] }, new Dictionary<string, string[]>()));
     }
 
     // ── Role validation (single source: the controller calls it) ─────────────

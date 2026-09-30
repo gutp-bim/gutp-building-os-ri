@@ -208,7 +208,7 @@ public class UserAdminGuardTest
             new UserRoleState("admin-a", "admin", true),
             new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
         };
-        var result = UserAdminGuard.CheckSetRole("mixed", "admin-a", "viewer", users);
+        var result = UserAdminGuard.CheckSetRole("svc-actor", "admin-a", "viewer", users);
         Assert.Equal(UserAdminGuardResult.LastAdmin, result);
     }
 
@@ -220,7 +220,7 @@ public class UserAdminGuardTest
             new UserRoleState("admin-a", "admin", true),
             new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
         };
-        var result = UserAdminGuard.CheckSetEnabled("mixed", "admin-a", newEnabled: false, users);
+        var result = UserAdminGuard.CheckSetEnabled("svc-actor", "admin-a", newEnabled: false, users);
         Assert.Equal(UserAdminGuardResult.LastAdmin, result);
     }
 
@@ -355,5 +355,52 @@ public class UserAdminGuardTest
 
         var withGroupAdmin = users.Append(new UserRoleState("grp", null, true, GroupRole: "admin")).ToArray();
         Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckLastAdmin("admin-a", withGroupAdmin));
+    }
+
+    // ── #531 second review ───────────────────────────────────────────────────
+
+    [Fact]
+    public void CheckLastAdmin_TheActingAdminCounts_EvenWithAmbiguousGroups()
+    {
+        // The actor's own token already proves which group value Keycloak emitted for them: admin.
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+        };
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckLastAdmin("admin-a", users, actorSub: "mixed"));
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckSetRole("mixed", "admin-a", "viewer", users));
+    }
+
+    [Fact]
+    public void CheckLastAdmin_TheActorCountsOnlyIfTheSnapshotStillMakesThemAdmin()
+    {
+        // A stale admin token for an account since demoted / disabled does not keep an admin around.
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("demoted", "viewer", true),
+            new UserRoleState("disabled", "admin", false),
+        };
+        Assert.Equal(UserAdminGuardResult.LastAdmin, UserAdminGuard.CheckLastAdmin("admin-a", users, actorSub: "demoted"));
+        Assert.Equal(UserAdminGuardResult.LastAdmin, UserAdminGuard.CheckLastAdmin("admin-a", users, actorSub: "disabled"));
+    }
+
+    [Fact]
+    public void PreCheckSetRole_ClearingOwnAdmin_KeptByAGroupAdmin_IsAllowed()
+    {
+        // The target's group role must be resolved for a clear even though they have an own role.
+        var target = new UserRoleState("admin-a", "admin", true, GroupRole: "admin");
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.PreCheckSetRole("admin-a", target, ""));
+    }
+
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("  ", true)]
+    [InlineData("viewer", false)]
+    [InlineData(null, false)]
+    public void SetRoleNeedsTargetGroupRole_OnlyForAClear(string? newRole, bool expected)
+    {
+        Assert.Equal(expected, UserAdminGuard.SetRoleNeedsTargetGroupRole(newRole));
     }
 }

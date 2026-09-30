@@ -139,11 +139,16 @@ edit of that user. The token path does **not** read the legacy names: until a us
 held only in `buildingos_*` apply only when the token carries no `building_os_role` claim. Migrate them
 with the procedure below.
 
-**Write verification.** After the `PUT`, the admin UI reads the user back (same admin token) and
-compares the stored `role` / `permissions` / `buildingos_*` values with what it wrote. If Keycloak did not
-store them — typically a Keycloak 24+ realm without the `unmanagedAttributePolicy` below, which answers
-`204` and drops the attributes — the request fails with `502` and a failure audit entry instead of
-reporting a success that never reaches the token. The response carries what Keycloak actually stored.
+**Write verification.** After the `PUT`, the admin UI reads the user back (same admin token). If
+**none** of the non-empty `role` / `permissions` attributes it wrote is present — what a Keycloak 24+ realm
+without the `unmanagedAttributePolicy` below does: it answers `204`, stores nothing and returns no
+undeclared attributes — the request fails with `502` and a failure audit entry, and the body is
+`{ "error": …, "stored": { … } }` with the role / permission attributes (new and legacy) Keycloak returned
+on the re-read. Values are deliberately not compared: another admin writing the same user between the
+`PUT` and the re-read may change them, and that is not a failed write. On success the response is built
+from the re-read, i.e. shows what Keycloak holds (including such a concurrent change). Limits: a realm
+that keeps returning old values while ignoring writes (e.g. `ADMIN_VIEW`), or a write that clears both
+the role and every permission (nothing to look for), is not detected.
 
 **Realm user profile.** Keycloak 24+ keeps only the user attributes its user profile declares unless
 the realm allows *unmanaged* attributes; without that, a `PUT` of `role` / `permissions` returns `204`
@@ -170,9 +175,16 @@ disable themselves, nor be demoted/disabled as the last admin.
 Because the mapper emits only one group's value, a user whose groups disagree is judged
 asymmetrically: as the **target** of a demotion/disable they count as an admin if any group grants
 admin (so they cannot lock themselves out), but as a **remaining** admin they count only when every
-role-carrying group agrees on `admin` (or their own `role` is `admin`). The guard resolves only what it
-needs: nothing when enabling a user, promoting to `admin` or writing permissions only; the target alone
-when disabling or demoting a non-admin; every user only when an admin is being disabled/demoted.
+role-carrying group agrees on `admin` (or their own `role` is `admin`). The exception is the **acting**
+admin: their token is admin, which settles which group value Keycloak emits for them, so they count as
+remaining whenever the snapshot still shows them enabled with an (even ambiguous) admin role. Clearing
+a user's own role resolves their group role too (normally skipped when an own role hides it), so an
+own `admin` who keeps admin through a group can clear it.
+
+The guard resolves only what it needs, in one lookup session (one admin token, one group cache):
+nothing when enabling a user, promoting to `admin` or writing permissions only; the target alone when
+disabling or demoting a non-admin; every user only when an admin is being disabled/demoted. Listing
+every user resolves their groups concurrently (at most 8 lookups at a time), keeping Keycloak's order.
 
 #### Migrating an existing realm (`kcadm.sh` + `jq`)
 
@@ -191,10 +203,15 @@ kcadm.sh get users/profile -r "$REALM" \
 # 2. Move buildingos_* into role / permissions without changing what reaches authorization (the
 #    precedence above), and drop the legacy attributes. Role:
 #    - an own `role` (first value non-empty) already wins: keep it, drop buildingos_role;
-#    - no own role and no group: the Admin-API fallback reads buildingos_role today, so copy it —
-#      trimmed, like an /admin role write — into `role`;
+#    - no own role and no group: the Admin-API fallback reads buildingos_role today — its FIRST value,
+#      verbatim, compared exactly — so that first value is copied VERBATIM into `role`, but only when it
+#      is non-blank and has no surrounding whitespace;
 #    - no own role but in a group: the token carries the group's role and buildingos_role never reaches
-#      authorization; copying it would override the group. It is left in place for review (step 3).
+#      authorization; copying it would override the group. Left in place for review (step 3);
+#    - a first value that is blank or padded (e.g. [" admin"], or ["", "admin"]): left in place for
+#      review (step 3). SECURITY: do NOT "clean it up" by trimming or by taking the first non-blank
+#      value — today such a user is NOT an admin (the fallback sees " admin" / "", and only an exact
+#      "admin" is admin), and a cleaned-up copy would silently grant admin.
 #    Permissions keep their order (new first, then legacy, duplicates dropped). `kcadm.sh update -f`
 #    sends the full representation, so profile fields survive. Review each user's
 #    buildingos_permissions first — they reach the token after this.
@@ -206,10 +223,10 @@ kcadm.sh get users -r "$REALM" --limit 100000 \
       jq --argjson ngroups "$ngroups" '.attributes |= (
             . as $a
             | ((($a.role // [])[0]) // "") as $own
-            | ([($a.buildingos_role // [])[] | gsub("^\\s+|\\s+$"; "") | select(length > 0)] | first)
-                as $legacy
+            | (($a.buildingos_role // [])[0]) as $legacy
             | if $own != "" or $legacy == null then del(.buildingos_role)
-              elif $ngroups == 0 then (.role = [$legacy] | del(.buildingos_role))
+              elif $ngroups == 0 and ($legacy | test("^\\S") and test("\\S$"))
+                then (.role = [$legacy] | del(.buildingos_role))
               else . end
             | .permissions = (($a.permissions // []) + ($a.buildingos_permissions // [])
                               | reduce (.[] | select(test("\\S"))) as $p ([];
@@ -220,9 +237,10 @@ kcadm.sh get users -r "$REALM" --limit 100000 \
       echo "migrated $(jq -r .username <<<"$user")"
     done
 
-# 3. Verify: prints the users whose buildingos_role was kept because they belong to a group (nothing
-#    else should remain). For each, either set an explicit role in /admin (which removes
-#    buildingos_role and overrides the group) or delete buildingos_role if the group role is intended.
+# 3. Verify: prints the users whose buildingos_role was kept — they belong to a group, or its first
+#    value is blank / padded (nothing else should remain). For each, decide the role deliberately:
+#    set an explicit role in /admin (which removes buildingos_role and, for a group member, overrides
+#    the group), or delete buildingos_role if what they get today (the group role, or no admin) is intended.
 kcadm.sh get users -r "$REALM" --limit 100000 \
   | jq -r '.[] | select(.attributes.buildingos_role or .attributes.buildingos_permissions)
            | "\(.username)\t\(.attributes.buildingos_role // [] | join(","))"'

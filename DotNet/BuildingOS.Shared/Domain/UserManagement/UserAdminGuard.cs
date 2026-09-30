@@ -91,6 +91,13 @@ public static class UserAdminGuard
     public static bool SetRoleNeedsGuard(string? newRole) => newRole != null && !RoleCatalog.GrantsAdmin(newRole);
 
     /// <summary>
+    /// Clearing the role makes the token fall back to the group role, so the target's
+    /// <see cref="UserRoleState.GroupRole"/> must be resolved even though their own role hides it today
+    /// (the service skips group lookups for users with an own role).
+    /// </summary>
+    public static bool SetRoleNeedsTargetGroupRole(string? newRole) => newRole != null && string.IsNullOrWhiteSpace(newRole);
+
+    /// <summary>
     /// What can be decided about disabling <paramref name="target"/> from the target alone; <c>null</c>
     /// means the last-admin count (<see cref="CheckLastAdmin"/>) is needed.
     /// </summary>
@@ -126,10 +133,19 @@ public static class UserAdminGuard
 
     /// <summary>
     /// <see cref="UserAdminGuardResult.LastAdmin"/> when, once <paramref name="targetId"/> stops being an
-    /// admin, no other enabled, unambiguous admin remains.
+    /// admin, no other enabled admin remains. Others count only when unambiguously admin — except the
+    /// acting admin (<paramref name="actorSub"/>, when not the target): the caller has already checked their
+    /// token is admin, which proves which of their groups' values Keycloak emits, so they count whenever
+    /// the snapshot still makes them an enabled admin at all (a stale token for an account since demoted or
+    /// disabled does not).
     /// </summary>
-    public static UserAdminGuardResult CheckLastAdmin(string targetId, IReadOnlyList<UserRoleState> allUsers) =>
-        allUsers.Any(u => u.Enabled && u.IsUnambiguouslyAdmin && !string.Equals(u.Id, targetId, StringComparison.Ordinal))
+    public static UserAdminGuardResult CheckLastAdmin(
+        string targetId, IReadOnlyList<UserRoleState> allUsers, string? actorSub = null) =>
+        allUsers.Any(u =>
+            u.Enabled
+            && !string.Equals(u.Id, targetId, StringComparison.Ordinal)
+            && (u.IsUnambiguouslyAdmin
+                || (string.Equals(u.Id, actorSub, StringComparison.Ordinal) && RoleCatalog.GrantsAdmin(u.EffectiveRole))))
             ? UserAdminGuardResult.Allowed
             : UserAdminGuardResult.LastAdmin;
 
@@ -140,7 +156,7 @@ public static class UserAdminGuard
         bool newEnabled,
         IReadOnlyList<UserRoleState> allUsers) =>
         PreCheckSetEnabled(actorSub, FindTarget(targetId, allUsers), newEnabled)
-        ?? CheckLastAdmin(targetId, allUsers);
+        ?? CheckLastAdmin(targetId, allUsers, actorSub);
 
     /// <summary>Check changing <paramref name="targetId"/>'s role to <paramref name="newRole"/> against the full snapshot.</summary>
     public static UserAdminGuardResult CheckSetRole(
@@ -149,7 +165,7 @@ public static class UserAdminGuard
         string? newRole,
         IReadOnlyList<UserRoleState> allUsers) =>
         PreCheckSetRole(actorSub, FindTarget(targetId, allUsers), newRole)
-        ?? CheckLastAdmin(targetId, allUsers);
+        ?? CheckLastAdmin(targetId, allUsers, actorSub);
 
     private static UserRoleState FindTarget(string targetId, IReadOnlyList<UserRoleState> allUsers) =>
         allUsers.FirstOrDefault(u => string.Equals(u.Id, targetId, StringComparison.Ordinal))
