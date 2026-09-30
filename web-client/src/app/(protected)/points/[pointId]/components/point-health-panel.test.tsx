@@ -1,5 +1,6 @@
 import type { TelemetryLatestSample } from "@/lib/telemetry/types";
 import { render, screen } from "@testing-library/react";
+import axe from "axe-core";
 import { describe, expect, it } from "vitest";
 import { PointHealthPanel } from "./point-health-panel";
 
@@ -113,6 +114,31 @@ describe("PointHealthPanel (#457)", () => {
     expect(screen.queryByTestId("health-alarm")).not.toBeInTheDocument();
   });
 
+  it("links 期待更新周期 and 鮮度判定 to the glossary (#149)", () => {
+    renderPanel({ expectedIntervalSeconds: 300 });
+
+    expect(screen.getByTestId("glossary-期待更新周期")).toHaveAttribute(
+      "title",
+      expect.stringContaining("sbco:interval"),
+    );
+    expect(screen.getByTestId("glossary-鮮度判定")).toHaveAttribute(
+      "title",
+      expect.stringContaining("期待更新周期 × 倍率"),
+    );
+  });
+
+  it("renders the coverage bar slot under the rows", () => {
+    render(
+      <PointHealthPanel latest={null} now={NOW}>
+        <p data-testid="slot">bar</p>
+      </PointHealthPanel>,
+    );
+
+    expect(screen.getByTestId("point-health-panel")).toContainElement(
+      screen.getByTestId("slot"),
+    );
+  });
+
   it("shows the owning device when known and hides the row otherwise", () => {
     const { unmount } = renderPanel({ deviceName: "AHU-01" });
     expect(screen.getByTestId("health-device")).toHaveTextContent("AHU-01");
@@ -120,5 +146,22 @@ describe("PointHealthPanel (#457)", () => {
 
     renderPanel({ deviceName: null });
     expect(screen.queryByTestId("health-device")).not.toBeInTheDocument();
+  });
+
+  it("has no axe violations with alarm, device and a slot rendered", async () => {
+    const { container } = renderPanel({
+      latest: numeric(32, 18 * 60),
+      unit: "degC",
+      expectedIntervalSeconds: 300,
+      alarmThresholds: { alarmHigh: 30 },
+      deviceName: "AHU-01",
+      children: <p>受信状況</p>,
+    });
+
+    // jsdom は配色を計算しないので color-contrast だけ外す。
+    const results = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
   });
 });

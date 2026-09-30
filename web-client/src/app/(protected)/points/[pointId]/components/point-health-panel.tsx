@@ -10,9 +10,10 @@
  * `explainStaleThreshold`、値異常 = `classifyPointAlarm` / `explainAlarm`）で、ここでは再実装
  * しない。`now` は注入させて描画を決定的に保つ。
  *
- * 24h 受信状況バーは #457 の follow-up。
+ * 24h 受信状況バー（{@link TelemetryCoverageBar}）は取得を伴うので、ページ側が `children` として差し込む。
  */
 
+import { GlossaryTooltip } from "@/components/help/glossary-tooltip";
 import { FreshnessBadge } from "@/components/telemetry/freshness-badge";
 import {
   classifyPointAlarm,
@@ -61,7 +62,7 @@ function Row({
   testId,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   testId: string;
   children: React.ReactNode;
 }) {
@@ -83,6 +84,7 @@ export function PointHealthPanel({
   staleIntervalMultiplier,
   alarmThresholds,
   deviceName,
+  children,
 }: {
   /** 最新の受信サンプル。null = 一度も受信していない（欠測）。 */
   latest: TelemetryLatestSample | null;
@@ -100,6 +102,8 @@ export function PointHealthPanel({
   alarmThresholds?: AlarmThresholds;
   /** 所属機器名。不明なら行ごと出さない。 */
   deviceName?: string | null;
+  /** 行の下に差し込む追加表示（24h 受信状況バー）。 */
+  children?: React.ReactNode;
 }) {
   const unitLabel = resolveUnitLabel(unit);
 
@@ -153,12 +157,18 @@ export function PointHealthPanel({
         <Row label="最終受信" testId="health-last-seen">
           {lastSeenText}
         </Row>
-        <Row label="期待更新周期" testId="health-expected-interval">
+        <Row
+          label={<GlossaryTooltip term="期待更新周期" />}
+          testId="health-expected-interval"
+        >
           {explanation.usesExpectedInterval && expectedIntervalSeconds
             ? formatDurationJa(expectedIntervalSeconds)
             : "未設定"}
         </Row>
-        <Row label="鮮度判定" testId="health-threshold">
+        <Row
+          label={<GlossaryTooltip term="鮮度判定" />}
+          testId="health-threshold"
+        >
           {/* 「超過」は実際に鮮度切れのときだけ添える。閾値の提示自体は常に出す。 */}
           {freshness.status === "stale"
             ? `${explanation.text} を超過`
@@ -175,6 +185,7 @@ export function PointHealthPanel({
           </Row>
         )}
       </dl>
+      {children}
     </div>
   );
 }

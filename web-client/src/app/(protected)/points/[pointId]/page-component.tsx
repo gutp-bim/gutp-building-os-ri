@@ -19,6 +19,7 @@ import {
 import {
   getTelemetryConfig,
   latestTelemetrySample,
+  queryPointCoverage,
   queryTelemetryWithState,
   type TelemetryConfig,
 } from "@/lib/telemetry/repository";
@@ -36,6 +37,10 @@ import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
 import { PointHealthPanel } from "./components/point-health-panel";
 import { PointInfo } from "./components/point-info";
+import {
+  TelemetryCoverageBar,
+  type CoverageBarState,
+} from "./components/telemetry-coverage-bar";
 import { TelemetryHotData } from "./components/telemetry-hot-data";
 import { TelemetryStateTimeline } from "./components/telemetry-state-timeline";
 import { TelemetryWarmData } from "./components/telemetry-warm-data";
@@ -74,6 +79,11 @@ export default function PointDetailPageComponent({
   // Custom-range inputs (#197), only consulted when period === "custom".
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  // 24h 受信状況バー（#457）。
+  const [coverage, setCoverage] = useState<CoverageBarState>({
+    kind: "loading",
+  });
+  const coverageRequestId = useRef(0);
   const [telemetryConfig, setTelemetryConfig] =
     useState<TelemetryConfig | null>(null);
 
@@ -120,6 +130,26 @@ export default function PointDetailPageComponent({
       setHotError("最新値の取得に失敗しました。");
     } finally {
       setHotLoading(false);
+    }
+  };
+
+  // 24h 受信状況（#457）。raw を取ってよいか（高頻度ポイントでないか）の判断は façade 側
+  // （queryPointCoverage → planCoverageFetch）にあり、ここは結果を描画状態に写すだけ。
+  const fetchCoverage = async () => {
+    if (!pointDetail?.point.id) return;
+    const requestId = ++coverageRequestId.current;
+    setCoverage({ kind: "loading" });
+    try {
+      const result = await queryPointCoverage({
+        pointId: pointDetail.point.id,
+        intervalSeconds: pointDetail.point.expectedIntervalSeconds,
+        windowEnd: new Date(),
+      });
+      if (requestId === coverageRequestId.current) setCoverage(result);
+    } catch (e) {
+      if (requestId !== coverageRequestId.current) return;
+      console.error(e);
+      setCoverage({ kind: "error" });
     }
   };
 
@@ -221,7 +251,10 @@ export default function PointDetailPageComponent({
   };
 
   useEffect(() => {
-    if (pointDetail) fetchHotData();
+    if (pointDetail) {
+      fetchHotData();
+      fetchCoverage();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointDetail]);
 
@@ -284,7 +317,10 @@ export default function PointDetailPageComponent({
           <TelemetryHotData
             hotData={hotData}
             hotLoading={hotLoading}
-            onRefresh={fetchHotData}
+            onRefresh={() => {
+              fetchHotData();
+              fetchCoverage();
+            }}
             onDownloadClick={() => {
               setColdError(null);
               setIsModalOpen(true);
@@ -315,7 +351,9 @@ export default function PointDetailPageComponent({
               warnLow: pointDetail.point.warnLow,
             }}
             deviceName={pointDetail.device?.name}
-          />
+          >
+            <TelemetryCoverageBar state={coverage} />
+          </PointHealthPanel>
         </div>
       </div>
 

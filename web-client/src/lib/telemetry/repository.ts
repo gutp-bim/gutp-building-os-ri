@@ -2,6 +2,12 @@ import { API_BASE_URL, authHeaders } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
 import type { LatestSample } from "@/lib/infra/aspida-client/generated/@types";
 import {
+  bucketCoverage,
+  planCoverageFetch,
+  type CoverageBucket,
+  type CoverageFetchPlan,
+} from "./coverage";
+import {
   DEFAULT_STALE_THRESHOLD_SECONDS,
   type PointLastSeen,
 } from "./freshness";
@@ -123,6 +129,55 @@ export async function queryTelemetryWithState(
   return {
     series: toSeries(q.pointId, res),
     state: toStateSeries(q.pointId, res),
+  };
+}
+
+export type PointCoverageResult =
+  | { kind: "buckets"; buckets: CoverageBucket[] }
+  | Extract<CoverageFetchPlan, { kind: "unavailable" }>;
+
+/**
+ * 24h 受信状況（coverage）バケット（#457）。Phase 1 は raw の受信時刻をクライアントで数える。
+ * {@link planCoverageFetch} が raw を許すポイント（宣言周期から 24h の件数が小さい）だけ API を叩き、
+ * 高頻度・周期未設定のポイントは API を叩かずに `unavailable` を返す。将来
+ * `GET /telemetries/coverage` ができたら、この関数の中身だけを差し替える（戻り値の形は同じ）。
+ *
+ * 受信の有無は値の種類を問わないので、数値・文字列・真偽値すべての行の datetime を数える。
+ */
+export async function queryPointCoverage(
+  {
+    pointId,
+    intervalSeconds,
+    windowEnd,
+  }: {
+    pointId: string;
+    intervalSeconds: number | null | undefined;
+    windowEnd: Date;
+  },
+  token?: string,
+): Promise<PointCoverageResult> {
+  const plan = planCoverageFetch({ intervalSeconds, windowEnd });
+  if (plan.kind === "unavailable") return plan;
+
+  const res = await apiClient(token).api.v1.telemetries.query.$get({
+    query: {
+      pointId,
+      start: plan.start.toISOString(),
+      end: plan.end.toISOString(),
+      granularity: toGranularityParam("raw"),
+    },
+  });
+  const timestamps = res.flatMap((r) =>
+    typeof r.datetime === "string" ? [r.datetime] : [],
+  );
+  return {
+    kind: "buckets",
+    // plan.kind === "raw" なら intervalSeconds は正の有限値。
+    buckets: bucketCoverage({
+      timestamps,
+      windowEnd,
+      intervalSeconds: intervalSeconds as number,
+    }),
   };
 }
 
