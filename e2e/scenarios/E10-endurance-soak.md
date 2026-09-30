@@ -360,12 +360,77 @@ Docker VM の空きメモリは常時 4.65 GiB 以上あり、**ホスト逼迫�
 503 fast-fail が JetStream の subject 束縛により発火しない）、#382（connector-worker が起動時に
 JetStream API の応答を待てず crash-loop する）、#383（上記の flush 待ち）。
 
+## 実施記録: 73h 単一ストリーム（2026-09-26〜2026-09-29、#297 の ≥72h）
+
+run id `soak-20260926144824`、出力 `e2e/results/e10-73h-single-r2`。24h A/B の B と同条件
+（`chunk_seconds=0`、`--prometheus` 有り）を **73.0h** 走らせた。gate（`e2e/runner/gate.py`）は
+E10 の 10 項目すべて **PASS**。
+
+**試験条件**
+
+| 項目 | 値 |
+|---|---|
+| 負荷 | 1,865 点 / 300 s（6.2167 msg/s）、単一 gRPC ストリーム（`chunk_count=1`） |
+| ホスト | MacBook Pro（Intel Core i7-8559U 4C/8T, 16 GiB）、macOS 15.7 |
+| Docker | Docker Desktop（Engine 29.6.2）、VM 8 vCPU / 7.75 GiB、`mem_limit` なし |
+| オブジェクトストア | **RustFS 1.0.0**（#490 以降の compose 既定。E10 としては初の RustFS 上の run） |
+| レイク保持 | `LAKE_RETENTION_DAYS=0`（#492 の緩和策 — ILM ルールなし） |
+| 同居 | observability profile（Prometheus / Loki / Tempo / otel-collector）。run 途中で API Server（経過 約 22h）と Keycloak を追加起動（twin 再シードは #484 の empty-store gate で発生せず、欠損 0 で確認） |
+
+1 本目（`e10-73h-single`）は約 15h・33 万フレームで中断したため採用していない。r2 は runtime
+系列名の再解決を「1 概念でも live なら打ち切る」から「未解決の概念が残る間は続ける」に直した
+s19 で実行した（**この修正は本記録の時点で main 未反映**。GC イベント駆動の `gc_heap_size` / `gc_committed` は他の概念より遅れて現れ、
+旧実装では gen2 / LOH / RSS−committed の 3 gate が SKIP になりうる）。
+
+**gate**
+
+| 指標 | 実測 | 閾値 |
+|---|---:|---|
+| sent / accepted / lake rows | 1,633,743 / 1,633,743 / 1,633,744 | — |
+| data_loss / duplicate / schema invalid | 0.0 / 0.0 / 0 | ≤ 1% / ≤ 0.5% / — |
+| 再起動 / OOM / health / pending_stable | 0 / 0 / 1.0 / 1（pending 最大 2） | == 0 / == 0 / ≥ 0.999 / == 1 |
+| `connector_worker_gc_heap_gen2_mib_growth_per_hour` | 0.00 | ≤ 0.5 |
+| `connector_worker_gc_heap_loh_mib_growth_per_hour` | −0.14 | ≤ 0.5 |
+| `connector_worker_rss_minus_gc_committed_growth_mib_per_hour` | **+2.45** | ≤ 3.0 |
+| `connector_worker_thread_pool_thread_count_growth_per_hour` | 0.00 | ≤ 0.5 |
+
+**24h retention 境界の前後（区間別 OLS スロープ, MiB/h）**
+
+`BUILDING_OS_VALIDATED` の MaxAge 24h を境に区間を切って `resource-timeseries.jsonl` から算出した
+（gate の値は「後半 = 36.5〜73h」のスロープで、区間の切り方が異なる）。
+
+| 系列 | 0–24h | 24–48h | 48–73h | **24–73h** | 24–73h の範囲 (MiB) |
+|---|---:|---:|---:|---:|---|
+| connector-worker RSS | +6.66 | −3.48 | −1.80 | **−0.12** | 471–673（平均 585） |
+| NATS RSS | +0.58 | −0.47 | +0.51 | **+0.01** | 58–108（平均 80） |
+| connector-worker GC committed | +2.72 | +1.23 | −3.18 | +0.14 | 313–464 |
+| gen2 | +0.01 | 0.00 | 0.00 | 0.00 | 2.6–2.7 |
+| LOH | +0.40 | +0.28 | −0.37 | −0.01 | 30–94 |
+| RSS − GC committed | +3.93 | −4.72 | +1.39 | −0.26 | 69–278 |
+| OxiGraph RSS | +0.29 | −0.15 | +0.06 | −0.06 | 33–41 |
+| RustFS RSS | +5.26 | −1.93 | +3.42 | +1.55 | 175–325 |
+
+**結論**
+
+- **connector-worker と NATS は 24h retention 到達後に定常化した。** 24h A/B で「収束していない」と
+  した RSS 増加（〜592 MiB）はそこで頭打ちになり、以降 49h はスロープ ±0.1 MiB/h 程度、平均
+  585 MiB 前後で振動するだけだった。NATS も stream が MaxAge に達した後は 58〜108 MiB の帯に留まる。
+- **リークの兆候なし。** gen2 は 73h・163 万フレームで 2.6 MiB 前後のまま、LOH / thread pool も平坦。
+- **RSS − GC committed の gate 値 +2.45 は閾値 3.0 に近い**が、区間を見ると 69〜278 MiB の帯で
+  振動しており（24–48h は −4.72、48–73h は +1.39）、単調増加ではない。「後半」の窓が振動の
+  上り相に当たるとこの程度の値が出る。閾値は緩めず、上振れが再現したら何が増えたかを見ること
+  （上記「#297: 閾値を…」の方針どおり）。
+- RustFS は 24–73h でも +1.55 MiB/h で、本 run の範囲では頭打ちが見えない。Building OS の
+  プロセスではなく gate 対象外だが、RustFS 化（#490 / #489）の評価材料として記録しておく。
+
 ## 既知の限界・#297 との差分
 - 4–6h では #297 が懸念した「24h retention 到達後の定常化」やそれ以降の長期トレンドは観測できない
   （NATS `BUILDING_OS_VALIDATED` の MaxAge は 24h — `DotNet/BuildingOS.Shared/Infrastructure/Telemetry/
   ParquetLake/ParquetLakeWriterWorker.cs`）。より長い run で再実行することが前提。
-  **2026-08-25〜27 に 24h × 2 本を実施済み**（上記「実施記録」）。24h でも RSS は定常化しておらず、
-  #297 の ≥72h はそのまま残る。
+  **2026-08-25〜27 に 24h × 2 本を実施済み**（上記「実施記録」）。24h では RSS は定常化しなかったが、
+  **2026-09-26〜29 の 73h run で 24h 以降の定常化を確認した**（上記「実施記録: 73h」）。
+- 73h run は RustFS 上・`mem_limit` なしの 1 本のみ。上限下での生存（`MEM_LIMIT`）は未実施。
+  NATS の stream bytes / redelivery は E10 の出力に含まれない（pending のみ）。
 - managed heap / GC heap / LOH / thread 数の分離（#297 の調査項目）は **#370 で対応済み** —
   `PROMETHEUS_URL` 指定時のみ Prometheus 経由でサンプリングする（上記 [#370 の節](#370-rss-の内訳を分離する)）。
   ただし取得は Prometheus のスクレイプ間隔（`oss-stack/prometheus/prometheus.yml`: 30s）と
