@@ -55,4 +55,72 @@ describe("SystemStatusView", () => {
     const link = screen.getByTestId("grafana-link");
     expect(link).toHaveAttribute("href", "https://grafana.example/d/abc");
   });
+  it("renders the pipeline KPIs with threshold levels and breakdown tooltips (#456)", () => {
+    render(
+      <SystemStatusView
+        status={{
+          ...base,
+          kpis: {
+            ...base.kpis,
+            ingressRate1m: 1842,
+            ingressBySource: [{ label: "gateway-grpc", value: 1842 }],
+            validatedRate1m: 1240,
+            rejectedRate1m: 40,
+            rejectedPercent: 2.2,
+            rejectedByResult: [{ label: "bad_payload", value: 40 }],
+            eventLagP95Seconds: 1.2,
+            consumerLagP95Seconds: 0.082,
+            parquetFreshnessP95Seconds: 28,
+            parquetDropped15m: 0,
+            natsPending: 124,
+          },
+          thresholds: {
+            rejectedPercentWarn: 1,
+            eventLagP95WarnSeconds: 30,
+            consumerLagP95WarnSeconds: 5,
+            parquetFreshnessWarnSeconds: 600,
+            natsPendingWarn: 10000,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("kpi-ingress")).toHaveTextContent("1,842 msg/s");
+    expect(screen.getByTestId("kpi-rejected")).toHaveTextContent("40 msg/s (2.2 %)");
+    expect(screen.getByTestId("kpi-rejected")).toHaveAttribute("data-level", "warn");
+    expect(screen.getByTestId("kpi-rejected").getAttribute("title")).toContain("bad_payload: 40 msg/s");
+    expect(screen.getByTestId("kpi-event-lag")).toHaveTextContent("1.2 s");
+    expect(screen.getByTestId("kpi-event-lag")).toHaveAttribute("data-level", "ok");
+    expect(screen.getByTestId("kpi-consumer-lag")).toHaveTextContent("82 ms");
+    expect(screen.getByTestId("kpi-parquet-freshness")).toHaveTextContent("28 s");
+    expect(screen.getByTestId("kpi-nats-pending")).toHaveTextContent("124");
+    // The two lags carry their reading guide as a glossary tooltip.
+    expect(screen.getByTestId("glossary-Event lag")).toBeInTheDocument();
+    expect(screen.getByTestId("glossary-Consumer lag")).toBeInTheDocument();
+  });
+
+  it("shows the observability-profile empty state without Prometheus", () => {
+    render(
+      <SystemStatusView
+        status={{ services: [], kpis: { msgRate1m: null, controlReq5m: null }, metricsAvailable: false }}
+      />,
+    );
+    expect(screen.getByTestId("metrics-unavailable")).toHaveTextContent("observability");
+    expect(screen.getByTestId("kpi-event-lag")).toHaveTextContent("—");
+    expect(screen.getByTestId("kpi-event-lag")).toHaveAttribute("data-level", "nodata");
+  });
+
+  it("adds per-KPI Grafana links only when a URL is configured", () => {
+    const { rerender } = render(<SystemStatusView status={base} />);
+    expect(screen.queryByTestId("kpi-msg-rate-grafana")).toBeNull();
+
+    rerender(<SystemStatusView status={base} grafanaUrl="https://grafana.example" />);
+    expect(screen.getByTestId("kpi-msg-rate-grafana")).toHaveAttribute(
+      "href",
+      "https://grafana.example/d/building-os-overview/building-os-overview?viewPanel=5",
+    );
+    expect(screen.getByTestId("kpi-event-lag-grafana")).toHaveAttribute(
+      "href",
+      "https://grafana.example/d/building-os-overview/building-os-overview",
+    );
+  });
 });

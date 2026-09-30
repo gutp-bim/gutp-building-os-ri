@@ -1,16 +1,19 @@
+import { serviceDotClass, serviceLabel } from "@/lib/system-status/format";
 import {
-  formatKpi,
-  serviceDotClass,
-  serviceLabel,
-} from "@/lib/system-status/format";
+  buildPipelineKpis,
+  kpiLevelClass,
+  type PipelineKpiCard,
+} from "@/lib/system-status/pipeline";
 import type { SystemStatus } from "@/lib/system-status/types";
+import { GlossaryTooltip } from "@/components/help/glossary-tooltip";
 import { HelpButton } from "@/components/help/help-button";
 
 /**
  * Pure, at-a-glance presentation of the platform status (#146). Takes the resolved data as props (no
  * fetching) so the display logic is unit-testable. Built to be useful without Grafana — KPI cards
  * degrade to "—" when the metrics backend is unavailable, and a Grafana deep link is shown only when
- * a URL is configured.
+ * a URL is configured. The Pipeline Health cards (#456) — values, threshold colours, tooltips and
+ * per-KPI Grafana links — come from the pure {@link buildPipelineKpis}.
  */
 export function SystemStatusView({
   status,
@@ -40,7 +43,8 @@ export function SystemStatusView({
           className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
           data-testid="metrics-unavailable"
         >
-          メトリクスバックエンド（Prometheus）が未接続のため、KPI は表示できません。サービスの
+          メトリクスバックエンド（Prometheus）が未接続のため、KPI は表示できません。observability
+          プロファイルを有効にすると表示されます（docker compose --profile observability up）。サービスの
           稼働状態は引き続き取得しています。
         </p>
       ) : null}
@@ -65,19 +69,12 @@ export function SystemStatusView({
         </ul>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">KPI（直近）</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <KpiCard
-            testId="kpi-msg-rate"
-            label="メッセージ流量 (1m)"
-            value={formatKpi(status.kpis?.msgRate1m, { suffix: " msg/s" })}
-          />
-          <KpiCard
-            testId="kpi-control-req"
-            label="制御リクエスト (5m)"
-            value={formatKpi(status.kpis?.controlReq5m, { suffix: " 件" })}
-          />
+      <section className="mb-8" data-testid="pipeline-health">
+        <h2 className="mb-3 text-lg font-semibold">Pipeline Health（直近）</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {buildPipelineKpis(status, grafanaUrl).map((kpi) => (
+            <KpiCard key={kpi.key} kpi={kpi} />
+          ))}
         </div>
       </section>
 
@@ -96,19 +93,29 @@ export function SystemStatusView({
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId: string;
-}) {
+function KpiCard({ kpi }: { kpi: PipelineKpiCard }) {
   return (
-    <div className="rounded border border-gray-200 px-4 py-3" data-testid={testId}>
-      <div className="text-sm text-gray-600">{label}</div>
-      <div className="text-2xl font-bold">{value}</div>
+    <div
+      className={`rounded border px-4 py-3 ${kpiLevelClass(kpi.level)}`}
+      data-testid={kpi.testId}
+      data-level={kpi.level}
+      title={kpi.tooltip ?? undefined}
+    >
+      <div className="flex items-center justify-between gap-2 text-sm text-gray-600">
+        <GlossaryTooltip term={kpi.glossaryTerm}>{kpi.label}</GlossaryTooltip>
+        {kpi.grafanaHref ? (
+          <a
+            href={kpi.grafanaHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 underline"
+            data-testid={`${kpi.testId}-grafana`}
+          >
+            Grafana
+          </a>
+        ) : null}
+      </div>
+      <div className="text-2xl font-bold">{kpi.value}</div>
     </div>
   );
 }
