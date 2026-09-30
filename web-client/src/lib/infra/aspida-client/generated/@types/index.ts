@@ -260,6 +260,11 @@ export type IngressRejectionStats = {
   metricsAvailable?: boolean | undefined;
 }
 
+export type KpiBreakdownItem = {
+  label?: string | undefined;
+  value?: number | undefined;
+}
+
 /**
  * One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).
  * 
@@ -383,6 +388,14 @@ export type PermissionsControllerResolvedPermissionInfo = {
   originalId?: string | undefined;
   resourceType?: string | undefined;
   displayName?: string | null | undefined;
+}
+
+export type PipelineKpiThresholds = {
+  rejectedPercentWarn?: number | undefined;
+  eventLagP95WarnSeconds?: number | undefined;
+  consumerLagP95WarnSeconds?: number | undefined;
+  parquetFreshnessWarnSeconds?: number | undefined;
+  natsPendingWarn?: number | undefined;
 }
 
 export type Point = {
@@ -626,12 +639,24 @@ export type SystemConfigControllerUpdateSettingRequest = {
 export type SystemKpis = {
   msgRate1m?: number | null | undefined;
   controlReq5m?: number | null | undefined;
+  ingressRate1m?: number | null | undefined;
+  ingressBySource?: KpiBreakdownItem[] | null | undefined;
+  validatedRate1m?: number | null | undefined;
+  rejectedRate1m?: number | null | undefined;
+  rejectedPercent?: number | null | undefined;
+  rejectedByResult?: KpiBreakdownItem[] | null | undefined;
+  eventLagP95Seconds?: number | null | undefined;
+  consumerLagP95Seconds?: number | null | undefined;
+  parquetFreshnessP95Seconds?: number | null | undefined;
+  parquetDropped15m?: number | null | undefined;
+  natsPending?: number | null | undefined;
 }
 
 export type SystemStatus = {
   services?: ServiceStatus[] | undefined;
   kpis?: SystemKpis | undefined;
   metricsAvailable?: boolean | undefined;
+  thresholds?: PipelineKpiThresholds | undefined;
 }
 
 export type TelemetryGranularity = 0 | 1 | 2

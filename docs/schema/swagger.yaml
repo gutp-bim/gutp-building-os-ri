@@ -3968,6 +3968,15 @@ components:
         metricsAvailable:
           type: boolean
       additionalProperties: false
+    KpiBreakdownItem:
+      type: object
+      properties:
+        label:
+          type: string
+        value:
+          type: number
+          format: double
+      additionalProperties: false
     LatestSample:
       type: object
       properties:
@@ -4138,6 +4147,25 @@ components:
         displayName:
           type: string
           nullable: true
+      additionalProperties: false
+    PipelineKpiThresholds:
+      type: object
+      properties:
+        rejectedPercentWarn:
+          type: number
+          format: double
+        eventLagP95WarnSeconds:
+          type: number
+          format: double
+        consumerLagP95WarnSeconds:
+          type: number
+          format: double
+        parquetFreshnessWarnSeconds:
+          type: number
+          format: double
+        natsPendingWarn:
+          type: number
+          format: double
       additionalProperties: false
     Point:
       required:
@@ -4659,6 +4687,52 @@ components:
           type: number
           format: double
           nullable: true
+        ingressRate1m:
+          type: number
+          format: double
+          nullable: true
+        ingressBySource:
+          type: array
+          items:
+            $ref: '#/components/schemas/KpiBreakdownItem'
+          nullable: true
+        validatedRate1m:
+          type: number
+          format: double
+          nullable: true
+        rejectedRate1m:
+          type: number
+          format: double
+          nullable: true
+        rejectedPercent:
+          type: number
+          format: double
+          nullable: true
+        rejectedByResult:
+          type: array
+          items:
+            $ref: '#/components/schemas/KpiBreakdownItem'
+          nullable: true
+        eventLagP95Seconds:
+          type: number
+          format: double
+          nullable: true
+        consumerLagP95Seconds:
+          type: number
+          format: double
+          nullable: true
+        parquetFreshnessP95Seconds:
+          type: number
+          format: double
+          nullable: true
+        parquetDropped15m:
+          type: number
+          format: double
+          nullable: true
+        natsPending:
+          type: number
+          format: double
+          nullable: true
       additionalProperties: false
     SystemStatus:
       type: object
@@ -4671,6 +4745,8 @@ components:
           $ref: '#/components/schemas/SystemKpis'
         metricsAvailable:
           type: boolean
+        thresholds:
+          $ref: '#/components/schemas/PipelineKpiThresholds'
       additionalProperties: false
     TelemetryGranularity:
       enum:
