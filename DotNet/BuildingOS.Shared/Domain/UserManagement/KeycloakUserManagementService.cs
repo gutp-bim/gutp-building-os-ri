@@ -59,10 +59,17 @@ public class KeycloakUserManagementService : IUserManagementService
         var states = new List<UserRoleState>(users.Count);
         foreach (var dto in users)
         {
-            var own = KeycloakUserAttributes.ReadRole(dto.Attributes);
-            var groupRole = own is null
-                ? await GetGroupRoleAsync(token, dto.Id, ancestorRoleByPath, cancellationToken)
-                : null;
+            // What reaches authorization, in order: the user's own `role` (the mapper never reads the
+            // legacy name), else a group's `role`, else — no claim at all — the Admin-API fallback, which
+            // reads the legacy buildingos_role. The admin UI's legacy-first ReadRole is right for what to
+            // persist next, but counting a stale legacy "admin" here would let the real last admin go.
+            var own = KeycloakUserAttributes.ReadMappedRole(dto.Attributes);
+            string? groupRole = null;
+            if (own is null)
+            {
+                groupRole = await GetGroupRoleAsync(token, dto.Id, ancestorRoleByPath, cancellationToken);
+                if (groupRole is null) own = KeycloakUserAttributes.ReadLegacyRole(dto.Attributes);
+            }
             states.Add(new UserRoleState(dto.Id, own, dto.Enabled ?? true, groupRole));
         }
         return states;

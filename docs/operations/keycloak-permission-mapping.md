@@ -144,8 +144,11 @@ concurrent change by another admin (e.g. disabling the user) is not reverted wit
 own `role` wins, and only without one does a group's (or a parent group's) `role` reach the token —
 `building-os-admins` carries `role=admin`. Since #519 a role written in `/admin` overrides that group
 value, so the self-lockout / last-admin guard (`UserAdminGuard`) compares **effective** roles: the
-user's own role, else the role inherited from their groups (`GetUserRoleStatesAsync`, one
-`users/{id}/groups` lookup per user without an own role). A group-derived admin therefore cannot demote
+user's own `role`, else the role inherited from their groups (`GetUserRoleStatesAsync`, one
+`users/{id}/groups` lookup per user without an own role), else the legacy `buildingos_role` the
+Admin-API fallback reads. Unlike the write precedence above, the guard does **not** let a legacy value
+override `role` or a group role: those are what reach the token, so a stale legacy `admin` is not
+counted as an admin. A group-derived admin therefore cannot demote
 or disable themselves, nor be demoted/disabled as the last admin. A role written in `/admin` is trimmed
 and must be one of `admin` / `operator` / `viewer` (`400` otherwise); a blank role clears it.
 

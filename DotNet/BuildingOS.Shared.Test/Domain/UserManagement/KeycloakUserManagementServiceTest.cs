@@ -315,6 +315,48 @@ public class KeycloakUserManagementServiceTest
     }
 
     [Fact]
+    public async Task GetUserRoleStatesAsync_LegacyRole_DoesNotMaskTheRoleThatReachesTheToken()
+    {
+        // The guard must count the role the token actually carries. The mapper reads only `role`, then
+        // the groups; a legacy buildingos_role reaches authorization only via the Admin-API fallback,
+        // i.e. when neither is present. Counting a stale legacy "admin" as an admin would let the real
+        // last admin be demoted.
+        static object User(string id, Dictionary<string, string[]> attributes) =>
+            new { id, username = id, email = $"{id}@example.com", attributes = (object)attributes };
+
+        var service = CreateService(req =>
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (path.Contains("openid-connect/token")) return TokenResponse();
+            if (path.EndsWith("/users"))
+                return UsersListResponse([
+                    // Token carries role=viewer; the legacy admin never reaches it.
+                    User("u-stale", new() { ["role"] = ["viewer"], ["buildingos_role"] = ["admin"] }),
+                    // No own `role`: the group's viewer reaches the token, not the legacy admin.
+                    User("u-legacy-grouped", new() { ["buildingos_role"] = ["admin"] }),
+                    // No own `role`, no group: the Admin-API fallback reads the legacy admin.
+                    User("u-legacy-only", new() { ["buildingos_role"] = ["admin"] }),
+                ]);
+            if (path.EndsWith("/groups"))
+            {
+                var userId = path.Split('/')[^2];
+                Assert.NotEqual("u-stale", userId);
+                return JsonResponse(userId == "u-legacy-grouped"
+                    ? new object[] { new { id = "g", name = "viewers", path = "/viewers",
+                        attributes = new Dictionary<string, string[]> { ["role"] = ["viewer"] } } }
+                    : Array.Empty<object>());
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var states = (await service.GetUserRoleStatesAsync()).ToDictionary(s => s.Id);
+
+        Assert.Equal("viewer", states["u-stale"].EffectiveRole);
+        Assert.Equal("viewer", states["u-legacy-grouped"].EffectiveRole);
+        Assert.Equal("admin", states["u-legacy-only"].EffectiveRole);
+    }
+
+    [Fact]
     public async Task UpdateUserAttributesAsync_PermissionsOnly_KeepsExistingRole()
     {
         // Keycloak's PUT replaces the attribute map, so a permissions-only update that sent just

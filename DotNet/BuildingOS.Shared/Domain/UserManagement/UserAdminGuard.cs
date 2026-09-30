@@ -2,7 +2,11 @@ namespace BuildingOS.Shared.Domain.UserManagement;
 
 /// <summary>Snapshot of one user's role/enabled state, used by <see cref="UserAdminGuard"/>.</summary>
 /// <param name="Id">Keycloak user id.</param>
-/// <param name="Role">The user's own role attribute (<see cref="KeycloakUserAttributes.ReadRole"/>).</param>
+/// <param name="Role">
+/// The role the user's own attributes put into authorization: <c>role</c>
+/// (<see cref="KeycloakUserAttributes.ReadMappedRole"/>), or — only with neither an own nor a group role —
+/// the legacy <c>buildingos_role</c> the Admin-API fallback reads.
+/// </param>
 /// <param name="Enabled">Whether the account can authenticate.</param>
 /// <param name="GroupRole">
 /// The role the user inherits from a Keycloak group's (or a parent group's) <c>role</c> attribute, if

@@ -55,7 +55,19 @@ public static class KeycloakUserAttributes
     /// (groups never carried the legacy name), so that is the only one consulted.
     /// </summary>
     public static string? ReadGroupRole(IReadOnlyDictionary<string, string[]>? attributes) =>
+        ReadMappedRole(attributes);
+
+    /// <summary>
+    /// The role the <c>building-os-role</c> token mapper reads from these attributes: <see cref="Role"/>
+    /// only, never <see cref="LegacyRole"/>. Unlike <see cref="ReadRole"/> (the admin UI's view, which
+    /// prefers the legacy value), this is what actually reaches the <c>building_os_role</c> claim.
+    /// </summary>
+    public static string? ReadMappedRole(IReadOnlyDictionary<string, string[]>? attributes) =>
         FirstNonEmpty(attributes, Role)?.Trim();
+
+    /// <summary>The legacy <see cref="LegacyRole"/> value alone (the Admin-API fallback's source).</summary>
+    public static string? ReadLegacyRole(IReadOnlyDictionary<string, string[]>? attributes) =>
+        FirstNonEmpty(attributes, LegacyRole)?.Trim();
 
     /// <summary>
     /// Normalizes a requested role: <c>null</c> stays <c>null</c> (keep the current role), a blank value
