@@ -123,4 +123,13 @@ describe("SystemStatusView", () => {
       "https://grafana.example/d/building-os-overview/building-os-overview",
     );
   });
+
+  it("gives each Grafana link a distinct accessible name (WCAG 2.4.4)", () => {
+    render(<SystemStatusView status={base} grafanaUrl="https://grafana.example" />);
+    const names = screen
+      .getAllByRole("link", { name: /Grafana/ })
+      .map((a) => a.getAttribute("aria-label") ?? a.textContent);
+    expect(names.length).toBeGreaterThan(1);
+    expect(new Set(names).size).toBe(names.length);
+  });
 });

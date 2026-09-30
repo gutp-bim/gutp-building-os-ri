@@ -110,6 +110,7 @@ function KpiCard({ kpi }: { kpi: PipelineKpiCard }) {
             rel="noopener noreferrer"
             className="text-xs text-blue-600 underline"
             data-testid={`${kpi.testId}-grafana`}
+            aria-label={`${kpi.label} を Grafana で開く（新しいタブ）`}
           >
             Grafana
           </a>
