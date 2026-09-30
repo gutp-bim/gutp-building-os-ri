@@ -152,7 +152,8 @@ public static class UserAdminGuard
     /// acting admin (<paramref name="actorSub"/>, when not the target): the caller has already checked their
     /// token is admin, which proves which of their groups' values Keycloak emits, so they count whenever
     /// the snapshot still makes them an enabled admin at all (a stale token for an account since demoted or
-    /// disabled does not).
+    /// disabled does not). That includes an actor whose own groups could not be read (#532,
+    /// <see cref="UserRoleState.MayBeAdmin"/>): the token proves the admin role those groups carry.
     /// </summary>
     public static UserAdminGuardResult CheckLastAdmin(
         string targetId, IReadOnlyList<UserRoleState> allUsers, string? actorSub = null) =>
@@ -160,7 +161,7 @@ public static class UserAdminGuard
             u.Enabled
             && !string.Equals(u.Id, targetId, StringComparison.Ordinal)
             && (u.IsUnambiguouslyAdmin
-                || (string.Equals(u.Id, actorSub, StringComparison.Ordinal) && RoleCatalog.GrantsAdmin(u.EffectiveRole))))
+                || (string.Equals(u.Id, actorSub, StringComparison.Ordinal) && u.MayBeAdmin)))
             ? UserAdminGuardResult.Allowed
             : UserAdminGuardResult.LastAdmin;
 

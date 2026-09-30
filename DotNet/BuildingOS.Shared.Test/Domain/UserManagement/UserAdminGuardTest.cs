@@ -459,4 +459,23 @@ public class UserAdminGuardTest
         };
         Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckLastAdmin("admin-a", users, actorSub: "op"));
     }
+
+    [Fact]
+    public void CheckSetEnabled_ActorAdminViaUnreadableGroups_DisablingAnUnknownGroupRoleUser_IsNotALastAdminFalsePositive()
+    {
+        // Admin A is an admin via a group (token-proven) but their groups cannot be read (no query-groups),
+        // so the snapshot has no role for them. Disabling B (no own role, groups unreadable → may be admin)
+        // runs the last-admin count; A must still count as the remaining admin (#532 review).
+        var users = new[]
+        {
+            new UserRoleState("actor-a", null, true, GroupRoleUnknown: true),
+            new UserRoleState("u-b", null, true, GroupRoleUnknown: true),
+            new UserRoleState("op-1", "operator", true),
+        };
+        Assert.Equal(UserAdminGuardResult.Allowed,
+            UserAdminGuard.CheckSetEnabled("actor-a", "u-b", newEnabled: false, users));
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckLastAdmin("u-b", users, actorSub: "actor-a"));
+        // Only the actor gets that benefit: another unknown-group user is still not a remaining admin.
+        Assert.Equal(UserAdminGuardResult.LastAdmin, UserAdminGuard.CheckLastAdmin("u-b", users, actorSub: "op-1"));
+    }
 }
