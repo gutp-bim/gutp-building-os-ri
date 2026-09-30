@@ -50,7 +50,7 @@ export const DEFAULT_PIPELINE_THRESHOLDS: PipelineKpiThresholds = {
   eventLagP95WarnSeconds: 30,
   consumerLagP95WarnSeconds: 5,
   parquetFreshnessWarnSeconds: 600,
-  natsPendingWarn: 10000,
+  natsPendingWarn: 1000,
 };
 
 function hasValue(value: number | null | undefined): value is number {

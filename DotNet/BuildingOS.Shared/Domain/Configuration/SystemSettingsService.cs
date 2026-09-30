@@ -27,7 +27,7 @@ public sealed record PipelineKpiThresholds(
         EventLagP95WarnSeconds: 30,
         ConsumerLagP95WarnSeconds: 5,
         ParquetFreshnessWarnSeconds: 600,
-        NatsPendingWarn: 10000);
+        NatsPendingWarn: 1000);
 }
 
 /// <summary>Outcome of an update: success (with the merged view), unknown key, or validation failure.</summary>
