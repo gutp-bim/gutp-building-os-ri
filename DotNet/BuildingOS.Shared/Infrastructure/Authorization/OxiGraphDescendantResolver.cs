@@ -21,6 +21,7 @@ public sealed class OxiGraphDescendantResolver(OxiGraphClient client) : IResourc
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetDescendantsAsync(
         IReadOnlyCollection<(string ResourceType, string ResourceId)> roots,
         string targetType,
+        int? maxIds = null,
         CancellationToken ct = default)
     {
         var targetRank = Rank(targetType);
@@ -37,13 +38,15 @@ public sealed class OxiGraphDescendantResolver(OxiGraphClient client) : IResourc
                 var childType = Types[rank];
                 var pattern = ChildPattern(rootType, childType);
                 if (pattern is null) continue;
-                queries.Add((childType, client.QueryAsync(Query(rootType, ids, pattern), ct)));
+                queries.Add((childType, client.QueryAsync(Query(rootType, ids, pattern, maxIds), ct)));
             }
         }
         await Task.WhenAll(queries.Select(q => q.Rows)).ConfigureAwait(false);
+        var total = 0;
         foreach (var (childType, rows) in queries)
             foreach (var row in await rows.ConfigureAwait(false))
-                if (row.TryGetValue("nid", out var nid)) found[childType].Add(nid);
+                if (row.TryGetValue("nid", out var nid) && found[childType].Add(nid) && ++total > maxIds)
+                    throw new DescendantLimitExceededException(maxIds.Value);
 
         return Types
             .Where(t => Rank(t) <= targetRank)
@@ -66,15 +69,17 @@ public sealed class OxiGraphDescendantResolver(OxiGraphClient client) : IResourc
         _ => Cls_Point,
     };
 
-    private static string Query(string rootType, IReadOnlyList<string> ids, string pattern)
+    private static string Query(string rootType, IReadOnlyList<string> ids, string pattern, int? maxIds)
     {
         var values = string.Join(" ", ids.Select(id => $"\"{EscapeLiteral(id)}\""));
+        // One past the limit is enough to know it was exceeded, without the store returning the rest.
+        var limit = maxIds is { } max ? $"\nLIMIT {max + 1}" : "";
         return $@"{Prefixes}
 SELECT DISTINCT ?nid WHERE {{
   VALUES ?rootId {{ {values} }}
   ?root a <{RootClass(rootType)}> ; <{Prop_Id}> ?rootId .
 {pattern}
-}}";
+}}{limit}";
     }
 
     // Equipment {e} under ?root, per the two placements GetDeviceAncestors accepts. Each branch keeps

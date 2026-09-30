@@ -31,7 +31,7 @@ public class MyResourcesControllerTest
         mapping.Setup(m => m.ResolveOriginalIdsAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, string>());
         descendants = new Mock<IResourceDescendantResolver>();
-        descendants.Setup(d => d.GetDescendantsAsync(It.IsAny<IReadOnlyCollection<(string, string)>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        descendants.Setup(d => d.GetDescendantsAsync(It.IsAny<IReadOnlyCollection<(string, string)>>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, IReadOnlyList<string>>());
         var controller = new MyResourcesController(authz.Object, mapping.Object, descendants.Object)
         {
@@ -138,7 +138,7 @@ public class MyResourcesControllerTest
         Spaces(authz, new AccessibleResource(H("R501"), "R501"), new AccessibleResource(H("R503"), null));
         descendants.Setup(d => d.GetDescendantsAsync(
                 It.Is<IReadOnlyCollection<(string Type, string Id)>>(r => r.Count == 1 && r.Any(x => x.Item1 == "space" && x.Item2 == "R501")),
-                "point", It.IsAny<CancellationToken>()))
+                "point", It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, IReadOnlyList<string>>
             {
                 ["device"] = ["AHU-501"],
@@ -168,7 +168,7 @@ public class MyResourcesControllerTest
             await controller.GetMyResources(idFormat: "original", expand: "descendants", targetType: "space", ct: default));
 
         descendants.Verify(d => d.GetDescendantsAsync(
-            It.IsAny<IReadOnlyCollection<(string, string)>>(), "space", It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<IReadOnlyCollection<(string, string)>>(), "space", It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
         // targetType bounds the expansion, not the grants: a direct point grant stays listed.
         Assert.Equal(["PT-9"], Assert.IsType<MyResourcesResponse>(ok.Value).Resources!["point"]);
     }
@@ -185,10 +185,11 @@ public class MyResourcesControllerTest
     {
         var (controller, authz, _) = Build("viewer", out var descendants);
         Spaces(authz, new AccessibleResource(H("R501"), "R501"));
-        var many = Enumerable.Range(0, MyResourcesController.MaxExpandedIds + 1).Select(i => $"PT-{i}").ToList();
+        // The limit is pushed into the resolver (so the store never returns the whole expansion); it
+        // reports going over by throwing.
         descendants.Setup(d => d.GetDescendantsAsync(
-                It.IsAny<IReadOnlyCollection<(string, string)>>(), "point", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Dictionary<string, IReadOnlyList<string>> { ["point"] = many });
+                It.IsAny<IReadOnlyCollection<(string, string)>>(), "point", MyResourcesController.MaxExpandedIds, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DescendantLimitExceededException(MyResourcesController.MaxExpandedIds));
 
         var result = await controller.GetMyResources(idFormat: "original", expand: "descendants", ct: default);
 

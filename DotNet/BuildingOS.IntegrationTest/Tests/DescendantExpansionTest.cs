@@ -175,4 +175,20 @@ public class DescendantExpansionTest(PostgresFixture postgres, OxiGraphFixture o
         foreach (var pointId in body.Resources["point"])
             Assert.True(await authz.CanAccessAsync(controller.HttpContext.GetAuthorizationContext(), "point", pointId, "read"));
     }
+
+    [Fact]
+    public async Task MaxIds_StopsAnExpansionThatWouldReturnMore()
+    {
+        // B1 expands to 13 ids; with a limit of 5 the resolver must refuse rather than load them all.
+        await SeedAsync();
+        var resolver = new OxiGraphDescendantResolver(oxiGraph.Client);
+
+        var ex = await Assert.ThrowsAsync<DescendantLimitExceededException>(
+            () => resolver.GetDescendantsAsync([("building", "B1")], "point", maxIds: 5));
+        Assert.Equal(5, ex.Limit);
+
+        // At or under the limit the answer is complete.
+        var within = await resolver.GetDescendantsAsync([("device", "AHU-501")], "point", maxIds: 2);
+        Assert.Equal(["PT-1", "PT-2"], within["point"]);
+    }
 }

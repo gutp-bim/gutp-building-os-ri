@@ -163,9 +163,19 @@ public class MyResourcesController : ControllerBase
         if (expandDescendants)
         {
             var roots = resources.SelectMany(kv => kv.Value.Select(id => (kv.Key, id))).ToList();
-            var descendants = roots.Count == 0
-                ? new Dictionary<string, IReadOnlyList<string>>()
-                : await _descendants.GetDescendantsAsync(roots, targetType, ct).ConfigureAwait(false);
+            IReadOnlyDictionary<string, IReadOnlyList<string>> descendants;
+            try
+            {
+                // The limit goes into the store queries, so an over-large expansion is refused without
+                // being loaded (the total check below also covers the grants listed directly).
+                descendants = roots.Count == 0
+                    ? new Dictionary<string, IReadOnlyList<string>>()
+                    : await _descendants.GetDescendantsAsync(roots, targetType, MaxExpandedIds, ct).ConfigureAwait(false);
+            }
+            catch (DescendantLimitExceededException)
+            {
+                return ExpansionTooLarge(count: null);
+            }
             foreach (var (type, ids) in descendants)
             {
                 if (ids.Count == 0 || !resources.ContainsKey(type)) continue;
@@ -173,18 +183,18 @@ public class MyResourcesController : ControllerBase
             }
 
             var total = resources.Values.Sum(v => v.Count);
-            if (total > MaxExpandedIds)
-                return StatusCode(StatusCodes.Status422UnprocessableEntity, new
-                {
-                    error = $"the expansion yields {total} ids, over the limit of {MaxExpandedIds}; " +
-                            "use a shallower targetType (e.g. device or space)",
-                    count = total,
-                    limit = MaxExpandedIds,
-                });
+            if (total > MaxExpandedIds) return ExpansionTooLarge(total);
         }
 
         return Ok(new MyResourcesResponse { IsAdmin = false, Resources = resources, Unresolved = unresolved });
     }
+
+    private ObjectResult ExpansionTooLarge(int? count) => StatusCode(StatusCodes.Status422UnprocessableEntity, new
+    {
+        error = $"the expansion yields more than {MaxExpandedIds} ids; use a shallower targetType (e.g. device or space)",
+        count,
+        limit = MaxExpandedIds,
+    });
 
     private static bool TryParseIdFormat(string? idFormat, out bool original)
     {

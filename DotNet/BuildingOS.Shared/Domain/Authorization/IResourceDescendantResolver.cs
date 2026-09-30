@@ -15,8 +15,21 @@ public interface IResourceDescendantResolver
     /// Descendant business ids of <paramref name="roots"/>, per resource type, for every type below a
     /// root down to and including <paramref name="targetType"/>. The roots themselves are not included.
     /// </summary>
+    /// <param name="maxIds">
+    /// When set, the expansion is bounded in the store (each query reads at most one id past it) and
+    /// <see cref="DescendantLimitExceededException"/> is thrown once more than this many distinct ids
+    /// would be returned — so an over-large expansion is refused without being materialized.
+    /// </param>
     Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetDescendantsAsync(
         IReadOnlyCollection<(string ResourceType, string ResourceId)> roots,
         string targetType,
+        int? maxIds = null,
         CancellationToken ct = default);
+}
+
+/// <summary>A descendant expansion would return more than <see cref="Limit"/> ids (#509).</summary>
+public sealed class DescendantLimitExceededException(int limit)
+    : Exception($"The descendant expansion exceeds {limit} ids.")
+{
+    public int Limit { get; } = limit;
 }
