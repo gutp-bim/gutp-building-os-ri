@@ -146,6 +146,11 @@ ingress:
   tls:
     enabled: true
     secretName: building-os-tls
+  # #521: trusted gateway identity header, stripped on EVERY route of this (non-mTLS) IngressRoute
+  # by the `strip-gateway-id` Middleware. Only the mTLS ingress may set it (from the client cert).
+  # Must match the API Server resolver (GatewayIdentityDefaults.TrustedHeaderName) and the
+  # ConnectorWorker GRPC_INGRESS_GATEWAY_ID_HEADER — change all of them together.
+  gatewayIdHeader: X-Gateway-Id
   routes:
     # API Server at /api
     - match: "Host(`building-os.example.com`) && PathPrefix(`/api`)"

@@ -15,10 +15,14 @@ spec:
     {{- else }}
     - web
     {{- end }}
+  # #521: this is the general (non-mTLS) route set — every route strips the trusted gateway identity
+  # header so a client-sent X-Gateway-Id never reaches the API Server.
   routes:
     {{- range .Values.ingress.routes }}
     - match: {{ .match | quote }}
       kind: Rule
+      middlewares:
+        - name: strip-gateway-id
       services:
         - name: {{ .service }}
           port: {{ .port }}
@@ -30,6 +34,22 @@ spec:
   tls:
     secretName: {{ .Values.ingress.tls.secretName }}
   {{- end }}
+---
+# #521: blank the trusted gateway identity header (Traefik removes a request header whose
+# customRequestHeaders value is ""). The header is set ONLY by the mTLS ingress from the verified
+# client certificate (#224, docs/architecture/oss-gateway-pointlist-sync.md); on any other route a
+# client-sent copy would let a caller impersonate a gateway (e.g. read its point list).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-gateway-id
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "building-os.labels" . | nindent 4 }}
+spec:
+  headers:
+    customRequestHeaders:
+      {{ .Values.ingress.gatewayIdHeader | default "X-Gateway-Id" | quote }}: ""
 ---
 # Redirect HTTP → HTTPS
 {{- if .Values.ingress.tls.enabled }}
