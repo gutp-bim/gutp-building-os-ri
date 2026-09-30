@@ -269,13 +269,15 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     // (class, id) pairs held by more than one node of that class in the graphs the import leaves behind
     // (#517). The group is anchored on a node of the staging graph, so an append is judged only on what
     // it brings in — a duplicate already inside the twin is not blamed on it — while the same IRI
-    // re-imported is one node, not two. Shared by the count and the enumeration.
+    // re-imported is one node, not two. The anchor's type may come from the twin: an append can add just an
+    // sbco:id to a node typed there. Shared by the count and the enumeration.
     private static string IdCollisionPattern(string graph, TwinImportMode mode)
     {
         var classes = string.Join(" ", IdentifiedClasses.Select(c => $"<{Sbco}{c.Class}>"));
         return $@"SELECT ?cls ?id (COUNT(DISTINCT ?node) AS ?n) WHERE {{
   VALUES ?cls {{ {classes} }}
-  GRAPH <{graph}> {{ ?staged a ?cls ; <{Sbco}id> ?id . }}
+  GRAPH <{graph}> {{ ?staged <{Sbco}id> ?id . }}
+  {Link(graph, mode, "?staged a ?cls .")}
   {Link(graph, mode, "?node a ?cls .")}
   {Link(graph, mode, $"?node <{Sbco}id> ?id .")}
 }}

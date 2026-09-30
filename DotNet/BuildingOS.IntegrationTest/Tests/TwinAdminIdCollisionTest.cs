@@ -100,6 +100,28 @@ public class TwinAdminIdCollisionTest(OxiGraphFixture oxiGraph)
     }
 
     [Fact]
+    public async Task Append_AnIdOnAnExistingNodeTypedOnlyInTheTwin_IsReported()
+    {
+        // The appended Turtle adds only an sbco:id; the node's type lives in the existing twin. The
+        // merged twin still has two Rooms "501", so the check must take the type from either graph.
+        await oxiGraph.Client.ReplaceDefaultGraphAsync("""
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:t:b1> a sbco:Building ; sbco:id "B1" ; sbco:hasPart <urn:t:f1> .
+            <urn:t:f1> a sbco:Level ; sbco:id "F1" ; sbco:name "1F" ; sbco:hasPart <urn:t:r501>, <urn:t:rx> .
+            <urn:t:r501> a sbco:Room ; sbco:id "501" ; sbco:name "501" .
+            <urn:t:rx> a sbco:Room ; sbco:id "502" ; sbco:name "502" .
+            """);
+
+        var preview = await Service().PreviewImportAsync("""
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:t:rx> sbco:id "501" .
+            """, TwinImportMode.Append);
+
+        var collision = Assert.Single(preview.IdCollisions);
+        Assert.Equal(("space", "501", 2), (collision.ResourceType, collision.Id, collision.NodeCount));
+    }
+
+    [Fact]
     public async Task Append_DuplicatesOnlyWithinTheExistingTwin_AreNotBlamedOnTheImport()
     {
         // The existing twin already has two "501"s; an unrelated append must not be refused for it.
