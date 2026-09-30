@@ -27,6 +27,18 @@ jobs:
       - name: Create namespace
         run: kubectl create namespace building-os
 
+      # The api-server chart renders a Traefik IngressRoute + the #521 X-Gateway-Id strip
+      # Middleware when its Argo CD overlay enables ingress, so the server-side dry-run below needs
+      # the Traefik CRDs (traefik.io/v1alpha1) to know those kinds.
+      - name: Install Traefik CRDs
+        run: |
+          kubectl apply --server-side -f \
+            https://raw.githubusercontent.com/traefik/traefik/v3.3/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml
+
+      # #521: every non-mTLS route must strip the trusted X-Gateway-Id header.
+      - name: Assert X-Gateway-Id is stripped on the general routes
+        run: bash scripts/verify-helm-gateway-id-strip.sh
+
       # helm lint は oss-ci.yml でも実行されるが、ここでも実行して
       # kind job が独立して失敗を報告できるようにする
       - name: Helm lint (minimal profile)
