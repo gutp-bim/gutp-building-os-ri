@@ -213,15 +213,15 @@ public class OxiGraphTwinAdminServiceTest
     }
 
     [Fact]
-    public async Task PreviewImport_AcceptsTheFloorLiteralAsAPathToTheBuilding()
+    public async Task PreviewImport_TheFloorLiteralIsNoPathToTheBuilding_OnlyItsOwnReason()
     {
-        // #291 regression: sbco:Room / sbco:locatedIn are optional in SBCO TTL, so a device joined to
-        // its Level by the sbco:floor literal (the join the read side uses) is connected. The pattern
-        // must offer that alternative next to the spatial chain, and must not require a Room anchor.
+        // Topology only: the sbco:floor literal is never joined to a Level's name (it places nothing).
+        // It appears once — to classify equipment placed only by it as floor_literal_only.
         var (graph, orphanQuery) = await CaptureOrphanQueryAsync(TwinImportMode.Replace);
 
-        Assert.Contains($"GRAPH <{graph}> {{ ?anyDev <{Sbco}floor> ?anyFloorName . }}", orphanQuery);
-        Assert.Contains($"GRAPH <{graph}> {{ ?anyFloor <{Sbco}name> ?anyFloorName . }}", orphanQuery);
+        Assert.DoesNotContain("?anyFloorName . }", orphanQuery.Replace($"GRAPH <{graph}> {{ ?anyDev <{Sbco}floor> ?anyFloorName . }}", ""));
+        Assert.DoesNotContain($"<{Sbco}name> ?anyFloorName", orphanQuery);
+        Assert.Contains(TwinOrphanReasons.FloorLiteralOnly, orphanQuery);
     }
 
     [Fact]

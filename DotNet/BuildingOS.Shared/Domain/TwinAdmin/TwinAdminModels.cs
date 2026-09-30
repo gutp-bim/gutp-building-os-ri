@@ -14,12 +14,11 @@ public enum TwinImportMode
 public sealed record GatewayCollision(string GatewayId, int BuildingCount);
 
 /// <summary>
-/// Why a staged resource is not reachable from a Building (#291). A point is reachable by either of
-/// the three paths the twin accepts — the Room spatial chain
+/// Why a staged resource is not reachable from a Building (#291). The twin is traversed by topology
+/// only, so a point is reachable by one of two chains — the Room spatial chain
 /// (Building →hasPart→ Level →hasPart→ Room ←locatedIn← EquipmentExt →hasPoint→ PointExt) or the
-/// direct-Level chain (Building →hasPart→ Level ←locatedIn← EquipmentExt →hasPoint→ PointExt), or the
-/// <c>sbco:floor</c> literal on EquipmentExt matched against a Level's <c>sbco:name</c>. The wire
-/// values are unchanged; their meaning is widened accordingly (see <see cref="NoRoom"/>).
+/// direct-Level chain (Building →hasPart→ Level ←locatedIn← EquipmentExt →hasPoint→ PointExt). The
+/// <c>sbco:floor</c> literal is metadata and places nothing (see <see cref="FloorLiteralOnly"/>).
 /// </summary>
 public static class TwinOrphanReasons
 {
@@ -27,12 +26,18 @@ public static class TwinOrphanReasons
     public const string NoDevice = "no_device";
 
     /// <summary>
-    /// The point has a device, but no device of it carries any spatial anchor at all — neither
-    /// <c>sbco:locatedIn</c> an <c>sbco:Room</c> or <c>sbco:Level</c>, nor an <c>sbco:floor</c>
-    /// literal. (Widened from "no Room": a Room is optional in SBCO TTL, so a direct-Level or
-    /// floor-literal twin is legitimate and must not be reported.)
+    /// The point has a device, but no device of it carries any spatial anchor at all — no
+    /// <c>sbco:locatedIn</c> an <c>sbco:Room</c> or <c>sbco:Level</c>. (Widened from "no Room": a Room
+    /// is optional in SBCO TTL, so a direct-Level twin is legitimate and is not reported.)
     /// </summary>
     public const string NoRoom = "no_room";
+
+    /// <summary>
+    /// The point's device names a Level only through the <c>sbco:floor</c> literal and has no
+    /// <c>sbco:locatedIn</c>. The literal is metadata, not a relationship, so the device is placed
+    /// nowhere: the twin's builder must emit <c>sbco:locatedIn</c> to the Room or Level.
+    /// </summary>
+    public const string FloorLiteralOnly = "floor_literal_only";
 
     /// <summary>The device is anchored, but no supported path reaches an <c>sbco:Building</c> via <c>sbco:hasPart</c>.</summary>
     public const string NoBuildingPath = "no_building_path";

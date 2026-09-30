@@ -138,10 +138,9 @@ public class OxiGraphPointDetailMetadataTest
         Assert.Contains("devBuilding", sparql);
         Assert.Contains("/Building>", sparql);
         Assert.Contains("UNION", sparql);
-        // The sbco:floor literal join is the branch that survives a Room-less twin; without it the
-        // UNION would be decorative and BuildingName would stay null for exactly the twins that
-        // motivated this fix.
-        Assert.Contains("/floor>", sparql);
+        // Topology only: the Room and direct-Level chains. The sbco:floor literal places nothing.
+        Assert.Contains("/locatedIn>", sparql);
+        Assert.DoesNotContain("/floor>", sparql);
     }
 
     [Fact]

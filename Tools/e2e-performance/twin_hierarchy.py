@@ -8,14 +8,15 @@ seeded point is an orphan by `OxiGraphTwinAdminService.OrphanPattern`'s definiti
 `GRPC_INGRESS_REQUIRE_HIERARCHY` policy (#292) would discard every frame once it is turned on. A
 measurement taken against a shape the product treats as broken is not measuring the product.
 
-Reachability, quoted from `OrphanPattern` — a point is connected when any of these reaches a Building:
+Reachability, quoted from `OrphanPattern` — the twin is traversed by topology only, and a point is
+connected when either chain reaches a Building:
 
   A. Building -hasPart-> Level -hasPart-> Room <-locatedIn- EquipmentExt -hasPoint-> PointExt
   B. Building -hasPart-> Level <-locatedIn- EquipmentExt -hasPoint-> PointExt
-  C. the EquipmentExt's `sbco:floor` literal matched against a Level's `sbco:name`
 
-We emit chain A (the fullest of the three), so the seeded twin also exercises the Room hop that a
-real building has and that hierarchy-traversing queries pay for.
+The EquipmentExt's `sbco:floor` literal is metadata and places nothing. We emit chain A (the fuller
+of the two), so the seeded twin also exercises the Room hop that a real building has and that
+hierarchy-traversing queries pay for.
 
 Note the class is `sbco:Building`, not `sbco:BuildingExt` — the latter is not in the ontology
 (`OxiGraphOntology.Cls_Building`), and using it fails silently: no error, the building simply never
@@ -39,14 +40,11 @@ class TwinHierarchy:
 
     def __init__(self, prefix: str, building_id: str | None = None, floor_id: str | None = None):
         # Derive the *ids* from the prefix too, not just the URIs. Two seeders sharing an id would
-        # put two buildings in the twin claiming the same sbco:id, and — worse — two Levels sharing
-        # an sbco:name, which the sbco:floor literal join (chain C, also used by ListDeviceDetails)
-        # matches on: each building's device listing would then include the other's devices.
+        # put two buildings in the twin claiming the same sbco:id — and authorization identifies a
+        # node by its sbco:id (#504/#517), so one grant would then cover both.
         slug = prefix.replace(":", "-")
         self.building_id = building_id or f"{slug}-bldg"
-        # Likewise per building: a floor name shared across buildings makes that same join fan out
-        # across all of them, which in a scale sweep multiplies every point's solutions by the
-        # building count — inside the very query the harness is timing.
+        # Likewise per building, so no two Levels share an id or a name.
         self.floor_id = floor_id or f"{self.building_id}-F1"
         self.room_id = f"{self.floor_id}-room-1"
         self.site_uri = f"urn:{prefix}:site:{self.building_id}"
@@ -70,9 +68,8 @@ class TwinHierarchy:
     def equipment_props(self) -> list[str]:
         """Properties that anchor an EquipmentExt into this hierarchy.
 
-        `locatedIn` is what `OrphanPattern` traverses; `sbco:floor` is the denormalized literal the
-        read paths project, and it doubles as chain C, so a device stays reachable even if the Room
-        hop is later dropped from a fixture.
+        `locatedIn` is what every read path traverses; `sbco:floor` is the denormalized literal the
+        read paths may display. It places nothing — dropping `locatedIn` would orphan the device.
         """
         return [
             f"<{SBCO}locatedIn> <{self.room_uri}>",

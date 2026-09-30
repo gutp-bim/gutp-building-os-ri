@@ -171,17 +171,16 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     // only the points it adds and never re-judges the ones already in the twin; reachability, by
     // contrast, is evaluated over the graphs the chosen mode actually leaves behind (see Link).
     //
-    // A point is "connected" when any supported path reaches a Building:
+    // A point is "connected" when the topology reaches a Building by either chain:
     //   A. the spatial chain Building →hasPart→ Level →hasPart→ Room ←locatedIn← EquipmentExt →hasPoint→ PointExt
     //   B. the direct chain Building →hasPart→ Level ←locatedIn← EquipmentExt →hasPoint→ PointExt
-    //   C. the sbco:floor literal on EquipmentExt matched against a Level's sbco:name.
-    // Any one suffices: Room/locatedIn are optional throughout this repository, and an Equipment
-    // may be directly located in a Level. Requiring only the Room chain would report legitimate
-    // twins as entirely orphaned. The three UNION branches
-    // stay mutually exclusive (no device / a device with no spatial anchor at all / an anchor that
-    // reaches no Building), so a point is reported exactly once, under the outermost link that is
-    // missing. Shared by the count and the capped enumeration so both always agree on what "orphan"
-    // means.
+    // The sbco:floor literal is metadata, not a relationship, and places nothing: building the
+    // topology is the builder's job. Equipment that names a Level only through that literal gets its
+    // own reason (floor_literal_only) so the twin's author knows exactly what to emit. The four UNION
+    // branches stay mutually exclusive (no device / placed only by the literal / no spatial anchor at
+    // all / an anchor that reaches no Building), so a point is reported exactly once, under the
+    // outermost link that is missing. Shared by the count and the capped enumeration so both always
+    // agree on what "orphan" means.
     private static string OrphanPattern(string graph, TwinImportMode mode)
     {
         string Chain(params string[] triples) =>
@@ -193,7 +192,6 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         var roomOfFloor = $"?anyFloor <{Sbco}hasPart> ?anyRoom .";
         var inFloor     = $"?anyDev <{Sbco}locatedIn> ?anyFloor .";
         var devFloor    = $"?anyDev <{Sbco}floor> ?anyFloorName .";
-        var floorName   = $"?anyFloor <{Sbco}name> ?anyFloorName .";
         var isFloor     = $"?anyFloor a <{Sbco}Level> .";
         var floorOfBldg = $"?anyBuilding <{Sbco}hasPart> ?anyFloor .";
         var isBuilding  = $"?anyBuilding a <{Sbco}Building> .";
@@ -201,18 +199,16 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         var candidate = $"GRAPH <{graph}> {{ ?pt a <{Sbco}PointExt> . }}";
         var device = Chain(hasPoint);
 
-        // Any supported spatial anchor on the point's device — a Room, a Level via sbco:locatedIn,
-        // or an sbco:floor literal. A device carrying none is placed nowhere, so there is nothing
-        // to trace upwards.
+        // A spatial anchor on the point's device: sbco:locatedIn a Room or a Level. A device carrying
+        // none is placed nowhere, so there is nothing to trace upwards.
         var anchor =
             $"{{ {Chain(hasPoint, inRoom, isRoom)} }} UNION " +
-            $"{{ {Chain(hasPoint, inFloor, isFloor)} }} UNION " +
-            $"{{ {Chain(hasPoint, devFloor)} }}";
+            $"{{ {Chain(hasPoint, inFloor, isFloor)} }}";
+        var literalOnly = Chain(hasPoint, devFloor);
 
         var reachable =
             $"{{ {Chain(hasPoint, inRoom, isRoom, roomOfFloor, isFloor, floorOfBldg, isBuilding)} }} UNION " +
-            $"{{ {Chain(hasPoint, inFloor, isFloor, floorOfBldg, isBuilding)} }} UNION " +
-            $"{{ {Chain(hasPoint, devFloor, floorName, isFloor, floorOfBldg, isBuilding)} }}";
+            $"{{ {Chain(hasPoint, inFloor, isFloor, floorOfBldg, isBuilding)} }}";
 
         return $@"
 {{
@@ -223,6 +219,13 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
   {candidate}
   FILTER EXISTS {{ {device} }}
   FILTER NOT EXISTS {{ {anchor} }}
+  FILTER EXISTS {{ {literalOnly} }}
+  BIND(""{TwinOrphanReasons.FloorLiteralOnly}"" AS ?reason)
+}} UNION {{
+  {candidate}
+  FILTER EXISTS {{ {device} }}
+  FILTER NOT EXISTS {{ {anchor} }}
+  FILTER NOT EXISTS {{ {literalOnly} }}
   BIND(""{TwinOrphanReasons.NoRoom}"" AS ?reason)
 }} UNION {{
   {candidate}

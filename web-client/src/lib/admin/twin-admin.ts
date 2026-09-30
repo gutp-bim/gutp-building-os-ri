@@ -15,7 +15,8 @@ export interface GatewayCollision {
 }
 
 /** Which link of the building hierarchy is missing for an unreachable resource (#291). */
-export type TwinOrphanReason = "no_device" | "no_room" | "no_building_path";
+export type TwinOrphanReason =
+  "no_device" | "floor_literal_only" | "no_room" | "no_building_path";
 
 export interface TwinOrphanResource {
   resourceId: string;
@@ -52,7 +53,10 @@ export type TwinImportMode = "append" | "replace";
 
 const ORPHAN_REASON_LABELS: Record<TwinOrphanReason, string> = {
   no_device: "デバイス未接続",
-  // 部屋（sbco:locatedIn）とフロア文字列（sbco:floor）のどちらも無い＝空間的な足がかりが皆無。
+  // 機器が sbco:floor（文字列のメタデータ）でしかフロアを示しておらず sbco:locatedIn が無い。twin は
+  // トポロジーだけで辿るので配置されない。builder が sbco:locatedIn を出力する必要がある。
+  floor_literal_only: "配置未指定（sbco:floor のみ。sbco:locatedIn が必要）",
+  // 部屋・フロアへの sbco:locatedIn が無い＝空間的な足がかりが皆無。
   no_room: "空間未接続（部屋・フロア未指定）",
   no_building_path: "フロア・建物へ到達不能",
 };

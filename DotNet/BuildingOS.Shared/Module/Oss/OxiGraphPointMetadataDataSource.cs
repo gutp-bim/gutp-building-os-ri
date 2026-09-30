@@ -145,11 +145,10 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
     /// <see cref="PointMetadata.HasBuildingPath"/>.
     /// <para>
     /// The traversal mirrors the import-time orphan definition exactly (#291,
-    /// <c>OxiGraphTwinAdminService.OrphanPattern</c>): from the OWNING EQUIPMENT, via the spatial chain,
-    /// or direct Level location, or the <c>sbco:floor</c> literal join — ANY of which counts. Anchoring
-    /// on the equipment rather than the point matters: the two latter paths live on EquipmentExt.
-    /// All three branches must survive; losing one silently turns reachable points into orphans at
-    /// strict ingress (#292).
+    /// <c>OxiGraphTwinAdminService.OrphanPattern</c>): from the OWNING EQUIPMENT, by topology only —
+    /// the spatial chain or direct Level location, either of which counts. The <c>sbco:floor</c>
+    /// literal is metadata and places nothing. Both branches must survive; losing one silently turns
+    /// reachable points into orphans at strict ingress (#292).
     /// </para>
     /// <para>
     /// <c>?anyDev sbco:hasPoint ?point</c> is hoisted out of the UNION — equivalent to the old query,
@@ -180,12 +179,6 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
           } UNION {
             ?anyDev sbco:locatedIn ?anyFloor .
             ?anyFloor a sbco:Level .
-            ?bldg sbco:hasPart ?anyFloor ;
-                  a sbco:Building .
-          } UNION {
-            ?anyDev sbco:floor ?anyFloorName .
-            ?anyFloor a sbco:Level ;
-                      sbco:name ?anyFloorName .
             ?bldg sbco:hasPart ?anyFloor ;
                   a sbco:Building .
           }

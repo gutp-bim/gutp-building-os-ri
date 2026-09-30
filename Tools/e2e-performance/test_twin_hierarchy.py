@@ -128,18 +128,12 @@ def reaches_building(triples: list[tuple[str, str, str]]) -> tuple[set[str], set
         for rm in obj(lv, f"{SBCO}hasPart")
         if rm in rooms
     }
-    level_names_under_building = {
-        name for lv in levels_under_building for name in obj(lv, f"{SBCO}name")
-    }
-
     connected = set()
     for device in {s for (s, p) in out if p == f"{SBCO}hasPoint"}:
+        # Topology only: the sbco:floor literal places nothing.
         anchors = obj(device, f"{SBCO}locatedIn")
-        floor_literals = obj(device, f"{SBCO}floor")
-        anchored = (
-            bool(anchors & rooms_under_building)  # chain A
-            or bool(anchors & levels_under_building)  # chain B
-            or bool(floor_literals & level_names_under_building)  # chain C
+        anchored = bool(anchors & rooms_under_building) or bool(  # chain A
+            anchors & levels_under_building  # chain B
         )
         if anchored:
             connected |= obj(device, f"{SBCO}hasPoint")
@@ -244,15 +238,14 @@ class TestTwinHierarchy:
         assert a.room_uri != b.room_uri
 
     def test_distinct_buildings_get_distinct_floor_names(self):
-        # ListDeviceDetails scopes a building's devices by joining sbco:floor against the Level's
-        # sbco:name. A name shared across buildings makes every building's listing return every
-        # other's devices — an N× fan-out inside the query the scale sweep is timing.
+        # Level ids (and names) stay distinct per building: authorization identifies a node by its
+        # sbco:id (#504/#517), so a shared Level id would let one floor grant cover both.
         floors = {TwinHierarchy("test", building_id=f"B{i}").floor_id for i in range(3)}
         assert len(floors) == 3
 
     def test_distinct_prefixes_get_distinct_building_ids(self):
         # Two seeders on one stack must not mint two buildings claiming the same sbco:id, nor two
-        # Levels sharing a name (same join as above).
+        # Levels sharing one.
         a = TwinHierarchy("perf")
         b = TwinHierarchy("perf:csv")
         assert a.building_id != b.building_id

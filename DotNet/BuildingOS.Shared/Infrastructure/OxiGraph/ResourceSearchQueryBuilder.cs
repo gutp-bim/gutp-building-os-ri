@@ -10,7 +10,7 @@ using static OxiGraphOntology;
 /// case-insensitive CONTAINS filter on name/id and an optional building scope.
 ///
 /// Building scope covers every resource type. Devices and points are scoped through the owning
-/// equipment's Room path, direct Level location, or legacy <c>sbco:floor</c> name join.
+/// equipment's Room path or direct Level location (topology only; the <c>sbco:floor</c> literal places nothing).
 /// </summary>
 internal static class ResourceSearchQueryBuilder
 {
@@ -104,9 +104,6 @@ internal static class ResourceSearchQueryBuilder
         $"        ?scopeFloor <{Prop_HasPart}> ?scopeRoom .\n" +
         $"      }} UNION {{\n" +
         $"        {equipment} <{Prop_LocatedIn}> ?scopeFloor .\n" +
-        $"      }} UNION {{\n" +
-        $"        {equipment} <{Prop_Floor}> ?scopeFloorName .\n" +
-        $"        ?scopeFloor <{Prop_Name}> ?scopeFloorName .\n" +
         $"      }}\n" +
         $"    }}\n";
 

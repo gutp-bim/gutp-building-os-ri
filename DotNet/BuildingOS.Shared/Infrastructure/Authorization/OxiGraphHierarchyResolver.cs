@@ -6,9 +6,10 @@ namespace BuildingOS.Shared.Infrastructure.Authorization;
 using static OxiGraphOntology;
 
 /// <summary>
-/// IResourceHierarchyResolver backed by OxiGraph SPARQL.
-/// Queries use SBCO vocabulary. Equipment can be located in a Room, directly in a Level, or joined
-/// to a Level by the legacy <c>sbco:floor</c> name literal.
+/// IResourceHierarchyResolver backed by OxiGraph SPARQL, traversing the twin's topology only
+/// (hasPart / locatedIn / hasPoint): equipment is located in a Room or directly in a Level. The
+/// <c>sbco:floor</c> literal is metadata and places nothing. A resource with more than one placement
+/// has the union of every chain as ancestors, so the answer never depends on SPARQL row order.
 /// </summary>
 public class OxiGraphHierarchyResolver : IResourceHierarchyResolver
 {
@@ -53,24 +54,12 @@ WHERE {{
       ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
       ?building <{Prop_HasPart}> ?floor .
       ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
-    }} UNION {{
-      ?dev <{Prop_Floor}> ?floorName .
-      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
-      ?building <{Prop_HasPart}> ?floor .
-      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
     }}
   }}
 }}";
 
         var rows = await _client.QueryAsync(sparql, ct);
-        if (rows.Count == 0) return Array.Empty<(string, string)>();
-        var r = rows[0];
-        var result = new List<(string, string)>();
-        if (r.TryGetValue("buildingId", out var bid)) result.Add(("building", bid));
-        if (r.TryGetValue("floorId",    out var fid)) result.Add(("floor",    fid));
-        if (r.TryGetValue("spaceId",    out var sid)) result.Add(("space",    sid));
-        if (r.TryGetValue("devId",      out var did)) result.Add(("device",   did));
-        return result;
+        return Union(rows, ("buildingId", "building"), ("floorId", "floor"), ("spaceId", "space"), ("devId", "device"));
     }
 
     private async Task<IReadOnlyList<(string, string)>> GetDeviceAncestors(string deviceId, CancellationToken ct)
@@ -92,23 +81,12 @@ WHERE {{
       ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
       ?building <{Prop_HasPart}> ?floor .
       ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
-    }} UNION {{
-      ?dev <{Prop_Floor}> ?floorName .
-      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
-      ?building <{Prop_HasPart}> ?floor .
-      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
     }}
   }}
 }}";
 
         var rows = await _client.QueryAsync(sparql, ct);
-        if (rows.Count == 0) return Array.Empty<(string, string)>();
-        var r = rows[0];
-        var result = new List<(string, string)>();
-        if (r.TryGetValue("buildingId", out var bid)) result.Add(("building", bid));
-        if (r.TryGetValue("floorId",    out var fid)) result.Add(("floor",    fid));
-        if (r.TryGetValue("spaceId",    out var sid)) result.Add(("space",    sid));
-        return result;
+        return Union(rows, ("buildingId", "building"), ("floorId", "floor"), ("spaceId", "space"));
     }
 
     private async Task<IReadOnlyList<(string, string)>> GetSpaceAncestors(string spaceId, CancellationToken ct)
@@ -124,13 +102,7 @@ WHERE {{
 }}";
 
         var rows = await _client.QueryAsync(sparql, ct);
-        if (rows.Count == 0) return Array.Empty<(string, string)>();
-        var r = rows[0];
-        return new (string, string)[]
-        {
-            ("building", r["buildingId"]),
-            ("floor",    r["floorId"]),
-        };
+        return Union(rows, ("buildingId", "building"), ("floorId", "floor"));
     }
 
     private async Task<IReadOnlyList<(string, string)>> GetFloorAncestors(string floorId, CancellationToken ct)
@@ -144,8 +116,7 @@ WHERE {{
 }}";
 
         var rows = await _client.QueryAsync(sparql, ct);
-        if (rows.Count == 0) return Array.Empty<(string, string)>();
-        return new (string, string)[] { ("building", rows[0]["buildingId"]) };
+        return Union(rows, ("buildingId", "building"));
     }
 
     private async Task<string?> ResolvePointDtId(string pointId, CancellationToken ct)
@@ -156,6 +127,22 @@ SELECT ?dt WHERE {{
 }}";
         var rows = await _client.QueryAsync(sparql, ct);
         return rows.Count > 0 ? rows[0]["dt"] : null;
+    }
+
+    /// <summary>
+    /// Every (type, id) any row binds, deduplicated in first-seen order. A resource placed more than once
+    /// (in a Room and directly on another Level, say) has several rows; each is a real chain, so the
+    /// ancestors are all of them — never just whichever row the store happened to return first.
+    /// </summary>
+    private static IReadOnlyList<(string, string)> Union(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows, params (string Var, string Type)[] columns)
+    {
+        var seen = new HashSet<(string, string)>();
+        var result = new List<(string, string)>();
+        foreach (var row in rows)
+            foreach (var (var, type) in columns)
+                if (row.TryGetValue(var, out var id) && seen.Add((type, id))) result.Add((type, id));
+        return result;
     }
 
     private static string EscapeLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");

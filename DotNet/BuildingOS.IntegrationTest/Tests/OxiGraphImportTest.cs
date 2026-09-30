@@ -90,9 +90,8 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.DoesNotContain(infos, i => i.Key == "LOCAL999"); // 新データは取り込まれていない
     }
 
-    // Regression for #182: building-scoped detail queries join building→equipment via sbco:floor
-    // asserted on EquipmentExt (OxiGraphDigitalTwinDatabase.ListPointDetails). If sbco:floor lives
-    // only on PointExt (the original seed bug), this non-OPTIONAL join yields zero rows.
+    // Regression for #182: the building-scoped detail query reaches the seed's equipment (placed by
+    // sbco:locatedIn) and reports each device's Level.
     [Fact]
     public async Task ListPointDetails_BuildingScoped_ReturnsPointsJoinedByEquipmentFloor()
     {
@@ -193,12 +192,12 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.Equal("bldg-1", detail!.Device?.BuildingName);
     }
 
-    // The floor-literal-only shape: Building → Level, equipment joined to the level by the
-    // sbco:floor literal, and no Room anywhere. This repository treats Room/locatedIn as optional
-    // (ListPointDetails already joins through the literal), so requiring the spatial chain would
-    // leave BuildingName null for every twin modelled this way — which is most of them.
+    // The floor-literal-only shape: Building → Level, equipment naming the level only through the
+    // sbco:floor literal, no sbco:locatedIn. The twin is traversed by topology alone, so the detail
+    // resolves the point and its device but places them in no Level or Building — the import's orphan
+    // check reports this shape (floor_literal_only) for the builder to fix.
     [Fact]
-    public async Task GetPointDetailByPointId_ResolvesBuildingWithoutRooms()
+    public async Task GetPointDetailByPointId_FloorLiteralOnly_IsNotPlaced()
     {
         const string roomlessTtl = """
             @prefix sbco: <https://www.sbco.or.jp/ont/> .
@@ -224,10 +223,9 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         var detail = await db.GetPointDetailByPointId("172_31_105_17-3002");
 
         Assert.NotNull(detail);
-        Assert.Equal("EXAMPLE", detail!.Device?.BuildingName);
-        Assert.Equal("7F", detail.Floor?.Name);
-        // The same point's type/specification must survive the detail path too — this is the exact
-        // point shape that motivated this fix.
+        Assert.True(string.IsNullOrEmpty(detail!.Device?.BuildingName));
+        Assert.True(string.IsNullOrEmpty(detail.Floor?.Name));
+        // The point itself still resolves with its metadata.
         Assert.Equal("On_Off_Status", detail.Point.Type);
         Assert.Equal("Status", detail.Point.Specification);
         // No Room in this twin: Space stays blank rather than the query returning nothing at all.

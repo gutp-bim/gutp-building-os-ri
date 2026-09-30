@@ -42,9 +42,8 @@ public class PointMetadataBuildingPathTest(OxiGraphFixture oxiGraph)
         <urn:test:pt-1> a sbco:PointExt ; sbco:id "PT001" ; sbco:name "Room Temp" .
         """;
 
-    // Path B: no Room anywhere; equipment joins its Level through the sbco:floor literal. This is
-    // the shape the old literal-based gate rejected outright — note the point carries no
-    // sbco:building.
+    // No sbco:locatedIn anywhere; the equipment only names its Level through the sbco:floor literal.
+    // That literal is metadata, not a relationship, so the point is not placed under the building.
     private const string FloorJoinTtl = """
         @prefix sbco: <https://www.sbco.or.jp/ont/> .
         <urn:test:bldg-example> a sbco:Building ; sbco:id "EXAMPLE" ; sbco:name "EXAMPLE" ;
@@ -83,13 +82,12 @@ public class PointMetadataBuildingPathTest(OxiGraphFixture oxiGraph)
     }
 
     [Fact]
-    public async Task FloorLiteralJoin_IsReachable_EvenWithoutTheBuildingLiteral()
+    public async Task FloorLiteralOnly_IsNotReachable()
     {
         var meta = await LoadAsync(FloorJoinTtl, "172_31_105_17-3002");
 
-        // The case the literal-based gate got backwards: reachable, but no sbco:building to show for it.
-        Assert.True(meta.HasBuildingPath);
-        Assert.Equal(string.Empty, meta.Building);
+        // Traversal is by topology (hasPart / locatedIn / hasPoint) only.
+        Assert.False(meta.HasBuildingPath);
     }
 
     [Fact]

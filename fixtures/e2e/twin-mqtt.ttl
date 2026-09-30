@@ -11,12 +11,12 @@
 #     nexus-gateway の internal/pointlist/csv.go と同じ順序で判定する
 #     GatewayPointProtocolResolver（BACnet native → OPC-UA nodeId → "/" を含む=MQTT）が
 #     "mqtt" に解決することを ShippedMqttTwinFixtureTest で検証している。
-#   - twin.ttl は 1 room のみで、device→floor の 3 経路(locatedIn Room chain / locatedIn Level
-#     直接 / sbco:floor 文字列 join)のどれを通るかによる可視性の違いを踏むには小さすぎたため(#410)、
-#     本 fixture では 3 device それぞれに異なる経路を割り当てている:
+#   - twin.ttl は 1 room のみで、device の配置のされ方(locatedIn Room chain / locatedIn Level
+#     直接)による可視性の違いを踏むには小さすぎたため(#410)、本 fixture では配置を分けている:
 #       DEV-AHU-MQTT-1     : sbco:locatedIn room-mqtt-101（Room chain 経由）
 #       DEV-CHILLER-MQTT-1 : sbco:locatedIn floor-mqtt-1（Level 直接）
-#       DEV-WEATHER-MQTT-1 : sbco:floor 文字列のみ（locatedIn なし）
+#       DEV-WEATHER-MQTT-1 : sbco:locatedIn floor-mqtt-1（Level 直接、屋外機器）
+#     twin はトポロジーだけで辿る。sbco:floor はメタデータで、配置には使わない。
 #
 # 投入方法（いずれか）:
 #   1) Web UI: http://localhost:3000/admin/twin から本ファイルを replace でアップロード
@@ -112,15 +112,15 @@ sbr:DEV-CHILLER-MQTT-1 a sbco:EquipmentExt ;
   sbco:hasPoint sbr:MQTT-PT-025 ;
   sbco:hasPoint sbr:MQTT-PT-026 .
 
-# ── 機器 3: 気象観測 (屋外系統ポイント。sbco:floor 文字列のみ、locatedIn なし) ─
-# 注意(#410 Copilot review): sbco:floor 文字列 join は Level の sbco:id ではなく sbco:name に
-# 対して行われる(OxiGraphPointMetadataDataSource の ReachabilityQuery)。よって値は floor-mqtt-1
-# の sbco:name である "1F" と一致させる必要がある(sbco:id "floor-mqtt-1" ではない)。
+# ── 機器 3: 気象観測 (屋外系統ポイント。部屋を持たないので Level 直下に置く) ─
+# twin はトポロジー (hasPart / locatedIn / hasPoint) だけで辿る。sbco:floor は表示用のメタデータで、
+# 配置には使わない — 配置は必ず sbco:locatedIn で表す (builder の責務)。
 sbr:DEV-WEATHER-MQTT-1 a sbco:EquipmentExt ;
   sbco:id "DEV-WEATHER-MQTT-1" ;
   sbco:name "Weather Station 01" ;
   sbco:deviceType "Weather" ;
   sbco:floor "1F" ;
+  sbco:locatedIn sbr:floor-mqtt-1 ;
   sbco:hasPoint sbr:MQTT-PT-027 ;
   sbco:hasPoint sbr:MQTT-PT-028 ;
   sbco:hasPoint sbr:MQTT-PT-029 ;
