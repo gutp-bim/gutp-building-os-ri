@@ -365,28 +365,31 @@ def should_retry_runtime_resolution(prom_url: str, names: dict[str, str | None],
     return since_last_s >= max(30.0, float(sample_interval))
 
 
-def merge_runtime_metric_names(current: dict[str, str | None],
-                               retry: dict[str, str | None]) -> dict[str, str | None]:
-    """再解決の結果を、既に解決済みの名前を変えない形で取り込む（純関数）。
+def merge_runtime_metric_names(current: dict[str, str | None], retry: dict[str, str | None],
+                               live: dict[str, bool] | None = None) -> dict[str, str | None]:
+    """再解決の結果を取り込む（純関数）。`live` は current に対する probe_runtime_metrics の結果。
 
-    埋めるのは **current で未解決(None)の概念だけ**。
+    **解決済みかつ live な概念は変えない**。それ以外（未解決、または名前はあるが今回の job の
+    実データが無い）だけを再解決の結果で埋める。
     - 再解決は Prometheus が一時的に 503 を返しただけでも全部 None に縮退する
-      （resolve_runtime_metric_names は例外を投げない）ので、丸ごと差し替えると解決済みの概念が
-      未解決に戻る。
-    - 解決済みの概念を上書きすると、優先度の高いパターンが途中で現れただけで run の途中から別系列に
+      （resolve_runtime_metric_names は例外を投げない）ので、None では決して上書きしない。
+    - live な系列を上書きすると、優先度の高いパターンが途中で現れただけで run の途中から別系列に
       切り替わり、1 本の列に 2 つの系列が混ざる。
-    世代ラベルは gc_heap_size と組で扱う: heap を今回の再解決で得たときはラベルも同じ結果から取り、
-    heap が既に解決済みならラベルは同じ heap 系列について解決できたときだけ埋める。"""
+    - 一方、名前はあっても live でない系列（永続 TSDB に残った前回 run の別スキーム名など）は
+      差し替えられなければ、死んだ名前で run 全体をサンプリングすることになる。
+    世代ラベルは gc_heap_size と組で扱う: heap を差し替えたときはラベルも同じ再解決の結果から取り、
+    heap が変わらずラベルだけ未解決なら、同じ heap 系列について解決できたラベルで埋める。"""
+    live = live or {}
     merged = dict(current)
     for concept, name in retry.items():
-        if concept == "gc_heap_generation_label":
+        if concept == "gc_heap_generation_label" or name is None:
             continue
-        if name is not None and current.get(concept) is None:
+        if current.get(concept) is None or live.get(concept) is not True:
             merged[concept] = name
-    heap_now, heap_retry = current.get("gc_heap_size"), retry.get("gc_heap_size")
-    if heap_now is None and heap_retry is not None:
+    heap_before, heap_after = current.get("gc_heap_size"), merged.get("gc_heap_size")
+    if heap_after != heap_before:
         merged["gc_heap_generation_label"] = retry.get("gc_heap_generation_label")
-    elif (heap_now is not None and heap_now == heap_retry
+    elif (heap_after is not None and heap_after == retry.get("gc_heap_size")
           and current.get("gc_heap_generation_label") is None):
         merged["gc_heap_generation_label"] = retry.get("gc_heap_generation_label")
     return merged
@@ -707,7 +710,8 @@ def resource_role_main(args) -> int:
                                                 args.sample_interval):
                 last_resolve_at = now
                 retry_names = resolve_runtime_metric_names(args.prometheus)
-                merged_names = merge_runtime_metric_names(runtime_names, retry_names)
+                merged_names = merge_runtime_metric_names(runtime_names, retry_names,
+                                                          runtime_probe)
                 # 名前が変わらなくても probe は取り直す — 前回 run の名前で「解決」していた概念に
                 # 今回の実データが届いたかどうかは probe でしか分からない。
                 merged_probe = probe_runtime_metrics(args.prometheus, merged_names,

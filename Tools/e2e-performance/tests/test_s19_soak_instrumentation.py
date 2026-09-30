@@ -404,17 +404,18 @@ def test_merge_runtime_metric_names_fills_a_late_generation_label():
 
 
 def test_merge_runtime_metric_names_does_not_switch_an_already_resolved_series():
-    """解決済みの概念を再解決の結果で上書きすると、優先度の高いパターンが途中で現れただけで
-    run の途中から別系列に切り替わり、1 本の列に 2 つの系列が混ざる。heap が切り替わると、
+    """解決済みかつ live な概念を再解決の結果で上書きすると、優先度の高いパターンが途中で現れただけで
+    run の途中から別系列に切り替わり、1 本の列に 2 つの系列が混ざる。live な heap が切り替わると、
     再解決側の /api/v1/series が失敗していた場合に旧 heap のラベルと新 heap が組になり、
-    `sum by (label)` が空になって gen2/LOH 列ごと消える。埋めるのは未解決の概念だけ。"""
+    `sum by (label)` が空になって gen2/LOH 列ごと消える。"""
     s19 = load_s19()
     current = {"gc_heap_size": "dotnet_gc_heap_size_bytes", "gc_heap_generation_label": "gen",
                "gc_committed": "dotnet_gc_memory_committed_size_bytes"}
     retry = {"gc_heap_size": "dotnet_gc_last_collection_heap_size_bytes",
              "gc_heap_generation_label": None,
              "gc_committed": "dotnet_gc_last_collection_memory_committed_size_bytes"}
-    assert s19.merge_runtime_metric_names(current, retry) == current
+    live = {"gc_heap_size": True, "gc_committed": True}
+    assert s19.merge_runtime_metric_names(current, retry, live) == current
 
     # heap が新しく解決したときは、ラベルも同じ再解決の結果から取る（組を崩さない）
     current = {"gc_heap_size": None, "gc_heap_generation_label": None}
@@ -424,7 +425,25 @@ def test_merge_runtime_metric_names_does_not_switch_an_already_resolved_series()
     current = {"gc_heap_size": "dotnet_gc_heap_size_bytes", "gc_heap_generation_label": None}
     retry = {"gc_heap_size": "dotnet_gc_last_collection_heap_size_bytes",
              "gc_heap_generation_label": "generation"}
-    assert s19.merge_runtime_metric_names(current, retry) == current
+    assert s19.merge_runtime_metric_names(current, retry, {"gc_heap_size": True}) == current
+
+
+def test_merge_runtime_metric_names_replaces_a_resolved_but_dead_series():
+    """永続 TSDB に前回 run の系列が別スキーム名（process_runtime_dotnet_*）で残り、今回の
+    connector-worker は dotnet_* で export する場合、t=0 に解決できるのは古い名前だけで probe は
+    False。新しい系列が現れても「解決済みは上書きしない」だと死んだ名前で数時間サンプリングし、
+    gate が SKIP になる。凍結するのは **解決済みかつ live** の概念だけ。"""
+    s19 = load_s19()
+    current = {"gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
+               "gc_heap_generation_label": "generation",
+               "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes"}
+    retry = {"gc_heap_size": "dotnet_gc_heap_size_bytes", "gc_heap_generation_label": "gen",
+             "gc_committed": "dotnet_gc_memory_committed_size_bytes"}
+    dead = {"gc_heap_size": False, "gc_committed": False}
+    assert s19.merge_runtime_metric_names(current, retry, dead) == retry
+    # live な概念は差し替えない（列の途中で系列が変わらないように）
+    live = {"gc_heap_size": True, "gc_committed": True}
+    assert s19.merge_runtime_metric_names(current, retry, live) == current
 
 
 # ── 5. sample_runtime: bytes → MiB と世代内訳 ─────────────────────────────────
