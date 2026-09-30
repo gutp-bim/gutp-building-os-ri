@@ -126,16 +126,29 @@ publishes images for (`v*.*.*`).
   `username` / `email` / `firstName` / `lastName`, so it no longer reverts a concurrent disable (or
   `requiredActions` / `emailVerified` change) by another admin; the role is trimmed, a blank role clears
   it, and a role outside `admin` / `operator` / `viewer` is rejected with `400`; the self-lockout /
-  last-admin guard counts an admin inherited from a Keycloak group (e.g. `building-os-admins`); an update
-  reuses one admin token and one read instead of two tokens and a re-GET.
+  last-admin guard counts an admin inherited from a Keycloak group (e.g. `building-os-admins`).
+  The role `/admin` shows, the lockout guard counts and the Admin-API fallback authorizes with now mirrors
+  the token: the user's own `role` (first value, untrimmed — a whitespace value still shadows the group),
+  else the group-derived role, else the legacy `buildingos_role` (the earlier "legacy `buildingos_role`
+  wins" rule is withdrawn). A permission-only write leaves `role` and `buildingos_role` exactly as stored;
+  only an explicit role write sets `role` and removes `buildingos_role`. A user whose groups carry
+  different roles counts as an admin when they are the target (no self-lockout) but not as a remaining
+  admin, and `/admin` shows the non-admin role. Group ancestors are walked by `parentId`, so a group name
+  containing `/` (escaped `~/`) is no longer mistaken for a subgroup. An update is re-read after the `PUT`:
+  a write Keycloak did not store (no `unmanagedAttributePolicy`) now fails with `502` and a failure audit
+  instead of `200`, and the response shows what was stored. Add/remove permission no longer reads the
+  user first (one token, read, `PUT`, verify read); the guard is skipped when it cannot trigger (enabling,
+  promoting to `admin`, permission-only) and resolves only the target unless an admin is being
+  disabled/demoted; its Keycloak lookups are audited on failure instead of escaping as a `500`. The
+  migration `jq` trims the copied role and no longer copies a legacy role over a group role.
 - Roles and permissions granted in `/admin` now reach the access token (#519). The admin UI wrote the
   Keycloak attributes `buildingos_role` / `buildingos_permissions`, but the realm's mappers put `role` /
   `permissions` into the token, so a user who also got `building_os_role` from a group silently lost
   every grant made in `/admin`. The admin UI and the Admin-API fallback now use `role` / `permissions`
   (one definition, `KeycloakUserAttributes`, pinned to `realm.json` by a test), so admin grants are also
   unioned with group `permissions` (#508). The legacy attributes are still read during migration (role:
-  a non-blank `buildingos_role` first — the latest `/admin` decision — then `role`; permissions: the union) and are removed from a user on their next
-  `/admin` update. The realm now sets `unmanagedAttributePolicy: ADMIN_EDIT`: Keycloak 24+ otherwise
+  own `role`, then the group role, then `buildingos_role`; permissions: the union); `buildingos_permissions`
+  is removed on a user's next `/admin` update and `buildingos_role` on their next explicit role change. The realm now sets `unmanagedAttributePolicy: ADMIN_EDIT`: Keycloak 24+ otherwise
   drops undeclared user attributes, so `/admin` writes returned 200 and stored nothing. An `/admin`
   update also no longer clears the user's email / first / last name (Keycloak 24+ treats an
   attribute-bearing `PUT` as a full profile update), which had left the user unable to log in. **An

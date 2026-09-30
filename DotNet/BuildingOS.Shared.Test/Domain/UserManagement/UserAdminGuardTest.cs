@@ -193,4 +193,167 @@ public class UserAdminGuardTest
         var result = UserAdminGuard.CheckSetRole("admin-a", "admin-a", "", OneAdmin);
         Assert.Equal(UserAdminGuardResult.SelfLockout, result);
     }
+
+    // ── Ambiguous group roles (#531 review) ──────────────────────────────────
+    //
+    // The non-aggregating mapper emits ONE group's `role`, and Keycloak does not define which. The
+    // target is treated as an admin if any group grants admin (so they cannot lock themselves out),
+    // but another user only counts as a remaining admin when every role-carrying group agrees.
+
+    [Fact]
+    public void SetRole_AmbiguousGroupAdmin_IsNotCountedAsARemainingAdmin()
+    {
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+        };
+        var result = UserAdminGuard.CheckSetRole("mixed", "admin-a", "viewer", users);
+        Assert.Equal(UserAdminGuardResult.LastAdmin, result);
+    }
+
+    [Fact]
+    public void SetEnabled_AmbiguousGroupAdmin_IsNotCountedAsARemainingAdmin()
+    {
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+        };
+        var result = UserAdminGuard.CheckSetEnabled("mixed", "admin-a", newEnabled: false, users);
+        Assert.Equal(UserAdminGuardResult.LastAdmin, result);
+    }
+
+    [Fact]
+    public void SetRole_AmbiguousGroupAdminTarget_IsTreatedAsAnAdmin()
+    {
+        var users = new[]
+        {
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+            new UserRoleState("admin-b", "admin", true),
+        };
+        var result = UserAdminGuard.CheckSetRole("mixed", "mixed", "viewer", users);
+        Assert.Equal(UserAdminGuardResult.SelfLockout, result);
+    }
+
+    [Fact]
+    public void SetRole_ClearingOwnAdmin_OverAnAmbiguousGroupAdmin_IsADemotion()
+    {
+        // After the clear the token carries one of the groups' roles — maybe not admin.
+        var users = new[] { new UserRoleState("admin-a", "admin", true, GroupRole: "admin", GroupRoleAmbiguous: true) };
+        var result = UserAdminGuard.CheckSetRole("admin-a", "admin-a", "", users);
+        Assert.Equal(UserAdminGuardResult.SelfLockout, result);
+    }
+
+    // ── Effective role mirrors the token (#531 review) ───────────────────────
+
+    [Fact]
+    public void WhitespaceOwnRole_ShadowsAGroupAdmin()
+    {
+        var state = new UserRoleState("u", "  ", true, GroupRole: "admin");
+        Assert.Equal("  ", state.EffectiveRole);
+        Assert.False(state.IsUnambiguouslyAdmin);
+    }
+
+    [Fact]
+    public void UntrimmedOwnAdmin_IsNotAnAdmin()
+    {
+        // AuthorizationContext.IsAdmin compares Role == "admin" exactly.
+        var state = new UserRoleState("u", " admin", true);
+        Assert.False(RoleCatalog.GrantsAdmin(state.EffectiveRole));
+        Assert.False(state.IsUnambiguouslyAdmin);
+    }
+
+    [Fact]
+    public void LegacyAdmin_CountsOnlyWithoutOwnOrGroupRole()
+    {
+        Assert.True(new UserRoleState("u", null, true, LegacyRole: "admin").IsUnambiguouslyAdmin);
+        Assert.False(new UserRoleState("u", "viewer", true, LegacyRole: "admin").IsUnambiguouslyAdmin);
+        Assert.False(new UserRoleState("u", null, true, GroupRole: "viewer", LegacyRole: "admin").IsUnambiguouslyAdmin);
+    }
+
+    [Fact]
+    public void SetEnabled_DisablingANonAdmin_IsAllowed_EvenWithNoCountableAdmin()
+    {
+        // Disabling a non-admin cannot remove the last admin.
+        var users = new[]
+        {
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+            new UserRoleState("op-1", "operator", true),
+        };
+        var result = UserAdminGuard.CheckSetEnabled("mixed", "op-1", newEnabled: false, users);
+        Assert.Equal(UserAdminGuardResult.Allowed, result);
+    }
+
+    // ── Staged checks: skip the snapshot when the guard cannot trigger ───────
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void SetEnabledNeedsGuard_OnlyWhenDisabling(bool newEnabled, bool expected)
+    {
+        Assert.Equal(expected, UserAdminGuard.SetEnabledNeedsGuard(newEnabled));
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("admin", false)]
+    [InlineData("operator", true)]
+    [InlineData("", true)]
+    public void SetRoleNeedsGuard_OnlyForAWriteThatIsNotAdmin(string? newRole, bool expected)
+    {
+        Assert.Equal(expected, UserAdminGuard.SetRoleNeedsGuard(newRole));
+    }
+
+    [Fact]
+    public void PreCheckSetEnabled_NonAdminTarget_IsDecidedWithoutTheSnapshot()
+    {
+        var target = new UserRoleState("op-1", "operator", true);
+        Assert.Equal(UserAdminGuardResult.Allowed,
+            UserAdminGuard.PreCheckSetEnabled("admin-a", target, newEnabled: false));
+    }
+
+    [Fact]
+    public void PreCheckSetEnabled_Self_IsSelfLockout()
+    {
+        var target = new UserRoleState("admin-a", "admin", true);
+        Assert.Equal(UserAdminGuardResult.SelfLockout,
+            UserAdminGuard.PreCheckSetEnabled("admin-a", target, newEnabled: false));
+    }
+
+    [Fact]
+    public void PreCheckSetEnabled_AdminTarget_NeedsTheSnapshot()
+    {
+        var target = new UserRoleState("admin-a", "admin", true);
+        Assert.Null(UserAdminGuard.PreCheckSetEnabled("admin-b", target, newEnabled: false));
+    }
+
+    [Fact]
+    public void PreCheckSetRole_NonAdminTarget_IsDecidedWithoutTheSnapshot()
+    {
+        var target = new UserRoleState("op-1", "operator", true);
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.PreCheckSetRole("admin-a", target, "viewer"));
+    }
+
+    [Fact]
+    public void PreCheckSetRole_DemotingAnotherAdmin_NeedsTheSnapshot()
+    {
+        var target = new UserRoleState("admin-a", "admin", true);
+        Assert.Null(UserAdminGuard.PreCheckSetRole("admin-b", target, "viewer"));
+    }
+
+    [Fact]
+    public void CheckLastAdmin_CountsOnlyEnabledUnambiguousAdminsOtherThanTheTarget()
+    {
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("admin-off", "admin", false),
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+        };
+        Assert.Equal(UserAdminGuardResult.LastAdmin, UserAdminGuard.CheckLastAdmin("admin-a", users));
+
+        var withGroupAdmin = users.Append(new UserRoleState("grp", null, true, GroupRole: "admin")).ToArray();
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckLastAdmin("admin-a", withGroupAdmin));
+    }
 }

@@ -14,6 +14,13 @@ public class UsersControllerTest
     private static AuthorizationContext Auth(string role, string userId = "actor") =>
         new() { UserId = userId, Role = role, Permissions = [] };
 
+    /// <summary>The stored form of a permission string (abbreviated, resource id hashed).</summary>
+    private static string Hashed(string permission)
+    {
+        var (type, resourceId, actions) = PermissionHelper.ParsePermissionString(permission)!.Value;
+        return PermissionHelper.BuildPermissionString(type, resourceId, actions);
+    }
+
     private static EntraUser User(string id, string? role, bool enabled = true) => new()
     {
         Id = id, DisplayName = id, Role = role, Enabled = enabled
@@ -35,9 +42,12 @@ public class UsersControllerTest
         var svc = new Mock<IUserManagementService>();
         svc.Setup(s => s.GetUsersAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(users ?? Array.Empty<EntraUser>());
+        var states = roleStates
+            ?? (users ?? Array.Empty<EntraUser>()).Select(u => new UserRoleState(u.Id, u.Role, u.Enabled)).ToList();
         svc.Setup(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(roleStates
-                ?? (users ?? Array.Empty<EntraUser>()).Select(u => new UserRoleState(u.Id, u.Role, u.Enabled)).ToList());
+            .ReturnsAsync(states);
+        svc.Setup(s => s.GetUserRoleStateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, CancellationToken _) => states.FirstOrDefault(s => s.Id == id));
         mapping ??= new Mock<IResourceIdMappingRepository>();
         var audit = new Mock<IAdminAuditRecorder>();
         var controller = new UsersController(
@@ -301,8 +311,6 @@ public class UsersControllerTest
         // record for a permission the caller was told was never given.
         var mapping = new Mock<IResourceIdMappingRepository>();
         var (controller, svc, _) = Build(Auth("admin", "admin-a"), mapping: mapping);
-        svc.Setup(s => s.GetUserByIdAsync("op", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(User("op", "operator"));
         svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("keycloak down"));
 
@@ -311,5 +319,225 @@ public class UsersControllerTest
 
         mapping.Verify(m => m.SaveMappingAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── #531 review: skip the snapshot when the guard cannot trigger ─────────
+
+    [Fact]
+    public async Task SetEnabled_Enabling_DoesNotLoadRoleStates()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), [User("admin-a", "admin"), User("op", "operator", false)]);
+        svc.Setup(s => s.SetEnabledAsync("op", true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator"));
+
+        var result = await controller.SetEnabled("op", new UsersController.SetEnabledRequest { Enabled = true }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        svc.Verify(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        svc.Verify(s => s.GetUserRoleStateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetEnabled_Enabling_UnknownUser_Returns404()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.SetEnabledAsync("ghost", true, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UserNotFoundException("ghost"));
+
+        var result = await controller.SetEnabled("ghost", new UsersController.SetEnabledRequest { Enabled = true }, default);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task SetEnabled_DisablingANonAdmin_ResolvesOnlyTheTarget()
+    {
+        var users = new[] { User("admin-a", "admin"), User("op", "operator") };
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), users);
+        svc.Setup(s => s.SetEnabledAsync("op", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator", enabled: false));
+
+        var result = await controller.SetEnabled("op", new UsersController.SetEnabledRequest { Enabled = false }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        svc.Verify(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_PromotionOrPermissionOnly_DoesNotLoadRoleStates()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), [User("admin-a", "admin"), User("op", "operator")]);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "admin"));
+
+        await controller.UpdateAttributes("op", new UsersController.UpdateUserAttributesApiRequest { Role = "admin" }, default);
+        await controller.UpdateAttributes("op", new UsersController.UpdateUserAttributesApiRequest { Permissions = [] }, default);
+
+        svc.Verify(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        svc.Verify(s => s.GetUserRoleStateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_DemotingANonAdmin_ResolvesOnlyTheTarget()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), [User("admin-a", "admin"), User("op", "operator")]);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "viewer"));
+
+        var result = await controller.UpdateAttributes(
+            "op", new UsersController.UpdateUserAttributesApiRequest { Role = "viewer" }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        svc.Verify(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_AmbiguousGroupAdminIsNotARemainingAdmin_Returns409()
+    {
+        var roleStates = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("mixed", null, true, GroupRole: "admin", GroupRoleAmbiguous: true),
+        };
+        var (controller, svc, _) = Build(Auth("admin", "mixed"), roleStates: roleStates);
+
+        var result = await controller.UpdateAttributes(
+            "admin-a", new UsersController.UpdateUserAttributesApiRequest { Role = "viewer" }, default);
+
+        Assert.IsType<ConflictObjectResult>(result.Result);
+        svc.Verify(s => s.UpdateUserAttributesAsync(It.IsAny<string>(), It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── #531 review: guard lookups are inside the error handling ─────────────
+
+    [Fact]
+    public async Task UpdateAttributes_RoleStateLookupFails_AuditsFailure_InsteadOfAn500()
+    {
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.GetUserRoleStateAsync("op", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("keycloak group lookup failed"));
+
+        var result = await controller.UpdateAttributes(
+            "op", new UsersController.UpdateUserAttributesApiRequest { Role = "viewer" }, default);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "set-attributes" && r.Result == AdminAuditResult.Failure),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabled_RoleStateLookupFails_AuditsFailure_InsteadOfAn500()
+    {
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"), [User("admin-a", "admin"), User("admin-b", "admin")]);
+        svc.Setup(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("keycloak group lookup failed"));
+
+        var result = await controller.SetEnabled("admin-b", new UsersController.SetEnabledRequest { Enabled = false }, default);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "set-enabled" && r.Result == AdminAuditResult.Failure),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_UnavailableDuringTheGuard_StillReachesThe503Filter()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.GetUserRoleStateAsync("op", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UserManagementUnavailableException("unconfigured"));
+
+        await Assert.ThrowsAsync<UserManagementUnavailableException>(() => controller.UpdateAttributes(
+            "op", new UsersController.UpdateUserAttributesApiRequest { Role = "viewer" }, default));
+    }
+
+    // ── #531 review: an un-persisted write is not a success ──────────────────
+
+    [Fact]
+    public async Task UpdateAttributes_WriteNotPersisted_Returns502_AndAuditsFailure()
+    {
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UserAttributesNotPersistedException("op"));
+
+        var result = await controller.UpdateAttributes(
+            "op", new UsersController.UpdateUserAttributesApiRequest { Permissions = ["floor:1:read"] }, default);
+
+        var status = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status502BadGateway, status.StatusCode);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "set-attributes" && r.Result == AdminAuditResult.Failure),
+            It.IsAny<CancellationToken>()), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Result == AdminAuditResult.Success), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddPermission_WriteNotPersisted_Returns502_AndAuditsFailure()
+    {
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UserAttributesNotPersistedException("op"));
+
+        var result = await controller.AddPermission(
+            "op", new UsersController.AddPermissionRequest { Permission = "group:g1:read" }, default);
+
+        var status = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status502BadGateway, status.StatusCode);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "add-permission" && r.Result == AdminAuditResult.Failure),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── #531 review: add/remove permission is one service call ───────────────
+
+    [Fact]
+    public async Task AddPermission_SendsAnAddOperation_WithoutReadingTheUserFirst()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator"));
+
+        var result = await controller.AddPermission(
+            "op", new UsersController.AddPermissionRequest { Permission = "group:g1:read" }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        svc.Verify(s => s.GetUserByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        svc.Verify(s => s.UpdateUserAttributesAsync("op", It.Is<UpdateUserAttributesRequest>(r =>
+                r.Role == null && r.Permissions == null
+                && r.PermissionsToAdd!.SequenceEqual(new[] { Hashed("group:g1:read") })
+                && r.PermissionsToRemove == null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RemovePermission_SendsARemoveOperation_WithoutReadingTheUserFirst()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "operator"));
+
+        var result = await controller.RemovePermission(
+            "op", new UsersController.RemovePermissionRequest { Permission = "group:g1:read" }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        svc.Verify(s => s.GetUserByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        svc.Verify(s => s.UpdateUserAttributesAsync("op", It.Is<UpdateUserAttributesRequest>(r =>
+                r.PermissionsToRemove!.SequenceEqual(new[] { Hashed("group:g1:read") }) && r.PermissionsToAdd == null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddPermission_UnknownUser_Returns404()
+    {
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("ghost", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UserNotFoundException("ghost"));
+
+        var result = await controller.AddPermission(
+            "ghost", new UsersController.AddPermissionRequest { Permission = "group:g1:read" }, default);
+
+        Assert.IsType<NotFoundResult>(result.Result);
     }
 }
