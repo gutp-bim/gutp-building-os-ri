@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   repository: ghcr.io/gutp-bim/buildingos-gateway-bridge
-  tag: sha-fa59777
+  tag: sha-47ea5ab
   pullPolicy: IfNotPresent
 
 # Credentials for pulling from the registry above. GHCR packages owned by an
