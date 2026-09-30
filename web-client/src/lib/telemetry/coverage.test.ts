@@ -66,7 +66,10 @@ describe("bucketCoverage (#457)", () => {
 
   it("marks a gap as none and a half-filled bucket as partial", () => {
     // 直近 30〜45 分前を丸ごと欠測、45〜60 分前は前半だけ受信。
-    const timestamps = steady(1, (m) => (m >= 30 && m < 45) || (m >= 45 && m < 52));
+    const timestamps = steady(
+      1,
+      (m) => (m >= 30 && m < 45) || (m >= 45 && m < 52),
+    );
     const buckets = bucketCoverage({
       timestamps,
       windowEnd: END,
@@ -119,7 +122,9 @@ describe("bucketCoverage (#457)", () => {
     // 窓の頭 3 バケットは look-back が窓の外にはみ出すので受信済みとは言えない — 最初の 1 件以降は
     // 全部 full になる。
     const firstSampleBucket = buckets.findIndex((b) => b.received > 0);
-    expect(buckets.slice(firstSampleBucket).every((b) => b.level === "full")).toBe(true);
+    expect(
+      buckets.slice(firstSampleBucket).every((b) => b.level === "full"),
+    ).toBe(true);
     // expected は「1 周期に 1 件」に正規化されている。
     expect(buckets.at(-1)!.expected).toBe(1);
   });
@@ -138,7 +143,10 @@ describe("bucketCoverage (#457)", () => {
 
 describe("summarizeCoverage", () => {
   it("counts buckets per level and reports the longest run of missing buckets", () => {
-    const timestamps = steady(1, (m) => (m >= 30 && m < 75) || (m >= 600 && m < 615));
+    const timestamps = steady(
+      1,
+      (m) => (m >= 30 && m < 75) || (m >= 600 && m < 615),
+    );
     const summary = summarizeCoverage(
       bucketCoverage({ timestamps, windowEnd: END, intervalSeconds: 60 }),
     );
@@ -151,7 +159,11 @@ describe("summarizeCoverage", () => {
 
   it("reports no gap when every bucket is covered", () => {
     const summary = summarizeCoverage(
-      bucketCoverage({ timestamps: steady(1), windowEnd: END, intervalSeconds: 60 }),
+      bucketCoverage({
+        timestamps: steady(1),
+        windowEnd: END,
+        intervalSeconds: 60,
+      }),
     );
     expect(summary.longestGapMinutes).toBe(0);
   });
@@ -182,7 +194,9 @@ describe("planCoverageFetch", () => {
   });
 
   it("cannot compute coverage without an expected interval", () => {
-    expect(planCoverageFetch({ intervalSeconds: null, windowEnd: END })).toEqual({
+    expect(
+      planCoverageFetch({ intervalSeconds: null, windowEnd: END }),
+    ).toEqual({
       kind: "unavailable",
       reason: "no-interval",
     });

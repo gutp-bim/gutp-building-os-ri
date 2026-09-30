@@ -3,8 +3,8 @@ import {
   type CoverageBucket,
   type CoverageLevel,
 } from "@/lib/telemetry/coverage";
-import { formatDurationJa } from "@/lib/telemetry/threshold-explain";
 import type { PointCoverageResult } from "@/lib/telemetry/repository";
+import { formatDurationJa } from "@/lib/telemetry/threshold-explain";
 
 /**
  * 24h 受信状況バー（#457）。{@link CoverageBucket} 配列を受け取って描くだけの presentational 部品で、
@@ -15,9 +15,7 @@ import type { PointCoverageResult } from "@/lib/telemetry/repository";
  * aria-label の両方に出す。
  */
 export type CoverageBarState =
-  | { kind: "loading" }
-  | { kind: "error" }
-  | PointCoverageResult;
+  { kind: "loading" } | { kind: "error" } | PointCoverageResult;
 
 const LEVEL_CLASS: Record<CoverageLevel, string> = {
   full: "bg-green-500",
@@ -34,8 +32,7 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = {
 const UNAVAILABLE_TEXT = {
   "too-dense":
     "高頻度ポイントのため受信状況バーは表示していません（24h の全件取得を避けるため、集計 API の提供後に表示します）。",
-  "no-interval":
-    "期待更新周期が未設定のため、受信率を計算できません。",
+  "no-interval": "期待更新周期が未設定のため、受信率を計算できません。",
 } as const;
 
 function timeLabel(iso: string): string {

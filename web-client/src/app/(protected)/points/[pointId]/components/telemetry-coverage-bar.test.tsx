@@ -1,4 +1,7 @@
-import { bucketCoverage, COVERAGE_BUCKET_COUNT } from "@/lib/telemetry/coverage";
+import {
+  bucketCoverage,
+  COVERAGE_BUCKET_COUNT,
+} from "@/lib/telemetry/coverage";
 import { render, screen } from "@testing-library/react";
 import axe from "axe-core";
 import { describe, expect, it } from "vitest";
@@ -11,7 +14,8 @@ const MIN = 60 * 1000;
 function buckets(skip: (m: number) => boolean = () => false) {
   const timestamps: string[] = [];
   for (let m = 0.5; m < 24 * 60; m += 1) {
-    if (!skip(m)) timestamps.push(new Date(END.getTime() - m * MIN).toISOString());
+    if (!skip(m))
+      timestamps.push(new Date(END.getTime() - m * MIN).toISOString());
   }
   return bucketCoverage({ timestamps, windowEnd: END, intervalSeconds: 60 });
 }
@@ -45,14 +49,20 @@ describe("TelemetryCoverageBar (#457)", () => {
   });
 
   it("says there is no gap when every bucket is covered", () => {
-    render(<TelemetryCoverageBar state={{ kind: "buckets", buckets: buckets() }} />);
+    render(
+      <TelemetryCoverageBar state={{ kind: "buckets", buckets: buckets() }} />,
+    );
 
-    expect(screen.getByTestId("coverage-summary")).toHaveTextContent("欠測なし");
+    expect(screen.getByTestId("coverage-summary")).toHaveTextContent(
+      "欠測なし",
+    );
   });
 
   it("explains why the bar is not drawn for a fast point", () => {
     render(
-      <TelemetryCoverageBar state={{ kind: "unavailable", reason: "too-dense" }} />,
+      <TelemetryCoverageBar
+        state={{ kind: "unavailable", reason: "too-dense" }}
+      />,
     );
 
     expect(screen.getByTestId("coverage-unavailable")).toHaveTextContent(
@@ -63,7 +73,9 @@ describe("TelemetryCoverageBar (#457)", () => {
 
   it("explains why the bar is not drawn without an expected interval", () => {
     render(
-      <TelemetryCoverageBar state={{ kind: "unavailable", reason: "no-interval" }} />,
+      <TelemetryCoverageBar
+        state={{ kind: "unavailable", reason: "no-interval" }}
+      />,
     );
 
     expect(screen.getByTestId("coverage-unavailable")).toHaveTextContent(
@@ -72,7 +84,9 @@ describe("TelemetryCoverageBar (#457)", () => {
   });
 
   it("shows loading and error states", () => {
-    const { rerender } = render(<TelemetryCoverageBar state={{ kind: "loading" }} />);
+    const { rerender } = render(
+      <TelemetryCoverageBar state={{ kind: "loading" }} />,
+    );
     expect(screen.getByTestId("coverage-loading")).toBeInTheDocument();
 
     rerender(<TelemetryCoverageBar state={{ kind: "error" }} />);

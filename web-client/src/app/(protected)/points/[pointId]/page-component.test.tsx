@@ -34,7 +34,10 @@ vi.mock("./components/point-info", () => ({ PointInfo: () => <div /> }));
 // 健全性パネル（#457）も最新値をそのまま描くため、素の getByText("1") がチャートと二重ヒット
 // してしまう。ここの関心はページ側の取得配線なので、他の重い子と同様にスタブする。
 vi.mock("./components/point-health-panel", () => ({
-  PointHealthPanel: () => <div data-testid="health" />,
+  // children = 24h 受信状況バー（#457）はそのまま描いて、取得配線を確かめられるようにする。
+  PointHealthPanel: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="health">{children}</div>
+  ),
 }));
 vi.mock("./components/point-control-modal/point-control-modal", () => ({
   PointControlModal: () => <div />,
@@ -50,6 +53,9 @@ vi.mock("@/lib/telemetry/repository", () => ({
   latestTelemetrySample: vi.fn(),
   queryTelemetry: vi.fn(),
   queryTelemetryWithState: vi.fn(),
+  queryPointCoverage: vi
+    .fn()
+    .mockResolvedValue({ kind: "unavailable", reason: "no-interval" }),
   getTelemetryConfig: vi.fn().mockResolvedValue({
     staleThresholdSeconds: 300,
     staleIntervalMultiplier: 3,
@@ -59,6 +65,7 @@ vi.mock("@/lib/telemetry/repository", () => ({
 import { getPointDetail } from "@/lib/resources/repository";
 import {
   latestTelemetrySample,
+  queryPointCoverage,
   queryTelemetryWithState,
 } from "@/lib/telemetry/repository";
 import PointDetailPageComponent from "./page-component";
@@ -178,5 +185,41 @@ describe("PointDetailPageComponent out-of-order warm responses (#197 review)", (
     expect(screen.getByTestId("warm-times")).toHaveTextContent(
       "2026-07-17T00:00:00Z",
     );
+  });
+});
+
+describe("PointDetailPageComponent 24h coverage bar (#457)", () => {
+  it("fetches coverage with the point's expected interval and draws the bar", async () => {
+    (getPointDetail as Mock).mockResolvedValue({
+      ...detail,
+      point: { ...detail.point, expectedIntervalSeconds: 60 },
+    });
+    (latestTelemetrySample as Mock).mockResolvedValue(null);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
+    (queryPointCoverage as Mock).mockResolvedValue({
+      kind: "unavailable",
+      reason: "too-dense",
+    });
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    expect(
+      await screen.findByTestId("coverage-unavailable"),
+    ).toBeInTheDocument();
+    expect(queryPointCoverage).toHaveBeenCalledWith(
+      expect.objectContaining({ pointId: "p1", intervalSeconds: 60 }),
+    );
+  });
+
+  it("surfaces a coverage read failure inside the bar instead of failing silently", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue(null);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
+    (queryPointCoverage as Mock).mockRejectedValue(new Error("down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    expect(await screen.findByTestId("coverage-error")).toBeInTheDocument();
   });
 });
