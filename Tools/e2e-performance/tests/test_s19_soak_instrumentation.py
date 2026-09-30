@@ -224,59 +224,76 @@ def test_resolve_runtime_metric_names_does_not_match_foreign_exporters():
         assert names[concept] is None, f"{concept} matched a foreign series: {names[concept]}"
 
 
-def test_resolve_runtime_metric_names_prefers_names_live_for_the_job():
-    """永続 TSDB に前回 run の系列が優先度の高い名前（semconv）で残り、今回の connector-worker は
-    旧スキーム名で export している。パターンの優先順だけで選ぶと再解決のたびに同じ死んだ名前を返し、
-    死んだ名前を差し替える merge が働かない。job を渡されたら、その job の直近の系列を持つ名前を
-    優先する。"""
-    s19 = load_s19()
-    job = "building-os-connector-worker"
-    available = list(SEMCONV_NAMES.values()) + list(LEGACY_NAMES.values())
-    live_series = [{"__name__": n, "job": job, "generation": "gen0"} for n in LEGACY_NAMES.values()]
-    seen_params = []
+def _fake_job_series_get(available: list[str], live_series, seen: list[dict] | None = None):
+    """job 指定の解決用: /api/v1/series に job セレクタ付きで来たら live_series を返す
+    （Exception を渡すと送出する）。"""
 
     def _get(url, *args, **kwargs):
         params = kwargs.get("params") or {}
         if "/api/v1/label/__name__/values" in url:
             return _prom_response(available)
         if "/api/v1/series" in url:
-            seen_params.append(params)
-            match = params.get("match[]", "")
-            if "job=" in match:
-                return _prom_response(live_series)
-            return _prom_response([s for s in live_series if s["__name__"] == match])
+            if seen is not None:
+                seen.append(params)
+            if isinstance(live_series, Exception):
+                raise live_series
+            return _prom_response(live_series)
         raise AssertionError(f"unexpected Prometheus URL: {url}")
 
-    with mock.patch.object(s19.requests, "get", side_effect=_get):
+    return _get
+
+
+def test_resolve_runtime_metric_names_with_job_uses_only_names_live_for_the_job():
+    """永続 TSDB に前回 run の系列が優先度の高い名前（semconv）で残り、今回の connector-worker は
+    旧スキーム名で export している。保持期間全体の名前から優先順で選ぶと死んだ名前になる。job を
+    渡されたら、その job が直近に系列を持つ名前だけから選び、世代ラベルもその系列から採る。"""
+    s19 = load_s19()
+    job = "building-os-connector-worker"
+    available = list(SEMCONV_NAMES.values()) + list(LEGACY_NAMES.values())
+    live = [{"__name__": n, "job": job} for n in LEGACY_NAMES.values()]
+    live.append({"__name__": LEGACY_NAMES["gc_heap_size"], "job": job, "generation": "gen0"})
+    seen: list[dict] = []
+    with mock.patch.object(s19.requests, "get",
+                           side_effect=_fake_job_series_get(available, live, seen)):
         names = s19.resolve_runtime_metric_names("http://prom:9090", job=job)
     for concept, expected in LEGACY_NAMES.items():
-        assert names[concept] == expected, f"{concept} must prefer the name live for {job}"
+        assert names[concept] == expected, f"{concept} must be the name live for {job}"
     assert names["gc_heap_generation_label"] == "generation"
-    # 「直近」の窓で絞っていること（保持期間全体の系列を返させない）
-    assert any("start" in p for p in seen_params if "job=" in p.get("match[]", ""))
+    # 直近の窓で job に絞っていること（保持期間全体の系列を返させない）
+    assert seen and all("start" in p and f'job="{job}"' in p["match[]"] for p in seen)
 
 
-def test_resolve_runtime_metric_names_falls_back_to_any_name_when_nothing_is_live():
-    """job の系列がまだ 1 本も無い（初回 export 前）ときは従来どおり全名前から選ぶ — 名前が
-    None だと probe も再解決の判断もできない。"""
+def test_resolve_runtime_metric_names_with_job_leaves_not_yet_live_concepts_unresolved():
+    """初回 export 前など job の系列がまだ無い概念は、保持期間に残る名前へフォールバックせず
+    None のまま返す — 死んだ名前を選ぶと後から差し替える判断が要り、それは Prometheus の遅延と
+    区別できない。未解決はリトライが埋める。"""
     s19 = load_s19()
+    job = "building-os-connector-worker"
     available = list(SEMCONV_NAMES.values())
-    with mock.patch.object(s19.requests, "get", side_effect=_fake_prom_get(available)):
-        names = s19.resolve_runtime_metric_names("http://prom:9090", job="building-os-connector-worker")
-    for concept, expected in SEMCONV_NAMES.items():
-        assert names[concept] == expected
+    live = [{"__name__": SEMCONV_NAMES["gc_allocated_total"], "job": job}]
+    with mock.patch.object(s19.requests, "get", side_effect=_fake_job_series_get(available, live)):
+        names = s19.resolve_runtime_metric_names("http://prom:9090", job=job)
+    assert names["gc_allocated_total"] == SEMCONV_NAMES["gc_allocated_total"]
+    assert names["gc_heap_size"] is None and names["gc_committed"] is None
 
 
-def test_resource_role_main_reprobes_before_merging():
-    """merge は「live な概念は凍結」を probe で判断する。t=0 や前回リトライ時の probe のままだと、
-    その後 live になった系列を死んだものとして差し替え、1 本の列に 2 系列が混ざる。"""
+def test_resolve_runtime_metric_names_with_job_returns_all_none_when_the_lookup_fails():
+    """live 系列の問い合わせが失敗（タイムアウト・503）したときに全名前へフォールバックすると、
+    遅い Prometheus 1 回で死んだ名前が入る。失敗は「まだ分からない」として全部 None。"""
+    s19 = load_s19()
+    boom = s19.requests.exceptions.RequestException("timeout")
+    with mock.patch.object(s19.requests, "get",
+                           side_effect=_fake_job_series_get(list(SEMCONV_NAMES.values()), boom)):
+        names = s19.resolve_runtime_metric_names("http://prom:9090",
+                                                 job="building-os-connector-worker")
+    assert all(v is None for v in names.values())
+
+
+def test_resource_role_main_resolves_names_for_the_sampled_job():
     src = s19_source()
     body = src.split("def resource_role_main", 1)[1].split("\ndef ", 1)[0]
-    retry_block = body.split("resolve_runtime_metric_names(args.prometheus", 2)[2]
-    before_merge = retry_block.split("merge_runtime_metric_names(", 1)[0]
-    assert "probe_runtime_metrics(" in before_merge, (
-        "the current names must be re-probed right before the merge decides what is live")
-    assert "job=args.runtime_job" in body
+    assert body.count("resolve_runtime_metric_names(args.prometheus, job=args.runtime_job)") == 2, (
+        "both the t=0 resolution and the retry must resolve against the sampled job's live series")
 
 
 # ── 名前が解決できることと、その job のデータが在ることは別 ─────────────────────
@@ -324,18 +341,17 @@ def test_should_retry_runtime_resolution_recovers_from_a_transient_failure_at_t0
         "gc_heap_generation_label": "generation",
     }
     unresolved = {k: None for k in resolved}
-    live = {k: True for k in resolved if k != "gc_heap_generation_label"}
 
     # まだ 1 概念も名前解決できていない & リトライ窓の中 & 前回解決から 1 間隔以上 → 再試行する
-    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, {}, 60.0, 60.0, 60) is True
+    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, 60.0, 60.0, 60) is True
     # 全概念の名前が解決済みになったら二度とやらない（Prometheus と被測定系に無駄な負荷をかけない）
-    assert s19.should_retry_runtime_resolution("http://prom:9090", resolved, live, 60.0, 60.0, 60) is False
+    assert s19.should_retry_runtime_resolution("http://prom:9090", resolved, 60.0, 60.0, 60) is False
     # 窓を過ぎたらやらない（数時間ずっと叩き続けない）
-    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, {}, 4000.0, 60.0, 60) is False
+    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, 4000.0, 60.0, 60) is False
     # 前回解決から間もない tick ではやらない
-    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, {}, 60.0, 5.0, 60) is False
+    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, 60.0, 5.0, 60) is False
     # Prometheus 未指定（既定）の run では一切関与しない
-    assert s19.should_retry_runtime_resolution("", {}, {}, 60.0, 600.0, 60) is False
+    assert s19.should_retry_runtime_resolution("", {}, 60.0, 600.0, 60) is False
 
 
 def test_should_retry_runtime_resolution_keeps_retrying_when_some_concepts_lag(): # noqa: E501
@@ -355,7 +371,7 @@ def test_should_retry_runtime_resolution_keeps_retrying_when_some_concepts_lag()
         "gc_heap_generation_label": None,
     }
     assert s19.should_retry_runtime_resolution(
-        "http://prom:9090", partially_resolved, {}, 60.0, 60.0, 60) is True
+        "http://prom:9090", partially_resolved, 60.0, 60.0, 60) is True
 
 
 def test_should_retry_runtime_resolution_stops_once_gated_concepts_resolve():
@@ -374,35 +390,13 @@ def test_should_retry_runtime_resolution_stops_once_gated_concepts_resolve():
         "working_set": None,
         "gc_heap_generation_label": "generation",
     }
-    gated_live = {"gc_heap_size": True, "gc_committed": True, "thread_pool_thread_count": True}
     assert s19.should_retry_runtime_resolution(
-        "http://prom:9090", gated_resolved, gated_live, 60.0, 60.0, 60) is False
+        "http://prom:9090", gated_resolved, 60.0, 60.0, 60) is False
 
     # heap が解決しても世代ラベルが無ければ gen2/LOH は出せない → まだ続ける
     no_label = dict(gated_resolved, gc_heap_generation_label=None)
     assert s19.should_retry_runtime_resolution(
-        "http://prom:9090", no_label, gated_live, 60.0, 60.0, 60) is True
-
-
-def test_should_retry_runtime_resolution_waits_for_live_data_not_just_names():
-    """`/api/v1/label/__name__/values` は保持期間全体の名前を返す（probe_runtime_metrics の
-    docstring）。永続 TSDB に前回 run の系列が残っていると、今回の connector-worker がまだ export
-    していなくても gate 対象の名前はすべて「解決」する。名前だけで止めると t=0 の probe（全部
-    False）が run の config に残り、スキームが変わっていれば新しい名前も拾えない。gate 対象の
-    概念に実データが無い間は続ける。"""
-    s19 = load_s19()
-    names = {
-        "gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
-        "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes",
-        "thread_pool_thread_count": "process_runtime_dotnet_thread_pool_threads_count",
-        "gc_heap_generation_label": "generation",
-    }
-    stale = {"gc_heap_size": False, "gc_committed": False, "thread_pool_thread_count": False}
-    assert s19.should_retry_runtime_resolution(
-        "http://prom:9090", names, stale, 60.0, 60.0, 60) is True
-    one_lagging = dict(stale, gc_heap_size=True, thread_pool_thread_count=True)
-    assert s19.should_retry_runtime_resolution(
-        "http://prom:9090", names, one_lagging, 60.0, 60.0, 60) is True
+        "http://prom:9090", no_label, 60.0, 60.0, 60) is True
 
 
 def test_resource_role_main_retries_resolution_and_records_the_probe():
@@ -459,8 +453,8 @@ def test_merge_runtime_metric_names_fills_a_late_generation_label():
 
 
 def test_merge_runtime_metric_names_does_not_switch_an_already_resolved_series():
-    """解決済みかつ live な概念を再解決の結果で上書きすると、優先度の高いパターンが途中で現れただけで
-    run の途中から別系列に切り替わり、1 本の列に 2 つの系列が混ざる。live な heap が切り替わると、
+    """解決済みの概念を再解決の結果で上書きすると、優先度の高いパターンが途中で現れただけで
+    run の途中から別系列に切り替わり、1 本の列に 2 つの系列が混ざる。heap が切り替わると、
     再解決側の /api/v1/series が失敗していた場合に旧 heap のラベルと新 heap が組になり、
     `sum by (label)` が空になって gen2/LOH 列ごと消える。"""
     s19 = load_s19()
@@ -469,8 +463,7 @@ def test_merge_runtime_metric_names_does_not_switch_an_already_resolved_series()
     retry = {"gc_heap_size": "dotnet_gc_last_collection_heap_size_bytes",
              "gc_heap_generation_label": None,
              "gc_committed": "dotnet_gc_last_collection_memory_committed_size_bytes"}
-    live = {"gc_heap_size": True, "gc_committed": True}
-    assert s19.merge_runtime_metric_names(current, retry, live) == current
+    assert s19.merge_runtime_metric_names(current, retry) == current
 
     # heap が新しく解決したときは、ラベルも同じ再解決の結果から取る（組を崩さない）
     current = {"gc_heap_size": None, "gc_heap_generation_label": None}
@@ -480,25 +473,7 @@ def test_merge_runtime_metric_names_does_not_switch_an_already_resolved_series()
     current = {"gc_heap_size": "dotnet_gc_heap_size_bytes", "gc_heap_generation_label": None}
     retry = {"gc_heap_size": "dotnet_gc_last_collection_heap_size_bytes",
              "gc_heap_generation_label": "generation"}
-    assert s19.merge_runtime_metric_names(current, retry, {"gc_heap_size": True}) == current
-
-
-def test_merge_runtime_metric_names_replaces_a_resolved_but_dead_series():
-    """永続 TSDB に前回 run の系列が別スキーム名（process_runtime_dotnet_*）で残り、今回の
-    connector-worker は dotnet_* で export する場合、t=0 に解決できるのは古い名前だけで probe は
-    False。新しい系列が現れても「解決済みは上書きしない」だと死んだ名前で数時間サンプリングし、
-    gate が SKIP になる。凍結するのは **解決済みかつ live** の概念だけ。"""
-    s19 = load_s19()
-    current = {"gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
-               "gc_heap_generation_label": "generation",
-               "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes"}
-    retry = {"gc_heap_size": "dotnet_gc_heap_size_bytes", "gc_heap_generation_label": "gen",
-             "gc_committed": "dotnet_gc_memory_committed_size_bytes"}
-    dead = {"gc_heap_size": False, "gc_committed": False}
-    assert s19.merge_runtime_metric_names(current, retry, dead) == retry
-    # live な概念は差し替えない（列の途中で系列が変わらないように）
-    live = {"gc_heap_size": True, "gc_committed": True}
-    assert s19.merge_runtime_metric_names(current, retry, live) == current
+    assert s19.merge_runtime_metric_names(current, retry) == current
 
 
 # ── 5. sample_runtime: bytes → MiB と世代内訳 ─────────────────────────────────
