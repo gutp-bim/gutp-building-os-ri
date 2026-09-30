@@ -54,6 +54,26 @@ const schemaIssues: TwinImportPreview = {
   valid: true,
 };
 
+const idCollided: TwinImportPreview = {
+  ...valid,
+  idCollisionCount: 1,
+  idCollisions: [{ resourceType: "space", id: "501", nodeCount: 2 }],
+  valid: false,
+};
+
+describe("business-id collisions (#517)", () => {
+  it("block apply, even with allowOrphans", () => {
+    expect(canApplyImport(idCollided)).toBe(false);
+    expect(canApplyImport(idCollided, true)).toBe(false);
+  });
+  it("are summarised", () => {
+    expect(previewSummary(idCollided)).toContain("sbco:id 重複 1 件");
+  });
+  it("are absent from an older server's preview without breaking apply", () => {
+    expect(canApplyImport(valid)).toBe(true);
+  });
+});
+
 describe("canApplyImport", () => {
   it("allows a valid preview with no collisions", () => {
     expect(canApplyImport(valid)).toBe(true);

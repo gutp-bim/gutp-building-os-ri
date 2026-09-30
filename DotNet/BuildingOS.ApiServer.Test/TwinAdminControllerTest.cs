@@ -164,6 +164,22 @@ public class TwinAdminControllerTest
     }
 
     [Fact]
+    public async Task ApplyImport_IdCollision_IsNotOverridableByAllowOrphans()
+    {
+        // #517: two nodes of one type sharing an sbco:id would share every grant — never applied.
+        var (c, svc, _) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, [],
+                IdCollisionCount: 1, IdCollisions: [new TwinIdCollision("space", "501", 2)]));
+
+        var result = await c.ApplyImport(
+            new TwinAdminController.TwinImportRequest { Turtle = "ttl", AllowOrphans = true }, default);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        svc.Verify(s => s.ApplyImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ApplyImport_Collision_IsNotOverridableByAllowOrphans()
     {
         // The override waives the hierarchy check only — a gateway_id collision stays fatal.

@@ -84,13 +84,22 @@ public static class ControlSchemaIssueReasons
 public sealed record TwinControlSchemaIssue(string PointId, string Reason);
 
 /// <summary>
+/// Two or more nodes of one resource type sharing a business id (#517). Authorization identifies a node
+/// by its <c>sbco:id</c> (#504), so they would share every grant. <see cref="ResourceType"/> is the API
+/// vocabulary (building / floor / space / device / point).
+/// </summary>
+public sealed record TwinIdCollision(string ResourceType, string Id, int NodeCount);
+
+/// <summary>
 /// Pre-apply analysis of an RDF import, computed by staging the Turtle in a temporary named graph
 /// (#322): triple/gateway counts, any gateway_id→multiple-building collisions, and the points the
 /// building hierarchy does not reach (#291). <see cref="Valid"/> is false when either exists;
 /// applying anyway is blocked by the controller (orphans only, and only on an explicit override).
 /// <c>Orphans</c> is a capped sample for display, so it may be shorter than <c>OrphanCount</c>.
 /// <c>ControlSchemaIssues</c> (#336) is observation-only — it never affects <see cref="Valid"/> or
-/// blocks apply, matching the control path's own fail-open design.
+/// blocks apply, matching the control path's own fail-open design. <c>IdCollisions</c> (#517) — business
+/// ids shared by nodes of one type — make it invalid and always block apply, like a gateway collision;
+/// the list is capped, <c>IdCollisionCount</c> exact.
 /// </summary>
 public sealed record TwinImportPreview(
     long TripleCount,
@@ -99,9 +108,13 @@ public sealed record TwinImportPreview(
     int OrphanCount,
     IReadOnlyList<TwinOrphanResource> Orphans,
     int ControlSchemaIssueCount,
-    IReadOnlyList<TwinControlSchemaIssue> ControlSchemaIssues)
+    IReadOnlyList<TwinControlSchemaIssue> ControlSchemaIssues,
+    int IdCollisionCount = 0,
+    IReadOnlyList<TwinIdCollision>? IdCollisions = null)
 {
-    public bool Valid => Collisions.Count == 0 && OrphanCount == 0;
+    public IReadOnlyList<TwinIdCollision> IdCollisions { get; } = IdCollisions ?? [];
+
+    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0;
 }
 
 /// <summary>Result of a read-only SPARQL query: columns + rows (capped) + timing.</summary>

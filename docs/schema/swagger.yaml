@@ -4770,6 +4770,17 @@ components:
         reason:
           type: string
       additionalProperties: false
+    TwinIdCollision:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        id:
+          type: string
+        nodeCount:
+          type: integer
+          format: int32
+      additionalProperties: false
     TwinImportPreview:
       type: object
       properties:
@@ -4797,6 +4808,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TwinControlSchemaIssue'
+        idCollisionCount:
+          type: integer
+          format: int32
+        idCollisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TwinIdCollision'
         valid:
           type: boolean
           readOnly: true

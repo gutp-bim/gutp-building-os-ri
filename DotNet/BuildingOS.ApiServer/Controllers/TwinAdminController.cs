@@ -194,6 +194,8 @@ public class TwinAdminController : ControllerBase
     private static string? BlockingReason(TwinImportPreview preview, bool allowOrphans)
     {
         if (preview.Collisions.Count > 0) return "gateway_id 一意性違反のため適用できません";
+        // #517: nodes of one type sharing an sbco:id would share every grant — never applied.
+        if (preview.IdCollisionCount > 0) return "同じ種別で sbco:id が重複しているため適用できません";
         if (preview.OrphanCount > 0 && !allowOrphans)
             return "階層に接続されていないリソースがあるため適用できません（allowOrphans で明示的に許可できます）";
         return null;
@@ -207,6 +209,7 @@ public class TwinAdminController : ControllerBase
         tripleCount = preview.TripleCount,
         gatewayCount = preview.GatewayCount,
         orphanCount = preview.OrphanCount,
+        idCollisionCount = preview.IdCollisionCount,
         allowOrphans,
         controlSchemaIssueCount = preview.ControlSchemaIssueCount,
         valid = preview.Valid,
