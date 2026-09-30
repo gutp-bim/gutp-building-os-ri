@@ -259,19 +259,72 @@ def test_should_retry_runtime_resolution_recovers_from_a_transient_failure_at_t0
     """Prometheus は永続 TSDB の WAL リプレイ中 /api/v1/* に 503 を返す。t=0 の 1 回きりの解決で
     諦めると、30 秒後には健全になる Prometheus のもとで 6h ぶんの runtime 列が丸ごと空になる。"""
     s19 = load_s19()
-    dead = {"gc_committed": False}
-    live = {"gc_committed": True}
+    resolved = {
+        "gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
+        "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes",
+        "gc_allocated_total": "process_runtime_dotnet_gc_allocations_size_bytes_total",
+        "gc_collections": "process_runtime_dotnet_gc_collections_count_total",
+        "thread_pool_thread_count": "process_runtime_dotnet_thread_pool_threads_count",
+        "working_set": "process_runtime_dotnet_process_memory_working_set_bytes",
+        "gc_heap_generation_label": "generation",
+    }
+    unresolved = {k: None for k in resolved}
 
-    # まだ 1 概念も live でない & リトライ窓の中 & 前回解決から 1 間隔以上 → 再試行する
-    assert s19.should_retry_runtime_resolution("http://prom:9090", dead, 60.0, 60.0, 60) is True
-    # 1 つでも live になったら二度とやらない（Prometheus と被測定系に無駄な負荷をかけない）
-    assert s19.should_retry_runtime_resolution("http://prom:9090", live, 60.0, 60.0, 60) is False
+    # まだ 1 概念も名前解決できていない & リトライ窓の中 & 前回解決から 1 間隔以上 → 再試行する
+    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, 60.0, 60.0, 60) is True
+    # 全概念の名前が解決済みになったら二度とやらない（Prometheus と被測定系に無駄な負荷をかけない）
+    assert s19.should_retry_runtime_resolution("http://prom:9090", resolved, 60.0, 60.0, 60) is False
     # 窓を過ぎたらやらない（数時間ずっと叩き続けない）
-    assert s19.should_retry_runtime_resolution("http://prom:9090", dead, 4000.0, 60.0, 60) is False
+    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, 4000.0, 60.0, 60) is False
     # 前回解決から間もない tick ではやらない
-    assert s19.should_retry_runtime_resolution("http://prom:9090", dead, 60.0, 5.0, 60) is False
+    assert s19.should_retry_runtime_resolution("http://prom:9090", unresolved, 60.0, 5.0, 60) is False
     # Prometheus 未指定（既定）の run では一切関与しない
     assert s19.should_retry_runtime_resolution("", {}, 60.0, 600.0, 60) is False
+
+
+def test_should_retry_runtime_resolution_keeps_retrying_when_some_concepts_lag(): # noqa: E501
+    """gc_heap_size/gc_committed は GC イベント駆動の gauge で、gc_allocated_total のような
+    常時更新される counter より Export が遅れて現れることがある。他の概念が先に「実データあり」に
+    なっても、この 2 つがまだ名前解決できていない間はリトライを続けなければならない — probe（実データ
+    の有無）だけを見て「1 つでも live なら止める」と、この 2 つが未解決のまま run 全体で固定され、
+    gen2/LOH/RSS-minus-committed の 3 gate が理由も告げず SKIP になる。"""
+    s19 = load_s19()
+    partially_resolved = {
+        "gc_heap_size": None,
+        "gc_committed": None,
+        "gc_allocated_total": "process_runtime_dotnet_gc_allocations_size_bytes_total",
+        "gc_collections": "process_runtime_dotnet_gc_collections_count_total",
+        "thread_pool_thread_count": "process_runtime_dotnet_thread_pool_threads_count",
+        "working_set": None,
+        "gc_heap_generation_label": None,
+    }
+    assert s19.should_retry_runtime_resolution(
+        "http://prom:9090", partially_resolved, 60.0, 60.0, 60) is True
+
+
+def test_should_retry_runtime_resolution_stops_once_gated_concepts_resolve():
+    """working_set は現行の .NET OTel instrumentation では export されない（73h run の
+    runtime-metric-names.json でも None）。「全概念が解決するまで」を条件にすると、永久に現れない
+    概念のためにリトライ窓（15 分）いっぱい /api/v1/label/__name__/values を叩き続ける。
+    リトライが守るべきは **gate が依存する概念**（gen2/LOH ← gc_heap_size + 世代ラベル、
+    RSS-minus-committed ← gc_committed、thread pool）だけで、report 専用の概念が欠けても止める。"""
+    s19 = load_s19()
+    gated_resolved = {
+        "gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
+        "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes",
+        "gc_allocated_total": None,
+        "gc_collections": None,
+        "thread_pool_thread_count": "process_runtime_dotnet_thread_pool_threads_count",
+        "working_set": None,
+        "gc_heap_generation_label": "generation",
+    }
+    assert s19.should_retry_runtime_resolution(
+        "http://prom:9090", gated_resolved, 60.0, 60.0, 60) is False
+
+    # heap が解決しても世代ラベルが無ければ gen2/LOH は出せない → まだ続ける
+    no_label = dict(gated_resolved, gc_heap_generation_label=None)
+    assert s19.should_retry_runtime_resolution(
+        "http://prom:9090", no_label, 60.0, 60.0, 60) is True
 
 
 def test_resource_role_main_retries_resolution_and_records_the_probe():
@@ -281,6 +334,50 @@ def test_resource_role_main_retries_resolution_and_records_the_probe():
         "the sampling loop must be able to recover from a Prometheus that was not ready at t=0"
     )
     assert "probe_runtime_metrics(" in body
+    assert "merge_runtime_metric_names(" in body, (
+        "a retry must merge into the resolved names, not replace them wholesale"
+    )
+
+
+def test_merge_runtime_metric_names_never_loses_an_already_resolved_name():
+    """再解決の途中で Prometheus が 503 を返すと resolve は全部 None に縮退する。それで丸ごと
+    差し替えると、解決済みだった概念が run の途中で未解決に戻り、以降の runtime 列が欠ける。"""
+    s19 = load_s19()
+    current = {
+        "gc_heap_size": None,
+        "gc_committed": None,
+        "gc_allocated_total": "process_runtime_dotnet_gc_allocations_size_bytes_total",
+        "gc_heap_generation_label": None,
+    }
+    all_none = {k: None for k in current}
+    assert s19.merge_runtime_metric_names(current, all_none) == current
+
+    retry = {
+        "gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
+        "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes",
+        "gc_allocated_total": None,
+        "gc_heap_generation_label": "generation",
+    }
+    merged = s19.merge_runtime_metric_names(current, retry)
+    assert merged == {
+        "gc_heap_size": "process_runtime_dotnet_gc_heap_size_bytes",
+        "gc_committed": "process_runtime_dotnet_gc_committed_memory_size_bytes",
+        "gc_allocated_total": "process_runtime_dotnet_gc_allocations_size_bytes_total",
+        "gc_heap_generation_label": "generation",
+    }
+    # 入力を破壊しない（呼び出し側は差分検出に元の dict を使う）
+    assert current["gc_heap_size"] is None
+
+
+def test_merge_runtime_metric_names_fills_a_late_generation_label():
+    """heap の系列名は t=0 で解決したが世代ラベルがまだ無い、という状態からの再解決。gen2/LOH の
+    gate はラベルが無いと出せないので、リトライ（_RUNTIME_GATED_CONCEPTS）はこれを待つ — 待った
+    結果を merge が取り込めなければ、窓いっぱい空回りする。"""
+    s19 = load_s19()
+    heap = "process_runtime_dotnet_gc_heap_size_bytes"
+    current = {"gc_heap_size": heap, "gc_heap_generation_label": None}
+    retry = {"gc_heap_size": heap, "gc_heap_generation_label": "generation"}
+    assert s19.merge_runtime_metric_names(current, retry) == retry
 
 
 # ── 5. sample_runtime: bytes → MiB と世代内訳 ─────────────────────────────────
@@ -918,7 +1015,6 @@ def test_kpi_thresholds_report_the_new_runtime_series_without_gating_them():
         "connector_worker_gc_committed_mib_growth_per_hour",
         "connector_worker_rss_minus_gc_committed_mib_start",
         "connector_worker_rss_minus_gc_committed_mib_end",
-        "connector_worker_rss_minus_gc_committed_growth_mib_per_hour",
         # 判別指標の読み方を誤らせない補助情報（カバレッジ / 窓 / subtrahend の鮮度 / 実測本数）。
         "connector_worker_rss_minus_gc_committed_samples",
         "connector_worker_rss_samples",
@@ -930,6 +1026,23 @@ def test_kpi_thresholds_report_the_new_runtime_series_without_gating_them():
         assert key in e10, f"{key} must be reported by the E10 gate"
         # #370 は安全域を決めるための調査そのもの。閾値を置いたら結論を先取りしてしまう。
         assert e10[key]["op"] == "report", f"{key} must be informational, not a gate"
+
+
+def test_kpi_thresholds_gate_e10_on_retention_slopes():
+    """#393 で E10 は「RSS がどこまで伸びたか」ではなく「解放されずに残る量の後半スロープ」で
+    判定するようになった。gen2 / LOH / RSS−GC committed の 3 つは report ではなく gate。
+    （#375 時点の「閾値を置かない」方針はこの 3 つについては #393 で置き換えられている。）"""
+    import yaml
+
+    data = yaml.safe_load((REPO_ROOT / "e2e" / "kpi-thresholds.yaml").read_text(encoding="utf-8"))
+    e10 = data["axes"]["E10_endurance_soak"]
+    for key in (
+        "connector_worker_gc_heap_gen2_mib_growth_per_hour",
+        "connector_worker_gc_heap_loh_mib_growth_per_hour",
+        "connector_worker_rss_minus_gc_committed_growth_mib_per_hour",
+    ):
+        assert e10[key]["op"] == "lte", f"{key} must gate E10 (#393)"
+        assert isinstance(e10[key]["value"], (int, float))
 
 
 def test_kpi_thresholds_name_the_thread_series_for_the_population_it_measures():

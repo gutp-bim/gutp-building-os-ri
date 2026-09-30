@@ -190,6 +190,12 @@ _GC_GENERATION_LABEL_CANDIDATES = [r"^generation$", r"^.*gc.*generation$", r"^.*
 # 再解決を試みる。Prometheus は永続ボリューム上の TSDB を WAL リプレイしている間 /api/v1/* に
 # 503 を返すので、起動直後の 1 回きりの解決だけだと「数時間走ったのに runtime 列が空」になる。
 _RUNTIME_RESOLVE_RETRY_WINDOW_S = 900.0
+# 再解決のリトライが待つ対象。E10 の gate（kpi-thresholds.yaml）が依存する概念だけを並べる:
+# gen2/LOH ← gc_heap_size + 世代ラベル、RSS-minus-committed ← gc_committed、thread pool。
+# report 専用の概念（working_set など、ランタイムによっては永久に export されないもの）は含めない —
+# 含めると現れない系列のためにリトライ窓いっぱい Prometheus を叩き続ける。
+_RUNTIME_GATED_CONCEPTS = ("gc_heap_size", "gc_heap_generation_label", "gc_committed",
+                           "thread_pool_thread_count")
 
 # runtime サンプリングに使ってよい 1 tick あたりの実時間の上限を決める係数。Prometheus が
 # head compaction 等で遅いとき（refuse ではなく「遅く答える」）に、任意計測が RSS サンプリングの
@@ -329,21 +335,45 @@ def probe_runtime_metrics(prom_url: str, names: dict[str, str | None], job: str,
     return probe
 
 
-def should_retry_runtime_resolution(prom_url: str, probe: dict[str, bool], elapsed_s: float,
+def should_retry_runtime_resolution(prom_url: str, names: dict[str, str | None], elapsed_s: float,
                                      since_last_s: float, sample_interval: int) -> bool:
     """系列名の再解決をこの tick で試みるべきか（純関数。呼び出し側でループから使う）。
 
-    「Prometheus 指定あり」かつ「まだ 1 概念も実データが取れていない」かつ「run 開始から
-    _RUNTIME_RESOLVE_RETRY_WINDOW_S 以内」かつ「前回の解決から 1 サンプリング間隔以上経っている」
-    のときだけ True。1 度でも実データが取れたら二度と再解決しない（被測定系と Prometheus に
-    余計な負荷をかけない）。"""
+    「Prometheus 指定あり」かつ「gate が依存する概念（_RUNTIME_GATED_CONCEPTS）のどれかがまだ名前
+    解決できていない(None)」かつ「run 開始から _RUNTIME_RESOLVE_RETRY_WINDOW_S 以内」かつ「前回の
+    解決から 1 サンプリング間隔以上経っている」のときだけ True。gate 対象の概念が揃ったら二度と
+    再解決しない（被測定系と Prometheus に余計な負荷をかけない）。report 専用の概念が欠けていても
+    止める — working_set のように export されないランタイムでは、待っても永久に現れない。
+
+    判定基準は probe（実データの有無）ではなく names（名前解決の有無）— gc_heap_size /
+    gc_committed は GC イベント駆動の gauge で、gc_allocated_total 等の常時更新される概念より
+    Export が遅れて現れることがある。「1 概念でも live なら止める」（probe 基準）だと、他の概念が
+    先に live になった時点でこの 2 つが未解決のまま永久に固定され、run 全体で
+    gen2/LOH/RSS-minus-committed の 3 gate が理由も告げず SKIP になる。"""
     if not prom_url:
         return False
-    if any(probe.values()):
+    if all(names.get(c) is not None for c in _RUNTIME_GATED_CONCEPTS):
         return False
     if elapsed_s > _RUNTIME_RESOLVE_RETRY_WINDOW_S:
         return False
     return since_last_s >= max(30.0, float(sample_interval))
+
+
+def merge_runtime_metric_names(current: dict[str, str | None],
+                               retry: dict[str, str | None]) -> dict[str, str | None]:
+    """再解決の結果を、既に解決済みの名前を失わない形で取り込む（純関数）。
+
+    再解決は Prometheus が一時的に 503 を返しただけでも全部 None に縮退する
+    （resolve_runtime_metric_names は例外を投げない）。結果を丸ごと差し替えると、解決済みだった
+    概念がその時点で未解決に戻ってしまうので、concept ごとに「新しく解決できたものだけ」を上書きする。
+    世代ラベルは gc_heap_size とセットで解決されるので、heap を再解決で得たときは label も合わせて取る。"""
+    merged = dict(current)
+    for concept, name in retry.items():
+        if name is not None:
+            merged[concept] = name
+    if retry.get("gc_heap_size") is not None and current.get("gc_heap_size") is None:
+        merged["gc_heap_generation_label"] = retry.get("gc_heap_generation_label")
+    return merged
 
 
 def sample_runtime(prom_url: str, names: dict[str, str | None], job: str,
@@ -634,9 +664,11 @@ def resource_role_main(args) -> int:
     stop_at = time.monotonic() + duration_s
     start = time.monotonic()
     # 系列名の解決は原則 run 開始時の 1 回（毎 tick やると Prometheus に無駄な負荷をかけ、被測定系の
-    # ノイズにもなる）。ただし **1 概念も実データが取れていない間だけ**は最初の 15 分間リトライする:
+    # ノイズにもなる）。ただし **gate が依存する概念（_RUNTIME_GATED_CONCEPTS）が未解決の間**は
+    # 最初の 15 分間リトライする:
     # Prometheus は永続 TSDB の WAL リプレイ中 503 を返すし、connector-worker の初回 OTLP export が
-    # まだ着いていないこともある。ここで諦めると数時間走った run 全部が runtime 列ゼロになる。
+    # まだ着いていないこともあり、GC イベント駆動の gauge（gc_heap_size / gc_committed）は他の概念より
+    # 遅れて現れる。ここで諦めると数時間走った run の runtime 列（とそれに依存する gate）が欠ける。
     runtime_names = resolve_runtime_metric_names(args.prometheus)
     runtime_probe = probe_runtime_metrics(args.prometheus, runtime_names, args.runtime_job,
                                            args.sample_interval)
@@ -654,14 +686,15 @@ def resource_role_main(args) -> int:
         while True:
             now = time.monotonic()
             elapsed = round(now - start, 1)
-            if should_retry_runtime_resolution(args.prometheus, runtime_probe, elapsed,
+            if should_retry_runtime_resolution(args.prometheus, runtime_names, elapsed,
                                                 now - last_resolve_at, args.sample_interval):
                 last_resolve_at = now
                 retry_names = resolve_runtime_metric_names(args.prometheus)
-                retry_probe = probe_runtime_metrics(args.prometheus, retry_names, args.runtime_job,
-                                                     args.sample_interval)
-                if any(retry_probe.values()):
-                    runtime_names, runtime_probe = retry_names, retry_probe
+                merged_names = merge_runtime_metric_names(runtime_names, retry_names)
+                if merged_names != runtime_names:
+                    runtime_names = merged_names
+                    runtime_probe = probe_runtime_metrics(args.prometheus, runtime_names,
+                                                          args.runtime_job, args.sample_interval)
                     write_runtime_metric_names(args.out, runtime_names, runtime_probe)
                     print(f"[s19][runtime] resolved on retry at t={elapsed}s: "
                           f"names={json.dumps(runtime_names)} live={json.dumps(runtime_probe)}")
