@@ -73,6 +73,14 @@ axes:
     # #370 A/B の独立変数の**実測値**。chunk_seconds: 0（単一ストリーム指定）でも途中で失敗すれば
     # 張り直しているので、設定値ではなく実際に張った本数を見る。
     chunk_count:                              { op: report, unit: count, note: "実際に張った gRPC ストリーム本数" }
+    # #535（#297 の残り）: BUILDING_OS_VALIDATED の stream bytes / redelivery。/jsz から直接取る
+    # （Prometheus 不要）。閾値の根拠となる実測がまだ無いので report のみ。stream bytes は MaxAge 24h
+    # で頭打ちになるはずなので、24h を超える run で growth が 0 付近に落ちるかを見る。
+    nats_validated_stream_mib_max:            { op: report, unit: MiB }
+    nats_validated_stream_mib_last:           { op: report, unit: MiB }
+    nats_validated_stream_mib_growth_per_hour: { op: report, unit: "MiB/h", note: "後半だけの回帰スロープ（RSS と同じ methodology）" }
+    nats_validated_redelivered_max:           { op: report, unit: count, note: "未 ack のうち再配信済みのメッセージ数（ack timeout / nak）" }
+    nats_validated_redelivered_last:          { op: report, unit: count }
     # #370 の調査は 24h × 2 本で決着した（#370 のコメント / E10 シナリオ文書「実施記録」）。
     # 増加は Server GC の gen0 予算拡大で、リークではない。したがって閾値は「RSS がどれだけ増えたか」
     # ではなく「**滞留しているか**」に置く（#297）。

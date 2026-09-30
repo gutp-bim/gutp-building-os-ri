@@ -97,6 +97,21 @@ services:
     networks:
       - oss
 
+  # ── nats-exporter — NATS/JetStream metrics for Prometheus (#535) ──────────
+  # nats-server has no Prometheus `/metrics` endpoint (`:8222/metrics` is 404), so the `nats`
+  # scrape job reads this exporter, which translates `/varz` + `/jsz` into `gnatsd_varz_*` and
+  # `jetstream_{server,stream,consumer}_*` series (labels `stream_name` / `consumer_name`).
+  building-os.nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.20.2
+    container_name: building-os.nats-exporter
+    profiles: [observability]
+    command: ["-port=7777", "-varz", "-jsz=all", "http://building-os.nats:8222"]
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+    networks:
+      - oss
+
   # ── pgBouncer — transaction pool (アプリ接続用) ─────────────────────────
   building-os.pgbouncer:
     image: edoburu/pgbouncer:v1.24.1-p1
@@ -239,7 +254,7 @@ services:
   # ── Observability stack (A-7) ─────────────────────────────────────────────
   # Start with: docker compose -f docker-compose.oss.yaml --profile observability up -d
   # Without the profile, the base stack (NATS/PG/OxiGraph/MinIO/Keycloak + app) starts without
-  # Prometheus, Grafana, Loki, Tempo, otel-collector, and postgres-exporter.
+  # Prometheus, Grafana, Loki, Tempo, otel-collector, postgres-exporter, and nats-exporter.
   # Apps degrade gracefully: PROMETHEUS_URL and OTEL_EXPORTER_OTLP_ENDPOINT are no-ops when
   # the targets are unreachable (OTel SDK retries silently; /api/system/status KPIs return null).
   building-os.prometheus:

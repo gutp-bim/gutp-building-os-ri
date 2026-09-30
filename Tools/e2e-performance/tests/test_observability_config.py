@@ -78,6 +78,111 @@ def test_prometheus_no_point_id_label_in_queries():
             )
 
 
+# ── NATS exporter (#535) ──────────────────────────────────────────────────
+#
+# nats-server has no Prometheus `/metrics` endpoint (`:8222/metrics` is 404 on nats:2.10), so the
+# `nats` scrape job must point at natsio/prometheus-nats-exporter, and the recording rules must use
+# the names that exporter actually emits. The names below were captured from
+# natsio/prometheus-nats-exporter:0.20.2 `-varz -jsz=all` against nats:2.10-alpine `-js` with a
+# BUILDING_OS_VALIDATED stream + pull consumer (#535). They are `jetstream_*` with the labels
+# `stream_name` / `consumer_name` — NOT the `nats_consumer_*` names the rules used before.
+
+NATS_EXPORTER_SERVICE = "building-os.nats-exporter"
+VERIFIED_EXPORTER_JETSTREAM_METRICS = {
+    "jetstream_consumer_num_pending",
+    "jetstream_consumer_num_ack_pending",
+    "jetstream_consumer_num_redelivered",
+    "jetstream_consumer_num_waiting",
+    "jetstream_consumer_delivered_consumer_seq",
+    "jetstream_consumer_delivered_stream_seq",
+    "jetstream_consumer_ack_floor_consumer_seq",
+    "jetstream_consumer_ack_floor_stream_seq",
+    "jetstream_stream_total_bytes",
+    "jetstream_stream_total_messages",
+    "jetstream_stream_consumer_count",
+    "jetstream_stream_first_seq",
+    "jetstream_stream_last_seq",
+    "jetstream_server_total_message_bytes",
+    "jetstream_server_total_messages",
+}
+
+
+def _exporter_service():
+    services = load_compose()["services"]
+    assert NATS_EXPORTER_SERVICE in services, (
+        f"docker-compose.oss.yaml must define {NATS_EXPORTER_SERVICE} (nats-server has no /metrics)"
+    )
+    return services[NATS_EXPORTER_SERVICE]
+
+
+def _exporter_port(svc) -> str:
+    cmd = [str(c) for c in svc.get("command", [])]
+    for i, c in enumerate(cmd):
+        if c.startswith("-port="):
+            return c.split("=", 1)[1]
+        if c in ("-port", "-p") and i + 1 < len(cmd):
+            return cmd[i + 1]
+    return "7777"  # prometheus-nats-exporter default
+
+
+def test_nats_exporter_is_in_observability_profile_with_pinned_image():
+    svc = _exporter_service()
+    assert svc.get("profiles") == ["observability"], "exporter belongs to the observability profile only"
+    image = svc["image"]
+    assert image.startswith("natsio/prometheus-nats-exporter:"), image
+    tag = image.rsplit(":", 1)[1]
+    assert tag and tag != "latest", f"exporter image must pin a version tag, got {image}"
+
+
+def test_nats_exporter_scrapes_varz_and_all_jetstream_from_nats_monitor():
+    cmd = [str(c) for c in _exporter_service()["command"]]
+    assert "-varz" in cmd
+    assert "-jsz=all" in cmd, "JetStream stream/consumer metrics need -jsz=all"
+    assert cmd[-1] == "http://building-os.nats:8222", "the monitored URL is the last positional arg"
+
+
+def test_prometheus_nats_job_targets_exporter_not_nats_monitor():
+    cfg = load_prometheus_config()
+    job = next(j for j in cfg["scrape_configs"] if j["job_name"] == "nats")
+    targets = [t for sc in job["static_configs"] for t in sc["targets"]]
+    port = _exporter_port(_exporter_service())
+    assert targets == [f"{NATS_EXPORTER_SERVICE}:{port}"], targets
+    assert job.get("metrics_path", "/metrics") == "/metrics"
+
+
+def _nats_rule_group():
+    rules = yaml.safe_load((OSS_STACK / "prometheus" / "recording_rules.yml").read_text())
+    return next(g for g in rules["groups"] if g["name"] == "building_os_nats")
+
+
+def test_nats_recording_rules_only_reference_verified_exporter_metrics():
+    ident = re.compile(r"\b((?:nats|jetstream|gnatsd)_[a-z0-9_]+)\b")
+    for rule in _nats_rule_group()["rules"]:
+        referenced = set(ident.findall(rule["expr"]))
+        assert referenced, f"{rule['record']} references no NATS metric"
+        unknown = referenced - VERIFIED_EXPORTER_JETSTREAM_METRICS
+        assert not unknown, f"{rule['record']} uses metric names the exporter does not emit: {unknown}"
+
+
+def test_nats_recording_rules_group_by_exporter_labels():
+    for rule in _nats_rule_group()["rules"]:
+        by = re.findall(r"by\s*\(([^)]*)\)", rule["expr"])
+        labels = {l.strip() for b in by for l in b.split(",")}
+        assert labels <= {"stream_name", "consumer_name"}, (
+            f"{rule['record']} groups by {labels}; the exporter labels are stream_name/consumer_name"
+        )
+
+
+def test_nats_recording_rules_cover_pending_redelivered_and_stream_bytes():
+    records = {r["record"] for r in _nats_rule_group()["rules"]}
+    assert {
+        "nats:jetstream_consumer_pending:max",       # consumed by #456 (/platform/status)
+        "nats:jetstream_msgs_delivered:rate1m",
+        "nats:jetstream_consumer_redelivered:max",
+        "nats:jetstream_stream_bytes:max",
+    } <= records, records
+
+
 # ── Loki ─────────────────────────────────────────────────────────────────
 
 def load_loki_config():

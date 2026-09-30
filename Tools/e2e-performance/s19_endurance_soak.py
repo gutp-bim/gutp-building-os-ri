@@ -683,13 +683,20 @@ def resource_sample_tick(containers: list[str], probes: dict[str, str], prom_url
     mem = docker_stats(containers)
     restarts = docker_restart_state(containers)
     health = probe_health(probes)
+    nats_monitor = os.environ.get("NATS_MONITOR_URL", "http://localhost:8222")
     try:
-        pending_total, pending_per = kpis.sample_pending(
-            os.environ.get("NATS_MONITOR_URL", "http://localhost:8222"), "VALIDATED")
+        pending_total, pending_per = kpis.sample_pending(nats_monitor, "VALIDATED")
     except requests.RequestException:
         pending_total, pending_per = -1, {}
+    # #535: validated stream の storage footprint と redelivery（同じ /jsz から取れる）。
+    # 監視不達の tick は null — 0 と書くと「計測した結果 0」と読めてしまう。
+    try:
+        nats_stream = kpis.sample_stream_state(nats_monitor, "VALIDATED")
+    except requests.RequestException:
+        nats_stream = None
     tick = {"mem_mib": mem, "restarts": restarts, "health": health,
-            "consumer_pending_total": pending_total, "consumer_pending": pending_per}
+            "consumer_pending_total": pending_total, "consumer_pending": pending_per,
+            "nats_stream": nats_stream}
     # Prometheus 無効（既定）のときは "runtime" キーを一切作らない — `{}` や null を書くと
     # 「計測した結果、値が無かった」と読めてしまうし、#373 時点の tick 形と差分が出る。
     if prom_url:
@@ -910,6 +917,28 @@ def summarize_runtime(samples: list[dict], container: str = RUNTIME_CONTAINER,
     return metrics
 
 
+def summarize_nats_stream(samples: list[dict]) -> dict:
+    """#535: BUILDING_OS_VALIDATED の stream bytes / redelivery（report のみ — 閾値の根拠となる
+    実測がまだ無い）。stream bytes の伸びは RSS と同じ methodology（後半だけの回帰スロープ、
+    MiB/h）。null の tick（NATS 監視不達）と #535 以前の jsonl（キー無し）は数えない。値が 1 つも
+    無い run では KPI 自体を出さない（gate は absent → SKIP）。"""
+    valid = [s for s in samples if isinstance(s.get("nats_stream"), dict)]
+    metrics: dict = {"nats_stream_samples": len(valid)}
+    if not valid:
+        return metrics
+    xs = [s["elapsed_s"] / 3600.0 for s in valid]
+    mib = [s["nats_stream"]["bytes"] / (1024 * 1024) for s in valid]
+    redelivered = [int(s["nats_stream"]["redelivered"]) for s in valid]
+    n = len(valid)
+    metrics["nats_validated_stream_mib_max"] = round(max(mib), 1)
+    metrics["nats_validated_stream_mib_last"] = round(mib[-1], 1)
+    metrics["nats_validated_stream_mib_growth_per_hour"] = round(
+        kpis._slope(xs[n // 2:], mib[n // 2:]), 2)
+    metrics["nats_validated_redelivered_max"] = max(redelivered)
+    metrics["nats_validated_redelivered_last"] = redelivered[-1]
+    return metrics
+
+
 def summarize_resources(samples: list[dict], containers: list[str],
                          baseline_restarts: dict[str, dict] | None = None,
                          runtime_container: str = RUNTIME_CONTAINER,
@@ -985,6 +1014,7 @@ def summarize_resources(samples: list[dict], containers: list[str],
         # explicit failing 0 rather than leaving pending_stable absent, so gate.py FAILs the KPI
         # instead of SKIPping it (missing data must not look like a passing run).
         metrics["pending_stable"] = 0
+    metrics.update(summarize_nats_stream(samples))
     metrics.update(summarize_runtime(samples, runtime_container, runtime_job))
     metrics["resource_samples"] = len(samples)
     return metrics

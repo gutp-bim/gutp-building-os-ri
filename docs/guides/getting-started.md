@@ -108,7 +108,7 @@ docker compose -f docker-compose.oss.yaml up -d
 > ```bash
 > docker compose -f docker-compose.oss.yaml --profile observability up -d
 > ```
-> Prometheus(9090) / Grafana(3010) / Loki(3100) / Tempo(3200) / otel-collector / postgres-exporter が追加で立ち上がります。
+> Prometheus(9090) / Grafana(3010) / Loki(3100) / Tempo(3200) / otel-collector / postgres-exporter / nats-exporter が追加で立ち上がります。
 
 ---
 

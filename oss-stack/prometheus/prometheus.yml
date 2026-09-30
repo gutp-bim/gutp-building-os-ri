@@ -18,9 +18,11 @@ scrape_configs:
     static_configs:
       - targets: [building-os.otel-collector:8888]
 
+  # nats-server itself serves no Prometheus /metrics (:8222/metrics is 404), so scrape the
+  # prometheus-nats-exporter sidecar (observability profile) instead (#535).
   - job_name: nats
     static_configs:
-      - targets: [building-os.nats:8222]
+      - targets: [building-os.nats-exporter:7777]
     metrics_path: /metrics
 
   - job_name: minio

@@ -660,13 +660,16 @@ def test_resource_sample_tick_has_no_runtime_key_when_prometheus_disabled():
                                           {"restart_count": 0, "oom_killed": False}}), \
          mock.patch.object(s19, "probe_health", return_value={"connector-worker": True}), \
          mock.patch.object(s19.kpis, "sample_pending", return_value=(7, {"VALIDATED/w": 7})), \
+         mock.patch.object(s19.kpis, "sample_stream_state",
+                            return_value={"bytes": 1, "messages": 1, "redelivered": 0}), \
          mock.patch.object(s19, "sample_runtime") as spy_runtime:
         tick = s19.resource_sample_tick(containers, probes, prom_url="")
 
     assert "runtime" not in tick
     spy_runtime.assert_not_called()
+    # "nats_stream"（#535）は Prometheus と無関係に /jsz から取るので常に載る。
     assert set(tick) == {"mem_mib", "restarts", "health",
-                         "consumer_pending_total", "consumer_pending"}
+                         "consumer_pending_total", "consumer_pending", "nats_stream"}
     assert tick["mem_mib"] == {"building-os.connector-worker": 132.0}
     assert tick["consumer_pending_total"] == 7
 
@@ -681,6 +684,7 @@ def test_resource_sample_tick_includes_runtime_when_prometheus_enabled():
          mock.patch.object(s19, "docker_restart_state", return_value={}), \
          mock.patch.object(s19, "probe_health", return_value={"connector-worker": True}), \
          mock.patch.object(s19.kpis, "sample_pending", return_value=(0, {})), \
+         mock.patch.object(s19.kpis, "sample_stream_state", return_value=None), \
          mock.patch.object(s19, "sample_runtime",
                             return_value={"gc_committed_mib": 90.0}) as spy_runtime:
         tick = s19.resource_sample_tick(containers, probes, prom_url="http://prom:9090",

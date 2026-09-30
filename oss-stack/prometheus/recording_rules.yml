@@ -61,19 +61,39 @@ groups:
             rate(building_os_connector_messages_processed_total{result="error"}[1m])
           )
 
+  # Source: natsio/prometheus-nats-exporter (`-jsz=all`, job `nats`, #535). nats-server itself has
+  # no /metrics. Names/labels verified against exporter 0.20.2 + nats:2.10: `jetstream_*` series
+  # labelled `stream_name` / `consumer_name` (one series per reporting server, hence the max-by).
   - name: building_os_nats
     interval: 1m
     rules:
-      # NATS JetStream consumer pending messages (backpressure indicator)
+      # NATS JetStream consumer pending messages (backpressure indicator; #456 /platform/status)
       - record: nats:jetstream_consumer_pending:max
         expr: |
-          max by (stream, consumer) (
-            nats_consumer_num_pending
+          max by (stream_name, consumer_name) (
+            jetstream_consumer_num_pending
           )
 
-      # NATS JetStream deliver rate
+      # JetStream deliver rate per stream. delivered.consumer_seq advances on every delivery
+      # (redeliveries included) and resets with the consumer, which rate() absorbs.
       - record: nats:jetstream_msgs_delivered:rate1m
         expr: |
-          sum by (stream) (
-            rate(nats_consumer_num_ack_pending[1m])
+          sum by (stream_name) (
+            max by (stream_name, consumer_name) (
+              rate(jetstream_consumer_delivered_consumer_seq[1m])
+            )
+          )
+
+      # Messages currently outstanding that were redelivered at least once (ack timeouts / naks)
+      - record: nats:jetstream_consumer_redelivered:max
+        expr: |
+          max by (stream_name, consumer_name) (
+            jetstream_consumer_num_redelivered
+          )
+
+      # Stream storage footprint (bounded by the stream's MaxAge / MaxBytes)
+      - record: nats:jetstream_stream_bytes:max
+        expr: |
+          max by (stream_name) (
+            jetstream_stream_total_bytes
           )

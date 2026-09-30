@@ -430,7 +430,10 @@ s19 で実行した（**この修正は本記録の時点で main 未反映**。
   **2026-08-25〜27 に 24h × 2 本を実施済み**（上記「実施記録」）。24h では RSS は定常化しなかったが、
   **2026-09-26〜29 の 73h run で 24h 以降の定常化を確認した**（上記「実施記録: 73h」）。
 - 73h run は RustFS 上・`mem_limit` なしの 1 本のみ。上限下での生存（`MEM_LIMIT`）は未実施。
-  NATS の stream bytes / redelivery は E10 の出力に含まれない（pending のみ）。
+  NATS の stream bytes / redelivery は #535 で追加した（`/jsz` から直接、Prometheus 不要）:
+  `nats_validated_stream_mib_{max,last,growth_per_hour}` / `nats_validated_redelivered_{max,last}`。
+  閾値の根拠となる実測がまだ無いので **report のみ**。tick は `resource-timeseries.jsonl` の
+  `nats_stream`（監視不達の tick は `null`）。上の 73h run はこの追加より前なので値を持たない。
 - managed heap / GC heap / LOH / thread 数の分離（#297 の調査項目）は **#370 で対応済み** —
   `PROMETHEUS_URL` 指定時のみ Prometheus 経由でサンプリングする（上記 [#370 の節](#370-rss-の内訳を分離する)）。
   ただし取得は Prometheus のスクレイプ間隔（`oss-stack/prometheus/prometheus.yml`: 30s）と

@@ -103,7 +103,7 @@ docker compose up -d   # Redis (legacy helper service)
 #   GatewayBridge   GatewayEgress  (control plane)     → host port 5052 (always in the oss stack)
 # External BOWS / nexus-gateway egress agent: E2E_BOS_EGRESS_ADDR=localhost:5052 (NOT 5051).
 
-# Observability (Prometheus/Grafana/Loki/Tempo/otel-collector/postgres-exporter) is OPTIONAL and NOT
+# Observability (Prometheus/Grafana/Loki/Tempo/otel-collector/postgres-exporter/nats-exporter) is OPTIONAL and NOT
 # in the base stack (A-7, cost optimization). Apps degrade gracefully without it — PROMETHEUS_URL and
 # OTEL_EXPORTER_OTLP_ENDPOINT are no-ops when the targets are unreachable. Opt in with:
 docker compose -f docker-compose.oss.yaml --profile observability up -d

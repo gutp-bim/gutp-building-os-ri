@@ -320,7 +320,7 @@ Loki / Tempo）は既定では起動しません**（`--profile observability` �
 | Keycloak | 認証（OIDC/JWT） | 8080 | ✅ |
 | ConnectorWorker | 取り込みワーカー（+ 任意 gRPC ingress） | 8081(health) / 5051(ingress)※ | ✅ |
 | GatewayBridge | 制御 egress（gRPC bidi） | 5052 | ✅ |
-| Prometheus / Grafana / Loki / Tempo / otel-collector / postgres-exporter | 可観測性 | 9090 / 3010 / 3100 / 3200 / 4317-4318 | ⛔ `--profile observability` |
+| Prometheus / Grafana / Loki / Tempo / otel-collector / postgres-exporter / nats-exporter | 可観測性 | 9090 / 3010 / 3100 / 3200 / 4317-4318 | ⛔ `--profile observability` |
 
 > ※ gRPC ingress（`GatewayIngress`）は `GRPC_INGRESS_PORT` を設定したときだけ listen します
 > （OSS 既定は未設定 = health のみ）。Step D で有効化します。
