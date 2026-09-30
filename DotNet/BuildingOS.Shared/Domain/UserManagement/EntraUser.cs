@@ -14,6 +14,20 @@ public class EntraUser
 
     /// <summary>Whether the account can authenticate (Keycloak <c>enabled</c>). Defaults to true.</summary>
     public bool Enabled { get; init; } = true;
+
+    /// <summary>
+    /// The user has no own <c>role</c>, so their Keycloak groups decide it, and the groups could not be read
+    /// (e.g. the admin service account lacks <c>query-groups</c>, or a transient 5xx) — #532. The role that
+    /// reaches the token is unknown, so <see cref="Role"/> is <c>null</c> rather than a guess.
+    /// </summary>
+    public bool GroupRoleUnresolved { get; init; }
+
+    /// <summary>
+    /// The role the user's own attributes give — own <c>role</c>, else the legacy <c>buildingos_role</c> —
+    /// ignoring groups. The Admin-API fallback authorizes from it when <see cref="GroupRoleUnresolved"/>
+    /// (the pre-group behaviour), instead of downgrading the user to <c>role=user</c> with no permissions.
+    /// </summary>
+    public string? OwnAttributeRole { get; init; }
 }
 
 /// <summary>

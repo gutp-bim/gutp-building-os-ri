@@ -403,4 +403,60 @@ public class UserAdminGuardTest
     {
         Assert.Equal(expected, UserAdminGuard.SetRoleNeedsTargetGroupRole(newRole));
     }
+
+    // ── #532: a group role that could not be read fails safe ──────────────────
+
+    [Fact]
+    public void PreCheckSetEnabled_UnknownGroupRole_MayBeAnAdmin_SoTheLastAdminCountRuns()
+    {
+        // Without an own role the groups decide, and they could not be read: assume admin.
+        var target = new UserRoleState("u1", null, true, GroupRoleUnknown: true);
+        Assert.Null(UserAdminGuard.PreCheckSetEnabled("admin-a", target, newEnabled: false));
+    }
+
+    [Fact]
+    public void PreCheckSetEnabled_UnknownGroupRole_HiddenByAnOwnRole_IsIgnored()
+    {
+        var target = new UserRoleState("u1", "viewer", true, GroupRoleUnknown: true);
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.PreCheckSetEnabled("admin-a", target, newEnabled: false));
+    }
+
+    [Fact]
+    public void PreCheckSetRole_ClearingOwnAdmin_WithAnUnknownGroupRole_IsADemotion()
+    {
+        // The groups might carry admin, but that cannot be relied on to keep the target an admin.
+        var target = new UserRoleState("admin-a", "admin", true, GroupRoleUnknown: true);
+        Assert.Equal(UserAdminGuardResult.SelfLockout, UserAdminGuard.PreCheckSetRole("admin-a", target, ""));
+        Assert.Null(UserAdminGuard.PreCheckSetRole("admin-b", target, ""));
+    }
+
+    [Fact]
+    public void PreCheckSetRole_DemotingAUserWhoseGroupRoleIsUnknown_RunsTheLastAdminCount()
+    {
+        var target = new UserRoleState("u1", null, true, GroupRoleUnknown: true);
+        Assert.Null(UserAdminGuard.PreCheckSetRole("admin-a", target, "viewer"));
+    }
+
+    [Fact]
+    public void CheckLastAdmin_AUserWhoseGroupRoleIsUnknown_IsNotARemainingAdmin()
+    {
+        // Even a legacy admin: an unread group role could be the one reaching the token.
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("u1", null, true, LegacyRole: "admin", GroupRoleUnknown: true),
+        };
+        Assert.Equal(UserAdminGuardResult.LastAdmin, UserAdminGuard.CheckLastAdmin("admin-a", users, actorSub: "op"));
+    }
+
+    [Fact]
+    public void CheckLastAdmin_AnUnknownGroupRoleHiddenByAnOwnAdmin_StillCounts()
+    {
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("admin-b", "admin", true, GroupRoleUnknown: true),
+        };
+        Assert.Equal(UserAdminGuardResult.Allowed, UserAdminGuard.CheckLastAdmin("admin-a", users, actorSub: "op"));
+    }
 }

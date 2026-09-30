@@ -82,12 +82,26 @@ public class AuthorizationContextMiddleware
                 var user = await userService.GetUserByIdAsync(objectId).ConfigureAwait(false);
                 if (user != null)
                 {
+                    // The user's groups could not be read (#532): the group role is unknown. Fall back to the
+                    // user's own attributes (own role, else legacy buildingos_role, + permissions) — the
+                    // pre-group behaviour — instead of dropping them to role=user with no permissions. Only
+                    // reachable for a token that carried no role claim, i.e. no group role either when it was
+                    // issued. Not cached, so the next request retries the groups.
                     var authContext = new AuthorizationContext
                     {
                         UserId = userId,
-                        Role = user.Role ?? "user",
+                        Role = (user.GroupRoleUnresolved ? user.OwnAttributeRole : user.Role) ?? "user",
                         Permissions = user.Permissions.ToList()
                     };
+
+                    if (user.GroupRoleUnresolved)
+                    {
+                        _logger.LogWarning(
+                            "Groups of user {UserId} could not be read; authorizing from their own attributes: " +
+                            "role={Role}, permissions={PermissionCount}",
+                            userId, authContext.Role, authContext.Permissions.Count);
+                        return authContext;
+                    }
 
                     cache.Set(cacheKey, authContext, CacheDuration);
 
