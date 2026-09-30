@@ -62,6 +62,65 @@ public class SystemSettingsServiceTest
     }
 
     [Fact]
+    public async Task GetPipelineKpiThresholds_NoOverrides_ReturnsRegistryDefaults()
+    {
+        var store = new Mock<ISystemConfigStore>();
+        store.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SettingOverride>());
+
+        var t = await new SystemSettingsService(store.Object).GetPipelineKpiThresholdsAsync();
+
+        Assert.Equal(PipelineKpiThresholds.Defaults, t);
+        Assert.Equal(1, t.RejectedPercentWarn);
+        Assert.Equal(30, t.EventLagP95WarnSeconds);
+        Assert.Equal(5, t.ConsumerLagP95WarnSeconds);
+        // PARQUET_FLUSH_INTERVAL default (5 min) × 2.
+        Assert.Equal(600, t.ParquetFreshnessWarnSeconds);
+        Assert.Equal(10000, t.NatsPendingWarn);
+    }
+
+    [Fact]
+    public async Task GetPipelineKpiThresholds_AppliesAdminOverride()
+    {
+        var store = new Mock<ISystemConfigStore>();
+        store.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new SettingOverride(
+                    SettingsRegistry.EventLagP95WarnSecondsKey, "90", SettingSource.Ui, DateTime.UtcNow, "admin"),
+                new SettingOverride(
+                    SettingsRegistry.ParquetFreshnessWarnSecondsKey, "1200", SettingSource.Ui, DateTime.UtcNow, "admin"),
+            });
+
+        var t = await new SystemSettingsService(store.Object).GetPipelineKpiThresholdsAsync();
+
+        Assert.Equal(90, t.EventLagP95WarnSeconds);
+        Assert.Equal(1200, t.ParquetFreshnessWarnSeconds);
+        Assert.Equal(5, t.ConsumerLagP95WarnSeconds); // untouched default
+    }
+
+    [Fact]
+    public void PipelineKpiThresholdKeys_AreEditableNumberSettings()
+    {
+        // Editable in /platform/settings and type-validated like the existing keys.
+        foreach (var key in new[]
+                 {
+                     SettingsRegistry.RejectedPercentWarnKey,
+                     SettingsRegistry.EventLagP95WarnSecondsKey,
+                     SettingsRegistry.ConsumerLagP95WarnSecondsKey,
+                     SettingsRegistry.ParquetFreshnessWarnSecondsKey,
+                     SettingsRegistry.NatsPendingWarnKey,
+                 })
+        {
+            var def = SettingsRegistry.Find(key);
+            Assert.NotNull(def);
+            Assert.Equal(SettingType.Number, def!.Type);
+            Assert.Equal("platform", def.Category);
+            Assert.False(SettingsLogic.Validate(def, "abc").IsValid);
+        }
+    }
+
+    [Fact]
     public async Task UpdateSetting_UnknownKey_ReturnsUnknown_AndDoesNotPersist()
     {
         var store = new Mock<ISystemConfigStore>();

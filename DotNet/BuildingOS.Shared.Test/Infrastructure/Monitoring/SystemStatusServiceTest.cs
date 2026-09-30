@@ -86,6 +86,187 @@ public class SystemStatusServiceTest
     }
 }
 
+
+public class SystemStatusServicePipelineKpiTest
+{
+    private static PrometheusSample Sample(string label, string value, double v) =>
+        new(new Dictionary<string, string> { [label] = value }, v);
+
+    [Fact]
+    public async Task PipelineKpis_AllPopulated_WhenPrometheusResponds()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 1842,
+                [SystemStatusService.MsgRate1mQuery] = 1831,
+                [SystemStatusService.RejectedRate1mQuery] = 11,
+                [SystemStatusService.EventLagP95Query] = 1.2,
+                [SystemStatusService.ConsumerLagP95Query] = 0.082,
+                [SystemStatusService.ParquetFreshnessP95Query] = 28,
+                [SystemStatusService.ParquetDropped15mQuery] = 0,
+                [SystemStatusService.NatsPendingQuery] = 124,
+                [SystemStatusService.ControlReq5mQuery] = 37,
+            },
+            Vectors =
+            {
+                [SystemStatusService.IngressBySourceQuery] =
+                [
+                    Sample("source", "mqtt", 42),
+                    Sample("source", "gateway-grpc", 1800),
+                ],
+                [SystemStatusService.RejectedByResultQuery] =
+                [
+                    Sample("result", "bad_payload", 3),
+                    Sample("result", "unknown_point", 8),
+                ],
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Equal(1842, k.IngressRate1m);
+        Assert.Equal(1831, k.ValidatedRate1m);
+        Assert.Equal(1831, k.MsgRate1m); // unchanged legacy field
+        Assert.Equal(11, k.RejectedRate1m);
+        Assert.Equal(11d / 1842d * 100d, k.RejectedPercent!.Value, 6);
+        Assert.Equal(1.2, k.EventLagP95Seconds);
+        Assert.Equal(0.082, k.ConsumerLagP95Seconds);
+        Assert.Equal(28, k.ParquetFreshnessP95Seconds);
+        Assert.Equal(0, k.ParquetDropped15m);
+        Assert.Equal(124, k.NatsPending);
+        Assert.Equal(37, k.ControlReq5m);
+
+        // Breakdowns are sorted by value (desc) so the tooltip leads with the dominant bucket.
+        Assert.Equal(["gateway-grpc", "mqtt"], k.IngressBySource!.Select(b => b.Label));
+        Assert.Equal(["unknown_point", "bad_payload"], k.RejectedByResult!.Select(b => b.Label));
+        Assert.Equal(8, k.RejectedByResult![0].Value);
+    }
+
+    [Fact]
+    public async Task PipelineKpis_AllNullAndEmpty_WhenPrometheusAbsent()
+    {
+        var svc = new SystemStatusService(new FakeHealthProbe(), new FakePrometheusClient { IsConfigured = false });
+
+        var status = await svc.GetStatusAsync(CancellationToken.None);
+        var k = status.Kpis;
+
+        Assert.False(status.MetricsAvailable);
+        Assert.Null(k.IngressRate1m);
+        Assert.Null(k.ValidatedRate1m);
+        Assert.Null(k.RejectedRate1m);
+        Assert.Null(k.RejectedPercent);
+        Assert.Null(k.EventLagP95Seconds);
+        Assert.Null(k.ConsumerLagP95Seconds);
+        Assert.Null(k.ParquetFreshnessP95Seconds);
+        Assert.Null(k.ParquetDropped15m);
+        Assert.Null(k.NatsPending);
+        Assert.Null(k.ControlReq5m);
+        Assert.Empty(k.IngressBySource!);
+        Assert.Empty(k.RejectedByResult!);
+    }
+
+    [Fact]
+    public async Task PipelineKpis_PartiallyMissing_DegradePerKpi()
+    {
+        // Ingress is flowing but nothing was ever rejected (no result!="published" series exist, so
+        // the rejected query returns an empty vector), the lag histograms have no observations in the
+        // window (histogram_quantile → NaN), and the NATS exporter is not wired (no recording rule).
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 500,
+                [SystemStatusService.MsgRate1mQuery] = 498,
+                [SystemStatusService.EventLagP95Query] = double.NaN,
+                [SystemStatusService.ConsumerLagP95Query] = double.PositiveInfinity,
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var status = await svc.GetStatusAsync(CancellationToken.None);
+        var k = status.Kpis;
+
+        Assert.True(status.MetricsAvailable);
+        Assert.Equal(500, k.IngressRate1m);
+        Assert.Equal(498, k.ValidatedRate1m);
+        // No rejection series + live ingress = zero rejections, not "unknown".
+        Assert.Equal(0, k.RejectedRate1m);
+        Assert.Equal(0, k.RejectedPercent);
+        // NaN / Inf never reach the wire (System.Text.Json cannot serialize them) — they mean "no data".
+        Assert.Null(k.EventLagP95Seconds);
+        Assert.Null(k.ConsumerLagP95Seconds);
+        Assert.Null(k.ParquetFreshnessP95Seconds);
+        Assert.Null(k.NatsPending);
+        Assert.Empty(k.RejectedByResult!);
+    }
+
+    [Fact]
+    public async Task RejectedRate_IsMeasuredDirectly_NotDerivedFromIngressMinusValidated()
+    {
+        // Under load validated trails ingress (queue backlog). That gap is NOT rejection.
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 1000,
+                [SystemStatusService.MsgRate1mQuery] = 400,
+                [SystemStatusService.RejectedRate1mQuery] = 5,
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Equal(5, k.RejectedRate1m);
+        Assert.Equal(0.5, k.RejectedPercent!.Value, 6);
+    }
+
+    [Fact]
+    public async Task RejectedPercent_IsNull_WhenThereIsNoIngressTraffic()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars = { [SystemStatusService.IngressRate1mQuery] = 0 },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Equal(0, k.RejectedRate1m);
+        Assert.Null(k.RejectedPercent);
+    }
+
+    [Fact]
+    public void Queries_UseTheOtelToPrometheusNames_AndExistingRecordingRules()
+    {
+        // OTLP→Prometheus: dots→underscores, counters gain _total, unit "s" histograms gain _seconds.
+        Assert.Contains("building_os_ingress_messages_total", SystemStatusService.IngressRate1mQuery);
+        Assert.Contains("result!=\"published\"", SystemStatusService.RejectedRate1mQuery);
+        Assert.Contains("building_os_ingress_messages_total", SystemStatusService.RejectedRate1mQuery);
+        Assert.Contains("building_os_ingress_event_lag_seconds_bucket", SystemStatusService.EventLagP95Query);
+        Assert.Contains("building_os_ingestion_lag_seconds_bucket", SystemStatusService.ConsumerLagP95Query);
+        Assert.Contains("building_os_parquet_writer_freshness_lag_seconds_bucket", SystemStatusService.ParquetFreshnessP95Query);
+        Assert.Contains("building_os_parquet_writer_dropped_total", SystemStatusService.ParquetDropped15mQuery);
+        Assert.Contains("building_os_control_requests_total", SystemStatusService.ControlReq5mQuery);
+        Assert.Contains("nats:jetstream_consumer_pending:max", SystemStatusService.NatsPendingQuery);
+        Assert.Contains("connector:messages_processed:rate1m", SystemStatusService.MsgRate1mQuery);
+
+        // Cardinality policy: nothing the Platform UI asks for may aggregate by point/device.
+        foreach (var q in SystemStatusService.AllKpiQueries)
+        {
+            Assert.DoesNotContain("point_id", q);
+            Assert.DoesNotContain("device_id", q);
+        }
+    }
+}
+
 internal sealed class FakeHealthProbe : IServiceHealthProbe
 {
     private readonly IReadOnlyList<ServiceStatus> _results;
