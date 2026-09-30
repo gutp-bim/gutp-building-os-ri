@@ -190,9 +190,11 @@ _GC_GENERATION_LABEL_CANDIDATES = [r"^generation$", r"^.*gc.*generation$", r"^.*
 # 再解決を試みる。Prometheus は永続ボリューム上の TSDB を WAL リプレイしている間 /api/v1/* に
 # 503 を返すので、起動直後の 1 回きりの解決だけだと「数時間走ったのに runtime 列が空」になる。
 _RUNTIME_RESOLVE_RETRY_WINDOW_S = 900.0
-# 名前解決で「この job に live」とみなす窓。export 間隔（compose 既定 15s）と Prometheus の
-# スクレイプ間隔（30s）に対して十分長く、前回 run の系列（run 間の停止時間）を拾わない程度に短い。
-_RUNTIME_LIVE_WINDOW_S = 600.0
+# 名前解決で「この job に live」とみなす窓。probe / sampler の鮮度窓（runtime_lookback_seconds の
+# 最小値 120s = スクレイプ 30s の 4 倍）と揃える。これより長いと、同じ job 名で直前まで動いていた
+# 前回 run の系列（別スキームの名前）を拾い、merge は解決済みを差し替えないので run 全体が死んだ
+# 名前のままになる。
+_RUNTIME_LIVE_WINDOW_S = 120.0
 # 再解決のリトライが待つ対象。E10 の gate（kpi-thresholds.yaml）が依存する概念だけを並べる:
 # gen2/LOH ← gc_heap_size + 世代ラベル、RSS-minus-committed ← gc_committed、thread pool。
 # report 専用の概念（working_set など、ランタイムによっては永久に export されないもの）は含めない —
