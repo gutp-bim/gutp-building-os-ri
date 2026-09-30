@@ -225,6 +225,10 @@ jobs:
           helm template building-os kubernetes/helm/building-os \
             -f kubernetes/helm/building-os/values-prod.yaml
 
+      # #521: every non-mTLS ingress route must strip the trusted X-Gateway-Id header.
+      - name: Assert X-Gateway-Id is stripped on the general routes
+        run: bash scripts/verify-helm-gateway-id-strip.sh
+
       # The umbrella chart above is not what gets deployed. Each Argo CD Application points at a
       # per-service chart (argocd/apps/*.yaml → kubernetes/helm/<service>), and those had no lint
       # and no template here at all — a check that looks like coverage while the thing actually

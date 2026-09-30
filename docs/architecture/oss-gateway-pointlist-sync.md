@@ -148,6 +148,27 @@ Gateway単位のフルPoint List（`GatewayPointEntry[]`のJSON）を事前計�
 2. ingress は**クライアント証明書から** `X-Gateway-Id` を設定し、**外部から来た同名ヘッダは必ず除去**する
    （ヘッダ・スプーフィング防止）。
 3. ApiServer を ingress を介さず直接公開しない。
+4. **mTLS 以外のすべての ingress 経路で `X-Gateway-Id` を除去する（必須、#521）。** 2. は mTLS 経路の
+   話だが、API Server を独立ホスト（例 `api.example.com`）で公開すると `/gateways/…` を含む**どのパスも
+   一般ルートで Kestrel に届く**。URL の置き場所（#507 で `/api/v1` に載せなかったこと）では守れないため、
+   一般ルート側でヘッダを落とす。
+
+#### Helm の既定（#521）
+
+- umbrella チャート `kubernetes/helm/building-os`: 一般 IngressRoute `building-os` の**全ルート**
+  （`/api`・`/grpc`・web-client の catch-all）に Middleware `strip-gateway-id` を付与する。
+- per-service チャート `kubernetes/helm/api-server`: `ingress.enabled: true`（Argo CD リファレンスの
+  `api.example.com`）で API Server ホストの IngressRoute を描画し、Middleware
+  `<release>-api-server-strip-gateway-id` を付与する。
+- どちらも Traefik の `headers.customRequestHeaders` で値を `""` にする（Traefik は空値のリクエスト
+  ヘッダを削除する）。ヘッダ名は `ingress.gatewayIdHeader`（既定 `X-Gateway-Id`）。API Server の
+  resolver（`GatewayIdentityDefaults.TrustedHeaderName`）と ConnectorWorker の
+  `GRPC_INGRESS_GATEWAY_ID_HEADER` と**揃える**こと。
+- 除去は無効化できない。gateway 向けの経路は、`passTLSClientCert` でヘッダを注入する**別の mTLS
+  IngressRoute** に置く（下の設定例）。一般ルートの Middleware を外して回避しないこと。
+- チャートの外で Ingress / IngressRoute / 別の L7 プロキシを足す場合も同じ除去が必須。
+- 検証: `bash scripts/verify-helm-gateway-id-strip.sh`（`helm template` で全一般ルートへの付与を
+  検査。oss-ci の helm-lint ジョブと helm-chart-install-test で実行）。
 
 ### Traefik 設定例（HITL: on-cluster 検証は人手）
 
@@ -179,6 +200,8 @@ spec:
 2. ApiServer の `/gateways/*/pointlist` ルートに mTLS TLSOption + passTLSClientCert Middleware を適用。
 3. 証明書なしのアクセスが拒否されること、別 gateway 証明書で 403 になることを確認。
 4. `If-None-Match` で 304 が返ること、twin 更新後に ETag が変わり 200 で差分が反映されることを確認。
+5. 一般ルート（mTLS なし、例 `https://api.example.com/gateways/gw-1/pointlist`）に `X-Gateway-Id: gw-1`
+   を付けて送り、**403** になること（ヘッダが除去されている）を確認（#521）。
 
 ## 差分配布（`?since=`、#224/diff）
 

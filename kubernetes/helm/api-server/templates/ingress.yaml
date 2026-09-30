@@ -1,0 +1,48 @@
+{{- if .Values.ingress.enabled }}
+# General (non-mTLS) Traefik route for the API Server on its own host (e.g. api.example.com).
+# #521: on this host every path reaches Kestrel — including GET /gateways/{id}/pointlist, which
+# authenticates the gateway by the trusted header X-Gateway-Id (#224). That header is trustworthy
+# only when the mTLS ingress sets it from the verified client certificate, so this route strips any
+# client-sent copy before forwarding. Do not remove the middleware; expose the gateway routes on a
+# separate mTLS IngressRoute instead (docs/architecture/oss-gateway-pointlist-sync.md).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "api-server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "api-server.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    {{- if .Values.ingress.tls.enabled }}
+    - websecure
+    {{- else }}
+    - web
+    {{- end }}
+  routes:
+    - match: {{ printf "Host(`%s`)" .Values.ingress.host | quote }}
+      kind: Rule
+      middlewares:
+        - name: {{ include "api-server.fullname" . }}-strip-gateway-id
+      services:
+        - name: {{ include "api-server.fullname" . }}
+          port: {{ .Values.service.port }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+---
+# #521: blank the trusted gateway identity header (Traefik removes a request header whose
+# customRequestHeaders value is "").
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "api-server.fullname" . }}-strip-gateway-id
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "api-server.labels" . | nindent 4 }}
+spec:
+  headers:
+    customRequestHeaders:
+      {{ .Values.ingress.gatewayIdHeader | default "X-Gateway-Id" | quote }}: ""
+{{- end }}

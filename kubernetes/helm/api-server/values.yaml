@@ -41,9 +41,18 @@ oxigraph:
 nats:
   url: nats://nats.building-os.svc.cluster.local:4222
 
+# General (non-mTLS) Traefik IngressRoute for the API Server host. Requires the Traefik CRDs.
 ingress:
   enabled: false
   host: api.buildingos.local
+  tls:
+    enabled: false
+    secretName: api-server-tls
+  # #521: trusted gateway identity header. Always stripped on this route by the
+  # `<release>-api-server-strip-gateway-id` Middleware — only the mTLS ingress may set it (from the
+  # client cert). Must match the API Server resolver (GatewayIdentityDefaults.TrustedHeaderName) and
+  # the ConnectorWorker GRPC_INGRESS_GATEWAY_ID_HEADER — change all of them together.
+  gatewayIdHeader: X-Gateway-Id
 
 autoscaling:
   enabled: false

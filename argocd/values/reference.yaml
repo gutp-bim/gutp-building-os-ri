@@ -45,6 +45,11 @@ nats:
 ingress:
   enabled: true
   host: api.example.com
+  # #521: the api-server chart renders a real Traefik IngressRoute for this host. Serve it on
+  # websecure only — the plain-HTTP `web` entrypoint would carry Keycloak bearer tokens unencrypted.
+  tls:
+    enabled: true
+    secretName: api-server-tls
 
 autoscaling:
   enabled: false

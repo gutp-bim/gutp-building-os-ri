@@ -46,6 +46,18 @@
   詳細: [oss-gateway-pointlist-sync.md](../architecture/oss-gateway-pointlist-sync.md)(API 仕様・mTLS 信頼ヘッダ・
   検証チェックリスト)。
 
+- [ ] **5. mTLS 以外のすべての Ingress 経路で `X-Gateway-Id` を除去する(必須、#521)**
+  point list は信頼ヘッダ `X-Gateway-Id` で gateway を認証します。このヘッダを設定してよいのは
+  クライアント証明書を検証する mTLS Ingress だけです。一般の経路(`PathPrefix(/api)`、
+  API Server 専用ホスト `api.example.com` など)が外部から来た `X-Gateway-Id` をそのまま通すと、
+  誰でも他 gateway の point list(BACnet アドレス・書込可否・制御スキーマ)を読めてしまいます。
+  Helm チャートは既定でこれを満たします(umbrella `building-os` の一般 IngressRoute と
+  `api-server` チャートの IngressRoute の全ルートに `strip-gateway-id` Middleware を付与)。
+  **独自の Ingress / IngressRoute / 別の L7 プロキシを足す場合は、同じ除去を必ず入れてください。**
+  ヘッダ名を変える場合は Helm の `ingress.gatewayIdHeader`・`GRPC_INGRESS_GATEWAY_ID_HEADER`・
+  Ingress の注入設定を揃えます。
+  詳細: [oss-gateway-pointlist-sync.md](../architecture/oss-gateway-pointlist-sync.md)の「トラスト境界」節。
+
 ## 既知の制約
 
 - **GatewayBridge に HTTP ヘルスエンドポイントがありません**(gRPC h2c のみ)。オンボード後の
