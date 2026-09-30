@@ -119,9 +119,8 @@ class RealBoundary:
         """
         self._topology = points
         buildings = sorted({point["building_id"] for point in points})
-        # building_id per hierarchy → a distinct Level name per building. Sharing one would make
-        # the sbco:floor literal join (chain C, and what ListDeviceDetails scopes on) match every
-        # building's devices for any one building — an N× fan-out inside the timed query.
+        # building_id per hierarchy → a distinct Level id/name per building (authorization
+        # identifies a node by its sbco:id, #504/#517).
         hierarchies = {b: TwinHierarchy("perf:s17", building_id=b) for b in buildings}
 
         spatial: list[str] = []

@@ -497,8 +497,8 @@ API を叩けます（認証を試すときは `WithLocalAuth`。詳細は [Step
 | `local_id` | ゲートウェイ側のネイティブアドレス（BACnet なら ObjectID、OPC-UA なら nodeId、MQTT なら topic） |
 
 > ⚠️ **既知の制約:** Equipment が Room を経由せず Level に直接ぶら下がる階層は Building OS
-> 側では正当なパスとして受理されます（`rec:locatedIn` を Level に直接向ける、または
-> `sbco:floor` リテラルで Level 名と一致させる、のいずれでも可）。ただし変換ツール
+> 側では正当なパスとして受理されます（`rec:locatedIn` を Level に直接向ける。`sbco:floor`
+> リテラルだけでは配置されない — twin はトポロジーだけで辿る）。ただし変換ツール
 > （smartbuilding_datamodel_builder）は `installation_area` が空/`-` だと空間アンカー
 > （Room への `locatedIn`）を出力できず、いずれの経路にも到達できない **orphan**（どの
 > Building にも繋がらない機器）を生成することがあります。`installation_area` を埋めるか、

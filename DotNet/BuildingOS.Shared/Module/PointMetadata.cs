@@ -19,9 +19,9 @@ namespace BuildingOS.Shared.Module;
 /// <param name="HasBuildingPath">
 /// Whether the twin actually places this point under a <c>sbco:Building</c> node, by the same
 /// definition the import-time orphan preview uses (#291): traversed from the owning equipment, via
-/// the Room spatial chain (<c>locatedIn</c> → Room → Level → Building), direct Level location, OR
-/// the <c>sbco:floor</c> literal join (equipment's floor name → Level → Building). Any path counts;
-/// a twin that models no Rooms is legitimate here.
+/// the Room spatial chain (<c>locatedIn</c> → Room → Level → Building) OR direct Level location
+/// (<c>locatedIn</c> → Level → Building). Either counts, so a twin that models no Rooms is legitimate.
+/// Topology only: the <c>sbco:floor</c> literal places nothing.
 /// </param>
 public sealed record PointMetadata(
     string PointId,

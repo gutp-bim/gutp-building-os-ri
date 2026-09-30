@@ -11,7 +11,7 @@ using static OxiGraphOntology;
 /// Queries use SBCO vocabulary (https://www.sbco.or.jp/ont/); the node URI serves as DtId.
 /// Note: SBCO TTL may not include Space (SpaceExt) nodes or sbco:locatedIn relationships.
 /// In that case, space-filtered queries return empty and space fields in detail responses are empty.
-/// Equipment–floor association uses sbco:floor string matching against Level sbco:name.
+/// Equipment is placed by topology only (sbco:locatedIn a Room or Level); the sbco:floor literal is metadata.
 /// </summary>
 public class OxiGraphDigitalTwinDatabase : IDigitalTwinDatabase
 {
@@ -297,12 +297,9 @@ SELECT {PointVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
         if (point == null) return null;
 
         var pointUri = point.DtId;
-        // The building is resolved through the Room, direct Level, or legacy floor-name path, matching
-        // the orphan-reachability definition in #291 Phase 1. Requiring only the spatial chain would
-        // leave BuildingName null for every twin that models no Rooms — which this repository allows,
-        // and which `ListPointDetails` already relies on by joining building→equipment through the
-        // sbco:floor literal. SAMPLE because a device satisfying both paths would otherwise duplicate
-        // rows when more than one path is declared.
+        // The building is resolved through the Room or direct Level path — topology only, matching the
+        // orphan-reachability definition in #291 (the sbco:floor literal places nothing). SAMPLE
+        // because a device satisfying both paths would otherwise duplicate rows.
         var sparql = $@"{Prefixes}
 SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
        (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding) {DeviceAttrAggregates}
@@ -321,9 +318,6 @@ WHERE {{
     }} UNION {{
       ?dev <{Prop_LocatedIn}> ?floor .
       ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
-    }} UNION {{
-      ?dev <{Prop_Floor}> ?floorName .
-      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
     }}
     BIND(?floor AS ?floorDt)
   }}
@@ -339,16 +333,14 @@ WHERE {{
       ?bFloorDirect a <{Cls_Level}> .
       ?bldg <{Prop_HasPart}> ?bFloorDirect .
       ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
-    }} UNION {{
-      ?dev <{Prop_Floor}> ?devFloorName .
-      ?bFloorLit a <{Cls_Level}> ; <{Prop_Name}> ?devFloorName .
-      ?bldg <{Prop_HasPart}> ?bFloorLit .
-      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
     }}
   }}
 }}
-GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
+GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
+ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
 
+        // A device placed more than once (in a Room and directly on another Level) yields a row per
+        // placement; the ORDER BY makes the one reported deterministic — a Room placement first.
         var rows = await _client.QueryAsync(sparql);
         if (rows.Count == 0) return null;
         var r = rows[0];
@@ -364,9 +356,10 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
     public async Task<PointDetail[]> ListPointDetails(string buildingDtId)
     {
         if (!IsUsableDtId(buildingDtId)) return [];
-        // A device belongs to the selected Building through one of three supported paths: a Room
-        // under the Level, direct sbco:locatedIn Level, or the legacy sbco:floor name join. FILTER
-        // EXISTS preserves that scope without multiplying rows when a device declares more than one.
+        // A device belongs to the selected Building through its topology: a Room under the Level, or
+        // direct sbco:locatedIn Level (the sbco:floor literal places nothing). FILTER EXISTS keeps a
+        // device declaring both placements on the SAME Level to one row; a device placed on two Levels
+        // of the building is listed once per Level (?floor is part of the row).
         // SAMPLE aggregates gatewayId across all points of a device for deterministic selection.
         //
         // ?devBuilding is the building's own name — this query is already scoped BY building, so there
@@ -391,8 +384,6 @@ WHERE {{
       ?floor <{Prop_HasPart}> ?room .
     }} UNION {{
       ?dev <{Prop_LocatedIn}> ?floor .
-    }} UNION {{
-      ?dev <{Prop_Floor}> ?floorName .
     }}
   }}
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?gwPt . ?gwPt <{Prop_GatewayId}> ?gwRaw . }}
@@ -423,9 +414,10 @@ GROUP BY {PointVars} ?devBuilding
     public async Task<DeviceDetail[]> ListDeviceDetails(string buildingDtId)
     {
         if (!IsUsableDtId(buildingDtId)) return [];
-        // A device belongs to the selected Building through one of three supported paths: a Room
-        // under the Level, direct sbco:locatedIn Level, or the legacy sbco:floor name join. FILTER
-        // EXISTS preserves that scope without multiplying rows when a device declares more than one.
+        // A device belongs to the selected Building through its topology: a Room under the Level, or
+        // direct sbco:locatedIn Level (the sbco:floor literal places nothing). FILTER EXISTS keeps a
+        // device declaring both placements on the SAME Level to one row; a device placed on two Levels
+        // of the building is listed once per Level (?floor is part of the row).
         var sparql = $@"{Prefixes}
 SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName
@@ -442,8 +434,6 @@ WHERE {{
       ?floor <{Prop_HasPart}> ?room .
     }} UNION {{
       ?dev <{Prop_LocatedIn}> ?floor .
-    }} UNION {{
-      ?dev <{Prop_Floor}> ?floorName .
     }}
   }}
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}

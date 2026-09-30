@@ -31,8 +31,8 @@ internal static class OxiGraphOntology
     internal const string Prop_GatewayId = SbcoNs + "gatewayId";
     internal const string Prop_PointType = SbcoNs + "pointType";
     internal const string Prop_PointSpec = SbcoNs + "pointSpecification";
-    // sbco:floor is a string literal on EquipmentExt used to join equipment to Level by name
-    internal const string Prop_Floor     = SbcoNs + "floor";
+    // sbco:floor (a string literal on EquipmentExt) is deliberately absent: it is metadata, not a
+    // relationship, and no read path traverses it — equipment is placed by sbco:locatedIn only.
 
     // Expected telemetry interval (seconds) on PointExt — drives per-point stale detection (#183).
     internal const string Prop_Interval         = SbcoNs + "interval";

@@ -37,8 +37,9 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
         <urn:test:pt-new> a sbco:PointExt ; sbco:id "PT-NEW" ; sbco:name "New Point" .
         """;
 
-    // Equipment joined to its Level by the sbco:floor literal only — no Room anywhere, which is what
-    // the read side (OxiGraphDigitalTwinDatabase.ListPointDetails) traverses.
+    // Equipment that names its Level only through the sbco:floor literal — no sbco:locatedIn. The twin
+    // is traversed by topology alone, so this is unplaced; building the topology is the builder's job
+    // and the import says so with its own reason.
     private const string FloorLiteralTtl = """
         @prefix sbco: <https://www.sbco.or.jp/ont/> .
 
@@ -114,14 +115,35 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
     }
 
     [Fact]
-    public async Task PreviewImport_EquipmentJoinedByTheFloorLiteral_IsNotOrphaned()
+    public async Task PreviewImport_EquipmentPlacedOnlyByTheFloorLiteral_IsOrphaned_WithItsOwnReason()
     {
-        // Room/sbco:locatedIn are optional in SBCO TTL; reaching the Building through the sbco:floor
-        // literal is a complete hierarchy as far as the read side is concerned.
+        // sbco:floor is metadata, not a relationship: without sbco:locatedIn the equipment is placed
+        // nowhere. The reason tells the twin's author exactly what the builder must emit.
         var preview = await Service().PreviewImportAsync(FloorLiteralTtl, TwinImportMode.Replace);
 
-        Assert.Equal(0, preview.OrphanCount);
-        Assert.True(preview.Valid);
+        var orphan = Assert.Single(preview.Orphans);
+        Assert.Equal("urn:test:pt-2", orphan.ResourceId);
+        Assert.Equal(TwinOrphanReasons.FloorLiteralOnly, orphan.Reason);
+        Assert.False(preview.Valid);
+    }
+
+    [Fact]
+    public async Task PreviewImport_LocatedInAnUntypedNode_IsNoRoom_NotFloorLiteralOnly()
+    {
+        // The equipment does carry sbco:locatedIn — to a node that is not typed Room/Level. The defect is
+        // the target, so "floor_literal_only" (which tells the author to add sbco:locatedIn) would mislead.
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bldg-3> a sbco:Building ; sbco:id "bldg-3" ; sbco:hasPart <urn:test:floor-3> .
+            <urn:test:floor-3> a sbco:Level ; sbco:id "floor-3" ; sbco:name "3F" .
+            <urn:test:eq-3> a sbco:EquipmentExt ; sbco:id "EQ-3" ; sbco:floor "3F" ;
+              sbco:locatedIn <urn:test:untyped-room> ; sbco:hasPoint <urn:test:pt-3> .
+            <urn:test:pt-3> a sbco:PointExt ; sbco:id "PT-3" .
+            """;
+
+        var preview = await Service().PreviewImportAsync(ttl, TwinImportMode.Replace);
+
+        Assert.Equal(TwinOrphanReasons.NoRoom, Assert.Single(preview.Orphans).Reason);
     }
 
     [Fact]
@@ -153,9 +175,9 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
     [Fact]
     public async Task PreviewImport_ClassifiesEachUnreachablePointOnce()
     {
-        // One point per break: no device at all / a device with no spatial anchor / an anchor whose
-        // floor literal matches no Level. The branches are mutually exclusive, so each point appears
-        // exactly once and the count matches the sample.
+        // One point per break: no device at all / a device with no spatial anchor / a device placed only
+        // by the sbco:floor literal. The branches are mutually exclusive, so each point appears exactly
+        // once and the count matches the sample.
         const string mixedTtl = """
             @prefix sbco: <https://www.sbco.or.jp/ont/> .
 
@@ -178,7 +200,7 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
         var reasons = preview.Orphans.ToDictionary(o => o.ResourceId, o => o.Reason);
         Assert.Equal(TwinOrphanReasons.NoDevice, reasons["urn:test:pt-loose"]);
         Assert.Equal(TwinOrphanReasons.NoRoom, reasons["urn:test:pt-anchorless"]);
-        Assert.Equal(TwinOrphanReasons.NoBuildingPath, reasons["urn:test:pt-unknown-floor"]);
+        Assert.Equal(TwinOrphanReasons.FloorLiteralOnly, reasons["urn:test:pt-unknown-floor"]);
     }
 
     /// <summary>

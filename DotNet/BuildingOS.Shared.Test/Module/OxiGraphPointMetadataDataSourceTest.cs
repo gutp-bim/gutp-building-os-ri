@@ -331,23 +331,23 @@ public class OxiGraphPointMetadataDataSourceTest
     }
 
     /// <summary>
-    /// All three #291/#292 reachability branches must survive the split: the Room spatial chain, the
-    /// direct Level location (#319), and the <c>sbco:floor</c> literal join (the floor-literal-only shape). Any path
-    /// counts, so losing one silently turns reachable points into orphans at strict ingress.
+    /// Both #291/#292 reachability branches must survive the split: the Room spatial chain and the
+    /// direct Level location (#319). Either counts, so losing one silently turns reachable points into
+    /// orphans at strict ingress. Topology only: the <c>sbco:floor</c> literal places nothing.
     /// </summary>
     [Fact]
-    public async Task ReachabilityQuery_KeepsAllThreeUnionBranches()
+    public async Task ReachabilityQuery_KeepsBothTopologyBranches()
     {
         var q = await CaptureQueriesAsync();
 
-        Assert.Equal(2, Regex.Matches(q.Reachability, @"\bUNION\b").Count);   // 2 UNIONs = 3 branches
+        Assert.Equal(1, Regex.Matches(q.Reachability, @"\bUNION\b").Count);   // 1 UNION = 2 branches
         Assert.Contains("DISTINCT", q.Reachability);
         Assert.Contains("sbco:hasPoint", q.Reachability);
         Assert.Contains("sbco:locatedIn", q.Reachability);
         Assert.Contains("a sbco:Room", q.Reachability);
         Assert.Contains("a sbco:Level", q.Reachability);
         Assert.Contains("a sbco:Building", q.Reachability);
-        Assert.Contains("sbco:floor", q.Reachability);
+        Assert.DoesNotContain("sbco:floor", q.Reachability);
         Assert.Contains("sbco:hasPart", q.Reachability);
     }
 

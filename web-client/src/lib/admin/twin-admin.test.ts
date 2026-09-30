@@ -99,10 +99,17 @@ describe("previewSummary", () => {
 });
 
 describe("orphanReasonLabel", () => {
-  it("labels the three missing links", () => {
+  it("labels the missing links", () => {
     expect(orphanReasonLabel("no_device")).toBe("デバイス未接続");
-    expect(orphanReasonLabel("no_room")).toBe("空間未接続（部屋・フロア未指定）");
-    expect(orphanReasonLabel("no_building_path")).toBe("フロア・建物へ到達不能");
+    expect(orphanReasonLabel("floor_literal_only")).toBe(
+      "配置未指定（sbco:floor のみ。sbco:locatedIn が必要）",
+    );
+    expect(orphanReasonLabel("no_room")).toBe(
+      "空間未接続（部屋・フロア未指定）",
+    );
+    expect(orphanReasonLabel("no_building_path")).toBe(
+      "フロア・建物へ到達不能",
+    );
   });
   it("passes an unknown reason through", () => {
     expect(orphanReasonLabel("no_such_reason")).toBe("no_such_reason");
@@ -119,6 +126,8 @@ describe("controlSchemaIssueReasonLabel", () => {
     );
   });
   it("passes an unknown reason through", () => {
-    expect(controlSchemaIssueReasonLabel("no_such_reason")).toBe("no_such_reason");
+    expect(controlSchemaIssueReasonLabel("no_such_reason")).toBe(
+      "no_such_reason",
+    );
   });
 });

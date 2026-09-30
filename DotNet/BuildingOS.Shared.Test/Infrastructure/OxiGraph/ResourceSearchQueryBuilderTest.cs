@@ -94,7 +94,7 @@ public class ResourceSearchQueryBuilderTest
         Assert.Contains($"<{Point}>", sparql);
         Assert.Contains("FILTER EXISTS", sparql);
         Assert.Contains("?dt <https://www.sbco.or.jp/ont/locatedIn> ?scopeFloor", sparql);
-        Assert.Contains("?dt <https://www.sbco.or.jp/ont/floor> ?scopeFloorName", sparql);
+        Assert.DoesNotContain("https://www.sbco.or.jp/ont/floor>", sparql); // topology only
         Assert.Contains("?scopeDevice a <https://www.sbco.or.jp/ont/EquipmentExt>", sparql);
     }
 

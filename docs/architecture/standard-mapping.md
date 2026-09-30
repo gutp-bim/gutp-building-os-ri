@@ -53,13 +53,14 @@ SBCO ではノード URI そのものが Digital Twins ID（DtId）を表す（�
 
 ### Equipment placement
 
-Building OS accepts each of the following as a building-scoped Equipment/Point hierarchy. The
-direct-Level form does not require a synthetic `sbco:Room` or an `sbco:floor` literal.
+Building OS accepts each of the following as a building-scoped Equipment/Point hierarchy — topology
+only. The direct-Level form does not require a synthetic `sbco:Room`. The `sbco:floor` literal is
+metadata and places nothing: equipment must carry `sbco:locatedIn` (building the topology is the
+twin builder's job; the import reports literal-only equipment as `floor_literal_only`).
 
 ```text
 Building --sbco:hasPart--> Level --sbco:hasPart--> Room <--sbco:locatedIn-- EquipmentExt --sbco:hasPoint--> PointExt
 Building --sbco:hasPart--> Level <--sbco:locatedIn-- EquipmentExt --sbco:hasPoint--> PointExt
-Building --sbco:hasPart--> Level <--sbco:name / sbco:floor-- EquipmentExt --sbco:hasPoint--> PointExt
 ```
 
 The final form is retained for backward compatibility. In the direct-Level form, point and device
@@ -101,7 +102,7 @@ REC 側も `hasPart`/`isPartOf` を別個に持つ（相互に逆方向の関係
 Brick は空間包含に `brick:isLocationOf` / `brick:hasPart` を文脈で使い分ける。
 [^loc]: SBCO サンプルデータ（TTL）によっては `sbco:Room` ノードや `sbco:locatedIn` 関係を含まない場合がある。その際、空間でフィルタするクエリは空を返し、詳細応答の space フィールドは空になる。
 [^hasPoint]: **訂正（2026-08）**: 本表は以前 REC 側を「直接対応なし」としていたが誤り。LinkML 正本の `hasPoint` slot は `slot_uri: rec:hasPoint` を持つ（Brick の `brick:hasPoint` と併記されているわけではなく、REC 側の直接対応として定義されている）。
-[^floor]: `sbco:floor` は EquipmentExt 上の**文字列リテラル**で、Level の `sbco:name` と突合して機器を階に紐づける（SBCO サンプルでは building → equipment の唯一の経路）。RDF リレーションシップではなく命名規約による結合のため独自。
+[^floor]: `sbco:floor` は EquipmentExt 上の**文字列リテラル**（表示用のメタデータ）。RDF リレーションシップではないため、Building OS は機器の配置に使わない（Level の `sbco:name` との突合はしない）。配置は `sbco:locatedIn` で表す。
 
 ---
 

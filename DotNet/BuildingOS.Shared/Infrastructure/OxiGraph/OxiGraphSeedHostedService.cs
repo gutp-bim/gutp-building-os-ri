@@ -103,6 +103,11 @@ public sealed class OxiGraphSeedHostedService(
             // this startup seed never goes through that path — so run the same detection here too,
             // as a non-fatal warning. Never blocks startup: fail-open for control means fail-open here.
             await LogControlSchemaIssuesAsync(ct).ConfigureAwait(false);
+
+            // The twin is traversed by topology only; equipment the builder placed only by the
+            // sbco:floor literal is in no Level or Building. The admin import reports this as the
+            // floor_literal_only orphan reason, but the seed skips that path — so warn here. Non-fatal.
+            await LogFloorLiteralOnlyEquipmentAsync(ct).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrEmpty(templatePath))
@@ -229,6 +234,42 @@ public sealed class OxiGraphSeedHostedService(
     // internal for the same reason as the three query constants above — test fakes route on exact
     // query text. static readonly (not const): built from a method call, not a literal.
     internal static readonly string ControlSchemaIssueQuery = ControlSchemaIssueDetection.BuildQuery(null, null);
+
+    /// <summary>
+    /// Equipment carrying the <c>sbco:floor</c> literal but no <c>sbco:locatedIn</c> at all — the same
+    /// criterion as the admin import's <c>floor_literal_only</c> orphan reason. internal so test fakes can
+    /// route on the exact query text.
+    /// </summary>
+    internal const string FloorLiteralOnlyQuery = @"PREFIX sbco: <https://www.sbco.or.jp/ont/>
+SELECT DISTINCT ?devId WHERE {
+  ?dev a sbco:EquipmentExt ; sbco:id ?devId ; sbco:floor ?floorName .
+  FILTER NOT EXISTS { ?dev sbco:locatedIn ?anywhere }
+}
+ORDER BY ?devId";
+
+    private const int FloorLiteralExamples = 10;
+
+    private async Task LogFloorLiteralOnlyEquipmentAsync(CancellationToken ct)
+    {
+        try
+        {
+            var rows = await client.QueryAsync(FloorLiteralOnlyQuery, ct).ConfigureAwait(false);
+            if (rows.Count == 0) return;
+            var examples = string.Join(", ", rows.Take(FloorLiteralExamples).Select(r => r.GetValueOrDefault("devId", "?")));
+            logger.LogWarning(
+                "{Count} equipment are placed only by the sbco:floor literal and have no sbco:locatedIn, so the " +
+                "twin (traversed by topology only) places them and their points in no Level or Building — they are " +
+                "unreachable for building/floor/room grants, health and building-scoped reads. The twin builder must " +
+                "emit sbco:locatedIn to the Room or Level. Examples: {Examples}",
+                rows.Count, examples);
+        }
+        // An HttpClient timeout is a TaskCanceledException too, but the host token is not cancelled then:
+        // only a real shutdown may propagate, so a slow store never stops startup over a warning.
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Floor-literal placement check after seed failed; continuing startup");
+        }
+    }
 
     private async Task LogControlSchemaIssuesAsync(CancellationToken ct)
     {

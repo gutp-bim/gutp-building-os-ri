@@ -22,8 +22,9 @@ gRPC `GatewayIngress`（`DotNet/BuildingOS.ConnectorWorker/Connectors/GatewayIng
 4. `gateway_mismatch` — twin 上の所有 gateway と送信元 `gateway_id` が不一致。
 5. `no_building_path` / `no_device_link`（#292、本メモの対象）— `IngressHierarchyPolicy` が
    `GRPC_INGRESS_REQUIRE_HIERARCHY` 有効時のみ判定。ポイントが building 階層（
-   `locatedIn`→`Room`→`Level`→`Building` の空間チェーン、または `sbco:floor` リテラル結合の
-   いずれか）に到達できない、またはデバイスへリンクされていない場合に拒否。
+   `locatedIn`→`Room`→`Level`→`Building` の空間チェーン、または `locatedIn`→`Level`→`Building`
+   の直接配置のいずれか。トポロジーだけで辿り、`sbco:floor` リテラルは使わない）に到達できない、
+   またはデバイスへリンクされていない場合に拒否。
 6. 上記いずれも通過 → NATS へ publish。publish 自体が失敗した場合のみ `publish_failed`。
 
 `GRPC_INGRESS_REQUIRE_HIERARCHY` は既定 off。ツインは段階的にモデリングされる（#118）ため、

@@ -50,6 +50,18 @@ publishes images for (`v*.*.*`).
 
 ### Changed
 
+- **BREAKING: the twin is traversed by topology only.** Every read path — authorization ancestors,
+  building/floor-scoped reads (`/point-details`, `/device-details`, health), search scope, the #291
+  import orphan check and the #292 ingress reachability — follows `sbco:hasPart` / `sbco:locatedIn` /
+  `sbco:hasPoint` only. The `sbco:floor` literal on equipment is metadata and is **no longer joined to a
+  Level's name**: equipment placed only by it (no `sbco:locatedIn`) is in no Level or Building, so
+  building/floor/room grants no longer reach it. The admin import reports such equipment with the new
+  orphan reason `floor_literal_only`, and the seed logs a warning with the count and examples. Fix the
+  twin at its builder by emitting `sbco:locatedIn` to the Room or Level. The name join was ambiguous —
+  same-named floors in two buildings matched each other's equipment.
+- Authorization ancestors are the **union of every placement** instead of whichever SPARQL row came
+  first, so a device located both in a Room and directly on a Level is reachable from either grant
+  every time (previously it depended on row order).
 - **BREAKING: telemetry read responses now carry one union-typed `value`**
   (`number | string | boolean | null`) instead of requiring clients to reassemble the storage layer's
   discriminated split (#344). Affects `GET /telemetries/query`, the per-tier reads, and
