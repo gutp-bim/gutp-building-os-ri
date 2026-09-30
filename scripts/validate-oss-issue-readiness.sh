@@ -65,6 +65,17 @@ if not mappers:
 for mapper in mappers:
     if mapper.get("config", {}).get("aggregate.attrs") != "true":
         raise SystemExit("building-os-permissions mapper must set aggregate.attrs=true")
+
+# #519: Keycloak 24+ silently drops user attributes the user profile does not declare. Without an
+# unmanaged-attribute policy the admin UI's role / permissions writes return 204 and store nothing.
+profiles = realm.get("components", {}).get("org.keycloak.userprofile.UserProfileProvider", [])
+policies = {
+    json.loads(cfg).get("unmanagedAttributePolicy")
+    for p in profiles
+    for cfg in p.get("config", {}).get("kc.user.profile.config", [])
+}
+if "ADMIN_EDIT" not in policies:
+    raise SystemExit("realm user profile must set unmanagedAttributePolicy=ADMIN_EDIT (role/permissions attributes)")
 PY
 
 python3 - <<'PY'

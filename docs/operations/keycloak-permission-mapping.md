@@ -93,6 +93,88 @@ Access can widen for two kinds of user, so review both before applying it:
 
 Tokens issued before the change keep the old claim until they expire.
 
+### Admin UI writes the same attributes (#519)
+
+The `/admin` user management (`KeycloakUserManagementService`) reads and writes the **same**
+`role` / `permissions` user attributes the mappers above put into the token. The names have one
+definition, `KeycloakUserAttributes` (`DotNet/BuildingOS.Shared/Domain/UserManagement/`), used by both
+the admin UI and the `AuthorizationContextMiddleware` Admin-API fallback, and a unit test pins it to
+the mapper config in `oss-stack/keycloak/realm.json`. So a grant made in `/admin` reaches the
+`permissions` claim, and it is unioned with the user's groups' `permissions` like any other (#508).
+
+Before #519 the admin UI wrote `buildingos_role` / `buildingos_permissions` instead. Those never
+reached the token, so a user who also got `building_os_role` from a group (e.g. `building-os-admins`)
+silently lost every grant made in `/admin`, and which grants applied depended on whether the token
+happened to carry the claim.
+
+**Migration period — dual read.** The Admin-API path still honours the legacy attributes, with this
+precedence:
+
+| Value | Effective value |
+|---|---|
+| role | `role` when it has a non-empty value, otherwise `buildingos_role` |
+| permissions | `permissions` ∪ `buildingos_permissions` (new values first, duplicates dropped) |
+
+Any change made through `/admin` writes the merged values to `role` / `permissions` and removes that
+user's `buildingos_*` attributes, so a permission removed in `/admin` cannot be merged back from the
+legacy attribute. The token path does **not** read the legacy names: until a user is migrated, grants
+held only in `buildingos_*` apply only when the token carries no `building_os_role` claim. Migrate them
+with the procedure below.
+
+**Realm user profile.** Keycloak 24+ keeps only the user attributes its user profile declares unless
+the realm allows *unmanaged* attributes; without that, a `PUT` of `role` / `permissions` returns `204`
+and stores nothing, and `role` in a realm import is dropped the same way. `realm.json` therefore sets
+`unmanagedAttributePolicy: ADMIN_EDIT` — admins (the Admin API and the admin console) can read and
+write these attributes, users cannot see or edit them in the account console. For the same reason the
+admin UI writes back the **full** user representation it just read: since Keycloak 24 a `PUT` carrying
+`attributes` is a full profile update, and an absent `email` / `firstName` / `lastName` is cleared,
+which then blocks the user's login ("Account is not fully set up").
+
+#### Migrating an existing realm (`kcadm.sh` + `jq`)
+
+`--import-realm` skips an existing realm, so apply both steps to a running Keycloak. Verified against
+Keycloak 26.7.
+
+```bash
+kcadm.sh config credentials --server "$KC_URL" --realm master --user "$KC_ADMIN" --password "$KC_ADMIN_PASSWORD"
+REALM=building-os
+
+# 1. Let the Admin API store unmanaged attributes (only admins can read or write them).
+kcadm.sh get users/profile -r "$REALM" \
+  | jq '.unmanagedAttributePolicy = "ADMIN_EDIT"' \
+  | kcadm.sh update users/profile -r "$REALM" -f -
+
+# 2. Copy buildingos_* into role / permissions (same precedence as the dual read) and drop the
+#    legacy attributes. `kcadm.sh update -f` sends the full representation, so profile fields survive.
+kcadm.sh get users -r "$REALM" --limit 100000 \
+  | jq -c '.[] | select(.attributes.buildingos_role or .attributes.buildingos_permissions)' \
+  | while read -r user; do
+      id=$(jq -r .id <<<"$user")
+      jq '.attributes |= (
+            . as $a
+            | .role = (if ([($a.role // [])[] | select(. != "")] | length) > 0
+                       then $a.role else ($a.buildingos_role // []) end)
+            | .permissions = ((($a.permissions // []) + ($a.buildingos_permissions // [])) | unique)
+            | del(.buildingos_role, .buildingos_permissions)
+            | with_entries(select(.value | length > 0)))' <<<"$user" \
+        | kcadm.sh update "users/$id" -r "$REALM" -f -
+      echo "migrated $(jq -r .username <<<"$user")"
+    done
+
+# 3. Verify: prints nothing once every user is migrated.
+kcadm.sh get users -r "$REALM" --limit 100000 \
+  | jq -r '.[] | select(.attributes.buildingos_role or .attributes.buildingos_permissions) | .username'
+```
+
+On a Keycloak 24+ realm that never had the policy, the admin UI's writes were discarded outright, so
+step 2 finds nothing to migrate: re-grant those users in `/admin` after step 1. Step 2 matters for a
+realm that stored the legacy attributes (an older Keycloak, or unmanaged attributes already enabled).
+
+Access can widen for a migrated user in the same way as the #508 change above: their `permissions`
+now reach the token and are unioned with their groups'. Review users that carry `buildingos_permissions`
+before step 2. Tokens issued before the migration keep the old claims until they expire, and the
+API server caches an Admin-API resolution for 5 minutes.
+
 ## Azure AD Migration Source
 
 | Azure AD concept | Keycloak replacement |

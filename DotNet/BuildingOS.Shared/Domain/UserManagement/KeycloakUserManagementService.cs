@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
@@ -12,9 +14,6 @@ public class KeycloakUserManagementService : IUserManagementService
     private readonly string _adminClientId;
     private readonly string _adminClientSecret;
     private readonly ILogger<KeycloakUserManagementService> _logger;
-
-    private const string RoleAttribute = "buildingos_role";
-    private const string PermissionsAttribute = "buildingos_permissions";
 
     public KeycloakUserManagementService(
         HttpClient httpClient,
@@ -48,6 +47,14 @@ public class KeycloakUserManagementService : IUserManagementService
     public async Task<EntraUser?> GetUserByIdAsync(string userId, CancellationToken cancellationToken = default)
     {
         var token = await GetAdminTokenAsync(cancellationToken);
+        var user = await GetUserJsonAsync(token, userId, cancellationToken);
+        var dto = user?.Deserialize<KeycloakUserDto>();
+        return dto == null ? null : MapToEntraUser(dto);
+    }
+
+    private async Task<JsonObject?> GetUserJsonAsync(
+        string token, string userId, CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"/admin/realms/{_realm}/users/{userId}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -56,9 +63,8 @@ public class KeycloakUserManagementService : IUserManagementService
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
 
-        var user = await response.Content.ReadFromJsonAsync<KeycloakUserDto>(
+        return await response.Content.ReadFromJsonAsync<JsonObject>(
             cancellationToken: cancellationToken);
-        return user == null ? null : MapToEntraUser(user);
     }
 
     public async Task<EntraUser> UpdateUserAttributesAsync(
@@ -68,16 +74,24 @@ public class KeycloakUserManagementService : IUserManagementService
     {
         var token = await GetAdminTokenAsync(cancellationToken);
 
-        var attributes = new Dictionary<string, string[]>();
-        if (updateRequest.Role != null)
-            attributes[RoleAttribute] = [updateRequest.Role];
-        if (updateRequest.Permissions != null)
-            attributes[PermissionsAttribute] = [.. updateRequest.Permissions];
+        // Read-modify-write of the full representation (#519):
+        // - Keycloak replaces the whole attribute map on PUT, so a permissions-only update must send
+        //   the role back, and attributes that are not ours must survive.
+        // - Since Keycloak 24 (user profile) a PUT carrying `attributes` is a full profile update: an
+        //   absent email / firstName / lastName is cleared, which then blocks login ("Account is not
+        //   fully set up"). Sending the representation we just read back keeps them.
+        // - The legacy buildingos_* attributes are migrated into role / permissions and removed.
+        var user = await GetUserJsonAsync(token, userId, cancellationToken)
+                   ?? throw new InvalidOperationException($"User {userId} not found");
+        var currentAttributes = user["attributes"]?.Deserialize<Dictionary<string, string[]>>();
+        var attributes = KeycloakUserAttributes.BuildUpdate(
+            currentAttributes, updateRequest.Role, updateRequest.Permissions);
+        user["attributes"] = JsonSerializer.SerializeToNode(attributes);
 
         using var request = new HttpRequestMessage(HttpMethod.Put,
             $"/admin/realms/{_realm}/users/{userId}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Content = JsonContent.Create(new { attributes });
+        request.Content = JsonContent.Create(user);
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -138,13 +152,9 @@ public class KeycloakUserManagementService : IUserManagementService
             ? $"{dto.FirstName} {dto.LastName}".Trim()
             : dto.Username;
 
-        var role = dto.Attributes?.TryGetValue(RoleAttribute, out var roles) == true
-            ? roles?.FirstOrDefault()
-            : null;
-
-        var permissions = dto.Attributes?.TryGetValue(PermissionsAttribute, out var perms) == true
-            ? (IReadOnlyList<string>)(perms ?? [])
-            : [];
+        // role / permissions, with the pre-#519 buildingos_* attributes honoured as a fallback.
+        var role = KeycloakUserAttributes.ReadRole(dto.Attributes);
+        var permissions = KeycloakUserAttributes.ReadPermissions(dto.Attributes);
 
         return new EntraUser
         {

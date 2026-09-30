@@ -122,6 +122,19 @@ publishes images for (`v*.*.*`).
   newest partitions, as before, but the response now carries `X-Partial-Result: true` and
   `X-Covered-From` (ISO-8601 UTC instant from which the data is complete) instead of a silent 200.
   Both headers are exposed to cross-origin browser clients via CORS.
+- Roles and permissions granted in `/admin` now reach the access token (#519). The admin UI wrote the
+  Keycloak attributes `buildingos_role` / `buildingos_permissions`, but the realm's mappers put `role` /
+  `permissions` into the token, so a user who also got `building_os_role` from a group silently lost
+  every grant made in `/admin`. The admin UI and the Admin-API fallback now use `role` / `permissions`
+  (one definition, `KeycloakUserAttributes`, pinned to `realm.json` by a test), so admin grants are also
+  unioned with group `permissions` (#508). The legacy attributes are still read during migration (role:
+  `role` first, then `buildingos_role`; permissions: the union) and are removed from a user on their next
+  `/admin` update. The realm now sets `unmanagedAttributePolicy: ADMIN_EDIT`: Keycloak 24+ otherwise
+  drops undeclared user attributes, so `/admin` writes returned 200 and stored nothing. An `/admin`
+  update also no longer clears the user's email / first / last name (Keycloak 24+ treats an
+  attribute-bearing `PUT` as a full profile update), which had left the user unable to log in. **An
+  already imported realm needs both the policy and the attribute migration applied with `kcadm.sh`** —
+  see "Admin UI writes the same attributes" in `docs/operations/keycloak-permission-mapping.md`.
 - The `permissions` access-token claim is now the union of the user's attribute and **every** group's
   attribute (`aggregate.attrs=true` on the `building-os-permissions` mapper, #508). Previously a user
   in two or more groups carrying `permissions` received only one group's permissions, and a user with

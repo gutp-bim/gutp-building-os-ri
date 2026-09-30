@@ -4,7 +4,8 @@ namespace BuildingOS.Shared.Domain.UserManagement;
 /// One assignable Building OS role and what it grants. This is the backend single source of truth
 /// for the fixed role triad (admin / operator / viewer); it mirrors the frontend
 /// <c>lib/auth/workspaces.ts</c> role→workspace map. Roles are an authorization concept stored as
-/// the Keycloak <c>buildingos_role</c> attribute — not Keycloak realm roles — and are not dynamic.
+/// the Keycloak <c>role</c> user attribute (<see cref="KeycloakUserAttributes.Role"/>, #519) — not
+/// Keycloak realm roles — and are not dynamic.
 /// </summary>
 public sealed record RoleCatalogEntry(
     string Role,
