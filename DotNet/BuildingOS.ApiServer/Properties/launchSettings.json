@@ -36,8 +36,8 @@
         "KEYCLOAK_AUTHORITY": "http://localhost:8080/realms/building-os",
         "KEYCLOAK_CLIENT_ID": "building-os-api",
         "KEYCLOAK_REALM": "building-os",
-        "KEYCLOAK_ADMIN_CLIENT_ID": "building-os-admin",
-        "KEYCLOAK_ADMIN_CLIENT_SECRET": ""
+        "KEYCLOAK_ADMIN_CLIENT_ID": "api-server",
+        "KEYCLOAK_ADMIN_CLIENT_SECRET": "change-me-in-production"
       }
     }
   }

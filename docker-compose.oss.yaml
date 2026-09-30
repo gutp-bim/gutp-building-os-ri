@@ -395,6 +395,11 @@ services:
       # (oss-stack/keycloak/realm.json), so the API validates against the api-server client.
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-api-server}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-building-os}
+      # Keycloak Admin API client for user management (#532): the confidential api-server client, whose
+      # service account the realm import grants only view-users / query-groups / manage-users. The default
+      # secret is the realm.json dev secret — rotate it (and override both here) outside local dev.
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-api-server}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-change-me-in-production}
       NATS_URL: nats://building-os.nats:4222
       POSTGRES_CONNECTION_STRING: "Host=building-os.pgbouncer;Port=5432;Database=${POSTGRES_DB:-buildingos};Username=${POSTGRES_USER:-buildingos};Password=${POSTGRES_PASSWORD:-buildingos};No Reset On Close=true;Max Auto Prepare=0"
       POSTGRES_MIGRATION_CONNECTION_STRING: "Host=building-os.pgbouncer-session;Port=5432;Database=${POSTGRES_DB:-buildingos};Username=${POSTGRES_USER:-buildingos};Password=${POSTGRES_PASSWORD:-buildingos}"

@@ -195,6 +195,18 @@
           "admin"
         ]
       }
+    },
+    {
+      "username": "service-account-api-server",
+      "enabled": true,
+      "serviceAccountClientId": "api-server",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-groups",
+          "manage-users"
+        ]
+      }
     }
   ]
 }
