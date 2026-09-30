@@ -114,8 +114,10 @@ volume keeps the old realm without the role mappings — remove the volume, or g
 `KeycloakOidcClientService` (`/platform` OIDC client management, #324) uses the same admin client but calls
 `/admin/realms/{realm}/clients…`, which needs `view-clients` / `manage-clients`. Those are deliberately **not**
 granted: `manage-clients` can rewrite any client in the realm, including `api-server` itself. With the shipped
-wiring that screen's Keycloak calls answer 403. Grant `manage-clients` to the service account only in a
-deployment that needs that screen and accepts the broader privilege.
+wiring that screen's Keycloak calls answer 403, which the API maps to **503** with the reason ("admin client
+'api-server' is not permitted to manage OIDC clients … grant manage-clients"), so the screen explains the gap
+instead of failing. Grant `manage-clients` to the service account only in a deployment that needs that
+screen and accepts the broader privilege.
 
 Without `query-groups` the group lookups answer 403. Since #532 that no longer fails the request: a user with
 no own `role` is listed with a blank role (warning log + `building_os_user_management_group_lookup_failures_total{reason="forbidden"}`),

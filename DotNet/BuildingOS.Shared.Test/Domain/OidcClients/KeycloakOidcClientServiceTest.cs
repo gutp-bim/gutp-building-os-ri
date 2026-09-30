@@ -28,6 +28,58 @@ public class KeycloakOidcClientServiceTest
     private static bool IsToken(HttpRequestMessage r) =>
         r.RequestUri!.AbsolutePath.Contains("openid-connect/token");
 
+    // #532 follow-up: the OSS admin client (api-server) is deliberately granted only user-management
+    // roles, not manage-clients. Keycloak then answers 403 on /clients; the screen must explain that as
+    // "not available" (503), not fail with a 500.
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    public async Task ListClients_AdminApiDenied_IsServiceUnavailable(HttpStatusCode status)
+    {
+        var service = CreateService(req => IsToken(req) ? Token() : new HttpResponseMessage(status));
+
+        var ex = await Assert.ThrowsAsync<OidcServiceUnavailableException>(() => service.ListClientsAsync());
+        Assert.Contains("manage-clients", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateClient_AdminApiDenied_IsServiceUnavailable()
+    {
+        var service = CreateService(req =>
+            IsToken(req) ? Token() : new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        await Assert.ThrowsAsync<OidcServiceUnavailableException>(() =>
+            service.CreateClientAsync(new CreateOidcClientSpec("svc-x", "d", ServiceAccountsEnabled: true)));
+    }
+
+    [Fact]
+    public async Task GetClient_AdminApiDenied_IsServiceUnavailable_NotNotFound()
+    {
+        var service = CreateService(req =>
+            IsToken(req) ? Token() : new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        await Assert.ThrowsAsync<OidcServiceUnavailableException>(() => service.GetClientAsync("abc"));
+    }
+
+    [Fact]
+    public async Task TokenRejected_IsServiceUnavailable()
+    {
+        var service = CreateService(req => IsToken(req)
+            ? new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            : throw new InvalidOperationException("admin API must not be called without a token"));
+
+        await Assert.ThrowsAsync<OidcServiceUnavailableException>(() => service.ListClientsAsync());
+    }
+
+    [Fact]
+    public async Task ListClients_ServerError_IsNotMaskedAsUnavailable()
+    {
+        var service = CreateService(req =>
+            IsToken(req) ? Token() : new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => service.ListClientsAsync());
+    }
+
     [Fact]
     public async Task ListClients_MapsSummaries_WithoutSecret()
     {

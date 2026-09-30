@@ -40,7 +40,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         request.Headers.Authorization = Bearer(token);
 
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(response);
 
         var clients = await response.Content
             .ReadFromJsonAsync<ClientRepresentation[]>(cancellationToken: ct)
@@ -78,7 +78,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         create.Headers.Authorization = Bearer(token);
 
         var createResp = await _httpClient.SendAsync(create, ct).ConfigureAwait(false);
-        createResp.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(createResp);
 
         // Keycloak returns 201 with the new resource URL in Location; the id is its last non-empty
         // segment (guard against a trailing slash yielding an empty id).
@@ -104,7 +104,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         request.Headers.Authorization = Bearer(token);
 
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(response);
 
         var credential = await response.Content
             .ReadFromJsonAsync<CredentialRepresentation>(cancellationToken: ct)
@@ -124,7 +124,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         request.Headers.Authorization = Bearer(token);
 
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(response);
 
         var representation = await GetRepresentationAsync(id, token, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Client {id} not found after update");
@@ -138,7 +138,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         request.Headers.Authorization = Bearer(token);
 
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(response);
         _logger.LogInformation("Deleted OIDC client {Id}", id);
     }
 
@@ -154,7 +154,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
 
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
-        response.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(response);
         return await response.Content
             .ReadFromJsonAsync<ClientRepresentation>(cancellationToken: ct)
             .ConfigureAwait(false);
@@ -167,7 +167,7 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         request.Headers.Authorization = Bearer(token);
 
         var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        EnsureAdminSuccess(response);
         var credential = await response.Content
             .ReadFromJsonAsync<CredentialRepresentation>(cancellationToken: ct)
             .ConfigureAwait(false);
@@ -175,6 +175,27 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
         return string.IsNullOrEmpty(credential?.Value)
             ? throw new InvalidOperationException("Keycloak client-secret response missing value")
             : credential!.Value!;
+    }
+
+    /// <summary>
+    /// #532 follow-up: the OSS admin client (<c>api-server</c>) is deliberately granted only the
+    /// user-management roles, not <c>manage-clients</c> (which could rewrite any client, including
+    /// itself). Keycloak then answers 401/403 on <c>/clients</c>; surface that as "not available"
+    /// (503 with the reason) rather than a 500. Other failures still throw.
+    /// </summary>
+    private void EnsureAdminSuccess(HttpResponseMessage response)
+    {
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            _logger.LogWarning(
+                "Keycloak denied OIDC client management to admin client {AdminClientId} ({StatusCode})",
+                _adminClientId, (int)response.StatusCode);
+            throw new OidcServiceUnavailableException(
+                $"Admin client '{_adminClientId}' is not permitted to manage OIDC clients " +
+                $"(HTTP {(int)response.StatusCode}). Grant the realm-management role manage-clients " +
+                "to enable this screen; see docs/operations/keycloak-admin-provisioning.md.");
+        }
+        response.EnsureSuccessStatusCode();
     }
 
     private async Task<string> GetAdminTokenAsync(CancellationToken ct)
@@ -187,6 +208,15 @@ public sealed class KeycloakOidcClientService : IOidcClientManagementService
 
         var response = await _httpClient.PostAsync(
             $"/realms/{_realm}/protocol/openid-connect/token", content, ct).ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning(
+                "Keycloak rejected the admin client {AdminClientId} credentials ({StatusCode}); OIDC client management unavailable",
+                _adminClientId, (int)response.StatusCode);
+            throw new OidcServiceUnavailableException(
+                $"Keycloak rejected the credentials of admin client '{_adminClientId}' " +
+                $"(HTTP {(int)response.StatusCode}). See docs/operations/keycloak-admin-provisioning.md.");
+        }
         response.EnsureSuccessStatusCode();
 
         var tokenResponse = await response.Content
