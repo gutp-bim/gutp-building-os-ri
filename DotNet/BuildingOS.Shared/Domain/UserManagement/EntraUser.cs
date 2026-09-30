@@ -21,8 +21,20 @@ public class EntraUser
 /// </summary>
 public class UpdateUserAttributesRequest
 {
+    /// <summary>
+    /// The new role, already normalized by <see cref="KeycloakUserAttributes.NormalizeRole"/>: <c>null</c>
+    /// leaves the stored role attributes untouched, <c>""</c> clears the role.
+    /// </summary>
     public string? Role { get; init; }
+
+    /// <summary>The full permission set; <c>null</c> keeps the current (merged) set.</summary>
     public IReadOnlyList<string>? Permissions { get; init; }
+
+    /// <summary>Permissions added to the set, applied in the same read-modify-write (no separate read).</summary>
+    public IReadOnlyList<string>? PermissionsToAdd { get; init; }
+
+    /// <summary>Permissions removed from the set, applied in the same read-modify-write.</summary>
+    public IReadOnlyList<string>? PermissionsToRemove { get; init; }
 }
 
 /// <summary>

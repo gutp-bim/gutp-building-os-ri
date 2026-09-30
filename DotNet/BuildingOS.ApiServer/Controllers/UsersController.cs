@@ -86,25 +86,44 @@ public class UsersController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.IsAdmin) return Forbid();
 
-        // Reject role changes that would lock the actor out or remove the last admin (#325).
-        if (request.Role != null)
+        // Trim the role, map blank to "clear", and reject roles outside RoleCatalog before anything
+        // else sees it: whitespace or an unknown string would otherwise become the building_os_role claim.
+        // This is the only place a role write is validated; the service takes the normalized value.
+        string? role;
+        try
         {
-            var users = await _userService.GetUsersAsync(ct).ConfigureAwait(false);
-            var guard = UserAdminGuard.CheckSetRole(
-                authContext.UserId, id, request.Role, ToRoleStates(users));
-            if (guard != UserAdminGuardResult.Allowed)
-            {
-                await AuditAsync(authContext, "set-role", id, AdminAuditResult.Failure,
-                    new { role = request.Role, blocked = guard.ToString() }, ct).ConfigureAwait(false);
-                return Conflict(new { error = LockoutMessage(guard) });
-            }
+            role = KeycloakUserAttributes.NormalizeRole(request.Role);
+        }
+        catch (ArgumentException ex)
+        {
+            await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
+                new { error = ex.Message }, ct).ConfigureAwait(false);
+            return BadRequest(new { error = ex.Message });
         }
 
         try
         {
+            // Reject role changes that would lock the actor out or remove the last admin (#325). The guard
+            // sees the effective role, including an admin inherited from a Keycloak group (#519 follow-up),
+            // and resolves only what it needs — nothing for a promotion or a permission-only write. Its
+            // Keycloak lookups run inside this try so a failure is audited like the write's own.
+            if (UserAdminGuard.SetRoleNeedsGuard(role))
+            {
+                var guard = await CheckGuardAsync(
+                    authContext, id, UserAdminGuard.SetRoleNeedsTargetGroupRole(role),
+                    target => UserAdminGuard.PreCheckSetRole(authContext.UserId, target, role), ct)
+                    .ConfigureAwait(false);
+                if (guard != UserAdminGuardResult.Allowed)
+                {
+                    await AuditAsync(authContext, "set-role", id, AdminAuditResult.Failure,
+                        new { role, blocked = guard.ToString() }, ct).ConfigureAwait(false);
+                    return Conflict(new { error = LockoutMessage(guard) });
+                }
+            }
+
             var updateRequest = new UpdateUserAttributesRequest
             {
-                Role = request.Role,
+                Role = role,
                 Permissions = request.Permissions?.Select(HashPermissionResourceId).ToList()
             };
 
@@ -125,7 +144,7 @@ public class UsersController : ControllerBase
             await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Success,
                 new
                 {
-                    role = request.Role,
+                    role,
                     permissions = request.Permissions?.Count ?? 0,
                     resourceIdMappingSaved = mappingError is null
                 }, ct).ConfigureAwait(false);
@@ -138,6 +157,16 @@ public class UsersController : ControllerBase
             // a client error (#293). The filter also writes the failure audit, which is why there is
             // none here: it covers the paths that throw before this try block too (#303).
             throw;
+        }
+        catch (UserNotFoundException)
+        {
+            await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
+                new { error = "not found" }, ct).ConfigureAwait(false);
+            return NotFound();
+        }
+        catch (UserAttributesNotPersistedException ex)
+        {
+            return await NotPersistedAsync(authContext, "set-attributes", id, ex, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -177,23 +206,24 @@ public class UsersController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.IsAdmin) return Forbid();
 
-        var users = await _userService.GetUsersAsync(ct).ConfigureAwait(false);
-        if (users.All(u => u.Id != id))
-        {
-            return NotFound();
-        }
-
-        var guard = UserAdminGuard.CheckSetEnabled(
-            authContext.UserId, id, request.Enabled, ToRoleStates(users));
-        if (guard != UserAdminGuardResult.Allowed)
-        {
-            await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
-                new { enabled = request.Enabled, blocked = guard.ToString() }, ct).ConfigureAwait(false);
-            return Conflict(new { error = LockoutMessage(guard) });
-        }
-
         try
         {
+            // Effective roles, so an admin inherited from a Keycloak group counts (#519 follow-up). Enabling
+            // needs no check; disabling a non-admin needs only the target, not every user.
+            if (UserAdminGuard.SetEnabledNeedsGuard(request.Enabled))
+            {
+                var guard = await CheckGuardAsync(
+                    authContext, id, includeTargetGroupRole: false,
+                    target => UserAdminGuard.PreCheckSetEnabled(authContext.UserId, target, request.Enabled), ct)
+                    .ConfigureAwait(false);
+                if (guard != UserAdminGuardResult.Allowed)
+                {
+                    await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
+                        new { enabled = request.Enabled, blocked = guard.ToString() }, ct).ConfigureAwait(false);
+                    return Conflict(new { error = LockoutMessage(guard) });
+                }
+            }
+
             var updated = await _userService.SetEnabledAsync(id, request.Enabled, ct).ConfigureAwait(false);
             await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Success,
                 new { enabled = request.Enabled }, ct).ConfigureAwait(false);
@@ -203,6 +233,12 @@ public class UsersController : ControllerBase
         {
             // See UpdateAttributes: 503 not 400, and the filter owns the audit (#293, #303).
             throw;
+        }
+        catch (UserNotFoundException)
+        {
+            await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
+                new { enabled = request.Enabled, error = "not found" }, ct).ConfigureAwait(false);
+            return NotFound();
         }
         catch (Exception ex)
         {
@@ -227,26 +263,16 @@ public class UsersController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.IsAdmin) return Forbid();
 
-        var user = await _userService.GetUserByIdAsync(id, ct).ConfigureAwait(false);
-        if (user == null)
-        {
-            return NotFound();
-        }
-
-        // Add the new permission to existing permissions (resourceIdをハッシュ化して保存)
-        var hashedPermission = HashPermissionResourceId(request.Permission);
-        var permissions = user.Permissions.ToList();
-        if (!permissions.Contains(hashedPermission))
-        {
-            permissions.Add(hashedPermission);
-        }
-
+        // Add the new permission to existing permissions (resourceIdをハッシュ化して保存). The service
+        // applies it to the set it reads for the write, so there is no separate read here.
         var updateRequest = new UpdateUserAttributesRequest
         {
-            Permissions = permissions
+            PermissionsToAdd = [HashPermissionResourceId(request.Permission)]
         };
 
-        var updated = await _userService.UpdateUserAttributesAsync(id, updateRequest, ct).ConfigureAwait(false);
+        var (failure, updated) = await TryWritePermissionAsync(
+            authContext, "add-permission", id, request.Permission, updateRequest, ct).ConfigureAwait(false);
+        if (failure is not null) return failure;
 
         // ハッシュ→元IDのマッピングを保存（逆引き用）。Saved after the grant lands, for the reason
         // UpdateAttributes spells out: writing it first leaves a mapping behind for a permission the
@@ -257,7 +283,7 @@ public class UsersController : ControllerBase
         await AuditAsync(authContext, "add-permission", id, AdminAuditResult.Success,
             new { permission = request.Permission, resourceIdMappingSaved = mappingError is null }, ct)
             .ConfigureAwait(false);
-        return Ok(ToResponse(updated));
+        return Ok(ToResponse(updated!));
     }
 
     /// <summary>
@@ -274,28 +300,95 @@ public class UsersController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.IsAdmin) return Forbid();
 
-        var user = await _userService.GetUserByIdAsync(id, ct).ConfigureAwait(false);
-        if (user == null)
-        {
-            return NotFound();
-        }
-
-        // Remove the permission from existing permissions (resourceIdをハッシュ化して比較)
-        var hashedPermission = HashPermissionResourceId(request.Permission);
-        var permissions = user.Permissions.Where(p => p != hashedPermission).ToList();
-
+        // Remove the permission from existing permissions (resourceIdをハッシュ化して比較), in the
+        // service's single read-modify-write.
         var updateRequest = new UpdateUserAttributesRequest
         {
-            Permissions = permissions
+            PermissionsToRemove = [HashPermissionResourceId(request.Permission)]
         };
 
-        var updated = await _userService.UpdateUserAttributesAsync(id, updateRequest, ct).ConfigureAwait(false);
+        var (failure, updated) = await TryWritePermissionAsync(
+            authContext, "remove-permission", id, request.Permission, updateRequest, ct).ConfigureAwait(false);
+        if (failure is not null) return failure;
+
         await AuditAsync(authContext, "remove-permission", id, AdminAuditResult.Success,
             new { permission = request.Permission }, ct).ConfigureAwait(false);
-        return Ok(ToResponse(updated));
+        return Ok(ToResponse(updated!));
     }
 
     // === Helpers ===
+
+    /// <summary>
+    /// Runs the lockout guard, resolving only what it needs: the target's role state, and every user's
+    /// only when <paramref name="preCheck"/> cannot decide from the target alone.
+    /// </summary>
+    /// <exception cref="UserNotFoundException">The target does not exist.</exception>
+    private async Task<UserAdminGuardResult> CheckGuardAsync(
+        AuthorizationContext auth, string targetId, bool includeTargetGroupRole,
+        Func<UserRoleState, UserAdminGuardResult?> preCheck, CancellationToken ct)
+    {
+        // One lookup session: the target and (only if needed) the snapshot share a token and group cache.
+        var lookup = await _userService.CreateRoleLookupAsync(ct).ConfigureAwait(false);
+        var target = await lookup.GetUserAsync(targetId, includeTargetGroupRole, ct).ConfigureAwait(false)
+                     ?? throw new UserNotFoundException(targetId);
+        if (preCheck(target) is { } decided) return decided;
+
+        var all = await lookup.GetAllAsync(ct).ConfigureAwait(false);
+        // The actor is an admin per their token (checked by every action), so they count as remaining.
+        return UserAdminGuard.CheckLastAdmin(targetId, all, auth.UserId);
+    }
+
+    /// <summary>
+    /// Keycloak answered the write but did not store it (e.g. no <c>unmanagedAttributePolicy</c>): an
+    /// upstream failure, not a success and not the caller's fault — 502 with a failure audit.
+    /// </summary>
+    private async Task<ObjectResult> NotPersistedAsync(
+        AuthorizationContext auth, string action, string targetId, UserAttributesNotPersistedException ex,
+        CancellationToken ct)
+    {
+        _logger.LogError(ex, "Keycloak did not persist {Action} for user {UserId}", action, ForLog(targetId));
+        await AuditAsync(auth, action, targetId, AdminAuditResult.Failure,
+            new { error = ex.Message }, ct).ConfigureAwait(false);
+        // `stored`: the role / permission attribute values Keycloak returned on the re-read.
+        return StatusCode(StatusCodes.Status502BadGateway, new { error = ex.Message, stored = ex.StoredAttributes });
+    }
+
+    /// <summary>
+    /// Runs a permission write with the same failure handling as <see cref="UpdateAttributes"/>: 503 via the
+    /// filter when unconfigured, 404 / 502 / 400 with a failure audit otherwise. <c>null</c> result means
+    /// <paramref name="write"/> succeeded and <paramref name="updated"/> holds the user.
+    /// </summary>
+    private async Task<(ActionResult? Failure, EntraUser? Updated)> TryWritePermissionAsync(
+        AuthorizationContext auth, string action, string targetId, string permission,
+        UpdateUserAttributesRequest request, CancellationToken ct)
+    {
+        try
+        {
+            return (null, await _userService.UpdateUserAttributesAsync(targetId, request, ct).ConfigureAwait(false));
+        }
+        catch (UserManagementUnavailableException)
+        {
+            // 503 via UserManagementUnavailableFilter, which also owns the audit (#293, #303).
+            throw;
+        }
+        catch (UserNotFoundException)
+        {
+            await AuditAsync(auth, action, targetId, AdminAuditResult.Failure,
+                new { permission, error = "not found" }, ct).ConfigureAwait(false);
+            return (NotFound(), null);
+        }
+        catch (UserAttributesNotPersistedException ex)
+        {
+            return (await NotPersistedAsync(auth, action, targetId, ex, ct).ConfigureAwait(false), null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to {Action} for user {UserId}", action, ForLog(targetId));
+            await AuditAsync(auth, action, targetId, AdminAuditResult.Failure,
+                new { permission, error = ex.Message }, ct).ConfigureAwait(false);
+            return (BadRequest(new { error = ex.Message }), null);
+        }
+    }
 
     private Task AuditAsync(
         AuthorizationContext auth, string action, string targetId,
@@ -306,9 +399,6 @@ public class UsersController : ControllerBase
             AdminAuditSubjects.User, action, targetId, auth.UserId, actorName: null, result, detailJson);
         return _audit.RecordAsync(record, ct);
     }
-
-    private static IReadOnlyList<UserRoleState> ToRoleStates(IReadOnlyList<EntraUser> users) =>
-        users.Select(u => new UserRoleState(u.Id, u.Role, u.Enabled)).ToList();
 
     private static string LockoutMessage(UserAdminGuardResult guard) => guard switch
     {

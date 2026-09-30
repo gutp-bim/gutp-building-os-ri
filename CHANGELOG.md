@@ -122,14 +122,40 @@ publishes images for (`v*.*.*`).
   newest partitions, as before, but the response now carries `X-Partial-Result: true` and
   `X-Covered-From` (ISO-8601 UTC instant from which the data is complete) instead of a silent 200.
   Both headers are exposed to cross-origin browser clients via CORS.
+- `/admin` user-attribute follow-ups to #519: an attribute update `PUT`s only `attributes` plus
+  `username` / `email` / `firstName` / `lastName`, so it no longer reverts a concurrent disable (or
+  `requiredActions` / `emailVerified` change) by another admin; the role is trimmed, a blank role clears
+  it, and a role outside `admin` / `operator` / `viewer` is rejected with `400`; the self-lockout /
+  last-admin guard counts an admin inherited from a Keycloak group (e.g. `building-os-admins`).
+  The role `/admin` shows, the lockout guard counts and the Admin-API fallback authorizes with now mirrors
+  the token: the user's own `role` (first value, untrimmed — a whitespace value still shadows the group),
+  else the group-derived role, else the legacy `buildingos_role` (the earlier "legacy `buildingos_role`
+  wins" rule is withdrawn). A permission-only write leaves `role` and `buildingos_role` exactly as stored;
+  only an explicit role write sets `role` and removes `buildingos_role`. A user whose groups carry
+  different roles counts as an admin when they are the target (no self-lockout) but not as a remaining
+  admin — unless they are the acting admin, whose token settles it — and `/admin` shows the non-admin
+  role. Clearing an own `admin` role now resolves the user's group role, so a user who keeps admin through a
+  group is no longer falsely refused. Group ancestors are walked by `parentId`, so a group name containing
+  `/` (escaped `~/`) is no longer mistaken for a subgroup. An update is re-read after the `PUT`: a write
+  none of whose role / permission attributes came back (no `unmanagedAttributePolicy`) now fails with `502`
+  (body `{ error, stored }`) and a failure audit instead of `200`; a concurrent change by another admin is
+  not reported as a failure, and the response shows what Keycloak holds. Add/remove permission no longer
+  reads the user first (one token, read, `PUT`, verify read) and now audits its failures like the other
+  writes (`404` / `502` / `400`) instead of an unaudited `500`; the guard is skipped when it cannot
+  trigger (enabling, promoting to `admin`, permission-only), resolves only the target unless an admin is
+  being disabled/demoted, shares one admin token and group cache across that, and its Keycloak lookups
+  are audited on failure. Listing users resolves their groups concurrently (at most 8 at a time). The
+  migration `jq` copies a legacy role only verbatim — its first value, when not blank or padded — and
+  never over a group role; anything else is left for manual review, because trimming or skipping blanks
+  could grant admin to a user who is not one today.
 - Roles and permissions granted in `/admin` now reach the access token (#519). The admin UI wrote the
   Keycloak attributes `buildingos_role` / `buildingos_permissions`, but the realm's mappers put `role` /
   `permissions` into the token, so a user who also got `building_os_role` from a group silently lost
   every grant made in `/admin`. The admin UI and the Admin-API fallback now use `role` / `permissions`
   (one definition, `KeycloakUserAttributes`, pinned to `realm.json` by a test), so admin grants are also
   unioned with group `permissions` (#508). The legacy attributes are still read during migration (role:
-  `role` first, then `buildingos_role`; permissions: the union) and are removed from a user on their next
-  `/admin` update. The realm now sets `unmanagedAttributePolicy: ADMIN_EDIT`: Keycloak 24+ otherwise
+  own `role`, then the group role, then `buildingos_role`; permissions: the union); `buildingos_permissions`
+  is removed on a user's next `/admin` update and `buildingos_role` on their next explicit role change. The realm now sets `unmanagedAttributePolicy: ADMIN_EDIT`: Keycloak 24+ otherwise
   drops undeclared user attributes, so `/admin` writes returned 200 and stored nothing. An `/admin`
   update also no longer clears the user's email / first / last name (Keycloak 24+ treats an
   attribute-bearing `PUT` as a full profile update), which had left the user unable to log in. **An
