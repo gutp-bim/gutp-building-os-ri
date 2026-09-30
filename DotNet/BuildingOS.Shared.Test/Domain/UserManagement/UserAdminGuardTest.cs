@@ -112,4 +112,85 @@ public class UserAdminGuardTest
         var result = UserAdminGuard.CheckSetRole("admin-a", "op-1", "viewer", OneAdmin);
         Assert.Equal(UserAdminGuardResult.Allowed, result);
     }
+
+    // ── Group-derived admin (#519 follow-up) ─────────────────────────────────
+    //
+    // The non-aggregating building-os-role mapper falls back to a group's `role` when the user has
+    // none of their own (realm.json: building-os-admins role=admin). Since #519 a role written through
+    // /admin overrides that group value in the token, so the guard has to see the effective role.
+
+    private static readonly IReadOnlyList<UserRoleState> GroupAdminOnly = new[]
+    {
+        new UserRoleState("group-admin", null, true, GroupRole: "admin"),
+        new UserRoleState("op-1", "operator", true),
+    };
+
+    [Fact]
+    public void SetRole_GroupDerivedAdmin_SelfDemote_IsBlocked()
+    {
+        var users = new[]
+        {
+            new UserRoleState("group-admin", null, true, GroupRole: "admin"),
+            new UserRoleState("admin-b", "admin", true),
+        };
+        var result = UserAdminGuard.CheckSetRole("group-admin", "group-admin", "viewer", users);
+        Assert.Equal(UserAdminGuardResult.SelfLockout, result);
+    }
+
+    [Fact]
+    public void SetRole_DemotingTheOnlyGroupDerivedAdmin_IsBlocked()
+    {
+        var result = UserAdminGuard.CheckSetRole("op-1", "group-admin", "operator", GroupAdminOnly);
+        Assert.Equal(UserAdminGuardResult.LastAdmin, result);
+    }
+
+    [Fact]
+    public void SetRole_GroupDerivedAdminCountsAsARemainingAdmin()
+    {
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("group-admin", null, true, GroupRole: "admin"),
+        };
+        var result = UserAdminGuard.CheckSetRole("group-admin", "admin-a", "viewer", users);
+        Assert.Equal(UserAdminGuardResult.Allowed, result);
+    }
+
+    [Fact]
+    public void SetEnabled_DisablingTheOnlyGroupDerivedAdmin_IsBlocked()
+    {
+        var result = UserAdminGuard.CheckSetEnabled("op-1", "group-admin", newEnabled: false, GroupAdminOnly);
+        Assert.Equal(UserAdminGuardResult.LastAdmin, result);
+    }
+
+    [Fact]
+    public void SetRole_OwnRoleOverridesTheGroupRole()
+    {
+        // The user's own attribute wins over the group in the token, so this user is not an admin.
+        var users = new[]
+        {
+            new UserRoleState("admin-a", "admin", true),
+            new UserRoleState("op-in-admin-group", "operator", true, GroupRole: "admin"),
+        };
+        var result = UserAdminGuard.CheckSetRole("op-in-admin-group", "admin-a", "viewer", users);
+        Assert.Equal(UserAdminGuardResult.LastAdmin, result);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void SetRole_ClearingOwnRole_FallsBackToTheGroupRole(string newRole)
+    {
+        // Clearing an own "admin" while a group also grants admin keeps the user an admin.
+        var users = new[] { new UserRoleState("admin-a", "admin", true, GroupRole: "admin") };
+        var result = UserAdminGuard.CheckSetRole("admin-a", "admin-a", newRole, users);
+        Assert.Equal(UserAdminGuardResult.Allowed, result);
+    }
+
+    [Fact]
+    public void SetRole_ClearingOwnAdminWithoutAGroupAdmin_IsADemotion()
+    {
+        var result = UserAdminGuard.CheckSetRole("admin-a", "admin-a", "", OneAdmin);
+        Assert.Equal(UserAdminGuardResult.SelfLockout, result);
+    }
 }

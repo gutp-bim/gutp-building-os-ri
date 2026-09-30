@@ -112,12 +112,20 @@ precedence:
 
 | Value | Effective value |
 |---|---|
-| role | `role` when it has a non-empty value, otherwise `buildingos_role` |
+| role | `buildingos_role` when it has a non-blank value, otherwise `role` |
 | permissions | `permissions` ∪ `buildingos_permissions` (new values first, duplicates dropped) |
+
+`buildingos_role` wins because only the `/admin` UI ever wrote it, so it is the latest admin decision;
+a `role` next to it may be a stale realm-import / `kcadm` value. Preferring `role` would make the next
+permission-only `/admin` write persist that stale value and delete `buildingos_role` — a silent demotion
+(or revert).
 
 Any change made through `/admin` writes the merged values to `role` / `permissions` and removes that
 user's `buildingos_*` attributes, so a permission removed in `/admin` cannot be merged back from the
-legacy attribute. The token path does **not** read the legacy names: until a user is migrated, grants
+legacy attribute. **Any** `/admin` write — even a role-only change — therefore moves the user's legacy
+`buildingos_permissions` into the token-mapped `permissions` attribute, where they take effect in the
+token for the first time. Review a user's legacy permissions before relying on an `/admin` edit of that
+user. The token path does **not** read the legacy names: until a user is migrated, grants
 held only in `buildingos_*` apply only when the token carries no `building_os_role` claim. Migrate them
 with the procedure below.
 
@@ -126,9 +134,20 @@ the realm allows *unmanaged* attributes; without that, a `PUT` of `role` / `perm
 and stores nothing, and `role` in a realm import is dropped the same way. `realm.json` therefore sets
 `unmanagedAttributePolicy: ADMIN_EDIT` — admins (the Admin API and the admin console) can read and
 write these attributes, users cannot see or edit them in the account console. For the same reason the
-admin UI writes back the **full** user representation it just read: since Keycloak 24 a `PUT` carrying
-`attributes` is a full profile update, and an absent `email` / `firstName` / `lastName` is cleared,
-which then blocks the user's login ("Account is not fully set up").
+admin UI sends the profile fields (`username` / `email` / `firstName` / `lastName`) it just read along
+with `attributes`: since Keycloak 24 a `PUT` carrying `attributes` is a full profile update, and an
+absent `email` / `firstName` / `lastName` is cleared, which then blocks the user's login ("Account is not
+fully set up"). It sends **nothing else** — not `enabled`, `requiredActions` or `emailVerified` — so a
+concurrent change by another admin (e.g. disabling the user) is not reverted with the stale value.
+
+**Lockout guard and group-derived roles.** The `building-os-role` mapper is non-aggregating: a user's
+own `role` wins, and only without one does a group's (or a parent group's) `role` reach the token —
+`building-os-admins` carries `role=admin`. Since #519 a role written in `/admin` overrides that group
+value, so the self-lockout / last-admin guard (`UserAdminGuard`) compares **effective** roles: the
+user's own role, else the role inherited from their groups (`GetUserRoleStatesAsync`, one
+`users/{id}/groups` lookup per user without an own role). A group-derived admin therefore cannot demote
+or disable themselves, nor be demoted/disabled as the last admin. A role written in `/admin` is trimmed
+and must be one of `admin` / `operator` / `viewer` (`400` otherwise); a blank role clears it.
 
 #### Migrating an existing realm (`kcadm.sh` + `jq`)
 
@@ -144,17 +163,21 @@ kcadm.sh get users/profile -r "$REALM" \
   | jq '.unmanagedAttributePolicy = "ADMIN_EDIT"' \
   | kcadm.sh update users/profile -r "$REALM" -f -
 
-# 2. Copy buildingos_* into role / permissions (same precedence as the dual read) and drop the
-#    legacy attributes. `kcadm.sh update -f` sends the full representation, so profile fields survive.
+# 2. Copy buildingos_* into role / permissions (same precedence as the dual read: a non-blank
+#    buildingos_role wins; permissions keep their order, new first, then legacy, duplicates dropped)
+#    and drop the legacy attributes. `kcadm.sh update -f` sends the full representation, so profile
+#    fields survive. Review each user's buildingos_permissions first — they reach the token after this.
 kcadm.sh get users -r "$REALM" --limit 100000 \
   | jq -c '.[] | select(.attributes.buildingos_role or .attributes.buildingos_permissions)' \
   | while read -r user; do
       id=$(jq -r .id <<<"$user")
       jq '.attributes |= (
             . as $a
-            | .role = (if ([($a.role // [])[] | select(. != "")] | length) > 0
-                       then $a.role else ($a.buildingos_role // []) end)
-            | .permissions = ((($a.permissions // []) + ($a.buildingos_permissions // [])) | unique)
+            | .role = ([($a.buildingos_role // [])[] | select(test("\\S"))] as $legacy
+                       | if ($legacy | length) > 0 then [$legacy[0]] else ($a.role // []) end)
+            | .permissions = (($a.permissions // []) + ($a.buildingos_permissions // [])
+                              | reduce (.[] | select(test("\\S"))) as $p ([];
+                                  if index([$p]) then . else . + [$p] end))
             | del(.buildingos_role, .buildingos_permissions)
             | with_entries(select(.value | length > 0)))' <<<"$user" \
         | kcadm.sh update "users/$id" -r "$REALM" -f -

@@ -29,11 +29,15 @@ public class UsersControllerTest
     /// </param>
     private static (UsersController controller, Mock<IUserManagementService> svc, Mock<IAdminAuditRecorder> audit)
         Build(AuthorizationContext auth, IReadOnlyList<EntraUser>? users = null, IUserManagementService? service = null,
-              Mock<IResourceIdMappingRepository>? mapping = null)
+              Mock<IResourceIdMappingRepository>? mapping = null,
+              IReadOnlyList<UserRoleState>? roleStates = null)
     {
         var svc = new Mock<IUserManagementService>();
         svc.Setup(s => s.GetUsersAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(users ?? Array.Empty<EntraUser>());
+        svc.Setup(s => s.GetUserRoleStatesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(roleStates
+                ?? (users ?? Array.Empty<EntraUser>()).Select(u => new UserRoleState(u.Id, u.Role, u.Enabled)).ToList());
         mapping ??= new Mock<IResourceIdMappingRepository>();
         var audit = new Mock<IAdminAuditRecorder>();
         var controller = new UsersController(
@@ -145,6 +149,73 @@ public class UsersControllerTest
 
         Assert.IsType<ConflictObjectResult>(result.Result);
         svc.Verify(s => s.UpdateUserAttributesAsync(It.IsAny<string>(), It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_GroupDerivedAdmin_SelfDemote_Returns409()
+    {
+        // #519 follow-up: an admin whose role comes from a group (building-os-admins role=admin) is an
+        // admin in the token; an own `viewer` written now would override that and lock them out.
+        var roleStates = new[]
+        {
+            new UserRoleState("actor", null, true, GroupRole: "admin"),
+            new UserRoleState("admin-b", "admin", true),
+        };
+        var (controller, svc, _) = Build(Auth("admin", "actor"), roleStates: roleStates);
+
+        var result = await controller.UpdateAttributes(
+            "actor", new UsersController.UpdateUserAttributesApiRequest { Role = "viewer" }, default);
+
+        Assert.IsType<ConflictObjectResult>(result.Result);
+        svc.Verify(s => s.UpdateUserAttributesAsync(It.IsAny<string>(), It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetEnabled_OnlyGroupDerivedAdmin_Returns409()
+    {
+        var users = new[] { User("group-admin", null), User("op", "operator") };
+        var roleStates = new[]
+        {
+            new UserRoleState("group-admin", null, true, GroupRole: "admin"),
+            new UserRoleState("op", "operator", true),
+        };
+        var (controller, svc, _) = Build(Auth("admin", "op"), users, roleStates: roleStates);
+
+        var result = await controller.SetEnabled("group-admin", new UsersController.SetEnabledRequest { Enabled = false }, default);
+
+        Assert.IsType<ConflictObjectResult>(result.Result);
+        svc.Verify(s => s.SetEnabledAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("superuser")]
+    [InlineData("Admin")]
+    public async Task UpdateAttributes_UnknownRole_Returns400_WithoutWriting(string role)
+    {
+        var users = new[] { User("admin-a", "admin"), User("op", "operator") };
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), users);
+
+        var result = await controller.UpdateAttributes(
+            "op", new UsersController.UpdateUserAttributesApiRequest { Role = role }, default);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        svc.Verify(s => s.UpdateUserAttributesAsync(It.IsAny<string>(), It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAttributes_TrimsTheRoleBeforeWriting()
+    {
+        var users = new[] { User("admin-a", "admin"), User("op", "operator") };
+        var (controller, svc, _) = Build(Auth("admin", "admin-a"), users);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(User("op", "viewer"));
+
+        var result = await controller.UpdateAttributes(
+            "op", new UsersController.UpdateUserAttributesApiRequest { Role = " viewer " }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        svc.Verify(s => s.UpdateUserAttributesAsync("op",
+            It.Is<UpdateUserAttributesRequest>(r => r.Role == "viewer"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

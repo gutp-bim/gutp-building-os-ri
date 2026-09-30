@@ -86,16 +86,30 @@ public class UsersController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.IsAdmin) return Forbid();
 
-        // Reject role changes that would lock the actor out or remove the last admin (#325).
-        if (request.Role != null)
+        // Trim the role, map blank to "clear", and reject roles outside RoleCatalog before anything
+        // else sees it: whitespace or an unknown string would otherwise become the building_os_role claim.
+        string? role;
+        try
         {
-            var users = await _userService.GetUsersAsync(ct).ConfigureAwait(false);
-            var guard = UserAdminGuard.CheckSetRole(
-                authContext.UserId, id, request.Role, ToRoleStates(users));
+            role = KeycloakUserAttributes.NormalizeRole(request.Role);
+        }
+        catch (ArgumentException ex)
+        {
+            await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Failure,
+                new { error = ex.Message }, ct).ConfigureAwait(false);
+            return BadRequest(new { error = ex.Message });
+        }
+
+        // Reject role changes that would lock the actor out or remove the last admin (#325). The guard
+        // sees the effective role, including an admin inherited from a Keycloak group (#519 follow-up).
+        if (role != null)
+        {
+            var states = await _userService.GetUserRoleStatesAsync(ct).ConfigureAwait(false);
+            var guard = UserAdminGuard.CheckSetRole(authContext.UserId, id, role, states);
             if (guard != UserAdminGuardResult.Allowed)
             {
                 await AuditAsync(authContext, "set-role", id, AdminAuditResult.Failure,
-                    new { role = request.Role, blocked = guard.ToString() }, ct).ConfigureAwait(false);
+                    new { role, blocked = guard.ToString() }, ct).ConfigureAwait(false);
                 return Conflict(new { error = LockoutMessage(guard) });
             }
         }
@@ -104,7 +118,7 @@ public class UsersController : ControllerBase
         {
             var updateRequest = new UpdateUserAttributesRequest
             {
-                Role = request.Role,
+                Role = role,
                 Permissions = request.Permissions?.Select(HashPermissionResourceId).ToList()
             };
 
@@ -125,7 +139,7 @@ public class UsersController : ControllerBase
             await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Success,
                 new
                 {
-                    role = request.Role,
+                    role,
                     permissions = request.Permissions?.Count ?? 0,
                     resourceIdMappingSaved = mappingError is null
                 }, ct).ConfigureAwait(false);
@@ -177,14 +191,15 @@ public class UsersController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.IsAdmin) return Forbid();
 
-        var users = await _userService.GetUsersAsync(ct).ConfigureAwait(false);
-        if (users.All(u => u.Id != id))
+        // Effective roles, so an admin inherited from a Keycloak group counts (#519 follow-up).
+        var states = await _userService.GetUserRoleStatesAsync(ct).ConfigureAwait(false);
+        if (states.All(u => u.Id != id))
         {
             return NotFound();
         }
 
         var guard = UserAdminGuard.CheckSetEnabled(
-            authContext.UserId, id, request.Enabled, ToRoleStates(users));
+            authContext.UserId, id, request.Enabled, states);
         if (guard != UserAdminGuardResult.Allowed)
         {
             await AuditAsync(authContext, "set-enabled", id, AdminAuditResult.Failure,
@@ -306,9 +321,6 @@ public class UsersController : ControllerBase
             AdminAuditSubjects.User, action, targetId, auth.UserId, actorName: null, result, detailJson);
         return _audit.RecordAsync(record, ct);
     }
-
-    private static IReadOnlyList<UserRoleState> ToRoleStates(IReadOnlyList<EntraUser> users) =>
-        users.Select(u => new UserRoleState(u.Id, u.Role, u.Enabled)).ToList();
 
     private static string LockoutMessage(UserAdminGuardResult guard) => guard switch
     {

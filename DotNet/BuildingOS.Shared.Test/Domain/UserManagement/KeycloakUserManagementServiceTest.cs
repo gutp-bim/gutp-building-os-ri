@@ -152,7 +152,7 @@ public class KeycloakUserManagementServiceTest
     }
 
     [Fact]
-    public async Task UpdateUserAttributesAsync_SendsTheFullRepresentation_SoProfileFieldsSurvive()
+    public async Task UpdateUserAttributesAsync_SendsTheProfileFields_SoTheySurvive()
     {
         // Keycloak 24+ (user profile) treats a PUT that carries `attributes` as a full profile update:
         // an absent email / firstName / lastName is cleared, and a user missing required profile
@@ -171,6 +171,147 @@ public class KeycloakUserManagementServiceTest
         Assert.Equal("alice@example.com", body.GetProperty("email").GetString());
         Assert.Equal("Alice", body.GetProperty("firstName").GetString());
         Assert.Equal("Liddell", body.GetProperty("lastName").GetString());
+    }
+
+    [Theory]
+    [InlineData("enabled")]
+    [InlineData("requiredActions")]
+    [InlineData("emailVerified")]
+    [InlineData("id")]
+    [InlineData("createdTimestamp")]
+    public async Task UpdateUserAttributesAsync_DoesNotResendAccountState(string field)
+    {
+        // The PUT is built from a GET a moment earlier. Resending `enabled` / `requiredActions` /
+        // `emailVerified` from that snapshot silently reverts a concurrent SetEnabledAsync(false)
+        // (or a required action) by another admin. Only attributes + the profile fields go out.
+        var keycloak = new FakeKeycloakUser("id1", "alice", new() { ["role"] = ["viewer"] },
+            email: "alice@example.com", firstName: "Alice", lastName: "Liddell");
+        var service = CreateService(keycloak.Handle);
+
+        await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Permissions = ["floor:2:read"]
+        });
+
+        Assert.False(keycloak.LastPutBody!.RootElement.TryGetProperty(field, out _),
+            $"PUT body must not carry '{field}'");
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_UsesOneTokenAndOneRead()
+    {
+        // The token and the representation already fetched are enough to build the response; a second
+        // token request and a re-GET only add latency (and a window for a different answer).
+        var keycloak = new FakeKeycloakUser("id1", "alice", new() { ["role"] = ["viewer"] });
+        var service = CreateService(keycloak.Handle);
+
+        var updated = await service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest
+        {
+            Role = "operator",
+            Permissions = ["floor:2:read"]
+        });
+
+        Assert.Equal(1, keycloak.TokenRequests);
+        Assert.Equal(1, keycloak.UserGets);
+        Assert.Equal("operator", updated.Role);
+        Assert.Equal(["floor:2:read"], updated.Permissions);
+        Assert.Equal("alice", updated.UserPrincipalName);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_UnknownRole_IsRejectedWithoutWriting()
+    {
+        var keycloak = new FakeKeycloakUser("id1", "alice", new() { ["role"] = ["viewer"] });
+        var service = CreateService(keycloak.Handle);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateUserAttributesAsync("id1",
+            new UpdateUserAttributesRequest { Role = "superuser" }));
+
+        Assert.Null(keycloak.LastPutBody);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_MatchesPropertiesCaseInsensitively()
+    {
+        // The read path deserializes with JsonSerializerOptions.Web (case-insensitive), as before #519.
+        var service = CreateService(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token"))
+                return TokenResponse();
+            return JsonResponse(new Dictionary<string, object>
+            {
+                ["Id"] = "id1",
+                ["Username"] = "alice",
+                ["Attributes"] = new Dictionary<string, string[]> { ["role"] = ["viewer"] },
+                ["Enabled"] = false,
+            });
+        });
+
+        var user = await service.GetUserByIdAsync("id1");
+
+        Assert.Equal("id1", user!.Id);
+        Assert.Equal("viewer", user.Role);
+        Assert.False(user.Enabled);
+    }
+
+    // ── Effective role for the lockout guard (group-derived admin) ────────────
+
+    [Fact]
+    public async Task GetUserRoleStatesAsync_ResolvesTheRoleInheritedFromGroups()
+    {
+        // The building-os-role mapper is non-aggregating: the user's own `role` wins, otherwise a
+        // group's (or a parent group's) `role` reaches the token. The guard must see that.
+        var groupsByUser = new Dictionary<string, object[]>
+        {
+            // Direct member of building-os-admins (role=admin), no own role.
+            ["u-group-admin"] = [new { id = "g1", name = "building-os-admins", path = "/building-os-admins",
+                attributes = new Dictionary<string, string[]> { ["role"] = ["admin"] } }],
+            // Member of a subgroup whose parent carries role=admin.
+            ["u-sub-admin"] = [new { id = "g3", name = "tokyo", path = "/ops/tokyo",
+                attributes = new Dictionary<string, string[]>() }],
+            // Has an own role; groups need not be looked up at all.
+            ["u-own"] = [],
+            ["u-none"] = [],
+        };
+        var groupGets = new List<string>();
+        var service = CreateService(req =>
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (path.Contains("openid-connect/token")) return TokenResponse();
+            if (path.EndsWith("/users"))
+                return UsersListResponse([
+                    BuildKeycloakUserJson("u-group-admin", "ga", "ga@example.com", null, []),
+                    BuildKeycloakUserJson("u-sub-admin", "sa", "sa@example.com", null, []),
+                    BuildKeycloakUserJson("u-own", "own", "own@example.com", "viewer", []),
+                    BuildKeycloakUserJson("u-none", "none", "none@example.com", null, []),
+                ]);
+            if (path.Contains("/group-by-path/"))
+            {
+                groupGets.Add(path);
+                return path.EndsWith("/group-by-path/ops")
+                    ? JsonResponse(new { id = "g2", name = "ops", path = "/ops",
+                        attributes = new Dictionary<string, string[]> { ["role"] = ["admin"] } })
+                    : new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+            if (path.EndsWith("/groups"))
+            {
+                var userId = path.Split('/')[^2];
+                Assert.NotEqual("u-own", userId);
+                Assert.Contains("briefRepresentation=false", req.RequestUri.Query);
+                return JsonResponse(groupsByUser[userId]);
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var states = (await service.GetUserRoleStatesAsync()).ToDictionary(s => s.Id);
+
+        Assert.Equal("admin", states["u-group-admin"].GroupRole);
+        Assert.Null(states["u-group-admin"].Role);
+        Assert.Equal("admin", states["u-group-admin"].EffectiveRole);
+        Assert.Equal("admin", states["u-sub-admin"].EffectiveRole);
+        Assert.Equal("viewer", states["u-own"].EffectiveRole);
+        Assert.Null(states["u-none"].EffectiveRole);
+        Assert.Single(groupGets);
     }
 
     [Fact]
@@ -230,7 +371,7 @@ public class KeycloakUserManagementServiceTest
     }
 
     [Fact]
-    public async Task GetUserByIdAsync_BothPresent_RolePrefersNewAndPermissionsAreUnioned()
+    public async Task GetUserByIdAsync_BothPresent_RolePrefersLegacyAndPermissionsAreUnioned()
     {
         var service = CreateService(req =>
         {
@@ -247,7 +388,8 @@ public class KeycloakUserManagementServiceTest
 
         var user = await service.GetUserByIdAsync("id1");
 
-        Assert.Equal("viewer", user!.Role);
+        // buildingos_role was only ever written by /admin — the latest admin decision (#519 review).
+        Assert.Equal("operator", user!.Role);
         Assert.Equal(["floor:2:read", "floor:1:read", "floor:3:write"], user.Permissions);
     }
 
@@ -472,11 +614,16 @@ public class KeycloakUserManagementServiceTest
 
         public Dictionary<string, string[]>? LastPutAttributes { get; private set; }
         public JsonDocument? LastPutBody { get; private set; }
+        public int TokenRequests { get; private set; }
+        public int UserGets { get; private set; }
 
         public HttpResponseMessage Handle(HttpRequestMessage req)
         {
             if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token"))
+            {
+                TokenRequests++;
                 return TokenResponse();
+            }
             if (req.Method == HttpMethod.Put)
             {
                 var body = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
@@ -488,6 +635,7 @@ public class KeycloakUserManagementServiceTest
                 }
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
+            UserGets++;
             return JsonResponse(new
             {
                 id,
@@ -497,6 +645,8 @@ public class KeycloakUserManagementServiceTest
                 lastName,
                 enabled = true,
                 emailVerified = true,
+                createdTimestamp = 1700000000000,
+                requiredActions = new[] { "UPDATE_PASSWORD" },
                 attributes = (object)_attributes
             });
         }

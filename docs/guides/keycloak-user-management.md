@@ -94,8 +94,9 @@ Web Client の `/admin` ワークスペース（管理者ロールでログイ�
 >
 > #519 より前の管理 UI は `buildingos_role` / `buildingos_permissions` に書いていたため、
 > その権限はトークンに載っていませんでした。移行期間中は Admin API 経路で旧属性も読み合わせ
-> （role は `role` 優先・空なら `buildingos_role`、permissions は両方の和集合）、管理 UI で
-> そのユーザーを更新すると新属性に書き込んで旧属性を削除します。既存ユーザーの一括移行
+> （role は管理 UI の最後の決定である `buildingos_role` 優先・空なら `role`、permissions は両方の和集合）、管理 UI で
+> そのユーザーを更新すると新属性に書き込んで旧属性を削除します。どの更新でも旧 `buildingos_permissions` が
+> トークンに載る `permissions` に移るので、更新前にそのユーザーの旧権限を確認してください。既存ユーザーの一括移行
 > （`kcadm.sh` + `jq`）と、realm のユーザープロファイル設定（`unmanagedAttributePolicy: ADMIN_EDIT`
 > — これが無いと Keycloak 24+ は `role` / `permissions` を黙って捨てる）は
 > [keycloak-permission-mapping.md の「Admin UI writes the same attributes」](../operations/keycloak-permission-mapping.md#admin-ui-writes-the-same-attributes-519)

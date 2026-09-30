@@ -122,13 +122,19 @@ publishes images for (`v*.*.*`).
   newest partitions, as before, but the response now carries `X-Partial-Result: true` and
   `X-Covered-From` (ISO-8601 UTC instant from which the data is complete) instead of a silent 200.
   Both headers are exposed to cross-origin browser clients via CORS.
+- `/admin` user-attribute follow-ups to #519: an attribute update `PUT`s only `attributes` plus
+  `username` / `email` / `firstName` / `lastName`, so it no longer reverts a concurrent disable (or
+  `requiredActions` / `emailVerified` change) by another admin; the role is trimmed, a blank role clears
+  it, and a role outside `admin` / `operator` / `viewer` is rejected with `400`; the self-lockout /
+  last-admin guard counts an admin inherited from a Keycloak group (e.g. `building-os-admins`); an update
+  reuses one admin token and one read instead of two tokens and a re-GET.
 - Roles and permissions granted in `/admin` now reach the access token (#519). The admin UI wrote the
   Keycloak attributes `buildingos_role` / `buildingos_permissions`, but the realm's mappers put `role` /
   `permissions` into the token, so a user who also got `building_os_role` from a group silently lost
   every grant made in `/admin`. The admin UI and the Admin-API fallback now use `role` / `permissions`
   (one definition, `KeycloakUserAttributes`, pinned to `realm.json` by a test), so admin grants are also
   unioned with group `permissions` (#508). The legacy attributes are still read during migration (role:
-  `role` first, then `buildingos_role`; permissions: the union) and are removed from a user on their next
+  a non-blank `buildingos_role` first — the latest `/admin` decision — then `role`; permissions: the union) and are removed from a user on their next
   `/admin` update. The realm now sets `unmanagedAttributePolicy: ADMIN_EDIT`: Keycloak 24+ otherwise
   drops undeclared user attributes, so `/admin` writes returned 200 and stored nothing. An `/admin`
   update also no longer clears the user's email / first / last name (Keycloak 24+ treats an

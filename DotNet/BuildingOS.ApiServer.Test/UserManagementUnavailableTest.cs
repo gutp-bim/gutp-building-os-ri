@@ -60,6 +60,7 @@ public class UserManagementUnavailableTest
         var svc = new UnconfiguredUserManagementService();
 
         await Assert.ThrowsAsync<UserManagementUnavailableException>(() => svc.GetUsersAsync());
+        await Assert.ThrowsAsync<UserManagementUnavailableException>(() => svc.GetUserRoleStatesAsync());
         await Assert.ThrowsAsync<UserManagementUnavailableException>(() => svc.GetUserByIdAsync("u1"));
         await Assert.ThrowsAsync<UserManagementUnavailableException>(
             () => svc.UpdateUserAttributesAsync("u1", new UpdateUserAttributesRequest()));

@@ -11,6 +11,13 @@ public interface IUserManagementService
     Task<IReadOnlyList<EntraUser>> GetUsersAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get every user's role/enabled state for the lockout guard (<see cref="UserAdminGuard"/>),
+    /// including the role inherited from Keycloak groups (<see cref="UserRoleState.GroupRole"/>), so a
+    /// group-derived admin counts as an admin.
+    /// </summary>
+    Task<IReadOnlyList<UserRoleState>> GetUserRoleStatesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get a specific user by ID
     /// </summary>
     Task<EntraUser?> GetUserByIdAsync(string userId, CancellationToken cancellationToken = default);
