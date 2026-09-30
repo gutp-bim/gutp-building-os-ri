@@ -149,10 +149,7 @@ public class KeycloakUserManagementService : IUserManagementService
             _logger.LogWarning(ex,
                 "Keycloak accepted the attribute update for user {UserId} but the verifying read failed; " +
                 "reporting it as written but unverified", userId);
-            var ownRole = KeycloakUserAttributes.ReadMappedRole(attributes);
-            var asWritten = MapToEntraUser(dto with { Attributes = attributes }, ownRole,
-                groupRoleUnresolved: string.IsNullOrEmpty(ownRole));
-            throw new UserAttributesWrittenUnverifiedException(userId, asWritten, ex);
+            throw WrittenUnverified(userId, dto with { Attributes = attributes }, ex);
         }
 
         // Only "dropped entirely" fails: a concurrent write by another admin between the PUT and this
@@ -170,7 +167,34 @@ public class KeycloakUserManagementService : IUserManagementService
             userId, updateRequest.Role,
             attributes.TryGetValue(KeycloakUserAttributes.Permissions, out var written) ? written.Length : 0);
 
-        return await MapWithRoleAsync(token, stored, cancellationToken);
+        // The write is committed and verified; only the group lookup for the displayed role is left. Its
+        // failures other than a caller cancellation already degrade to "group role unknown", but a
+        // cancellation (or anything else) here must not turn the committed write into an error either:
+        // report it like the unverified path so the caller still answers success and saves its records (#532).
+        try
+        {
+            return await MapWithRoleAsync(token, stored, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Keycloak stored the attribute update for user {UserId} but reading their groups afterwards " +
+                "failed; reporting it as written", userId);
+            throw WrittenUnverified(userId, stored, ex);
+        }
+    }
+
+    /// <summary>
+    /// The user as written, for a write Keycloak accepted whose follow-up read failed (#532): the role shown
+    /// is the own role only; without one the groups decide and were not read, so it is unknown.
+    /// </summary>
+    private static UserAttributesWrittenUnverifiedException WrittenUnverified(
+        string userId, KeycloakUserDto written, Exception inner)
+    {
+        var ownRole = KeycloakUserAttributes.ReadMappedRole(written.Attributes);
+        var asWritten = MapToEntraUser(written, string.IsNullOrEmpty(ownRole) ? null : ownRole,
+            groupRoleUnresolved: string.IsNullOrEmpty(ownRole));
+        return new UserAttributesWrittenUnverifiedException(userId, asWritten, inner);
     }
 
     public async Task<EntraUser> SetEnabledAsync(
@@ -435,9 +459,8 @@ public class KeycloakUserManagementService : IUserManagementService
             // Keycloak omits `enabled` only on legacy records; treat a missing flag as enabled.
             Enabled = dto.Enabled ?? true,
             GroupRoleUnresolved = groupRoleUnresolved,
-            OwnAttributeRole = KeycloakUserAttributes.ResolveRole(
-                KeycloakUserAttributes.ReadMappedRole(dto.Attributes), groupRole: null,
-                KeycloakUserAttributes.ReadLegacyRole(dto.Attributes)),
+            // Own role only — never the legacy one, which a group role would hide (#532 review).
+            OwnAttributeRole = KeycloakUserAttributes.ReadMappedRole(dto.Attributes) is { Length: > 0 } own ? own : null,
         };
     }
 

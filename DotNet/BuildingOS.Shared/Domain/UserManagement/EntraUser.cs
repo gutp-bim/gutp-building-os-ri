@@ -23,9 +23,10 @@ public class EntraUser
     public bool GroupRoleUnresolved { get; init; }
 
     /// <summary>
-    /// The role the user's own attributes give — own <c>role</c>, else the legacy <c>buildingos_role</c> —
-    /// ignoring groups. The Admin-API fallback authorizes from it when <see cref="GroupRoleUnresolved"/>
-    /// (the pre-group behaviour), instead of downgrading the user to <c>role=user</c> with no permissions.
+    /// The user's own <c>role</c> attribute, ignoring groups and the legacy <c>buildingos_role</c> (which a
+    /// group role would hide, so it can never stand in for an unknown group role — #532 review). The
+    /// Admin-API fallback authorizes from it when <see cref="GroupRoleUnresolved"/>; when it is empty the
+    /// fallback fails closed (<c>role=user</c>, no permissions).
     /// </summary>
     public string? OwnAttributeRole { get; init; }
 }

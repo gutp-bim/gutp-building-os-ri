@@ -709,7 +709,8 @@ public class KeycloakUserManagementServiceTest
         Assert.False(users[0].GroupRoleUnresolved);
         Assert.Null(users[1].Role); // unknown, not guessed
         Assert.True(users[1].GroupRoleUnresolved);
-        Assert.Equal("operator", users[1].OwnAttributeRole);
+        // The legacy buildingos_role is hidden by any group role, so it is never the fallback (#532 review).
+        Assert.Null(users[1].OwnAttributeRole);
         Assert.Equal(["floor:1:read"], users[1].Permissions);
     }
 
@@ -767,6 +768,52 @@ public class KeycloakUserManagementServiceTest
 
         Assert.Equal(["floor:2:read"], updated.Permissions);
         Assert.True(updated.GroupRoleUnresolved);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_GroupLookupFails_LegacyAdminInAViewerGroup_IsNotReportedAsAdmin()
+    {
+        // No own role, a viewer group (which would hide the legacy value), and a leftover legacy
+        // buildingos_role=admin. With the groups unreadable the legacy value must not surface as the
+        // fallback role: that would turn a viewer into an admin (#532 review).
+        var realm = new FakeRealm { GroupListStatus = HttpStatusCode.Forbidden };
+        realm.AddGroup("g-viewer", "/viewers", role: "viewer");
+        realm.AddUser("id1", "alice", new() { ["buildingos_role"] = ["admin"] }, groups: ["g-viewer"]);
+
+        var user = await CreateService(realm).GetUserByIdAsync("id1");
+
+        Assert.NotNull(user);
+        Assert.True(user!.GroupRoleUnresolved);
+        Assert.Null(user.Role);
+        Assert.Null(user.OwnAttributeRole);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_CallerCancelledDuringThePostWriteGroupLookup_ThrowsWrittenUnverified()
+    {
+        // The PUT and the verifying read succeeded, then the request was cancelled while the groups were
+        // being read: the write is committed, so it must surface as written, not as a cancellation (#532).
+        using var cts = new CancellationTokenSource();
+        var realm = new FakeRealm();
+        realm.AddUser("id1", "alice", new() { ["permissions"] = ["floor:1:read"] });
+        var service = CreateService(req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath.EndsWith("/groups"))
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            }
+            return realm.Handle(req);
+        });
+
+        var ex = await Assert.ThrowsAsync<UserAttributesWrittenUnverifiedException>(() =>
+            service.UpdateUserAttributesAsync("id1",
+                new UpdateUserAttributesRequest { PermissionsToAdd = ["floor:2:read"] }, cts.Token));
+
+        Assert.Equal(1, realm.Puts);
+        Assert.Equal(["floor:1:read", "floor:2:read"], ex.Written.Permissions);
+        Assert.True(ex.Written.GroupRoleUnresolved);
+        Assert.IsAssignableFrom<OperationCanceledException>(ex.InnerException);
     }
 
     // ── #532: a PUT Keycloak accepted is reported as written, even if it cannot be verified ─

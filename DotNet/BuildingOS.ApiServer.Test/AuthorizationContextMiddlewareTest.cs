@@ -80,7 +80,26 @@ public class AuthorizationContextMiddlewareTest
         await ResolveAsync(svc, cache);
 
         Assert.Equal("user", ctx.Role);
-        Assert.Equal(["floor:1:read"], ctx.Permissions);
+        Assert.Empty(ctx.Permissions);
         svc.Verify(s => s.GetUserByIdAsync("u1", It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task GroupRoleUnresolved_WithoutAnOwnRole_FailsClosed_EvenWithALegacyAdminRole()
+    {
+        // No own role, a viewer group that could not be read, a leftover legacy buildingos_role=admin: the
+        // legacy value (which the group role would hide) must not make the user an admin — fail closed to
+        // role=user with no permissions, as before #532.
+        var svc = Service(new EntraUser
+        {
+            Id = "u1", DisplayName = "u1", Role = null, GroupRoleUnresolved = true,
+            OwnAttributeRole = null, Permissions = ["building:1:write"],
+        });
+
+        var ctx = await ResolveAsync(svc, new MemoryCache(new MemoryCacheOptions()));
+
+        Assert.Equal("user", ctx.Role);
+        Assert.False(ctx.IsAdmin);
+        Assert.Empty(ctx.Permissions);
     }
 }
