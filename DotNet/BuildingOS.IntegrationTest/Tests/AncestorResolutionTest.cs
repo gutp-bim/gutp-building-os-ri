@@ -61,4 +61,20 @@ public class AncestorResolutionTest(OxiGraphFixture oxiGraph)
         Assert.Empty(await resolver.GetAncestorsAsync("device", "LITERAL"));
         Assert.Equal(new[] { ("device", "LITERAL") }, await resolver.GetAncestorsAsync("point", "P2"));
     }
+
+    [Fact]
+    public async Task PointDetail_ForADeviceWithTwoPlacements_IsDeterministic_RoomPlacementFirst()
+    {
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(Ttl);
+        var db = new BuildingOS.Shared.Infrastructure.OxiGraphDigitalTwinDatabase(
+            oxiGraph.Client, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+
+        for (var i = 0; i < 5; i++)
+        {
+            var detail = await db.GetPointDetailByPointId("P1");
+            Assert.NotNull(detail);
+            Assert.Equal("R501", detail!.Space?.Id);
+            Assert.Equal("F5", detail.Floor?.Id);
+        }
+    }
 }

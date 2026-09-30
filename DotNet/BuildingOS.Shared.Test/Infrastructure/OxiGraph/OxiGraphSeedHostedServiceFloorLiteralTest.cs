@@ -59,7 +59,23 @@ public class OxiGraphSeedHostedServiceFloorLiteralTest
             e.Level == LogLevel.Warning && e.Message.Contains("Floor-literal placement check after seed failed"));
     }
 
-    private sealed class Handler(IReadOnlyList<string>? floorLiteralOnlyDevices) : HttpMessageHandler
+    [Fact]
+    public async Task CheckTimeout_IsNonFatal()
+    {
+        // An HttpClient timeout surfaces as TaskCanceledException (an OperationCanceledException) while
+        // the host's own token is NOT cancelled — it must not escape and stop startup.
+        var client = new OxiGraphClient(new HttpClient(new Handler(null, timeOut: true)), "http://oxigraph:7878");
+        var materializer = new OxiGraphIngestMaterializer(client, RecordingLogger<OxiGraphIngestMaterializer>.Null);
+        var logger = new RecordingLogger<OxiGraphSeedHostedService>();
+        var service = new OxiGraphSeedHostedService(client, materializer, logger);
+
+        await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("Floor-literal placement check after seed failed"));
+    }
+
+    private sealed class Handler(IReadOnlyList<string>? floorLiteralOnlyDevices, bool timeOut = false) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -68,6 +84,7 @@ public class OxiGraphSeedHostedServiceFloorLiteralTest
 
             if (sparql == OxiGraphSeedHostedService.FloorLiteralOnlyQuery)
             {
+                if (timeOut) throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout");
                 if (floorLiteralOnlyDevices is null) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                 var bindings = string.Join(",", floorLiteralOnlyDevices.Select(d =>
                     $@"{{""devId"":{{""type"":""literal"",""value"":""{d}""}}}}"));

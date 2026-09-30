@@ -34,7 +34,7 @@ public static class TwinOrphanReasons
 
     /// <summary>
     /// The point's device names a Level only through the <c>sbco:floor</c> literal and has no
-    /// <c>sbco:locatedIn</c>. The literal is metadata, not a relationship, so the device is placed
+    /// <c>sbco:locatedIn</c> at all (one pointing at an untyped node is <see cref="NoRoom"/>). The literal is metadata, not a relationship, so the device is placed
     /// nowhere: the twin's builder must emit <c>sbco:locatedIn</c> to the Room or Level.
     /// </summary>
     public const string FloorLiteralOnly = "floor_literal_only";

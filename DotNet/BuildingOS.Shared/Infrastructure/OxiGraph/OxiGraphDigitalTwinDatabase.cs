@@ -336,8 +336,11 @@ WHERE {{
     }}
   }}
 }}
-GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
+GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
+ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
 
+        // A device placed more than once (in a Room and directly on another Level) yields a row per
+        // placement; the ORDER BY makes the one reported deterministic — a Room placement first.
         var rows = await _client.QueryAsync(sparql);
         if (rows.Count == 0) return null;
         var r = rows[0];
@@ -354,8 +357,9 @@ GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId
     {
         if (!IsUsableDtId(buildingDtId)) return [];
         // A device belongs to the selected Building through its topology: a Room under the Level, or
-        // direct sbco:locatedIn Level (the sbco:floor literal places nothing). FILTER EXISTS preserves
-        // that scope without multiplying rows when a device declares both.
+        // direct sbco:locatedIn Level (the sbco:floor literal places nothing). FILTER EXISTS keeps a
+        // device declaring both placements on the SAME Level to one row; a device placed on two Levels
+        // of the building is listed once per Level (?floor is part of the row).
         // SAMPLE aggregates gatewayId across all points of a device for deterministic selection.
         //
         // ?devBuilding is the building's own name — this query is already scoped BY building, so there
@@ -411,8 +415,9 @@ GROUP BY {PointVars} ?devBuilding
     {
         if (!IsUsableDtId(buildingDtId)) return [];
         // A device belongs to the selected Building through its topology: a Room under the Level, or
-        // direct sbco:locatedIn Level (the sbco:floor literal places nothing). FILTER EXISTS preserves
-        // that scope without multiplying rows when a device declares both.
+        // direct sbco:locatedIn Level (the sbco:floor literal places nothing). FILTER EXISTS keeps a
+        // device declaring both placements on the SAME Level to one row; a device placed on two Levels
+        // of the building is listed once per Level (?floor is part of the row).
         var sparql = $@"{Prefixes}
 SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName

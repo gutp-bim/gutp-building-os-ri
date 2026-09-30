@@ -128,6 +128,25 @@ public class TwinAdminOrphanPreviewTest(OxiGraphFixture oxiGraph)
     }
 
     [Fact]
+    public async Task PreviewImport_LocatedInAnUntypedNode_IsNoRoom_NotFloorLiteralOnly()
+    {
+        // The equipment does carry sbco:locatedIn — to a node that is not typed Room/Level. The defect is
+        // the target, so "floor_literal_only" (which tells the author to add sbco:locatedIn) would mislead.
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bldg-3> a sbco:Building ; sbco:id "bldg-3" ; sbco:hasPart <urn:test:floor-3> .
+            <urn:test:floor-3> a sbco:Level ; sbco:id "floor-3" ; sbco:name "3F" .
+            <urn:test:eq-3> a sbco:EquipmentExt ; sbco:id "EQ-3" ; sbco:floor "3F" ;
+              sbco:locatedIn <urn:test:untyped-room> ; sbco:hasPoint <urn:test:pt-3> .
+            <urn:test:pt-3> a sbco:PointExt ; sbco:id "PT-3" .
+            """;
+
+        var preview = await Service().PreviewImportAsync(ttl, TwinImportMode.Replace);
+
+        Assert.Equal(TwinOrphanReasons.NoRoom, Assert.Single(preview.Orphans).Reason);
+    }
+
+    [Fact]
     public async Task PreviewImport_EquipmentWithNoHierarchyAtAll_IsStillOrphaned()
     {
         // The motivating case must survive the widened reachability: an unrelated hierarchy in the

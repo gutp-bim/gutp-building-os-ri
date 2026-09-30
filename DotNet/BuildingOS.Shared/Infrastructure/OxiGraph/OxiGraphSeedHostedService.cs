@@ -236,8 +236,9 @@ public sealed class OxiGraphSeedHostedService(
     internal static readonly string ControlSchemaIssueQuery = ControlSchemaIssueDetection.BuildQuery(null, null);
 
     /// <summary>
-    /// Equipment carrying the <c>sbco:floor</c> literal but no <c>sbco:locatedIn</c>. internal so test
-    /// fakes can route on the exact query text.
+    /// Equipment carrying the <c>sbco:floor</c> literal but no <c>sbco:locatedIn</c> at all — the same
+    /// criterion as the admin import's <c>floor_literal_only</c> orphan reason. internal so test fakes can
+    /// route on the exact query text.
     /// </summary>
     internal const string FloorLiteralOnlyQuery = @"PREFIX sbco: <https://www.sbco.or.jp/ont/>
 SELECT DISTINCT ?devId WHERE {
@@ -262,7 +263,9 @@ ORDER BY ?devId";
                 "emit sbco:locatedIn to the Room or Level. Examples: {Examples}",
                 rows.Count, examples);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // An HttpClient timeout is a TaskCanceledException too, but the host token is not cancelled then:
+        // only a real shutdown may propagate, so a slow store never stops startup over a warning.
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Floor-literal placement check after seed failed; continuing startup");
         }

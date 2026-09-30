@@ -59,10 +59,11 @@ protocol を推定する消費側（nexus-gateway の `internal/pointlist/csv.go
 - **gateway_id:** `GW-SOS-MQTT-001`(`GW-SOS-001` とは別ゲートウェイ。1 gateway = 1 building 制約を満たす)
 - **規模:** 1 site → 1 building → 2 level → 各 2 room(= 4 zone)、device 3 台(AHU / Chiller / 気象観測)、
   point 30 点(書き込み可能 7 点)
-- **device→floor の経路:** `twin.ttl` は 1 room のみで、`locatedIn Room chain` / `locatedIn Level 直接`
-  / `sbco:floor` 文字列 join という 3 経路のどれを通るかによる可視性の違いを踏むには小さすぎたため、
-  本データセットでは 3 device それぞれに異なる経路を割り当てています
-  (`DEV-AHU-MQTT-1`: Room chain 経由 / `DEV-CHILLER-MQTT-1`: Level 直接 / `DEV-WEATHER-MQTT-1`: `sbco:floor` 文字列のみ)。
+- **device の配置:** twin はトポロジー（`hasPart` / `locatedIn` / `hasPoint`）だけで辿り、`sbco:floor` 文字列は
+  配置に使わない（表示用メタデータ）。`twin.ttl` は 1 room のみで配置の違いを踏むには小さすぎたため、本データセット
+  では `locatedIn` の向き先を分けています
+  (`DEV-AHU-MQTT-1`: Room chain 経由 / `DEV-CHILLER-MQTT-1`・`DEV-WEATHER-MQTT-1`: Level 直接)。
+  全 device が `sbco:locatedIn` を持つことは `ShippedMqttTwinFixtureTest` で検査しています。
 - **検証:** `DotNet/BuildingOS.Shared.Test/Domain/ShippedMqttTwinFixtureTest.cs` が、CSV の 30 列ヘッダが
   `pointlist.csv` と一致すること・点数(30)/書き込み可能数(7)・全行が `GatewayPointProtocolResolver` で
   `"mqtt"` に解決されること(＝BACnet ネイティブフィールドが混入していないこと)・twin/CSV/JSON 間の

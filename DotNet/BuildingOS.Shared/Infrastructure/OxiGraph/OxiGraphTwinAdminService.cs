@@ -179,8 +179,9 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
     // own reason (floor_literal_only) so the twin's author knows exactly what to emit. The four UNION
     // branches stay mutually exclusive (no device / placed only by the literal / no spatial anchor at
     // all / an anchor that reaches no Building), so a point is reported exactly once, under the
-    // outermost link that is missing. Shared by the count and the capped enumeration so both always
-    // agree on what "orphan" means.
+    // outermost link that is missing (the literal-only / no-anchor pair shares one branch and is told
+    // apart by a BIND). Shared by the count and the capped enumeration so both always agree on what
+    // "orphan" means.
     private static string OrphanPattern(string graph, TwinImportMode mode)
     {
         string Chain(params string[] triples) =>
@@ -204,7 +205,10 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
         var anchor =
             $"{{ {Chain(hasPoint, inRoom, isRoom)} }} UNION " +
             $"{{ {Chain(hasPoint, inFloor, isFloor)} }}";
+        // floor_literal_only: the device names a Level only through the literal and has no
+        // sbco:locatedIn at all (one pointing at an untyped node is a different defect: no_room).
         var literalOnly = Chain(hasPoint, devFloor);
+        var anyLocatedIn = Chain(hasPoint, $"?anyDev <{Sbco}locatedIn> ?anyTarget .");
 
         var reachable =
             $"{{ {Chain(hasPoint, inRoom, isRoom, roomOfFloor, isFloor, floorOfBldg, isBuilding)} }} UNION " +
@@ -219,14 +223,8 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
   {candidate}
   FILTER EXISTS {{ {device} }}
   FILTER NOT EXISTS {{ {anchor} }}
-  FILTER EXISTS {{ {literalOnly} }}
-  BIND(""{TwinOrphanReasons.FloorLiteralOnly}"" AS ?reason)
-}} UNION {{
-  {candidate}
-  FILTER EXISTS {{ {device} }}
-  FILTER NOT EXISTS {{ {anchor} }}
-  FILTER NOT EXISTS {{ {literalOnly} }}
-  BIND(""{TwinOrphanReasons.NoRoom}"" AS ?reason)
+  BIND(IF(EXISTS {{ {literalOnly} }} && NOT EXISTS {{ {anyLocatedIn} }},
+          ""{TwinOrphanReasons.FloorLiteralOnly}"", ""{TwinOrphanReasons.NoRoom}"") AS ?reason)
 }} UNION {{
   {candidate}
   FILTER EXISTS {{ {anchor} }}
