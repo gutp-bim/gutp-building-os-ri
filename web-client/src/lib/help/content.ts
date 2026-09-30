@@ -32,6 +32,48 @@ export const GLOSSARY: GlossaryTerm[] = [
     category: "metric",
   },
   {
+    term: "Ingress レート",
+    definition:
+      "取込口（MQTT / AMQP / gRPC gateway-ingress）が直近1分間に受信したメッセージ数（毎秒）。受理・拒否を問わず届いた量で、ツールチップに source 別の内訳が出ます（building_os.ingress.messages）。",
+    category: "metric",
+  },
+  {
+    term: "Validated レート",
+    definition:
+      "validated.telemetry へ発行された件数（毎秒, 直近1分）。コネクター（MQTT / Hono）が検証を通して発行した分と、gRPC gateway-ingress がコネクターを経由せず直接発行した分（ingress の source=gateway-grpc, result=published）の合計です。Ingress から引き算した値ではなく独立に計測しています。負荷時は Ingress より遅れて追いつくため、両者の差はキューの滞留であって拒否ではありません。",
+    category: "metric",
+  },
+  {
+    term: "Rejected レート",
+    definition:
+      "拒否されたメッセージ数（毎秒, 直近1分）と拒否率（rejected ÷ ingress）。取込口が拒否した分（ingress の result≠published）と、取込口は受け付けたがコネクターが破棄した分（MQTT / Hono でデバイス・ポイントを解決できない等: connector:skipped / connector:error）を直接数えた合計で、Ingress − Validated の差ではありません。ツールチップに理由別の内訳が出ます（bad_payload は MQTT / AMQP、bad_topic は MQTT、unknown_point / gateway_mismatch / no_building_path などは gRPC gateway-ingress 固有。MQTT / Hono でポイントが解決できない場合は connector:skipped に入ります）。gRPC gateway-ingress の累計件数は取込拒否件数画面に出ます。",
+    category: "metric",
+  },
+  {
+    term: "Event lag",
+    definition:
+      "値そのもののイベント時刻から Hot ストア到着までの遅延の p95（building_os.ingress.event_lag）。デバイス・ゲートウェイ・ネットワークも含む端から端までの遅れです。Consumer lag と並べて読みます — Event lag だけ高い＝Building OS に届く前（デバイス / ゲートウェイ / ネットワーク）で遅れている、両方高い＝Building OS 内部のキュー / バックプレッシャーを疑う。timestamp が欠落して受信時刻で補った値は遅延ほぼ 0 と記録されるため、その割合だけ過小評価になります。",
+    category: "metric",
+  },
+  {
+    term: "Consumer lag",
+    definition:
+      "JetStream のコンシューマーが raw ストリームに遅れている時間の p95（building_os.ingestion.lag）。NATS に載ってから取り出されるまでだけを測るので、上流で詰まっていても上がりません。Event lag が高くこちらが平常なら原因は Building OS の手前、両方高いなら Building OS 内部です。",
+    category: "metric",
+  },
+  {
+    term: "Parquet 鮮度",
+    definition:
+      "Parquet レイクへの flush 時点で、書き込んだ最新イベントがどれだけ古いかの p95（building_os.parquet_writer.freshness_lag）。目安は flush 間隔（PARQUET_FLUSH_INTERVAL）× 2 以内。タイムスタンプ不正で破棄した行（parquet_writer.dropped）が 1 件でもあれば警告にします。値は flush のたびにしか記録されないため、validated テレメトリが流れているのに max(警告閾値, 15 分) の間 flush が 1 回も無い場合は「flush 停止の可能性」として警告します（Prometheus 未配線の「—」とは区別されます）。",
+    category: "metric",
+  },
+  {
+    term: "NATS pending",
+    definition:
+      "NATS JetStream の全コンシューマーの未処理メッセージ数の合計（recording rule nats:jetstream_consumer_pending:max）。取り込みのバックプレッシャー指標で、NATS exporter（observability プロファイル）が未配線なら表示されません。",
+    category: "metric",
+  },
+  {
     term: "鮮度切れ閾値",
     definition:
       "テレメトリを「鮮度切れ（stale）」とみなすまでの秒数。アプリ設定で変更でき、表示や警告の判定に使われます。",
@@ -134,7 +176,7 @@ export const GLOSSARY: GlossaryTerm[] = [
     term: "リビジョン",
     reading: "りびじょん",
     definition:
-      "ポイントリストの版数。内容から算出する順序非依存のハッシュ（\"sha256:...\" 形式の ETag）で表され、ポイントリストが変わったときだけ値が変わります。ゲートウェイは If-None-Match で問い合わせ、変化が無ければ 304 が返るので、無駄な再取得を避けられます。",
+      'ポイントリストの版数。内容から算出する順序非依存のハッシュ（"sha256:..." 形式の ETag）で表され、ポイントリストが変わったときだけ値が変わります。ゲートウェイは If-None-Match で問い合わせ、変化が無ければ 304 が返るので、無駄な再取得を避けられます。',
     category: "architecture",
   },
   {
@@ -164,10 +206,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     key: "platform.status",
     title: "システム稼働状態",
     body: [
-      "各サービスの up/down と主要 KPI を1画面に集約して表示します。",
-      "サービスの up/down は /health のファンアウトで判定するため、Prometheus を起動していなくても確認できます。KPI は Prometheus 未配線時は空欄になります。",
+      "各サービスの up/down とパイプライン KPI（Ingress / Validated / Rejected / Event lag / Consumer lag / Parquet 鮮度 / NATS pending / 制御リクエスト）を1画面に集約して表示します。",
+      "サービスの up/down は /health のファンアウトで判定するため、Prometheus を起動していなくても確認できます。KPI は Prometheus 未配線時は空欄になります（observability プロファイルを有効にすると表示されます）。",
+      "2 つの lag の読み分け: Event lag だけ高く Consumer lag が平常 → Building OS に届く前（デバイス / ゲートウェイ / ネットワーク）から遅れている。Event lag も Consumer lag も高い → Building OS 内部のキュー / バックプレッシャーを疑う（NATS pending も併せて確認）。",
+      "Rejected は Ingress − Validated の差ではなく、拒否そのもの（取込口の拒否 + コネクターの破棄）を直接数えています。Validated は gRPC gateway-ingress がコネクターを経由せず直接発行した分も含みます。負荷時に Validated が Ingress より低いのはキューの滞留で、拒否ではありません。",
+      "閾値を超えた KPI は黄色で表示されます。閾値はアプリ設定（/platform/settings の platform.kpi.*）で変更できます。",
     ],
-    relatedTerms: ["メッセージレート", "制御リクエスト数"],
+    relatedTerms: [
+      "Ingress レート",
+      "Validated レート",
+      "Rejected レート",
+      "Event lag",
+      "Consumer lag",
+      "Parquet 鮮度",
+      "NATS pending",
+      "制御リクエスト数",
+    ],
   },
   {
     key: "platform.config",

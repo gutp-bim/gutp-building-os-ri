@@ -16,12 +16,15 @@ public class SystemControllerTest
 
     private static SystemController Build(
         AuthorizationContext auth,
-        IIngressRejectionStatsService? ingressStats = null)
+        IIngressRejectionStatsService? ingressStats = null,
+        ISystemStatusService? statusService = null,
+        ISystemSettingsService? settings = null)
     {
         return new SystemController(
-            Mock.Of<ISystemStatusService>(),
+            statusService ?? Mock.Of<ISystemStatusService>(),
             Mock.Of<IEffectiveConfigService>(),
-            ingressStats ?? Mock.Of<IIngressRejectionStatsService>())
+            ingressStats ?? Mock.Of<IIngressRejectionStatsService>(),
+            settings ?? Mock.Of<ISystemSettingsService>())
         {
             ControllerContext = new ControllerContext
             {
@@ -49,5 +52,54 @@ public class SystemControllerTest
         var result = Assert.IsType<OkObjectResult>(await c.GetIngressRejections(default));
 
         Assert.Same(stats, result.Value);
+    }
+
+    private static readonly SystemStatus SampleStatus = new(
+        [new ServiceStatus("building-os-api", "up")],
+        new SystemKpis(MsgRate1m: 10, ControlReq5m: 1),
+        MetricsAvailable: true);
+
+    [Fact]
+    public async Task GetStatus_NonAdmin_IsForbidden()
+    {
+        var c = Build(Auth("operator"));
+        Assert.IsType<ForbidResult>(await c.GetStatus(default));
+    }
+
+    [Fact]
+    public async Task GetStatus_Admin_AttachesEffectivePipelineThresholds()
+    {
+        var statusService = new Mock<ISystemStatusService>();
+        var thresholds = PipelineKpiThresholds.Defaults with { EventLagP95WarnSeconds = 90 };
+        // The status service needs the thresholds too (the Parquet stall window derives from them).
+        statusService.Setup(s => s.GetStatusAsync(thresholds, It.IsAny<CancellationToken>())).ReturnsAsync(SampleStatus);
+        var settings = new Mock<ISystemSettingsService>();
+        settings.Setup(s => s.GetPipelineKpiThresholdsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(thresholds);
+        var c = Build(Auth("admin"), statusService: statusService.Object, settings: settings.Object);
+
+        var result = Assert.IsType<OkObjectResult>(await c.GetStatus(default));
+        var body = Assert.IsType<SystemStatus>(result.Value);
+
+        Assert.Equal(thresholds, body.Thresholds);
+        Assert.Equal(10, body.Kpis.MsgRate1m);
+    }
+
+    [Fact]
+    public async Task GetStatus_SettingsStoreDown_FallsBackToDefaultThresholds()
+    {
+        // The status page must not fail because PostgreSQL (the settings store) is down — that is
+        // exactly when an operator opens it.
+        var statusService = new Mock<ISystemStatusService>();
+        statusService.Setup(s => s.GetStatusAsync(PipelineKpiThresholds.Defaults, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SampleStatus);
+        var settings = new Mock<ISystemSettingsService>();
+        settings.Setup(s => s.GetPipelineKpiThresholdsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+        var c = Build(Auth("admin"), statusService: statusService.Object, settings: settings.Object);
+
+        var result = Assert.IsType<OkObjectResult>(await c.GetStatus(default));
+        var body = Assert.IsType<SystemStatus>(result.Value);
+
+        Assert.Equal(PipelineKpiThresholds.Defaults, body.Thresholds);
     }
 }

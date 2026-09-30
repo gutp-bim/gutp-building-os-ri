@@ -17,6 +17,42 @@ public static class OtelSetup
 
     private const string ServiceVersion = "1.0.0";
 
+    /// <summary>
+    /// Bucket boundaries (seconds) for every <see cref="BuildingOsMetrics"/> histogram whose unit is
+    /// <c>s</c>. The SDK default (0, 5, 10, 25, 50, 75, 100, 250, …) is sized for milliseconds: an
+    /// 80 ms lag lands in the (0, 5] bucket and <c>histogram_quantile</c> interpolates p95 to ~4.75 s.
+    /// Spans 5 ms (sub-second consumer lag) to 2 h. <c>histogram_quantile</c> never returns more than the
+    /// top finite bound, and the UI warns only when value &gt; threshold, so a warn threshold at or above
+    /// 7200 s can never trigger — the top bucket must stay well above every threshold default (the
+    /// Parquet freshness default is 600 s). Documented in
+    /// docs/operations/observability-baseline.md; keep the two in step.
+    /// </summary>
+    public static readonly double[] SecondsHistogramBoundaries =
+        [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200];
+
+    /// <summary>Instruments that get <see cref="SecondsHistogramBoundaries"/> (all unit-"s" histograms).
+    /// Millisecond histograms keep the SDK default, which already fits them.</summary>
+    public static readonly IReadOnlyList<string> SecondsHistogramInstruments =
+    [
+        BuildingOsMetrics.IngestionLag.Name,
+        BuildingOsMetrics.IngressEventLag.Name,
+        BuildingOsMetrics.ParquetWriterFreshnessLag.Name,
+    ];
+
+    /// <summary>Registers the <see cref="SecondsHistogramBoundaries"/> view for every
+    /// <see cref="SecondsHistogramInstruments"/> entry.</summary>
+    public static MeterProviderBuilder AddBuildingOsHistogramViews(this MeterProviderBuilder builder)
+    {
+        foreach (var name in SecondsHistogramInstruments)
+        {
+            builder.AddView(name, new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = SecondsHistogramBoundaries,
+            });
+        }
+        return builder;
+    }
+
     private static ResourceBuilder BuildResource(string serviceName) =>
         ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: ServiceVersion);
 
@@ -55,6 +91,7 @@ public static class OtelSetup
                     .AddRuntimeInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddMeter(MeterName)
+                    .AddBuildingOsHistogramViews()
                     .AddOtlpExporter(opts => opts.Endpoint = endpoint);
             });
 

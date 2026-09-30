@@ -5,6 +5,7 @@ using BuildingOS.Shared.Domain.Configuration;
 using BuildingOS.Shared.Infrastructure.Configuration;
 using BuildingOS.Shared.Infrastructure.Monitoring;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BuildingOs.ApiServer.Controllers;
 
@@ -21,15 +22,21 @@ public class SystemController : ControllerBase
     private readonly ISystemStatusService _statusService;
     private readonly IEffectiveConfigService _configService;
     private readonly IIngressRejectionStatsService _ingressRejectionStats;
+    private readonly ISystemSettingsService _settings;
+    private readonly ILogger<SystemController> _logger;
 
     public SystemController(
         ISystemStatusService statusService,
         IEffectiveConfigService configService,
-        IIngressRejectionStatsService ingressRejectionStats)
+        IIngressRejectionStatsService ingressRejectionStats,
+        ISystemSettingsService settings,
+        ILogger<SystemController>? logger = null)
     {
         _statusService = statusService;
         _configService = configService;
         _ingressRejectionStats = ingressRejectionStats;
+        _settings = settings;
+        _logger = logger ?? NullLogger<SystemController>.Instance;
     }
 
     /// <summary>
@@ -46,8 +53,27 @@ public class SystemController : ControllerBase
             return Forbid();
         }
 
-        var status = await _statusService.GetStatusAsync(ct).ConfigureAwait(false);
-        return Ok(status);
+        // Thresholds first: the Parquet flush-stall window is derived from the freshness threshold.
+        var thresholds = await GetThresholdsOrDefaultAsync(ct).ConfigureAwait(false);
+        var status = await _statusService.GetStatusAsync(thresholds, ct).ConfigureAwait(false);
+        return Ok(status with { Thresholds = thresholds });
+    }
+
+    /// <summary>
+    /// パイプライン KPI の警告閾値（#456, /platform/settings で編集可）。設定ストア（PostgreSQL）が
+    /// 落ちていても稼働状態画面は壊さない — 障害時こそ開かれる画面なので、既定値に縮退する。
+    /// </summary>
+    private async Task<PipelineKpiThresholds> GetThresholdsOrDefaultAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await _settings.GetPipelineKpiThresholdsAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Pipeline KPI thresholds unavailable, falling back to registry defaults");
+            return PipelineKpiThresholds.Defaults;
+        }
     }
 
     /// <summary>
