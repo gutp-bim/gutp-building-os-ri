@@ -190,6 +190,9 @@ _GC_GENERATION_LABEL_CANDIDATES = [r"^generation$", r"^.*gc.*generation$", r"^.*
 # 再解決を試みる。Prometheus は永続ボリューム上の TSDB を WAL リプレイしている間 /api/v1/* に
 # 503 を返すので、起動直後の 1 回きりの解決だけだと「数時間走ったのに runtime 列が空」になる。
 _RUNTIME_RESOLVE_RETRY_WINDOW_S = 900.0
+# 名前解決で「この job に live」とみなす窓。export 間隔（compose 既定 15s）と Prometheus の
+# スクレイプ間隔（30s）に対して十分長く、前回 run の系列（run 間の停止時間）を拾わない程度に短い。
+_RUNTIME_LIVE_WINDOW_S = 600.0
 # 再解決のリトライが待つ対象。E10 の gate（kpi-thresholds.yaml）が依存する概念だけを並べる:
 # gen2/LOH ← gc_heap_size + 世代ラベル、RSS-minus-committed ← gc_committed、thread pool。
 # report 専用の概念（working_set など、ランタイムによっては永久に export されないもの）は含めない —
@@ -232,12 +235,29 @@ def _prom_json(prom_url: str, path: str, params: dict | None = None) -> list:
     return data if isinstance(data, list) else []
 
 
-def resolve_runtime_metric_names(prom_url: str) -> dict[str, str | None]:
+def _live_runtime_names(prom_url: str, job: str) -> list[str]:
+    """job が直近 _RUNTIME_LIVE_WINDOW_S 秒に系列を持つ runtime 系の名前。失敗・該当なしは空。"""
+    now = time.time()
+    match = '{__name__=~"(dotnet|process_runtime_dotnet)_.+",job="%s"}' % job.replace('"', '\\"')
+    try:
+        series = _prom_json(prom_url, "/api/v1/series",
+                            {"match[]": match, "start": now - _RUNTIME_LIVE_WINDOW_S, "end": now})
+    except (requests.RequestException, ValueError, AttributeError):
+        return []
+    return sorted({str(s["__name__"]) for s in series if isinstance(s, dict) and "__name__" in s})
+
+
+def resolve_runtime_metric_names(prom_url: str, job: str | None = None) -> dict[str, str | None]:
     """Prometheus が実際に持っている系列名から runtime メトリクス名を解決する（#370）。
 
     返すのは各 concept → 系列名（解決できなければ None）と、GC heap の世代ラベル名
     (`gc_heap_generation_label`)。**例外は投げない** — observability profile を上げ忘れた run でも
-    ソーク自体は完走しなければならないため、到達不能なら全部 None に縮退する。"""
+    ソーク自体は完走しなければならないため、到達不能なら全部 None に縮退する。
+
+    `job` を渡すと、その job が直近に系列を持つ名前を優先する。`/api/v1/label/__name__/values` は
+    保持期間全体の名前を返すので、永続 TSDB に前回 run の系列が優先度の高い名前で残っていると、
+    パターンの優先順だけでは毎回その死んだ名前を選んでしまう。live な名前が無い概念は従来どおり
+    全名前から選ぶ（初回 export 前でも名前が無いと probe も再解決の判断もできない）。"""
     names: dict[str, str | None] = {c: None for c in _RUNTIME_METRIC_CANDIDATES}
     names["gc_heap_generation_label"] = None
     if not prom_url:
@@ -248,8 +268,9 @@ def resolve_runtime_metric_names(prom_url: str) -> dict[str, str | None]:
         print(f"[s19][runtime] metric name discovery failed ({type(e).__name__}: {e}) — "
               f"runtime sampling disabled for this run", file=sys.stderr)
         return names
+    live = _live_runtime_names(prom_url, job) if job else []
     for concept, candidates in _RUNTIME_METRIC_CANDIDATES.items():
-        names[concept] = _first_matching(candidates, available)
+        names[concept] = _first_matching(candidates, live) or _first_matching(candidates, available)
 
     heap = names.get("gc_heap_size")
     if heap:
@@ -688,7 +709,7 @@ def resource_role_main(args) -> int:
     # Prometheus は永続 TSDB の WAL リプレイ中 503 を返すし、connector-worker の初回 OTLP export が
     # まだ着いていないこともあり、GC イベント駆動の gauge（gc_heap_size / gc_committed）は他の概念より
     # 遅れて現れる。ここで諦めると数時間走った run の runtime 列（とそれに依存する gate）が欠ける。
-    runtime_names = resolve_runtime_metric_names(args.prometheus)
+    runtime_names = resolve_runtime_metric_names(args.prometheus, job=args.runtime_job)
     runtime_probe = probe_runtime_metrics(args.prometheus, runtime_names, args.runtime_job,
                                            args.sample_interval)
     last_resolve_at = time.monotonic()
@@ -709,13 +730,18 @@ def resource_role_main(args) -> int:
                                                 elapsed, now - last_resolve_at,
                                                 args.sample_interval):
                 last_resolve_at = now
-                retry_names = resolve_runtime_metric_names(args.prometheus)
+                retry_names = resolve_runtime_metric_names(args.prometheus, job=args.runtime_job)
+                # merge は「live な概念は凍結」を probe で判断するので、t=0 / 前回リトライ時の probe
+                # ではなく今の状態で取り直す（その後 live になった系列を差し替えないため）。
+                current_probe = probe_runtime_metrics(args.prometheus, runtime_names,
+                                                      args.runtime_job, args.sample_interval)
                 merged_names = merge_runtime_metric_names(runtime_names, retry_names,
-                                                          runtime_probe)
+                                                          current_probe)
                 # 名前が変わらなくても probe は取り直す — 前回 run の名前で「解決」していた概念に
                 # 今回の実データが届いたかどうかは probe でしか分からない。
-                merged_probe = probe_runtime_metrics(args.prometheus, merged_names,
-                                                     args.runtime_job, args.sample_interval)
+                merged_probe = (current_probe if merged_names == runtime_names
+                                else probe_runtime_metrics(args.prometheus, merged_names,
+                                                           args.runtime_job, args.sample_interval))
                 if (merged_names, merged_probe) != (runtime_names, runtime_probe):
                     runtime_names, runtime_probe = merged_names, merged_probe
                     write_runtime_metric_names(args.out, runtime_names, runtime_probe)

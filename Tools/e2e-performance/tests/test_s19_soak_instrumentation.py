@@ -224,6 +224,61 @@ def test_resolve_runtime_metric_names_does_not_match_foreign_exporters():
         assert names[concept] is None, f"{concept} matched a foreign series: {names[concept]}"
 
 
+def test_resolve_runtime_metric_names_prefers_names_live_for_the_job():
+    """永続 TSDB に前回 run の系列が優先度の高い名前（semconv）で残り、今回の connector-worker は
+    旧スキーム名で export している。パターンの優先順だけで選ぶと再解決のたびに同じ死んだ名前を返し、
+    死んだ名前を差し替える merge が働かない。job を渡されたら、その job の直近の系列を持つ名前を
+    優先する。"""
+    s19 = load_s19()
+    job = "building-os-connector-worker"
+    available = list(SEMCONV_NAMES.values()) + list(LEGACY_NAMES.values())
+    live_series = [{"__name__": n, "job": job, "generation": "gen0"} for n in LEGACY_NAMES.values()]
+    seen_params = []
+
+    def _get(url, *args, **kwargs):
+        params = kwargs.get("params") or {}
+        if "/api/v1/label/__name__/values" in url:
+            return _prom_response(available)
+        if "/api/v1/series" in url:
+            seen_params.append(params)
+            match = params.get("match[]", "")
+            if "job=" in match:
+                return _prom_response(live_series)
+            return _prom_response([s for s in live_series if s["__name__"] == match])
+        raise AssertionError(f"unexpected Prometheus URL: {url}")
+
+    with mock.patch.object(s19.requests, "get", side_effect=_get):
+        names = s19.resolve_runtime_metric_names("http://prom:9090", job=job)
+    for concept, expected in LEGACY_NAMES.items():
+        assert names[concept] == expected, f"{concept} must prefer the name live for {job}"
+    assert names["gc_heap_generation_label"] == "generation"
+    # 「直近」の窓で絞っていること（保持期間全体の系列を返させない）
+    assert any("start" in p for p in seen_params if "job=" in p.get("match[]", ""))
+
+
+def test_resolve_runtime_metric_names_falls_back_to_any_name_when_nothing_is_live():
+    """job の系列がまだ 1 本も無い（初回 export 前）ときは従来どおり全名前から選ぶ — 名前が
+    None だと probe も再解決の判断もできない。"""
+    s19 = load_s19()
+    available = list(SEMCONV_NAMES.values())
+    with mock.patch.object(s19.requests, "get", side_effect=_fake_prom_get(available)):
+        names = s19.resolve_runtime_metric_names("http://prom:9090", job="building-os-connector-worker")
+    for concept, expected in SEMCONV_NAMES.items():
+        assert names[concept] == expected
+
+
+def test_resource_role_main_reprobes_before_merging():
+    """merge は「live な概念は凍結」を probe で判断する。t=0 や前回リトライ時の probe のままだと、
+    その後 live になった系列を死んだものとして差し替え、1 本の列に 2 系列が混ざる。"""
+    src = s19_source()
+    body = src.split("def resource_role_main", 1)[1].split("\ndef ", 1)[0]
+    retry_block = body.split("resolve_runtime_metric_names(args.prometheus", 2)[2]
+    before_merge = retry_block.split("merge_runtime_metric_names(", 1)[0]
+    assert "probe_runtime_metrics(" in before_merge, (
+        "the current names must be re-probed right before the merge decides what is live")
+    assert "job=args.runtime_job" in body
+
+
 # ── 名前が解決できることと、その job のデータが在ることは別 ─────────────────────
 
 
