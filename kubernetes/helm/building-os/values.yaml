@@ -31,6 +31,10 @@ apiServer:
     ASPNETCORE_ENVIRONMENT: Production
     KEYCLOAK_AUTHORITY: ""
     KEYCLOAK_CLIENT_ID: api-server
+    # Keycloak Admin API client for user management (#532). Its service account needs only the
+    # realm-management roles view-users / query-groups / manage-users (see
+    # docs/operations/keycloak-admin-provisioning.md). The secret stays in secretEnv below.
+    KEYCLOAK_ADMIN_CLIENT_ID: api-server
     KEYCLOAK_REALM: ""
     POSTGRES_CONNECTION_STRING: ""
     WARM_STORE: parquet
@@ -39,8 +43,9 @@ apiServer:
     NATS_URL: ""
     CORS_ALLOWED_ORIGINS: ""  # Required: comma-separated frontend origins (e.g. https://app.example.com). Empty → CORS fail-closed in Production.
     Logging__LogLevel__Default: Information
+  # Each key is rendered as a secretKeyRef into the building-os-api-secrets Secret (key = lower-kebab of
+  # the name, e.g. keycloak-admin-client-secret); the value here is never inlined.
   secretEnv:
-    KEYCLOAK_ADMIN_CLIENT_ID: ""
     KEYCLOAK_ADMIN_CLIENT_SECRET: ""
     MINIO_ACCESS_KEY: ""
     MINIO_SECRET_KEY: ""
