@@ -335,24 +335,30 @@ def probe_runtime_metrics(prom_url: str, names: dict[str, str | None], job: str,
     return probe
 
 
-def should_retry_runtime_resolution(prom_url: str, names: dict[str, str | None], elapsed_s: float,
+def should_retry_runtime_resolution(prom_url: str, names: dict[str, str | None],
+                                     probe: dict[str, bool], elapsed_s: float,
                                      since_last_s: float, sample_interval: int) -> bool:
     """系列名の再解決をこの tick で試みるべきか（純関数。呼び出し側でループから使う）。
 
-    「Prometheus 指定あり」かつ「gate が依存する概念（_RUNTIME_GATED_CONCEPTS）のどれかがまだ名前
-    解決できていない(None)」かつ「run 開始から _RUNTIME_RESOLVE_RETRY_WINDOW_S 以内」かつ「前回の
-    解決から 1 サンプリング間隔以上経っている」のときだけ True。gate 対象の概念が揃ったら二度と
-    再解決しない（被測定系と Prometheus に余計な負荷をかけない）。report 専用の概念が欠けていても
-    止める — working_set のように export されないランタイムでは、待っても永久に現れない。
+    「Prometheus 指定あり」かつ「gate が依存する概念（_RUNTIME_GATED_CONCEPTS）のどれかが未解決
+    (None) か実データ無し（probe が False）」かつ「run 開始から _RUNTIME_RESOLVE_RETRY_WINDOW_S
+    以内」かつ「前回の解決から 1 サンプリング間隔以上経っている」のときだけ True。gate 対象の概念が
+    すべて解決済みかつ live になったら二度と再解決しない（被測定系と Prometheus に余計な負荷を
+    かけない）。
 
-    判定基準は probe（実データの有無）ではなく names（名前解決の有無）— gc_heap_size /
-    gc_committed は GC イベント駆動の gauge で、gc_allocated_total 等の常時更新される概念より
-    Export が遅れて現れることがある。「1 概念でも live なら止める」（probe 基準）だと、他の概念が
-    先に live になった時点でこの 2 つが未解決のまま永久に固定され、run 全体で
-    gen2/LOH/RSS-minus-committed の 3 gate が理由も告げず SKIP になる。"""
+    - 名前だけでなく probe も見る: `/api/v1/label/__name__/values` は保持期間全体の名前を返すので、
+      永続 TSDB に前回 run の系列が残っていると、今回の export が届く前から名前は「解決」する。
+    - 「1 概念でも live なら止める」にはしない: gc_heap_size / gc_committed は GC イベント駆動の
+      gauge で、常時更新される counter より遅れて現れることがある。先に live になった概念で止めると
+      この 2 つが未解決のまま固定され、gen2/LOH/RSS-minus-committed の gate が理由も告げず SKIP になる。
+    - report 専用の概念は待たない: working_set のように export されないランタイムでは永久に現れない。
+    世代ラベルは probe の対象ではない（名前の解決だけを見る）。"""
     if not prom_url:
         return False
-    if all(names.get(c) is not None for c in _RUNTIME_GATED_CONCEPTS):
+    settled = all(
+        names.get(c) is not None and (c == "gc_heap_generation_label" or probe.get(c) is True)
+        for c in _RUNTIME_GATED_CONCEPTS)
+    if settled:
         return False
     if elapsed_s > _RUNTIME_RESOLVE_RETRY_WINDOW_S:
         return False
@@ -361,17 +367,27 @@ def should_retry_runtime_resolution(prom_url: str, names: dict[str, str | None],
 
 def merge_runtime_metric_names(current: dict[str, str | None],
                                retry: dict[str, str | None]) -> dict[str, str | None]:
-    """再解決の結果を、既に解決済みの名前を失わない形で取り込む（純関数）。
+    """再解決の結果を、既に解決済みの名前を変えない形で取り込む（純関数）。
 
-    再解決は Prometheus が一時的に 503 を返しただけでも全部 None に縮退する
-    （resolve_runtime_metric_names は例外を投げない）。結果を丸ごと差し替えると、解決済みだった
-    概念がその時点で未解決に戻ってしまうので、concept ごとに「新しく解決できたものだけ」を上書きする。
-    世代ラベルは gc_heap_size とセットで解決されるので、heap を再解決で得たときは label も合わせて取る。"""
+    埋めるのは **current で未解決(None)の概念だけ**。
+    - 再解決は Prometheus が一時的に 503 を返しただけでも全部 None に縮退する
+      （resolve_runtime_metric_names は例外を投げない）ので、丸ごと差し替えると解決済みの概念が
+      未解決に戻る。
+    - 解決済みの概念を上書きすると、優先度の高いパターンが途中で現れただけで run の途中から別系列に
+      切り替わり、1 本の列に 2 つの系列が混ざる。
+    世代ラベルは gc_heap_size と組で扱う: heap を今回の再解決で得たときはラベルも同じ結果から取り、
+    heap が既に解決済みならラベルは同じ heap 系列について解決できたときだけ埋める。"""
     merged = dict(current)
     for concept, name in retry.items():
-        if name is not None:
+        if concept == "gc_heap_generation_label":
+            continue
+        if name is not None and current.get(concept) is None:
             merged[concept] = name
-    if retry.get("gc_heap_size") is not None and current.get("gc_heap_size") is None:
+    heap_now, heap_retry = current.get("gc_heap_size"), retry.get("gc_heap_size")
+    if heap_now is None and heap_retry is not None:
+        merged["gc_heap_generation_label"] = retry.get("gc_heap_generation_label")
+    elif (heap_now is not None and heap_now == heap_retry
+          and current.get("gc_heap_generation_label") is None):
         merged["gc_heap_generation_label"] = retry.get("gc_heap_generation_label")
     return merged
 
@@ -686,15 +702,18 @@ def resource_role_main(args) -> int:
         while True:
             now = time.monotonic()
             elapsed = round(now - start, 1)
-            if should_retry_runtime_resolution(args.prometheus, runtime_names, elapsed,
-                                                now - last_resolve_at, args.sample_interval):
+            if should_retry_runtime_resolution(args.prometheus, runtime_names, runtime_probe,
+                                                elapsed, now - last_resolve_at,
+                                                args.sample_interval):
                 last_resolve_at = now
                 retry_names = resolve_runtime_metric_names(args.prometheus)
                 merged_names = merge_runtime_metric_names(runtime_names, retry_names)
-                if merged_names != runtime_names:
-                    runtime_names = merged_names
-                    runtime_probe = probe_runtime_metrics(args.prometheus, runtime_names,
-                                                          args.runtime_job, args.sample_interval)
+                # 名前が変わらなくても probe は取り直す — 前回 run の名前で「解決」していた概念に
+                # 今回の実データが届いたかどうかは probe でしか分からない。
+                merged_probe = probe_runtime_metrics(args.prometheus, merged_names,
+                                                     args.runtime_job, args.sample_interval)
+                if (merged_names, merged_probe) != (runtime_names, runtime_probe):
+                    runtime_names, runtime_probe = merged_names, merged_probe
                     write_runtime_metric_names(args.out, runtime_names, runtime_probe)
                     print(f"[s19][runtime] resolved on retry at t={elapsed}s: "
                           f"names={json.dumps(runtime_names)} live={json.dumps(runtime_probe)}")
