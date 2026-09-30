@@ -74,8 +74,18 @@ Pre-aggregated metrics in `oss-stack/prometheus/recording_rules.yml`:
 | `job:http_server_error_rate:rate5m` | 5xx error rate |
 | `connector:messages_processed:rate1m` | Telemetry ingestion rate per connector |
 | `connector:validation_errors:rate1m` | Schema validation failure rate |
-| `nats:jetstream_consumer_pending:max` | NATS backpressure indicator |
-| `nats:jetstream_msgs_delivered:rate1m` | JetStream message delivery rate |
+| `nats:jetstream_consumer_pending:max` | NATS backpressure indicator (per `stream_name`, `consumer_name`) |
+| `nats:jetstream_msgs_delivered:rate1m` | JetStream delivery rate per `stream_name` (redeliveries included) |
+| `nats:jetstream_consumer_redelivered:max` | Outstanding messages redelivered at least once (ack timeouts / naks) |
+| `nats:jetstream_stream_bytes:max` | Stream storage footprint per `stream_name` (bounded by MaxAge / MaxBytes) |
+
+The `nats:*` rules read the `nats` scrape job, which targets `building-os.nats-exporter:7777`
+(`natsio/prometheus-nats-exporter`, `-varz -jsz=all`, observability profile). nats-server itself has
+no Prometheus `/metrics` endpoint — `:8222/metrics` is 404 — so without the exporter these rules are
+empty (#535). The exporter emits `jetstream_{server,stream,consumer}_*` and `gnatsd_varz_*` series,
+labelled `stream_name` / `consumer_name`; the names were verified against exporter 0.20.2 and
+`nats:2.10-alpine`, and `Tools/e2e-performance/tests/test_observability_config.py` pins the rules to
+that verified set.
 
 ## Grafana Dashboard Guidelines
 
