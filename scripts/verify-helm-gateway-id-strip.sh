@@ -83,7 +83,16 @@ for overlay in "" values-dev.yaml values-prod.yaml; do
   [ -n "${overlay}" ] && args=(-f "${UMBRELLA}/${overlay}")
   out="$(helm template building-os "${UMBRELLA}" "${args[@]+"${args[@]}"}")"
   assert_strip "umbrella ${overlay:-defaults}" "${out}" building-os strip-gateway-id X-Gateway-Id
+  # The HTTP→HTTPS redirect route also forwards to the API Server (Traefik passes the request through
+  # instead of redirecting when it believes it is already HTTPS, e.g. X-Forwarded-Proto from a
+  # trusted LB), so it must strip the header too.
+  if [ -n "$(extract_doc "${out}" IngressRoute building-os-http-redirect)" ]; then
+    assert_strip "umbrella ${overlay:-defaults} http-redirect" "${out}" building-os-http-redirect strip-gateway-id X-Gateway-Id
+  fi
 done
+
+out="$(helm template building-os "${UMBRELLA}" --set ingress.tls.enabled=true)"
+assert_strip "umbrella tls http-redirect" "${out}" building-os-http-redirect strip-gateway-id X-Gateway-Id
 
 out="$(helm template building-os "${UMBRELLA}" --set ingress.gatewayIdHeader=X-Edge-Gw)"
 assert_strip "umbrella custom header" "${out}" building-os strip-gateway-id X-Edge-Gw
@@ -94,6 +103,17 @@ assert_absent "umbrella minimal (ingress off)" "${out}" Middleware
 # ── api-server chart: its own host (Argo CD reference: api.example.com) ────────────────────────────
 out="$(helm template api-server "${API_CHART}" -f "${REPO_ROOT}/argocd/values/reference.yaml")"
 assert_strip "api-server argocd reference" "${out}" api-server-api-server api-server-api-server-strip-gateway-id X-Gateway-Id
+
+# The reference overlay publishes api.example.com: it must be served on websecure with TLS, never on
+# the plain-HTTP `web` entrypoint (Keycloak bearer tokens would travel unencrypted).
+checks=$((checks + 1))
+ref_route="$(extract_doc "${out}" IngressRoute api-server-api-server)"
+if grep -q -- '- websecure' <<< "${ref_route}" && grep -q 'secretName:' <<< "${ref_route}" \
+   && ! grep -q -- '- web$' <<< "${ref_route}"; then
+  pass "api-server argocd reference: websecure + TLS"
+else
+  fail "api-server argocd reference: route is not TLS-only (websecure + secretName)"; echo "${ref_route}" >&2
+fi
 
 out="$(helm template api-server "${API_CHART}" --set ingress.enabled=true --set ingress.gatewayIdHeader=X-Edge-Gw)"
 assert_strip "api-server custom header" "${out}" api-server-api-server api-server-api-server-strip-gateway-id X-Edge-Gw

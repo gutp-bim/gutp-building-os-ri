@@ -65,6 +65,9 @@ spec:
     - match: "Host(`{{ .Values.ingress.host }}`)"
       kind: Rule
       middlewares:
+        # #521: this route forwards to the API Server whenever Traefik decides the request is already
+        # HTTPS (e.g. X-Forwarded-Proto from a trusted LB), so it strips the trusted header too.
+        - name: strip-gateway-id
         - name: https-redirect
       services:
         - name: api-server
