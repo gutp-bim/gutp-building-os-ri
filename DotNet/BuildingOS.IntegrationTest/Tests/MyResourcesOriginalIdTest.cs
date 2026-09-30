@@ -48,7 +48,7 @@ public class MyResourcesOriginalIdTest(PostgresFixture postgres) : IntegrationTe
             new GroupMembershipResolver(new GroupRepository(db, NullLogger<GroupRepository>.Instance)),
             Mock.Of<IResourceHierarchyResolver>(),
             NullLogger<DefaultAuthorizationService>.Instance);
-        var controller = new MyResourcesController(authz, mapping)
+        var controller = new MyResourcesController(authz, mapping, Mock.Of<IResourceDescendantResolver>())
         {
             ControllerContext = new ControllerContext
             {

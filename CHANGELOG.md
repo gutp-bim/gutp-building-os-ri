@@ -12,6 +12,10 @@ publishes images for (`v*.*.*`).
 
 ### Added
 
+- `GET /api/v1/my-resources?idFormat=original&expand=descendants[&targetType=point]` adds the twin
+  descendants of what a user can read, down to `targetType`, in one call (#509) — e.g. a Group grant on a
+  room yields its equipment and points. Descendants follow exactly the paths the authorization ancestor
+  chain follows (verified against `CanAccessAsync` on a real twin), so every returned id is readable.
 - `GET /api/v1/my-resources?idFormat=original` (and `…/my-resources/accessible?…&idFormat=original`) returns
   business ids only — a Group member's id, or one the admin UI recorded in the id-mapping table — and lists
   grants whose original id cannot be recovered under `unresolved` / `unresolvedResourceIds` as hashes,

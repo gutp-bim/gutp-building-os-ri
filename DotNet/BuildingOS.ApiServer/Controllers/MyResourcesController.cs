@@ -16,19 +16,29 @@ public class MyResourcesController : ControllerBase
 {
     private readonly BuildingOS.Shared.Domain.Authorization.IAuthorizationService _authorizationService;
     private readonly IResourceIdMappingRepository _mappingRepository;
+    private readonly IResourceDescendantResolver _descendants;
 
     public MyResourcesController(
         BuildingOS.Shared.Domain.Authorization.IAuthorizationService authorizationService,
-        IResourceIdMappingRepository mappingRepository)
+        IResourceIdMappingRepository mappingRepository,
+        IResourceDescendantResolver descendants)
     {
         _authorizationService = authorizationService;
         _mappingRepository = mappingRepository;
+        _descendants = descendants;
     }
 
     private const string IdFormatHash = "hash";
     private const string IdFormatOriginal = "original";
+    private const string ExpandDescendants = "descendants";
 
-    private static readonly string[] ResourceTypes = ["building", "floor", "space", "device", "point"];
+    private static readonly IReadOnlyList<string> ResourceTypes = IResourceDescendantResolver.Types;
+
+    /// <summary>
+    /// Upper bound on the ids one <c>expand=descendants</c> response may carry (#509). A building grant on a
+    /// large twin expands to every point in it; past this the caller narrows <c>targetType</c> instead.
+    /// </summary>
+    public const int MaxExpandedIds = 50_000;
 
     /// <summary>
     /// 指定リソースタイプのアクセス可能リソースID一覧を取得
@@ -87,13 +97,41 @@ public class MyResourcesController : ControllerBase
     /// 元 ID が分からない権限は <c>unresolved</c> にハッシュで分けて返す。#504）。admin は常に
     /// <c>resources: null</c>（全件）。
     /// </param>
+    /// <param name="expand">
+    /// <c>descendants</c> を指定すると、読めるリソースの twin 上の子孫（<c>targetType</c> まで）も各種別に加える
+    /// （#509）。子孫は認可の祖先判定と同じ経路で辿るので、返る ID はすべて読める。業務 ID で返すため
+    /// <c>idFormat=original</c> と併用する（それ以外は 400）。<c>unresolved</c> の権限は twin 上の位置が
+    /// 分からないので展開しない。
+    /// </param>
+    /// <param name="targetType">
+    /// 展開する深さ（building / floor / space / device / point、既定 point）。<c>expand</c> が無ければ無視。
+    /// 展開後の ID が <see cref="MaxExpandedIds"/> を超えると 422（浅い <c>targetType</c> を指定する）。
+    /// </param>
     /// <param name="ct">キャンセル</param>
     [HttpGet]
     [ProducesResponseType(typeof(MyResourcesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetMyResources([FromQuery] string? idFormat = null, CancellationToken ct = default)
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GetMyResources(
+        [FromQuery] string? idFormat = null,
+        [FromQuery] string? expand = null,
+        [FromQuery] string? targetType = null,
+        CancellationToken ct = default)
     {
         if (!TryParseIdFormat(idFormat, out var original)) return InvalidIdFormat(idFormat);
+        var expandDescendants = false;
+        if (!string.IsNullOrEmpty(expand))
+        {
+            if (!string.Equals(expand, ExpandDescendants, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { error = $"expand must be '{ExpandDescendants}'", expand });
+            if (!original)
+                return BadRequest(new { error = $"expand={ExpandDescendants} returns business ids; use it with idFormat={IdFormatOriginal}" });
+            expandDescendants = true;
+        }
+        targetType = string.IsNullOrEmpty(targetType) ? "point" : targetType.ToLowerInvariant();
+        // Only meaningful with expand; without it the parameter is ignored rather than validated.
+        if (expandDescendants && !ResourceTypes.Contains(targetType))
+            return BadRequest(new { error = $"targetType must be one of {string.Join(", ", ResourceTypes)}", targetType });
         var authContext = HttpContext.GetAuthorizationContext();
 
         if (authContext.IsAdmin)
@@ -122,8 +160,41 @@ public class MyResourcesController : ControllerBase
             }
         }
 
+        if (expandDescendants)
+        {
+            var roots = resources.SelectMany(kv => kv.Value.Select(id => (kv.Key, id))).ToList();
+            IReadOnlyDictionary<string, IReadOnlyList<string>> descendants;
+            try
+            {
+                // The limit goes into the store queries, so an over-large expansion is refused without
+                // being loaded (the total check below also covers the grants listed directly).
+                descendants = roots.Count == 0
+                    ? new Dictionary<string, IReadOnlyList<string>>()
+                    : await _descendants.GetDescendantsAsync(roots, targetType, MaxExpandedIds, ct).ConfigureAwait(false);
+            }
+            catch (DescendantLimitExceededException)
+            {
+                return ExpansionTooLarge(count: null);
+            }
+            foreach (var (type, ids) in descendants)
+            {
+                if (ids.Count == 0 || !resources.ContainsKey(type)) continue;
+                resources[type] = resources[type].Concat(ids).Distinct(StringComparer.Ordinal).ToList();
+            }
+
+            var total = resources.Values.Sum(v => v.Count);
+            if (total > MaxExpandedIds) return ExpansionTooLarge(total);
+        }
+
         return Ok(new MyResourcesResponse { IsAdmin = false, Resources = resources, Unresolved = unresolved });
     }
+
+    private ObjectResult ExpansionTooLarge(int? count) => StatusCode(StatusCodes.Status422UnprocessableEntity, new
+    {
+        error = $"the expansion yields more than {MaxExpandedIds} ids; use a shallower targetType (e.g. device or space)",
+        count,
+        limit = MaxExpandedIds,
+    });
 
     private static bool TryParseIdFormat(string? idFormat, out bool original)
     {

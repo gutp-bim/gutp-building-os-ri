@@ -10,6 +10,8 @@ public static partial class IServiceCollectionExtension
     public static IServiceCollection AddAuth(this IServiceCollection services)
     {
         services.AddSingleton<IResourceHierarchyResolver, OxiGraphHierarchyResolver>();
+        // Inverse of the hierarchy resolver, same paths (#509): my-resources?expand=descendants.
+        services.AddSingleton<IResourceDescendantResolver, OxiGraphDescendantResolver>();
         services.AddScoped<BuildingOS.Shared.Domain.Authorization.IAuthorizationService, DefaultAuthorizationService>();
         // Both depend on RelationalDbContext/IGroupRepository registered unconditionally in Startup.ConfigureServices.
         services.AddScoped<IGroupMembershipResolver, GroupMembershipResolver>();
