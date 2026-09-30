@@ -18,7 +18,10 @@ export type Methods = DefineMethods<{
        *             分からないので展開しない。
        */
       expand?: string | undefined;
-      /** 展開する深さ（building / floor / space / device / point、既定 point） */
+      /**
+       * 展開する深さ（building / floor / space / device / point、既定 point）。`expand` が無ければ無視。
+       * 展開後の ID が BuildingOs.ApiServer.Controllers.MyResourcesController.MaxExpandedIds を超えると 422（浅い `targetType` を指定する）。
+       */
       targetType?: string | undefined;
     } | undefined;
 

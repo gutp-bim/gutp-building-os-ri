@@ -938,7 +938,7 @@ paths:
             type: string
         - name: targetType
           in: query
-          description: 展開する深さ（building / floor / space / device / point、既定 point）
+          description: "展開する深さ（building / floor / space / device / point、既定 point）。`expand` が無ければ無視。\n展開後の ID が BuildingOs.ApiServer.Controllers.MyResourcesController.MaxExpandedIds を超えると 422（浅い `targetType` を指定する）。"
           schema:
             type: string
       responses:
@@ -956,6 +956,18 @@ paths:
                 $ref: '#/components/schemas/MyResourcesResponse'
         '400':
           description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Unprocessable Content
           content:
             text/plain:
               schema:
