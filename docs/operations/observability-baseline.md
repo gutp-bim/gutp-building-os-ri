@@ -102,7 +102,7 @@ and a histogram whose unit is `s` gains `_seconds` (`_bucket` / `_sum` / `_count
 |-----|--------|--------------------------|
 | Ingress msg/s | `sum(rate(building_os_ingress_messages_total[1m]))`; tooltip: `sum by (source) (…)` | — |
 | Validated msg/s | `(C + G) or C or G` where C = `sum(connector:messages_processed:rate1m)` and G = `sum(rate(building_os_ingress_messages_total{source="gateway-grpc",result="published"}[1m]))` | — |
-| Rejected msg/s | `(I + D) or I or D` where I = `sum(rate(building_os_ingress_messages_total{result!="published"}[1m]))` and D = `sum(rate(building_os_connector_messages_processed_total{connector=~"MqttConnectorWorker\|HonoConnectorWorker",result=~"skipped\|error"}[1m]))`; tooltip: `sum by (result) (…)` of each, connector rows labelled `connector:skipped` / `connector:error` | — |
+| Rejected msg/s | `(I + D) or I or D or vector(0)` where I = `sum(rate(building_os_ingress_messages_total{result!="published"}[1m]))` and D = `sum(rate(building_os_connector_messages_processed_total{connector=~"MqttConnectorWorker\|HonoConnectorWorker",result=~"skipped\|error"}[1m]))`; tooltip: `sum by (result) (…)` of each, connector rows labelled `connector:skipped` / `connector:error` | — |
 | Rejected % | rejected ÷ ingress × 100 (same snapshot; null when ingress is 0) | > 1 % → `platform.kpi.rejectedPercentWarn` |
 | Event lag p95 | `histogram_quantile(0.95, sum by (le) (rate(building_os_ingress_event_lag_seconds_bucket[5m])))` | > 30 s → `platform.kpi.eventLagP95WarnSeconds` |
 | Consumer lag p95 | `histogram_quantile(0.95, sum by (le) (rate(building_os_ingestion_lag_seconds_bucket[5m])))` | > 5 s → `platform.kpi.consumerLagP95WarnSeconds` |
@@ -130,8 +130,11 @@ Notes:
   `result` comes from where: `bad_payload` (MQTT / AMQP), `bad_topic` (MQTT), `missing_id` /
   `unknown_point` / `gateway_mismatch` / `no_building_path` / `no_device_link` / `identity_*` /
   `publish_failed` (gRPC GatewayIngress only), `connector:skipped` / `connector:error` (MQTT / Hono
-  connectors). The rejection selectors return nothing until the first rejection, so with ingress data
-  present the API reports 0 rather than null.
+  connectors). The rejection selectors return nothing until the first rejection, so the query ends in
+  `or vector(0)`: "never rejected" is a real 0 computed by Prometheus, and a null can only mean the
+  query itself failed (timeout / non-2xx / bad response). The API passes that null through (UI: "—")
+  rather than coercing it to 0 — a timed-out rejected query must never read as a green "0 msg/s" during
+  a possible rejection storm. Rejected % is null whenever ingress or rejected is null.
 - **Validated** is everything published to `building-os.validated.telemetry`: the connector recording
   rule plus the gRPC GatewayIngress path, which publishes there directly without a connector and so is
   counted only on the ingress counter (`source="gateway-grpc", result="published"`). The legacy

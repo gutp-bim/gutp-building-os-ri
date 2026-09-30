@@ -173,8 +173,8 @@ public class SystemStatusServicePipelineKpiTest
     [Fact]
     public async Task PipelineKpis_PartiallyMissing_DegradePerKpi()
     {
-        // Ingress is flowing but nothing was ever rejected (no result!="published" series exist, so
-        // the rejected query returns an empty vector), the lag histograms have no observations in the
+        // Ingress is flowing but nothing was ever rejected (no rejection series exist, so the rejected
+        // query's `or vector(0)` tail answers 0), the lag histograms have no observations in the
         // window (histogram_quantile → NaN), and the NATS exporter is not wired (no recording rule).
         var fake = new FakePrometheusClient
         {
@@ -183,6 +183,7 @@ public class SystemStatusServicePipelineKpiTest
             {
                 [SystemStatusService.IngressRate1mQuery] = 500,
                 [SystemStatusService.ValidatedRate1mQuery] = 498,
+                [SystemStatusService.RejectedRate1mQuery] = 0, // what `… or vector(0)` returns
                 [SystemStatusService.EventLagP95Query] = double.NaN,
                 [SystemStatusService.ConsumerLagP95Query] = double.PositiveInfinity,
             },
@@ -234,7 +235,11 @@ public class SystemStatusServicePipelineKpiTest
         var fake = new FakePrometheusClient
         {
             IsConfigured = true,
-            Scalars = { [SystemStatusService.IngressRate1mQuery] = 0 },
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 0,
+                [SystemStatusService.RejectedRate1mQuery] = 0,
+            },
         };
         var svc = new SystemStatusService(new FakeHealthProbe(), fake);
 
@@ -297,8 +302,49 @@ public class SystemStatusServicePipelineKpiTest
         // raw.*) and dropped later by ConnectorWorkerBase as result=skipped|error — still rejections.
         var ingress = "sum(rate(building_os_ingress_messages_total{result!=\"published\"}[1m]))";
         var connector = "sum(rate(building_os_connector_messages_processed_total{connector=~\"MqttConnectorWorker|HonoConnectorWorker\",result=~\"skipped|error\"}[1m]))";
-        Assert.Equal(SystemStatusService.RejectedRate1mQuery, $"({ingress} + {connector}) or {ingress} or {connector}");
+        // `or vector(0)` puts "never rejected" (no series) into PromQL as a real 0, so a null from the
+        // client can only mean the query failed (timeout / non-2xx) and stays null.
+        Assert.Equal(SystemStatusService.RejectedRate1mQuery, $"({ingress} + {connector}) or {ingress} or {connector} or vector(0)");
         Assert.Contains(SystemStatusService.ConnectorDroppedByResultQuery, SystemStatusService.AllKpiQueries);
+    }
+
+    [Fact]
+    public async Task RejectedRate_IsNull_WhenTheRejectedQueryFails_EvenWithIngressPresent()
+    {
+        // QueryScalarAsync returns null for a failed query (timeout, non-2xx, bad JSON). The rejected
+        // query is the heaviest of the batch; reporting its failure as a green "0 msg/s (0 %)" could
+        // hide a real rejection storm.
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 1000,
+                [SystemStatusService.RejectedRate1mQuery] = null,
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Null(k.RejectedRate1m);
+        Assert.Null(k.RejectedPercent);
+    }
+
+    [Fact]
+    public async Task RejectedPercent_IsNull_WhenIngressIsNull_EvenWithARejectedValue()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars = { [SystemStatusService.RejectedRate1mQuery] = 0 },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Equal(0, k.RejectedRate1m);
+        Assert.Null(k.RejectedPercent);
     }
 
     [Fact]

@@ -80,10 +80,14 @@ public sealed class SystemStatusService : ISystemStatusService
     /// counters, because rejection happens at two places: an ingress transport refusing a message
     /// (<c>result != "published"</c>), and a connector dropping an MQTT / Hono message the transport had
     /// already forwarded to <c>raw.*</c> as published (device / point unresolved → <c>skipped</c>, or
-    /// <c>error</c>). Absent sides are handled as in <see cref="ValidatedRate1mQuery"/>.
+    /// <c>error</c>). Absent sides are handled as in <see cref="ValidatedRate1mQuery"/>. The rejection
+    /// selectors return no series until the first rejection ever happens, so a trailing
+    /// <c>or vector(0)</c> makes "never rejected" a real 0 in PromQL. That keeps a null from the client
+    /// meaning only "the query failed" (timeout / non-2xx) — reported as null (UI: no data), never as a
+    /// reassuring 0 during what might be a rejection storm.
     /// </summary>
     public const string RejectedRate1mQuery =
-        $"({IngressRejectedRate} + {ConnectorDroppedRate}) or {IngressRejectedRate} or {ConnectorDroppedRate}";
+        $"({IngressRejectedRate} + {ConnectorDroppedRate}) or {IngressRejectedRate} or {ConnectorDroppedRate} or vector(0)";
 
     /// <summary>Ingress-refused msg/s per result (bad_payload / bad_topic / unknown_point …) — tooltip breakdown.</summary>
     public const string RejectedByResultQuery =
@@ -197,7 +201,7 @@ public sealed class SystemStatusService : ISystemStatusService
 
         var ingress = await ingressTask.ConfigureAwait(false);
         var validated = await validatedTask.ConfigureAwait(false);
-        var rejected = RejectedOrZero(await rejectedTask.ConfigureAwait(false), ingress);
+        var rejected = await rejectedTask.ConfigureAwait(false);
 
         return new SystemStatus(
             Services: ordered,
@@ -232,13 +236,6 @@ public sealed class SystemStatusService : ISystemStatusService
         var v = await _prometheus.QueryScalarAsync(query, ct).ConfigureAwait(false);
         return v is { } d && double.IsFinite(d) ? d : null;
     }
-
-    /// <summary>
-    /// The rejection selectors return an empty vector until the first rejection ever
-    /// happens. With ingress data present that means zero rejections, not "unknown".
-    /// </summary>
-    private static double? RejectedOrZero(double? rejected, double? ingress) =>
-        rejected ?? (ingress is not null ? 0 : null);
 
     /// <summary>
     /// Stalled = the writer's flush counter exists in the window but did not move, while telemetry is
