@@ -17,16 +17,21 @@ public sealed record KpiBreakdownItem(string Label, double Value);
 /// recording rule — see <c>docs/operations/observability-baseline.md</c> §"KPIs and PromQL used by the
 /// Platform UI" and the query constants on <see cref="SystemStatusService"/>.</para>
 /// </summary>
-/// <param name="MsgRate1m">Validated (connector-published) msg/s. Kept for compatibility; same value as <paramref name="ValidatedRate1m"/>.</param>
+/// <param name="MsgRate1m">Connector-published msg/s (<c>connector:messages_processed:rate1m</c>). Kept for
+/// compatibility with its original meaning; it excludes the gRPC GatewayIngress path, so on a gRPC-ingress
+/// deployment it is lower than <paramref name="ValidatedRate1m"/>.</param>
 /// <param name="ControlReq5m">Control requests handled in the last 5 minutes.</param>
 /// <param name="IngressRate1m">Messages received by the ingress transports, all results (msg/s).</param>
 /// <param name="IngressBySource">Ingress msg/s per <c>source</c> (tooltip breakdown). <see cref="SystemStatusService"/>
 /// always sets it (empty without data); null only on the legacy two-field construction.</param>
-/// <param name="ValidatedRate1m">Messages connectors published to the validated subject (msg/s).</param>
-/// <param name="RejectedRate1m">Ingress messages with <c>result != "published"</c> (msg/s) — measured
-/// directly, never derived as ingress − validated (that gap is queue backlog, not rejection).</param>
+/// <param name="ValidatedRate1m">Messages published to the validated subject (msg/s): connectors plus the
+/// gRPC GatewayIngress (<c>source="gateway-grpc", result="published"</c>), which publishes there directly.</param>
+/// <param name="RejectedRate1m">Rejected msg/s: ingress messages with <c>result != "published"</c> plus
+/// connector drops (<c>result=~"skipped|error"</c>, e.g. an MQTT / Hono device or point that does not
+/// resolve) — measured directly, never derived as ingress − validated (that gap is queue backlog, not rejection).</param>
 /// <param name="RejectedPercent">rejected / ingress × 100; null when there is no ingress traffic.</param>
-/// <param name="RejectedByResult">Rejected msg/s per <c>result</c> (tooltip breakdown).</param>
+/// <param name="RejectedByResult">Rejected msg/s per <c>result</c> (tooltip breakdown); connector drops are
+/// labelled <c>connector:skipped</c> / <c>connector:error</c>.</param>
 /// <param name="EventLagP95Seconds">p95 of <c>building_os.ingress.event_lag</c> (event time → hot store).</param>
 /// <param name="ConsumerLagP95Seconds">p95 of <c>building_os.ingestion.lag</c> (JetStream consumer lag).</param>
 /// <param name="ParquetFreshnessP95Seconds">p95 of <c>building_os.parquet_writer.freshness_lag</c>.</param>

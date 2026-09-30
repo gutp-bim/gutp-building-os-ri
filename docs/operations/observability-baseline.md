@@ -101,8 +101,8 @@ and a histogram whose unit is `s` gains `_seconds` (`_bucket` / `_sum` / `_count
 | KPI | PromQL | Warn (default → setting) |
 |-----|--------|--------------------------|
 | Ingress msg/s | `sum(rate(building_os_ingress_messages_total[1m]))`; tooltip: `sum by (source) (…)` | — |
-| Validated msg/s | `sum(connector:messages_processed:rate1m)` (also returned as `msgRate1m`) | — |
-| Rejected msg/s | `sum(rate(building_os_ingress_messages_total{result!="published"}[1m]))`; tooltip: `sum by (result) (…)` | — |
+| Validated msg/s | `(C + G) or C or G` where C = `sum(connector:messages_processed:rate1m)` and G = `sum(rate(building_os_ingress_messages_total{source="gateway-grpc",result="published"}[1m]))` | — |
+| Rejected msg/s | `(I + D) or I or D` where I = `sum(rate(building_os_ingress_messages_total{result!="published"}[1m]))` and D = `sum(rate(building_os_connector_messages_processed_total{result=~"skipped\|error"}[1m]))`; tooltip: `sum by (result) (…)` of each, connector rows labelled `connector:skipped` / `connector:error` | — |
 | Rejected % | rejected ÷ ingress × 100 (same snapshot; null when ingress is 0) | > 1 % → `platform.kpi.rejectedPercentWarn` |
 | Event lag p95 | `histogram_quantile(0.95, sum by (le) (rate(building_os_ingress_event_lag_seconds_bucket[5m])))` | > 30 s → `platform.kpi.eventLagP95WarnSeconds` |
 | Consumer lag p95 | `histogram_quantile(0.95, sum by (le) (rate(building_os_ingestion_lag_seconds_bucket[5m])))` | > 5 s → `platform.kpi.consumerLagP95WarnSeconds` |
@@ -114,14 +114,38 @@ and a histogram whose unit is `s` gains `_seconds` (`_bucket` / `_sum` / `_count
 Notes:
 
 - **Rejected is measured, never derived.** `ingress − validated` would count queue backlog as
-  rejection: under load the validated side trails ingress by whatever is queued. The per-`result`
-  breakdown uses the same counter and label as `/platform/ingress-rejections`, which shows the
-  cumulative `source="gateway-grpc"` counts; the status page shows rates across all sources. A
-  `result!="published"` selector returns nothing until the first rejection, so with ingress data present
-  the API reports 0 rather than null.
-- **Validated** is the connector recording rule. The gRPC GatewayIngress path publishes straight to
-  `building-os.validated.telemetry` without a connector, so its accepted frames appear under Ingress
-  (`result="published"`) but not under Validated.
+  rejection: under load the validated side trails ingress by whatever is queued. Rejection happens in
+  two places, so both are counted: an ingress transport refusing a message (`result!="published"` on
+  the ingress counter), and a connector dropping an MQTT / Hono message the transport had already
+  forwarded to `raw.*` as `published` — a device or point that does not resolve is
+  `result="skipped"`, a processing failure `result="error"` on
+  `building_os_connector_messages_processed_total`. Rejected % stays rejected ÷ ingress. The ingress
+  rows of the breakdown use the same counter and label as `/platform/ingress-rejections`, which shows
+  the cumulative `source="gateway-grpc"` counts; the status page shows rates across all sources. Which
+  `result` comes from where: `bad_payload` (MQTT / AMQP), `bad_topic` (MQTT), `missing_id` /
+  `unknown_point` / `gateway_mismatch` / `no_building_path` / `no_device_link` / `identity_*` /
+  `publish_failed` (gRPC GatewayIngress only), `connector:skipped` / `connector:error` (MQTT / Hono
+  connectors). The rejection selectors return nothing until the first rejection, so with ingress data
+  present the API reports 0 rather than null.
+- **Validated** is everything published to `building-os.validated.telemetry`: the connector recording
+  rule plus the gRPC GatewayIngress path, which publishes there directly without a connector and so is
+  counted only on the ingress counter (`source="gateway-grpc", result="published"`). The legacy
+  `msgRate1m` field (and `/home`'s data-flow card via `OperationsController`) keeps its original,
+  connector-only meaning `sum(connector:messages_processed:rate1m)`; the status page reads
+  `validatedRate1m`.
+- **Two-sided sums are written `(A + B) or A or B`.** `A + B` alone is empty whenever one side has no
+  series (no gRPC gateway deployed, no connector drop ever), which would null the KPI. The `or`
+  fallbacks keep whichever side exists; with neither present the result stays empty and the API
+  reports null, like every other KPI (`(A or vector(0)) + …` would report 0 with no data at all).
+- **Histogram buckets.** Every `building_os` histogram whose unit is `s`
+  (`building_os.ingestion.lag`, `building_os.ingress.event_lag`,
+  `building_os.parquet_writer.freshness_lag`) is exported with explicit second-scale boundaries
+  `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600` (+Inf) — a view
+  registered in `OtelSetup.AddBuildingOsHistogramViews`. The SDK default boundaries
+  (`0, 5, 10, 25, 50, 75, 100, 250, …`) are sized for milliseconds: with them an 80 ms lag falls in
+  the `(0, 5]` bucket and `histogram_quantile` reports p95 ≈ 4.75 s. Millisecond histograms
+  (`*.duration`, unit `ms`) keep the defaults. A quantile is only as precise as its bucket, and
+  anything above 600 s reads as 600 s.
 - **Parquet freshness** uses a 15 m window so that at least one flush falls inside it at the default
   5-minute `PARQUET_FLUSH_INTERVAL`. The API server cannot see that ConnectorWorker variable, so the warn
   threshold is a setting: keep it near `PARQUET_FLUSH_INTERVAL` (minutes) × 2 × 60.
@@ -133,7 +157,8 @@ Notes:
 - Without Prometheus (the default OSS compose), every KPI is null and the page shows the "enable the
   observability profile" empty state. Without the NATS exporter only NATS pending is null.
 - **Grafana links** appear per KPI only when `NEXT_PUBLIC_GRAFANA_URL` is set. Only Validated has a
-  matching panel (Building OS Overview → Connector Processing Rate, `viewPanel=5`). The other KPIs link
+  matching panel (Building OS Overview → Connector Processing Rate, `viewPanel=5`; it shows the
+  connector side only, not gRPC GatewayIngress). The other KPIs link
   to the Building OS Overview dashboard because no dedicated panel exists for them yet.
 
 **When a KPI goes bad: who does what.** Triage starts at the
@@ -143,7 +168,7 @@ Notes:
 |-----|-----|--------------|
 | Ingress drops to 0 | Platform operator | Check ingress transports and gateway connectivity ([runbook §5](oss-incident-runbook.md#5-ゲートウェイの大量切断), §1 if NATS is down). |
 | Validated ≪ Ingress (sustained) | Platform operator | Read Consumer lag and NATS pending: backlog means connectors are behind; check ConnectorWorker readiness ([runbook §0](oss-incident-runbook.md#0-最初に見るところトリアージ)). |
-| Rejected % high | Twin / gateway owner | Use the tooltip's `result` breakdown and `/platform/ingress-rejections`. `unknown_point` / `gateway_mismatch` / `no_building_path` mean fix the twin or point list; `bad_payload` / `bad_topic` mean fix the device or gateway payload. |
+| Rejected % high | Twin / gateway owner | Use the tooltip's `result` breakdown and `/platform/ingress-rejections`. `unknown_point` / `gateway_mismatch` / `no_building_path` (gRPC gateways) or `connector:skipped` (MQTT / Hono devices whose device or point does not resolve) mean fix the twin or point list; `bad_payload` / `bad_topic` mean fix the device or gateway payload; `connector:error` means read the ConnectorWorker logs. |
 | Event lag high, Consumer lag normal | Gateway / device / network owner | The delay is upstream of Building OS. Check gateway buffers, device clocks, and the network. Read `timestamp_fallbacks` next to it ([oss-sla-freshness.md](oss-sla-freshness.md) §5–§6). |
 | Event lag high, Consumer lag high | Platform operator | Suspect internal queueing or backpressure. Check NATS pending and ConnectorWorker capacity ([runbook §1](oss-incident-runbook.md#1-nats-が落ちた), [oss-sla-freshness.md](oss-sla-freshness.md) §6). |
 | Parquet freshness high / dropped > 0 | Platform operator | Check the lake writer and MinIO ([runbook §2](oss-incident-runbook.md#2-minioparquet-レイクが落ちた)). Dropped rows mean a producer sent unparseable timestamps, so find the source in Loki. |

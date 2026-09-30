@@ -20,8 +20,29 @@ public sealed class SystemStatusService : ISystemStatusService
     // docs/operations/observability-baseline.md §"KPIs and PromQL used by the Platform UI" mirrors
     // this list; keep the two in step.
 
-    /// <summary>Validated msg/s: messages connectors published (recording rule, result="published").</summary>
+    /// <summary>
+    /// Connector-published msg/s (recording rule, result="published"). The legacy <c>msgRate1m</c>
+    /// field and <c>/home</c>'s data-flow card (<c>OperationsController</c>) use this; it does NOT
+    /// include the gRPC GatewayIngress path — see <see cref="ValidatedRate1mQuery"/>.
+    /// </summary>
     public const string MsgRate1mQuery = "sum(connector:messages_processed:rate1m)";
+
+    // Two-sided sums below are written `(A + B) or A or B`: `A + B` alone is empty when either side has
+    // no series (no gRPC gateway deployed, no connector ever dropped anything), which would null the
+    // whole KPI. The `or` fallbacks keep whichever side exists, and the result is empty (→ null) only
+    // when neither does — the same "no data → null" semantics as every other KPI (unlike
+    // `(A or vector(0)) + (B or vector(0))`, which would report 0 with no data at all).
+
+    private const string GatewayGrpcPublishedRate =
+        "sum(rate(building_os_ingress_messages_total{source=\"gateway-grpc\",result=\"published\"}[1m]))";
+
+    /// <summary>
+    /// Validated msg/s: everything published to <c>building-os.validated.telemetry</c> — the
+    /// connectors (MQTT / Hono, <see cref="MsgRate1mQuery"/>) plus the gRPC GatewayIngress, which
+    /// publishes there directly without a connector and counts only on the ingress counter.
+    /// </summary>
+    public const string ValidatedRate1mQuery =
+        $"({MsgRate1mQuery} + {GatewayGrpcPublishedRate}) or {MsgRate1mQuery} or {GatewayGrpcPublishedRate}";
 
     /// <summary>Control requests handled in the last 5 minutes.</summary>
     public const string ControlReq5mQuery = "sum(increase(building_os_control_requests_total[5m]))";
@@ -33,17 +54,36 @@ public sealed class SystemStatusService : ISystemStatusService
     public const string IngressBySourceQuery =
         "sum by (source) (rate(building_os_ingress_messages_total[1m]))";
 
-    /// <summary>
-    /// Rejected msg/s, measured directly on the ingress counter's <c>result</c> tag. Deliberately NOT
-    /// ingress − validated: under load the validated side trails ingress by the queue, and that gap is
-    /// backlog, not rejection.
-    /// </summary>
-    public const string RejectedRate1mQuery =
+    private const string IngressRejectedRate =
         "sum(rate(building_os_ingress_messages_total{result!=\"published\"}[1m]))";
 
-    /// <summary>Rejected msg/s per result (bad_payload / unknown_point / …) — tooltip breakdown.</summary>
+    private const string ConnectorDroppedRate =
+        "sum(rate(building_os_connector_messages_processed_total{result=~\"skipped|error\"}[1m]))";
+
+    /// <summary>
+    /// Rejected msg/s, measured directly — deliberately NOT ingress − validated: under load the
+    /// validated side trails ingress by the queue, and that gap is backlog, not rejection. Two
+    /// counters, because rejection happens at two places: an ingress transport refusing a message
+    /// (<c>result != "published"</c>), and a connector dropping an MQTT / Hono message the transport had
+    /// already forwarded to <c>raw.*</c> as published (device / point unresolved → <c>skipped</c>, or
+    /// <c>error</c>). Absent sides are handled as in <see cref="ValidatedRate1mQuery"/>.
+    /// </summary>
+    public const string RejectedRate1mQuery =
+        $"({IngressRejectedRate} + {ConnectorDroppedRate}) or {IngressRejectedRate} or {ConnectorDroppedRate}";
+
+    /// <summary>Ingress-refused msg/s per result (bad_payload / bad_topic / unknown_point …) — tooltip breakdown.</summary>
     public const string RejectedByResultQuery =
         "sum by (result) (rate(building_os_ingress_messages_total{result!=\"published\"}[1m]))";
+
+    /// <summary>
+    /// Connector-dropped msg/s per result (skipped / error) — merged into the rejected tooltip as
+    /// <c>connector:skipped</c> / <c>connector:error</c> so they cannot be confused with an ingress result.
+    /// </summary>
+    public const string ConnectorDroppedByResultQuery =
+        "sum by (result) (rate(building_os_connector_messages_processed_total{result=~\"skipped|error\"}[1m]))";
+
+    /// <summary>Label prefix for connector drops in <see cref="SystemKpis.RejectedByResult"/>.</summary>
+    public const string ConnectorResultPrefix = "connector:";
 
     /// <summary>p95 event-time lag (reading's own event time → hot store), #415/#443.</summary>
     public const string EventLagP95Query =
@@ -70,8 +110,8 @@ public sealed class SystemStatusService : ISystemStatusService
     /// <summary>Every PromQL string this service issues (for policy tests / docs).</summary>
     public static readonly IReadOnlyList<string> AllKpiQueries =
     [
-        MsgRate1mQuery, ControlReq5mQuery, IngressRate1mQuery, IngressBySourceQuery, RejectedRate1mQuery,
-        RejectedByResultQuery, EventLagP95Query, ConsumerLagP95Query, ParquetFreshnessP95Query,
+        MsgRate1mQuery, ValidatedRate1mQuery, ControlReq5mQuery, IngressRate1mQuery, IngressBySourceQuery,
+        RejectedRate1mQuery, RejectedByResultQuery, ConnectorDroppedByResultQuery, EventLagP95Query, ConsumerLagP95Query, ParquetFreshnessP95Query,
         ParquetDropped15mQuery, NatsPendingQuery,
     ];
 
@@ -90,19 +130,21 @@ public sealed class SystemStatusService : ISystemStatusService
         // degrades on its own failure (probe → "down", Prometheus → null).
         var probeTask = _healthProbe.ProbeAllAsync(ct);
         var msgRateTask = ScalarAsync(MsgRate1mQuery, ct);
+        var validatedTask = ScalarAsync(ValidatedRate1mQuery, ct);
         var controlReqTask = ScalarAsync(ControlReq5mQuery, ct);
         var ingressTask = ScalarAsync(IngressRate1mQuery, ct);
         var ingressBySourceTask = _prometheus.QueryVectorAsync(IngressBySourceQuery, ct);
         var rejectedTask = ScalarAsync(RejectedRate1mQuery, ct);
         var rejectedByResultTask = _prometheus.QueryVectorAsync(RejectedByResultQuery, ct);
+        var connectorDroppedTask = _prometheus.QueryVectorAsync(ConnectorDroppedByResultQuery, ct);
         var eventLagTask = ScalarAsync(EventLagP95Query, ct);
         var consumerLagTask = ScalarAsync(ConsumerLagP95Query, ct);
         var freshnessTask = ScalarAsync(ParquetFreshnessP95Query, ct);
         var droppedTask = ScalarAsync(ParquetDropped15mQuery, ct);
         var natsPendingTask = ScalarAsync(NatsPendingQuery, ct);
         await Task.WhenAll(
-            probeTask, msgRateTask, controlReqTask, ingressTask, ingressBySourceTask, rejectedTask,
-            rejectedByResultTask, eventLagTask, consumerLagTask, freshnessTask, droppedTask,
+            probeTask, msgRateTask, validatedTask, controlReqTask, ingressTask, ingressBySourceTask, rejectedTask,
+            rejectedByResultTask, connectorDroppedTask, eventLagTask, consumerLagTask, freshnessTask, droppedTask,
             natsPendingTask).ConfigureAwait(false);
 
         // Self is always up; add probed services, de-duplicate by name (self wins), then sort so
@@ -115,21 +157,22 @@ public sealed class SystemStatusService : ISystemStatusService
             .OrderBy(s => s.Name, StringComparer.Ordinal)
             .ToList();
 
-        var msgRate = await msgRateTask.ConfigureAwait(false);
         var ingress = await ingressTask.ConfigureAwait(false);
         var rejected = RejectedOrZero(await rejectedTask.ConfigureAwait(false), ingress);
 
         return new SystemStatus(
             Services: ordered,
             Kpis: new SystemKpis(
-                MsgRate1m: msgRate,
+                MsgRate1m: await msgRateTask.ConfigureAwait(false),
                 ControlReq5m: await controlReqTask.ConfigureAwait(false),
                 IngressRate1m: ingress,
                 IngressBySource: Breakdown(await ingressBySourceTask.ConfigureAwait(false), "source"),
-                ValidatedRate1m: msgRate,
+                ValidatedRate1m: await validatedTask.ConfigureAwait(false),
                 RejectedRate1m: rejected,
                 RejectedPercent: Percent(rejected, ingress),
-                RejectedByResult: Breakdown(await rejectedByResultTask.ConfigureAwait(false), "result"),
+                RejectedByResult: Breakdown(
+                    await rejectedByResultTask.ConfigureAwait(false), "result",
+                    await connectorDroppedTask.ConfigureAwait(false), ConnectorResultPrefix),
                 EventLagP95Seconds: await eventLagTask.ConfigureAwait(false),
                 ConsumerLagP95Seconds: await consumerLagTask.ConfigureAwait(false),
                 ParquetFreshnessP95Seconds: await freshnessTask.ConfigureAwait(false),
@@ -149,7 +192,7 @@ public sealed class SystemStatusService : ISystemStatusService
     }
 
     /// <summary>
-    /// A <c>result!="published"</c> selector returns an empty vector until the first rejection ever
+    /// The rejection selectors return an empty vector until the first rejection ever
     /// happens. With ingress data present that means zero rejections, not "unknown".
     /// </summary>
     private static double? RejectedOrZero(double? rejected, double? ingress) =>
@@ -158,10 +201,15 @@ public sealed class SystemStatusService : ISystemStatusService
     private static double? Percent(double? rejected, double? ingress) =>
         rejected is { } r && ingress is { } i && i > 0 ? r / i * 100d : null;
 
-    private static IReadOnlyList<KpiBreakdownItem> Breakdown(IReadOnlyList<PrometheusSample> samples, string label) =>
+    private static IReadOnlyList<KpiBreakdownItem> Breakdown(
+        IReadOnlyList<PrometheusSample> samples, string label,
+        IReadOnlyList<PrometheusSample>? prefixedSamples = null, string prefix = "") =>
         samples
             .Where(s => double.IsFinite(s.Value))
             .Select(s => new KpiBreakdownItem(s.Labels.GetValueOrDefault(label, "unknown"), s.Value))
+            .Concat((prefixedSamples ?? [])
+                .Where(s => double.IsFinite(s.Value))
+                .Select(s => new KpiBreakdownItem(prefix + s.Labels.GetValueOrDefault(label, "unknown"), s.Value)))
             .OrderByDescending(b => b.Value)
             .ThenBy(b => b.Label, StringComparer.Ordinal)
             .ToList();

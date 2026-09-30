@@ -40,13 +40,13 @@ export const GLOSSARY: GlossaryTerm[] = [
   {
     term: "Validated レート",
     definition:
-      "コネクターが検証を通して validated.telemetry へ発行した件数（毎秒, 直近1分）。Ingress から引き算した値ではなく独立に計測しています。負荷時は Ingress より遅れて追いつくため、両者の差はキューの滞留であって拒否ではありません。",
+      "validated.telemetry へ発行された件数（毎秒, 直近1分）。コネクター（MQTT / Hono）が検証を通して発行した分と、gRPC gateway-ingress がコネクターを経由せず直接発行した分（ingress の source=gateway-grpc, result=published）の合計です。Ingress から引き算した値ではなく独立に計測しています。負荷時は Ingress より遅れて追いつくため、両者の差はキューの滞留であって拒否ではありません。",
     category: "metric",
   },
   {
     term: "Rejected レート",
     definition:
-      "取込口が拒否したメッセージ数（毎秒, 直近1分）と拒否率（rejected ÷ ingress）。ingress の result≠published を直接数えたもので、Ingress − Validated の差ではありません。ツールチップに理由（bad_payload / unknown_point など）別の内訳、累計件数は取込拒否件数画面に出ます。",
+      "拒否されたメッセージ数（毎秒, 直近1分）と拒否率（rejected ÷ ingress）。取込口が拒否した分（ingress の result≠published）と、取込口は受け付けたがコネクターが破棄した分（MQTT / Hono でデバイス・ポイントを解決できない等: connector:skipped / connector:error）を直接数えた合計で、Ingress − Validated の差ではありません。ツールチップに理由別の内訳が出ます（bad_payload は MQTT / AMQP、bad_topic は MQTT、unknown_point / gateway_mismatch / no_building_path などは gRPC gateway-ingress 固有。MQTT / Hono でポイントが解決できない場合は connector:skipped に入ります）。gRPC gateway-ingress の累計件数は取込拒否件数画面に出ます。",
     category: "metric",
   },
   {
@@ -176,7 +176,7 @@ export const GLOSSARY: GlossaryTerm[] = [
     term: "リビジョン",
     reading: "りびじょん",
     definition:
-      "ポイントリストの版数。内容から算出する順序非依存のハッシュ（\"sha256:...\" 形式の ETag）で表され、ポイントリストが変わったときだけ値が変わります。ゲートウェイは If-None-Match で問い合わせ、変化が無ければ 304 が返るので、無駄な再取得を避けられます。",
+      'ポイントリストの版数。内容から算出する順序非依存のハッシュ（"sha256:..." 形式の ETag）で表され、ポイントリストが変わったときだけ値が変わります。ゲートウェイは If-None-Match で問い合わせ、変化が無ければ 304 が返るので、無駄な再取得を避けられます。',
     category: "architecture",
   },
   {
@@ -209,7 +209,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
       "各サービスの up/down とパイプライン KPI（Ingress / Validated / Rejected / Event lag / Consumer lag / Parquet 鮮度 / NATS pending / 制御リクエスト）を1画面に集約して表示します。",
       "サービスの up/down は /health のファンアウトで判定するため、Prometheus を起動していなくても確認できます。KPI は Prometheus 未配線時は空欄になります（observability プロファイルを有効にすると表示されます）。",
       "2 つの lag の読み分け: Event lag だけ高く Consumer lag が平常 → Building OS に届く前（デバイス / ゲートウェイ / ネットワーク）から遅れている。Event lag も Consumer lag も高い → Building OS 内部のキュー / バックプレッシャーを疑う（NATS pending も併せて確認）。",
-      "Rejected は Ingress − Validated の差ではなく、拒否そのものを直接数えています。負荷時に Validated が Ingress より低いのはキューの滞留で、拒否ではありません。",
+      "Rejected は Ingress − Validated の差ではなく、拒否そのもの（取込口の拒否 + コネクターの破棄）を直接数えています。Validated は gRPC gateway-ingress がコネクターを経由せず直接発行した分も含みます。負荷時に Validated が Ingress より低いのはキューの滞留で、拒否ではありません。",
       "閾値を超えた KPI は黄色で表示されます。閾値はアプリ設定（/platform/settings の platform.kpi.*）で変更できます。",
     ],
     relatedTerms: [

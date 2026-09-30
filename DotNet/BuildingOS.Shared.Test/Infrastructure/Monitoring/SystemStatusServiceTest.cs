@@ -101,7 +101,8 @@ public class SystemStatusServicePipelineKpiTest
             Scalars =
             {
                 [SystemStatusService.IngressRate1mQuery] = 1842,
-                [SystemStatusService.MsgRate1mQuery] = 1831,
+                [SystemStatusService.MsgRate1mQuery] = 31,
+                [SystemStatusService.ValidatedRate1mQuery] = 1831,
                 [SystemStatusService.RejectedRate1mQuery] = 11,
                 [SystemStatusService.EventLagP95Query] = 1.2,
                 [SystemStatusService.ConsumerLagP95Query] = 0.082,
@@ -130,7 +131,7 @@ public class SystemStatusServicePipelineKpiTest
 
         Assert.Equal(1842, k.IngressRate1m);
         Assert.Equal(1831, k.ValidatedRate1m);
-        Assert.Equal(1831, k.MsgRate1m); // unchanged legacy field
+        Assert.Equal(31, k.MsgRate1m); // unchanged legacy field: connector-published only (also /home)
         Assert.Equal(11, k.RejectedRate1m);
         Assert.Equal(11d / 1842d * 100d, k.RejectedPercent!.Value, 6);
         Assert.Equal(1.2, k.EventLagP95Seconds);
@@ -181,7 +182,7 @@ public class SystemStatusServicePipelineKpiTest
             Scalars =
             {
                 [SystemStatusService.IngressRate1mQuery] = 500,
-                [SystemStatusService.MsgRate1mQuery] = 498,
+                [SystemStatusService.ValidatedRate1mQuery] = 498,
                 [SystemStatusService.EventLagP95Query] = double.NaN,
                 [SystemStatusService.ConsumerLagP95Query] = double.PositiveInfinity,
             },
@@ -215,7 +216,7 @@ public class SystemStatusServicePipelineKpiTest
             Scalars =
             {
                 [SystemStatusService.IngressRate1mQuery] = 1000,
-                [SystemStatusService.MsgRate1mQuery] = 400,
+                [SystemStatusService.ValidatedRate1mQuery] = 400,
                 [SystemStatusService.RejectedRate1mQuery] = 5,
             },
         };
@@ -244,11 +245,105 @@ public class SystemStatusServicePipelineKpiTest
     }
 
     [Fact]
+    public void ValidatedQuery_SumsConnectorAndGatewayGrpcPublished_WithoutNullingWhenOneSideIsAbsent()
+    {
+        // gRPC GatewayIngress publishes straight to validated.telemetry (no connector), so a
+        // connector-only Validated would read ≪ Ingress on a gRPC deployment and look like backlog.
+        // `A + B` is empty when either side has no series, so the query falls back to each side alone;
+        // with neither present it stays empty (→ null), like every other KPI.
+        var connector = "sum(connector:messages_processed:rate1m)";
+        var grpc = "sum(rate(building_os_ingress_messages_total{source=\"gateway-grpc\",result=\"published\"}[1m]))";
+        Assert.Equal(SystemStatusService.ValidatedRate1mQuery, $"({connector} + {grpc}) or {connector} or {grpc}");
+        Assert.DoesNotContain("vector(0)", SystemStatusService.ValidatedRate1mQuery);
+        Assert.Contains(SystemStatusService.ValidatedRate1mQuery, SystemStatusService.AllKpiQueries);
+    }
+
+    [Fact]
+    public async Task Validated_UsesCombinedQuery_AndLegacyMsgRateKeepsConnectorOnlyMeaning()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 1000,
+                [SystemStatusService.MsgRate1mQuery] = 40,          // connectors (MQTT/Hono)
+                [SystemStatusService.ValidatedRate1mQuery] = 995,   // connectors + gateway-grpc published
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Equal(995, k.ValidatedRate1m);
+        Assert.Equal(40, k.MsgRate1m);
+    }
+
+    [Fact]
+    public async Task Validated_IsNull_WhenNeitherSideHasData()
+    {
+        var fake = new FakePrometheusClient { IsConfigured = true, Scalars = { [SystemStatusService.MsgRate1mQuery] = 3 } };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Null(k.ValidatedRate1m);
+    }
+
+    [Fact]
+    public void RejectedQuery_AddsConnectorSkippedAndError_WithoutNullingWhenOneSideIsAbsent()
+    {
+        // MQTT/Hono messages the connector cannot resolve are counted by ingress as published (to
+        // raw.*) and dropped later by ConnectorWorkerBase as result=skipped|error — still rejections.
+        var ingress = "sum(rate(building_os_ingress_messages_total{result!=\"published\"}[1m]))";
+        var connector = "sum(rate(building_os_connector_messages_processed_total{result=~\"skipped|error\"}[1m]))";
+        Assert.Equal(SystemStatusService.RejectedRate1mQuery, $"({ingress} + {connector}) or {ingress} or {connector}");
+        Assert.Contains(SystemStatusService.ConnectorDroppedByResultQuery, SystemStatusService.AllKpiQueries);
+    }
+
+    [Fact]
+    public async Task RejectedByResult_IncludesConnectorDrops_LabelledDistinctly()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.IngressRate1mQuery] = 200,
+                [SystemStatusService.RejectedRate1mQuery] = 10,
+            },
+            Vectors =
+            {
+                [SystemStatusService.RejectedByResultQuery] = [Sample("result", "unknown_point", 3)],
+                [SystemStatusService.ConnectorDroppedByResultQuery] =
+                [
+                    Sample("result", "skipped", 6),
+                    Sample("result", "error", 1),
+                ],
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+
+        Assert.Equal(10, k.RejectedRate1m);
+        Assert.Equal(5, k.RejectedPercent!.Value, 6); // still rejected ÷ ingress
+        Assert.Equal(
+            ["connector:skipped", "unknown_point", "connector:error"],
+            k.RejectedByResult!.Select(b => b.Label));
+        Assert.Equal([6d, 3d, 1d], k.RejectedByResult!.Select(b => b.Value));
+    }
+
+    [Fact]
     public void Queries_UseTheOtelToPrometheusNames_AndExistingRecordingRules()
     {
         // OTLP→Prometheus: dots→underscores, counters gain _total, unit "s" histograms gain _seconds.
         Assert.Contains("building_os_ingress_messages_total", SystemStatusService.IngressRate1mQuery);
         Assert.Contains("result!=\"published\"", SystemStatusService.RejectedRate1mQuery);
+        Assert.Contains("building_os_connector_messages_processed_total{result=~\"skipped|error\"}", SystemStatusService.RejectedRate1mQuery);
+        Assert.Contains("building_os_connector_messages_processed_total{result=~\"skipped|error\"}", SystemStatusService.ConnectorDroppedByResultQuery);
+        Assert.Contains("connector:messages_processed:rate1m", SystemStatusService.ValidatedRate1mQuery);
+        Assert.Contains("building_os_ingress_messages_total{source=\"gateway-grpc\",result=\"published\"}", SystemStatusService.ValidatedRate1mQuery);
         Assert.Contains("building_os_ingress_messages_total", SystemStatusService.RejectedRate1mQuery);
         Assert.Contains("building_os_ingress_event_lag_seconds_bucket", SystemStatusService.EventLagP95Query);
         Assert.Contains("building_os_ingestion_lag_seconds_bucket", SystemStatusService.ConsumerLagP95Query);

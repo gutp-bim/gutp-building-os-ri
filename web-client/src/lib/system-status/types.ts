@@ -21,16 +21,24 @@ export interface KpiBreakdownItem {
 }
 
 export interface SystemKpis {
-  /** Validated msg/s (kept for compatibility; same value as `validatedRate1m`). */
+  /**
+   * Connector-published msg/s (kept for compatibility). Excludes the gRPC gateway-ingress path, so it
+   * can be lower than `validatedRate1m`; only used as a fallback when an older API omits that field.
+   */
   msgRate1m: number | null;
   controlReq5m: number | null;
   ingressRate1m?: number | null;
   ingressBySource?: KpiBreakdownItem[] | null;
+  /** Everything published to validated.telemetry: connectors + gRPC gateway-ingress. */
   validatedRate1m?: number | null;
-  /** Measured directly on `ingress.messages{result!="published"}` — never ingress − validated. */
+  /**
+   * Measured directly — ingress `result!="published"` plus connector `skipped|error` drops; never
+   * ingress − validated.
+   */
   rejectedRate1m?: number | null;
   /** rejected / ingress × 100; null when there is no ingress traffic. */
   rejectedPercent?: number | null;
+  /** Per `result`; connector drops are labelled `connector:skipped` / `connector:error`. */
   rejectedByResult?: KpiBreakdownItem[] | null;
   eventLagP95Seconds?: number | null;
   consumerLagP95Seconds?: number | null;
