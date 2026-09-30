@@ -188,6 +188,17 @@ describe("buildPipelineKpis", () => {
     expect(k.parquetFreshness.level).toBe("warn");
   });
 
+  it("defaults NATS pending to 1000 (≈160 s of backlog at the 6.2 msg/s reference rate)", () => {
+    expect(DEFAULT_PIPELINE_THRESHOLDS.natsPendingWarn).toBe(1000);
+    const quiet = byKey({ ...full, kpis: { ...full.kpis, natsPending: 1000 } });
+    expect(quiet.natsPending.level).not.toBe("warn");
+    const backlog = byKey({
+      ...full,
+      kpis: { ...full.kpis, natsPending: 1001 },
+    });
+    expect(backlog.natsPending.level).toBe("warn");
+  });
+
   it("warns on Parquet freshness when rows were dropped even if freshness itself is fine", () => {
     const k = byKey({ ...full, kpis: { ...full.kpis, parquetDropped15m: 3 } });
     expect(k.parquetFreshness.level).toBe("warn");

@@ -76,7 +76,25 @@ public class SystemSettingsServiceTest
         Assert.Equal(5, t.ConsumerLagP95WarnSeconds);
         // PARQUET_FLUSH_INTERVAL default (5 min) × 2.
         Assert.Equal(600, t.ParquetFreshnessWarnSeconds);
-        Assert.Equal(10000, t.NatsPendingWarn);
+        // ≈ 160 s of backlog at the E10 reference ingest rate (1,865 points / 300 s ≈ 6.2 msg/s);
+        // healthy num_pending sits at ~0 (73h soak max 2). Rationale: observability-baseline.md.
+        Assert.Equal(1000, t.NatsPendingWarn);
+    }
+
+    [Fact]
+    public void PipelineKpiThresholdDefaults_MatchRegistryDefaults()
+    {
+        // The record's Defaults is the fallback when the store is unreachable — it must not drift
+        // from the registry default that /platform/settings shows and resets to.
+        static double Registry(string key) =>
+            double.Parse(SettingsRegistry.Find(key)!.DefaultValue, System.Globalization.CultureInfo.InvariantCulture);
+
+        var d = PipelineKpiThresholds.Defaults;
+        Assert.Equal(Registry(SettingsRegistry.RejectedPercentWarnKey), d.RejectedPercentWarn);
+        Assert.Equal(Registry(SettingsRegistry.EventLagP95WarnSecondsKey), d.EventLagP95WarnSeconds);
+        Assert.Equal(Registry(SettingsRegistry.ConsumerLagP95WarnSecondsKey), d.ConsumerLagP95WarnSeconds);
+        Assert.Equal(Registry(SettingsRegistry.ParquetFreshnessWarnSecondsKey), d.ParquetFreshnessWarnSeconds);
+        Assert.Equal(Registry(SettingsRegistry.NatsPendingWarnKey), d.NatsPendingWarn);
     }
 
     [Fact]

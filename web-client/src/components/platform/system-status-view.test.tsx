@@ -79,7 +79,7 @@ describe("SystemStatusView", () => {
             eventLagP95WarnSeconds: 30,
             consumerLagP95WarnSeconds: 5,
             parquetFreshnessWarnSeconds: 600,
-            natsPendingWarn: 10000,
+            natsPendingWarn: 1000,
           },
         }}
       />,

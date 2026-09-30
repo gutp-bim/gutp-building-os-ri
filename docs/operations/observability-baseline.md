@@ -109,7 +109,7 @@ and a histogram whose unit is `s` gains `_seconds` (`_bucket` / `_sum` / `_count
 | Parquet freshness p95 | `histogram_quantile(0.95, sum by (le) (rate(building_os_parquet_writer_freshness_lag_seconds_bucket[1h])))` | > 600 s → `platform.kpi.parquetFreshnessWarnSeconds` |
 | Parquet flush stalled | `sum(increase(building_os_parquet_writer_freshness_lag_seconds_count[Ws]))` with W = max(`platform.kpi.parquetFreshnessWarnSeconds`, 900); stalled = result is 0 **and** Validated > 0 | stalled → warn (fixed; shown on the freshness card as "flush 停止の可能性") |
 | Parquet dropped (15m) | `sum(increase(building_os_parquet_writer_dropped_total[15m]))` | > 0 (fixed; shown on the freshness card) |
-| NATS pending | `sum(nats:jetstream_consumer_pending:max)` | > 10000 → `platform.kpi.natsPendingWarn` |
+| NATS pending | `sum(nats:jetstream_consumer_pending:max)` | > 1000 → `platform.kpi.natsPendingWarn` |
 | Control req (5m) | `sum(increase(building_os_control_requests_total[5m]))` | — |
 
 Notes:
@@ -167,6 +167,28 @@ Notes:
   but did not increase over max(freshness warn threshold, 15 min) while Validated > 0; the card then
   warns with "flush 停止の可能性". No `_count` series (the writer never flushed, or timescale mode) or
   no validated traffic is not a stall; without Prometheus the field is null and the card stays "—".
+- **NATS pending threshold (default 1000).** The KPI sums `jetstream_consumer_num_pending` over
+  every consumer: messages in the stream **not yet delivered** to that consumer. It is not
+  `num_ack_pending` (delivered, not yet acked). The distinction matters for `ParquetLakeWriterWorker`.
+  It keeps fetching (≤ 1,000 msgs per pull, ≤ 20 s poll) and holds rows un-acked until the next
+  flush (default every 5 min), so a whole flush window of messages is `ack_pending`, not
+  `num_pending`, and does not count here. Its `MaxAckPending` is ≥ 100,000, and `FlushMaxRows`
+  (50,000) flushes before it is reached, so delivery is not throttled in normal operation. The raw
+  connectors (`NatsMessageSubscription`) ack each message after handling it.
+  The tail-merge reader's ephemeral ordered consumer (`NatsTailReader`) is deleted as soon as its read
+  ends (≤ `TailMergeOptions.FetchTimeout`, 1 s), so it cannot sit in the sum between reads. This was
+  checked against nats 2.10 with NATS.Client 3.0.1. KV watchers keep `num_pending` at 0.
+  **Healthy is therefore ≈ 0.** The 73 h E10 soak (1,865 points / 300 s ≈ 6.2 msg/s,
+  [E10 実施記録: 73h](../../e2e/scenarios/E10-endurance-soak.md)) peaked at 2, and the earlier E10 run
+  in [evaluation-report.md](../../e2e/evaluation-report.md) stayed at 0. A non-zero value is a
+  backlog: a consumer is stalled or slower than ingest, the writer is catching up after a restart, or
+  the writer loop is paused during a slow flush PUT.
+  The default 1000 is **≈ 160 s of backlog at that reference rate**, far above the healthy noise.
+  It also stays above what one slow flush can pause (≈ 6 msg/s × a few seconds). Sizing rule:
+  **warn = ingest msg/s × tolerable backlog seconds.** Read ingest msg/s from Validated on the same
+  page. A 60–180 s backlog is a reasonable band. Example: a site at 50 msg/s that wants the same
+  ≈ 160 s would set about 8,000. The sum covers all consumers, so one stalled consumer is enough to
+  cross it. Tune it in `/platform/settings`.
 - `histogram_quantile` over a window with no observations returns NaN; the API maps NaN / ±Inf to
   null, which the UI shows as "—".
 - The warn thresholds are `SettingsRegistry` keys (Number, category `platform`), editable in

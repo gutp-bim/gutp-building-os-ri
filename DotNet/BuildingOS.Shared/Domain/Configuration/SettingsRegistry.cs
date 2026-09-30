@@ -62,8 +62,12 @@ public static class SettingsRegistry
         new SettingDefinition(
             Key: NatsPendingWarnKey,
             Type: SettingType.Number,
-            DefaultValue: "10000",
-            Description: "NATS JetStream consumer の未処理件数（全 consumer 合計）がこの値を超えたら警告色にする（#456）",
+            // Healthy num_pending (not yet delivered; the writer's held-until-flush messages are
+            // ack_pending, not counted) sits at ~0 — the 73h E10 soak peaked at 2. 1000 ≈ 160 s of
+            // backlog at the E10 reference rate (1,865 points / 300 s ≈ 6.2 msg/s). Rationale and the
+            // "ingest msg/s × tolerable backlog s" rule of thumb: docs/operations/observability-baseline.md.
+            DefaultValue: "1000",
+            Description: "NATS JetStream consumer の未配信件数（num_pending, 全 consumer 合計）がこの値を超えたら警告色にする。正常時はほぼ 0。目安は「取込レート（msg/s）× 許容する滞留秒数」— 既定 1000 は基準レート約 6.2 msg/s（1,865 点 / 300 秒）で約 160 秒分の滞留（#456）",
             Category: "platform"),
     };
 
