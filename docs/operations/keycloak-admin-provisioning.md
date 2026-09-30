@@ -46,6 +46,33 @@ The API server uses Keycloak Admin REST APIs through
 | `KEYCLOAK_ADMIN_CLIENT_ID` | Confidential admin client ID |
 | `KEYCLOAK_ADMIN_CLIENT_SECRET` | Confidential admin client secret |
 
+### Service-account roles (#532)
+
+The admin client authenticates with `client_credentials`, so its **service-account user** needs these
+`realm-management` client roles:
+
+| Role | Used for |
+|---|---|
+| `view-users` | `GET users`, `GET users/{id}` (the user list, detail and the Admin-API authorization fallback) |
+| `query-groups` | `GET users/{id}/groups`, `GET groups/{id}`, `GET group-by-path/...` (the role inherited from a group) |
+| `manage-users` | `PUT users/{id}` (role / permission / enabled writes) |
+
+Neither `oss-stack/keycloak/realm.json` nor the Helm chart assigns them today: the realm's `api-server`
+client has `serviceAccountsEnabled` but no service-account role mappings, the OSS compose stack does not set
+`KEYCLOAK_ADMIN_CLIENT_ID`, and the Helm values leave it empty. Grant the roles when you configure the admin
+client, e.g.:
+
+```bash
+kcadm.sh add-roles -r building-os --uusername service-account-<admin-client> \
+  --cclientid realm-management --rolename view-users --rolename query-groups --rolename manage-users
+```
+
+Without `query-groups` the group lookups answer 403. Since #532 that no longer fails the request: a user with
+no own `role` is listed with a blank role (warning log + `building_os_user_management_group_lookup_failures_total{reason="forbidden"}`),
+the lockout guard treats that user's role as possibly admin (and never as a remaining admin), and the
+Admin-API authorization fallback authorizes from the user's own attributes instead of dropping them to
+`role=user`. A steady non-zero `reason="forbidden"` rate means the role is missing.
+
 ## Operational Checks
 
 - The admin client must not be a public client.

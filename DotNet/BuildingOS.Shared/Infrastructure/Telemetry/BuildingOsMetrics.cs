@@ -269,4 +269,16 @@ public static class BuildingOsMetrics
             "building_os.pointlist.push_signals",
             unit: "{signal}",
             description: "Post-seed point-list-update push signals sent per gateway, by result.");
+
+    /// <summary>
+    /// #532: a Keycloak group lookup (<c>users/{id}/groups</c> or a parent group) that failed while resolving
+    /// a user's role, so that user's group role is reported as unknown instead of failing the request.
+    /// Tag: reason (forbidden|http_error|timeout|invalid_response). A steady non-zero rate with
+    /// <c>reason=forbidden</c> means the admin service account lacks <c>query-groups</c> / <c>view-users</c>.
+    /// </summary>
+    public static readonly Counter<long> UserGroupLookupFailures =
+        Meter.CreateCounter<long>(
+            "building_os.user_management.group_lookup_failures",
+            unit: "{lookup}",
+            description: "Keycloak group lookups that failed while resolving a user's role, by reason.");
 }

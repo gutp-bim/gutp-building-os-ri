@@ -107,6 +107,17 @@ publishes images for (`v*.*.*`).
 
 ### Fixed
 
+- User management no longer reports a write Keycloak already accepted as failed, nor fails on one user's
+  unreadable groups (#532). When the PUT succeeds but the verifying re-read fails (5xx, timeout,
+  cancellation), `PATCH /api/v1/users/{id}/attributes` and `POST` / `DELETE …/permissions` answer 200 with
+  the user as written, save the resource-id reverse lookup, and audit a success with `verified: false` and a
+  warning (was 400 + a failure audit and no mapping). A 403 / 5xx on `users/{id}/groups` or a parent group
+  now leaves only that user's group role unknown: the list and detail still return (blank role, warning
+  log, `building_os.user_management.group_lookup_failures{reason}`), the lockout guard treats the role as
+  possibly admin and never as a remaining admin, and the Admin-API authorization fallback authorizes from
+  the user's own attributes (not cached) instead of dropping them to `role=user` with no permissions. The
+  admin service account's required `realm-management` roles (`view-users`, `query-groups`,
+  `manage-users`) are now documented in `docs/operations/keycloak-admin-provisioning.md`.
 - The hierarchy reads and search now authorize nodes by their **business id** (`sbco:id`), the id space
   Group items, telemetry and the ancestor chain use (#504). Previously they matched the dtId (IRI), so a
   user granted e.g. `building:B1` got an empty `/buildings`, and one granted `space:R501` (directly or

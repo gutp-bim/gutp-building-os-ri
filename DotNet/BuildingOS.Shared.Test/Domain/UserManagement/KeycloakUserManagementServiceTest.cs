@@ -687,6 +687,169 @@ public class KeycloakUserManagementServiceTest
         Assert.Equal(KeycloakUserAttributes.Permissions, mapped["permissions"]);
     }
 
+
+    // ── #532: a group lookup that fails leaves the group role unknown ─────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task GetUsersAsync_GroupLookupFails_StillListsEveryone_WithTheGroupRoleUnresolved(HttpStatusCode status)
+    {
+        // A service account without query-groups (403) or a transient 5xx must not fail the whole list.
+        var realm = new FakeRealm { GroupListStatus = status };
+        realm.AddGroup("g-admin", "/admins", role: "admin");
+        realm.AddUser("id1", "alice", new() { ["role"] = ["viewer"] });
+        realm.AddUser("id2", "bob", new() { ["buildingos_role"] = ["operator"], ["permissions"] = ["floor:1:read"] },
+            groups: ["g-admin"]);
+
+        var users = await CreateService(realm).GetUsersAsync();
+
+        Assert.Equal(2, users.Count);
+        Assert.Equal("viewer", users[0].Role);
+        Assert.False(users[0].GroupRoleUnresolved);
+        Assert.Null(users[1].Role); // unknown, not guessed
+        Assert.True(users[1].GroupRoleUnresolved);
+        // The legacy buildingos_role is hidden by any group role, so it is never the fallback (#532 review).
+        Assert.Null(users[1].OwnAttributeRole);
+        Assert.Equal(["floor:1:read"], users[1].Permissions);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_ParentGroupLookupFails_ReturnsTheUser_WithTheGroupRoleUnresolved()
+    {
+        var realm = new FakeRealm { GroupByIdStatus = HttpStatusCode.ServiceUnavailable };
+        realm.AddGroup("g-root", "/ops", role: "admin");
+        realm.AddGroup("g-child", "/ops/tokyo", parentId: "g-root");
+        realm.AddUser("id1", "alice", new(), groups: ["g-child"]);
+
+        var user = await CreateService(realm).GetUserByIdAsync("id1");
+
+        Assert.NotNull(user);
+        Assert.Null(user!.Role);
+        Assert.True(user.GroupRoleUnresolved);
+        Assert.Null(user.OwnAttributeRole);
+    }
+
+    [Fact]
+    public async Task RoleLookup_GroupLookupFails_FlagsTheGroupRoleUnknown_InsteadOfThrowing()
+    {
+        var realm = new FakeRealm { GroupListStatus = HttpStatusCode.Forbidden };
+        realm.AddUser("id1", "alice", new() { ["role"] = ["admin"] });
+
+        var lookup = await CreateService(realm).CreateRoleLookupAsync();
+        var state = await lookup.GetUserAsync("id1", includeGroupRole: true);
+
+        Assert.NotNull(state);
+        Assert.Equal("admin", state!.Role);
+        Assert.Null(state.GroupRole);
+        Assert.True(state.GroupRoleUnknown);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_GroupLookupFails_AfterThePut_StillReturnsTheUser()
+    {
+        var realm = new FakeRealm { GroupListStatus = HttpStatusCode.InternalServerError };
+        realm.AddUser("id1", "alice", new());
+
+        var updated = await CreateService(realm).SetEnabledAsync("id1", false);
+
+        Assert.False(updated.Enabled);
+        Assert.True(updated.GroupRoleUnresolved);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_GroupLookupFails_AfterThePut_StillReturnsTheStoredUser()
+    {
+        var realm = new FakeRealm { GroupListStatus = HttpStatusCode.Forbidden };
+        realm.AddUser("id1", "alice", new());
+
+        var updated = await CreateService(realm).UpdateUserAttributesAsync("id1",
+            new UpdateUserAttributesRequest { Permissions = ["floor:2:read"] });
+
+        Assert.Equal(["floor:2:read"], updated.Permissions);
+        Assert.True(updated.GroupRoleUnresolved);
+    }
+
+    [Fact]
+    public async Task GetUserByIdAsync_GroupLookupFails_LegacyAdminInAViewerGroup_IsNotReportedAsAdmin()
+    {
+        // No own role, a viewer group (which would hide the legacy value), and a leftover legacy
+        // buildingos_role=admin. With the groups unreadable the legacy value must not surface as the
+        // fallback role: that would turn a viewer into an admin (#532 review).
+        var realm = new FakeRealm { GroupListStatus = HttpStatusCode.Forbidden };
+        realm.AddGroup("g-viewer", "/viewers", role: "viewer");
+        realm.AddUser("id1", "alice", new() { ["buildingos_role"] = ["admin"] }, groups: ["g-viewer"]);
+
+        var user = await CreateService(realm).GetUserByIdAsync("id1");
+
+        Assert.NotNull(user);
+        Assert.True(user!.GroupRoleUnresolved);
+        Assert.Null(user.Role);
+        Assert.Null(user.OwnAttributeRole);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_CallerCancelledDuringThePostWriteGroupLookup_ThrowsWrittenUnverified()
+    {
+        // The PUT and the verifying read succeeded, then the request was cancelled while the groups were
+        // being read: the write is committed, so it must surface as written, not as a cancellation (#532).
+        using var cts = new CancellationTokenSource();
+        var realm = new FakeRealm();
+        realm.AddUser("id1", "alice", new() { ["permissions"] = ["floor:1:read"] });
+        var service = CreateService(req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath.EndsWith("/groups"))
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            }
+            return realm.Handle(req);
+        });
+
+        var ex = await Assert.ThrowsAsync<UserAttributesWrittenUnverifiedException>(() =>
+            service.UpdateUserAttributesAsync("id1",
+                new UpdateUserAttributesRequest { PermissionsToAdd = ["floor:2:read"] }, cts.Token));
+
+        Assert.Equal(1, realm.Puts);
+        Assert.Equal(["floor:1:read", "floor:2:read"], ex.Written.Permissions);
+        Assert.True(ex.Written.GroupRoleUnresolved);
+        Assert.IsAssignableFrom<OperationCanceledException>(ex.InnerException);
+    }
+
+    // ── #532: a PUT Keycloak accepted is reported as written, even if it cannot be verified ─
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_VerifyingReadFails_ThrowsWrittenUnverified_WithWhatWasWritten()
+    {
+        var realm = new FakeRealm { UserGetStatusAfterPut = HttpStatusCode.BadGateway };
+        realm.AddUser("id1", "alice", new() { ["permissions"] = ["floor:1:read"] });
+
+        var ex = await Assert.ThrowsAsync<UserAttributesWrittenUnverifiedException>(() =>
+            CreateService(realm).UpdateUserAttributesAsync("id1",
+                new UpdateUserAttributesRequest { Role = "operator", PermissionsToAdd = ["floor:2:read"] }));
+
+        Assert.Equal(1, realm.Puts);
+        Assert.Equal("id1", ex.UserId);
+        Assert.Equal("operator", ex.Written.Role);
+        Assert.Equal(["floor:1:read", "floor:2:read"], ex.Written.Permissions);
+        Assert.Equal("alice", ex.Written.UserPrincipalName);
+        Assert.IsType<HttpRequestException>(ex.InnerException);
+    }
+
+    [Fact]
+    public async Task UpdateUserAttributesAsync_PutFails_IsNotReportedAsWritten()
+    {
+        var service = CreateService(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("openid-connect/token")) return TokenResponse();
+            if (req.Method == HttpMethod.Put) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            return JsonResponse(new { id = "id1", username = "alice", attributes = new Dictionary<string, string[]>() });
+        });
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            service.UpdateUserAttributesAsync("id1", new UpdateUserAttributesRequest { Permissions = ["floor:2:read"] }));
+    }
+
     [Fact]
     public void Realm_LetsTheAdminApiStoreTheBuildingOsAttributes()
     {
@@ -787,6 +950,15 @@ public class KeycloakUserManagementServiceTest
         /// <summary>Simulates another admin changing the user right after our PUT (before the re-read).</summary>
         public Action<Dictionary<string, string[]>>? AfterPut { get; init; }
 
+        /// <summary>#532: the status <c>users/{id}/groups</c> answers with instead of the groups (e.g. 403, 500).</summary>
+        public HttpStatusCode? GroupListStatus { get; init; }
+
+        /// <summary>#532: the status <c>groups/{id}</c> (the parent walk) answers with instead of the group.</summary>
+        public HttpStatusCode? GroupByIdStatus { get; init; }
+
+        /// <summary>#532: the status a user GET answers with once a PUT has been accepted (the verifying re-read).</summary>
+        public HttpStatusCode? UserGetStatusAfterPut { get; init; }
+
         /// <summary>Per-request latency, so concurrent requests actually overlap.</summary>
         public TimeSpan Delay { get; init; }
 
@@ -835,6 +1007,7 @@ public class KeycloakUserManagementServiceTest
             if (parts[0] == "groups" && parts.Length == 2)
             {
                 GroupByIdGets.Add(parts[1]);
+                if (GroupByIdStatus is { } groupStatus) return new HttpResponseMessage(groupStatus);
                 return _groups.TryGetValue(parts[1], out var g) ? JsonResponse(GroupJson(g)) : NotFound();
             }
 
@@ -852,6 +1025,7 @@ public class KeycloakUserManagementServiceTest
             {
                 GroupListGets.Add(user.Id);
                 Assert.Contains("briefRepresentation=false", req.RequestUri.Query);
+                if (GroupListStatus is { } listStatus) return new HttpResponseMessage(listStatus);
                 return JsonResponse(user.Groups.Select(id => GroupJson(_groups[id])).ToArray());
             }
 
@@ -876,6 +1050,7 @@ public class KeycloakUserManagementServiceTest
             }
 
             UserGets++;
+            if (Puts > 0 && UserGetStatusAfterPut is { } afterPut) return new HttpResponseMessage(afterPut);
             return JsonResponse(UserJson(DropAttributeWrites ? WithoutUnmanaged(user) : user));
         }
 

@@ -24,3 +24,21 @@ public sealed class UserAttributesNotPersistedException(
     public IReadOnlyDictionary<string, string[]> StoredAttributes { get; } =
         storedAttributes ?? new Dictionary<string, string[]>();
 }
+
+/// <summary>
+/// Keycloak accepted an attribute write (the PUT answered 2xx) but what followed — the verifying re-read —
+/// failed (5xx, timeout, cancellation), so it is unknown whether Keycloak stored it (#532). The write is
+/// most likely committed: the controller answers it as a success (so the caller does not retry something
+/// already done), saves the reverse-lookup mapping, and marks the audit <c>verified: false</c>.
+/// </summary>
+public sealed class UserAttributesWrittenUnverifiedException(string userId, EntraUser written, Exception inner)
+    : Exception($"Keycloak accepted the attribute update for user {userId} but it could not be verified: {inner.Message}", inner)
+{
+    public string UserId { get; } = userId;
+
+    /// <summary>
+    /// The user as written: the representation read before the PUT with the written role / permission
+    /// attributes applied. <see cref="EntraUser.Role"/> is the own role written (groups were not read).
+    /// </summary>
+    public EntraUser Written { get; } = written;
+}

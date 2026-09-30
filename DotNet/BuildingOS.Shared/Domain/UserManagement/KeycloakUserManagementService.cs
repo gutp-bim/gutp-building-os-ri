@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace BuildingOS.Shared.Domain.UserManagement;
@@ -53,7 +54,7 @@ public class KeycloakUserManagementService : IUserManagementService
     {
         var groups = new GroupRoleLookup(this, await GetAdminTokenAsync(cancellationToken));
         var resolved = await ResolveAllAsync(groups, cancellationToken);
-        return resolved.Select(r => MapToEntraUser(r.Dto, r.Role.AuthorizationRole)).ToList();
+        return resolved.Select(r => MapToEntraUser(r.Dto, r.Role)).ToList();
     }
 
     public async Task<IReadOnlyList<UserRoleState>> GetUserRoleStatesAsync(CancellationToken cancellationToken = default) =>
@@ -134,10 +135,25 @@ public class KeycloakUserManagementService : IUserManagementService
         body["attributes"] = JsonSerializer.SerializeToNode(attributes);
         await PutUserAsync(token, userId, body, cancellationToken);
 
+        // From here on the PUT has been accepted, so a failure of the verifying read (5xx, timeout,
+        // cancellation) does not mean the write failed — it means it is unverified (#532). The caller
+        // treats that as written (success + warning), not as a 400 inviting a retry of a committed write.
+        KeycloakUserDto stored;
+        try
+        {
+            stored = (await ReadUserAsync(token, userId, cancellationToken))?.Dto
+                     ?? throw new UserNotFoundException(userId);
+        }
+        catch (Exception ex) when (ex is not UserNotFoundException)
+        {
+            _logger.LogWarning(ex,
+                "Keycloak accepted the attribute update for user {UserId} but the verifying read failed; " +
+                "reporting it as written but unverified", userId);
+            throw WrittenUnverified(userId, dto with { Attributes = attributes }, ex);
+        }
+
         // Only "dropped entirely" fails: a concurrent write by another admin between the PUT and this
         // read may legitimately change the values (see LooksPersisted).
-        var stored = (await ReadUserAsync(token, userId, cancellationToken))?.Dto
-                     ?? throw new UserNotFoundException(userId);
         if (!KeycloakUserAttributes.LooksPersisted(attributes, stored.Attributes))
         {
             _logger.LogError(
@@ -151,7 +167,34 @@ public class KeycloakUserManagementService : IUserManagementService
             userId, updateRequest.Role,
             attributes.TryGetValue(KeycloakUserAttributes.Permissions, out var written) ? written.Length : 0);
 
-        return await MapWithRoleAsync(token, stored, cancellationToken);
+        // The write is committed and verified; only the group lookup for the displayed role is left. Its
+        // failures other than a caller cancellation already degrade to "group role unknown", but a
+        // cancellation (or anything else) here must not turn the committed write into an error either:
+        // report it like the unverified path so the caller still answers success and saves its records (#532).
+        try
+        {
+            return await MapWithRoleAsync(token, stored, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Keycloak stored the attribute update for user {UserId} but reading their groups afterwards " +
+                "failed; reporting it as written", userId);
+            throw WrittenUnverified(userId, stored, ex);
+        }
+    }
+
+    /// <summary>
+    /// The user as written, for a write Keycloak accepted whose follow-up read failed (#532): the role shown
+    /// is the own role only; without one the groups decide and were not read, so it is unknown.
+    /// </summary>
+    private static UserAttributesWrittenUnverifiedException WrittenUnverified(
+        string userId, KeycloakUserDto written, Exception inner)
+    {
+        var ownRole = KeycloakUserAttributes.ReadMappedRole(written.Attributes);
+        var asWritten = MapToEntraUser(written, string.IsNullOrEmpty(ownRole) ? null : ownRole,
+            groupRoleUnresolved: string.IsNullOrEmpty(ownRole));
+        return new UserAttributesWrittenUnverifiedException(userId, asWritten, inner);
     }
 
     public async Task<EntraUser> SetEnabledAsync(
@@ -171,8 +214,11 @@ public class KeycloakUserManagementService : IUserManagementService
 
     // ── Role resolution ─────────────────────────────────────────────────────
 
-    /// <summary>A user's role state (for the guard) and the role that reaches authorization (for display).</summary>
-    private readonly record struct ResolvedRole(UserRoleState State, string? AuthorizationRole);
+    /// <summary>
+    /// A user's role state (for the guard) and the role that reaches authorization (for display);
+    /// <paramref name="GroupRoleUnresolved"/> when that role depends on groups that could not be read (#532).
+    /// </summary>
+    private readonly record struct ResolvedRole(UserRoleState State, string? AuthorizationRole, bool GroupRoleUnresolved);
 
     /// <summary>
     /// Resolves what reaches authorization, in order: the user's own <c>role</c> (the mapper never reads
@@ -191,16 +237,19 @@ public class KeycloakUserManagementService : IUserManagementService
             : GroupRoles.None;
 
         var state = new UserRoleState(
-            dto.Id, own, dto.Enabled ?? true, groupRoles.Conservative, groupRoles.Ambiguous, legacy);
+            dto.Id, own, dto.Enabled ?? true, groupRoles.Conservative, groupRoles.Ambiguous, legacy,
+            GroupRoleUnknown: groupRoles.Unknown);
+        // Without an own role the groups decide; if they could not be read the role is unknown (#532) —
+        // null, not the legacy value, which a group role would have hidden.
+        if (groupRoles.Unknown && string.IsNullOrEmpty(own))
+            return new ResolvedRole(state, null, GroupRoleUnresolved: true);
         // The Admin-API fallback authorizes from this value, so disagreeing groups fail closed.
-        return new ResolvedRole(state, KeycloakUserAttributes.ResolveRole(own, groupRoles.FailClosed, legacy));
+        return new ResolvedRole(state, KeycloakUserAttributes.ResolveRole(own, groupRoles.FailClosed, legacy), false);
     }
 
-    private async Task<EntraUser> MapWithRoleAsync(string token, KeycloakUserDto dto, CancellationToken cancellationToken)
-    {
-        var role = await ResolveRoleAsync(new GroupRoleLookup(this, token), dto, includeGroupRole: false, cancellationToken);
-        return MapToEntraUser(dto, role.AuthorizationRole);
-    }
+    private async Task<EntraUser> MapWithRoleAsync(string token, KeycloakUserDto dto, CancellationToken cancellationToken) =>
+        MapToEntraUser(dto,
+            await ResolveRoleAsync(new GroupRoleLookup(this, token), dto, includeGroupRole: false, cancellationToken));
 
     /// <summary>
     /// The roles a user's groups would put into the token. Keycloak's non-aggregating mapper emits ONE of
@@ -208,9 +257,12 @@ public class KeycloakUserManagementService : IUserManagementService
     /// grants admin), the authorization view fails closed (a non-admin role if any group carries one), and
     /// disagreement is flagged.
     /// </summary>
-    private readonly record struct GroupRoles(string? Conservative, string? FailClosed, bool Ambiguous)
+    private readonly record struct GroupRoles(string? Conservative, string? FailClosed, bool Ambiguous, bool Unknown = false)
     {
         public static readonly GroupRoles None = new(null, null, false);
+
+        /// <summary>The groups could not be read (#532): no role is known, which is not the same as none.</summary>
+        public static readonly GroupRoles Unresolved = new(null, null, false, Unknown: true);
 
         public static GroupRoles From(IReadOnlyList<string> roles) =>
             roles.Count == 0
@@ -239,20 +291,50 @@ public class KeycloakUserManagementService : IUserManagementService
             _byUser.GetOrAdd(userId, id => new Lazy<Task<GroupRoles>>(() => FetchUserGroupRolesAsync(id, cancellationToken)))
                 .Value;
 
+        /// <summary>
+        /// The user's group roles, or <see cref="GroupRoles.Unresolved"/> when the groups (or an ancestor)
+        /// cannot be read — a 403 from a service account without <c>query-groups</c>, a 5xx, a timeout (#532).
+        /// One user's unreadable groups must not fail a whole user list, turn a committed write into a 400,
+        /// or make the Admin-API fallback drop a user to <c>role=user</c>; the callers decide what "unknown"
+        /// means for them. A cancellation of the caller's own token still propagates.
+        /// </summary>
         private async Task<GroupRoles> FetchUserGroupRolesAsync(string userId, CancellationToken cancellationToken)
         {
-            var groups = await service.GetJsonAsync<KeycloakGroupDto[]>(token,
-                $"users/{Uri.EscapeDataString(userId)}/groups?briefRepresentation=false", cancellationToken) ?? [];
-
-            var roles = new List<string>(groups.Length);
-            foreach (var group in groups)
+            try
             {
-                var role = KeycloakUserAttributes.ReadMappedRole(group.Attributes)
-                           ?? await GetInheritedRoleAsync(group, cancellationToken);
-                if (role is not null) roles.Add(role);
+                var groups = await service.GetJsonAsync<KeycloakGroupDto[]>(token,
+                    $"users/{Uri.EscapeDataString(userId)}/groups?briefRepresentation=false", cancellationToken) ?? [];
+
+                var roles = new List<string>(groups.Length);
+                foreach (var group in groups)
+                {
+                    var role = KeycloakUserAttributes.ReadMappedRole(group.Attributes)
+                               ?? await GetInheritedRoleAsync(group, cancellationToken);
+                    if (role is not null) roles.Add(role);
+                }
+                return GroupRoles.From(roles);
             }
-            return GroupRoles.From(roles);
+            catch (Exception ex) when (GroupLookupFailureReason(ex, cancellationToken) is { } reason)
+            {
+                BuildingOsMetrics.UserGroupLookupFailures.Add(1, new KeyValuePair<string, object?>("reason", reason));
+                service._logger.LogWarning(ex,
+                    "Could not read the Keycloak groups of user {UserId} ({Reason}); their group role is " +
+                    "reported as unknown. Check that the admin service account has query-groups / view-users",
+                    userId, reason);
+                return GroupRoles.Unresolved;
+            }
         }
+
+        /// <summary>The metric reason for a failed group lookup; <c>null</c> for anything that must propagate.</summary>
+        private static string? GroupLookupFailureReason(Exception ex, CancellationToken cancellationToken) => ex switch
+        {
+            HttpRequestException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized } => "forbidden",
+            HttpRequestException => "http_error",
+            // HttpClient's own timeout; the caller's cancellation is not a lookup failure.
+            OperationCanceledException when !cancellationToken.IsCancellationRequested => "timeout",
+            JsonException or NotSupportedException => "invalid_response",
+            _ => null,
+        };
 
         private async Task<string?> GetInheritedRoleAsync(KeycloakGroupDto group, CancellationToken cancellationToken)
         {
@@ -355,7 +437,10 @@ public class KeycloakUserManagementService : IUserManagementService
                ?? throw new InvalidOperationException("Keycloak token response missing access_token");
     }
 
-    private static EntraUser MapToEntraUser(KeycloakUserDto dto, string? role)
+    private static EntraUser MapToEntraUser(KeycloakUserDto dto, ResolvedRole role) =>
+        MapToEntraUser(dto, role.AuthorizationRole, role.GroupRoleUnresolved);
+
+    private static EntraUser MapToEntraUser(KeycloakUserDto dto, string? role, bool groupRoleUnresolved = false)
     {
         var hasName = !string.IsNullOrEmpty(dto.FirstName) || !string.IsNullOrEmpty(dto.LastName);
         var displayName = hasName
@@ -372,7 +457,10 @@ public class KeycloakUserManagementService : IUserManagementService
             // permissions, with the pre-#519 buildingos_permissions merged in.
             Permissions = KeycloakUserAttributes.ReadPermissions(dto.Attributes),
             // Keycloak omits `enabled` only on legacy records; treat a missing flag as enabled.
-            Enabled = dto.Enabled ?? true
+            Enabled = dto.Enabled ?? true,
+            GroupRoleUnresolved = groupRoleUnresolved,
+            // Own role only — never the legacy one, which a group role would hide (#532 review).
+            OwnAttributeRole = KeycloakUserAttributes.ReadMappedRole(dto.Attributes) is { Length: > 0 } own ? own : null,
         };
     }
 

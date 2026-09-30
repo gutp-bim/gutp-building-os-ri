@@ -168,6 +168,25 @@ public class UsersController : ControllerBase
         {
             return await NotPersistedAsync(authContext, "set-attributes", id, ex, ct).ConfigureAwait(false);
         }
+        catch (UserAttributesWrittenUnverifiedException ex)
+        {
+            // Keycloak accepted the PUT; only the verifying read failed (#532). Answer it as written, save the
+            // reverse lookup for the permissions it granted, and leave a warning on the success audit.
+            LogUnverified(ex, "set-attributes", id);
+            var mappingError = await TrySavePermissionMappingsAsync(
+                authContext, "set-attributes", id, request.Permissions, request.ResourceDisplayNames,
+                CancellationToken.None).ConfigureAwait(false);
+            await AuditAsync(authContext, "set-attributes", id, AdminAuditResult.Success,
+                new
+                {
+                    role,
+                    permissions = request.Permissions?.Count ?? 0,
+                    resourceIdMappingSaved = mappingError is null,
+                    verified = false,
+                    warning = UnverifiedWarning(ex),
+                }, CancellationToken.None).ConfigureAwait(false);
+            return Ok(ToResponse(ex.Written));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update attributes for user {UserId}", ForLog(id));
@@ -270,20 +289,30 @@ public class UsersController : ControllerBase
             PermissionsToAdd = [HashPermissionResourceId(request.Permission)]
         };
 
-        var (failure, updated) = await TryWritePermissionAsync(
+        var write = await TryWritePermissionAsync(
             authContext, "add-permission", id, request.Permission, updateRequest, ct).ConfigureAwait(false);
-        if (failure is not null) return failure;
+        if (write.Failure is not null) return write.Failure;
 
         // ハッシュ→元IDのマッピングを保存（逆引き用）。Saved after the grant lands, for the reason
         // UpdateAttributes spells out: writing it first leaves a mapping behind for a permission the
-        // caller was told was never granted. Its own failure does not undo the grant (#307).
+        // caller was told was never granted. Its own failure does not undo the grant (#307). "Lands" is
+        // Keycloak accepting the PUT — also when only the verifying read failed afterwards (#532).
+        var writeCt = write.Unverified is null ? ct : CancellationToken.None;
         var mappingError = await TrySavePermissionMappingsAsync(
-            authContext, "add-permission", id, new[] { request.Permission }, null, ct).ConfigureAwait(false);
+            authContext, "add-permission", id, new[] { request.Permission }, null, writeCt).ConfigureAwait(false);
 
         await AuditAsync(authContext, "add-permission", id, AdminAuditResult.Success,
-            new { permission = request.Permission, resourceIdMappingSaved = mappingError is null }, ct)
-            .ConfigureAwait(false);
-        return Ok(ToResponse(updated!));
+            write.Unverified is null
+                ? new { permission = request.Permission, resourceIdMappingSaved = mappingError is null }
+                : new
+                {
+                    permission = request.Permission,
+                    resourceIdMappingSaved = mappingError is null,
+                    verified = false,
+                    warning = UnverifiedWarning(write.Unverified),
+                },
+            writeCt).ConfigureAwait(false);
+        return Ok(ToResponse(write.Updated!));
     }
 
     /// <summary>
@@ -307,13 +336,22 @@ public class UsersController : ControllerBase
             PermissionsToRemove = [HashPermissionResourceId(request.Permission)]
         };
 
-        var (failure, updated) = await TryWritePermissionAsync(
+        var write = await TryWritePermissionAsync(
             authContext, "remove-permission", id, request.Permission, updateRequest, ct).ConfigureAwait(false);
-        if (failure is not null) return failure;
+        if (write.Failure is not null) return write.Failure;
 
-        await AuditAsync(authContext, "remove-permission", id, AdminAuditResult.Success,
-            new { permission = request.Permission }, ct).ConfigureAwait(false);
-        return Ok(ToResponse(updated!));
+        if (write.Unverified is null)
+        {
+            await AuditAsync(authContext, "remove-permission", id, AdminAuditResult.Success,
+                new { permission = request.Permission }, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            await AuditAsync(authContext, "remove-permission", id, AdminAuditResult.Success,
+                new { permission = request.Permission, verified = false, warning = UnverifiedWarning(write.Unverified) },
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        return Ok(ToResponse(write.Updated!));
     }
 
     // === Helpers ===
@@ -355,16 +393,24 @@ public class UsersController : ControllerBase
 
     /// <summary>
     /// Runs a permission write with the same failure handling as <see cref="UpdateAttributes"/>: 503 via the
-    /// filter when unconfigured, 404 / 502 / 400 with a failure audit otherwise. <c>null</c> result means
-    /// <paramref name="write"/> succeeded and <paramref name="updated"/> holds the user.
+    /// filter when unconfigured, 404 / 502 / 400 with a failure audit otherwise. A <c>null</c>
+    /// <c>Failure</c> means the write landed and <c>Updated</c> holds the user; <c>Unverified</c> is set when
+    /// Keycloak accepted the PUT but the verifying read failed (#532) — still a success for the caller, whose
+    /// success audit carries the warning.
     /// </summary>
-    private async Task<(ActionResult? Failure, EntraUser? Updated)> TryWritePermissionAsync(
+    private async Task<(ActionResult? Failure, EntraUser? Updated, UserAttributesWrittenUnverifiedException? Unverified)>
+        TryWritePermissionAsync(
         AuthorizationContext auth, string action, string targetId, string permission,
         UpdateUserAttributesRequest request, CancellationToken ct)
     {
         try
         {
-            return (null, await _userService.UpdateUserAttributesAsync(targetId, request, ct).ConfigureAwait(false));
+            return (null, await _userService.UpdateUserAttributesAsync(targetId, request, ct).ConfigureAwait(false), null);
+        }
+        catch (UserAttributesWrittenUnverifiedException ex)
+        {
+            LogUnverified(ex, action, targetId);
+            return (null, ex.Written, ex);
         }
         catch (UserManagementUnavailableException)
         {
@@ -375,20 +421,31 @@ public class UsersController : ControllerBase
         {
             await AuditAsync(auth, action, targetId, AdminAuditResult.Failure,
                 new { permission, error = "not found" }, ct).ConfigureAwait(false);
-            return (NotFound(), null);
+            return (NotFound(), null, null);
         }
         catch (UserAttributesNotPersistedException ex)
         {
-            return (await NotPersistedAsync(auth, action, targetId, ex, ct).ConfigureAwait(false), null);
+            return (await NotPersistedAsync(auth, action, targetId, ex, ct).ConfigureAwait(false), null, null);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to {Action} for user {UserId}", action, ForLog(targetId));
             await AuditAsync(auth, action, targetId, AdminAuditResult.Failure,
                 new { permission, error = ex.Message }, ct).ConfigureAwait(false);
-            return (BadRequest(new { error = ex.Message }), null);
+            return (BadRequest(new { error = ex.Message }), null, null);
         }
     }
+
+    // A write Keycloak accepted is committed, so what follows it — the reverse-lookup mapping and the audit —
+    // runs on CancellationToken.None in the unverified path: a cancelled request (one cause of the failed
+    // verifying read) must not also drop the record that the write happened (#532).
+    private void LogUnverified(UserAttributesWrittenUnverifiedException ex, string action, string targetId) =>
+        _logger.LogWarning(ex,
+            "Keycloak accepted {Action} for user {UserId} but it could not be verified; reporting it as written",
+            action, ForLog(targetId));
+
+    private static string UnverifiedWarning(UserAttributesWrittenUnverifiedException ex) =>
+        $"written but unverified: {ex.InnerException?.Message ?? ex.Message}";
 
     private Task AuditAsync(
         AuthorizationContext auth, string action, string targetId,

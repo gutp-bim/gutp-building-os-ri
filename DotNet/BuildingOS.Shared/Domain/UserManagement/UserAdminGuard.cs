@@ -21,13 +21,19 @@ namespace BuildingOS.Shared.Domain.UserManagement;
 /// The pre-#519 <c>buildingos_role</c>. Reaches authorization only via the Admin-API fallback, i.e. with
 /// neither an own nor a group role.
 /// </param>
+/// <param name="GroupRoleUnknown">
+/// The user's groups could not be read (#532), so <see cref="GroupRole"/> is <c>null</c> because it is
+/// unknown, not because there is none. Matters only without an own role (which hides the group role) or
+/// when the own role is being cleared; the guard then fails safe (<see cref="MayBeAdmin"/>).
+/// </param>
 public sealed record UserRoleState(
     string Id,
     string? Role,
     bool Enabled,
     string? GroupRole = null,
     bool GroupRoleAmbiguous = false,
-    string? LegacyRole = null)
+    string? LegacyRole = null,
+    bool GroupRoleUnknown = false)
 {
     /// <summary>
     /// The role that reaches authorization — own, else group (conservative), else legacy — compared
@@ -41,7 +47,15 @@ public sealed record UserRoleState(
     /// </summary>
     public bool IsUnambiguouslyAdmin =>
         RoleCatalog.GrantsAdmin(EffectiveRole)
-        && (!string.IsNullOrEmpty(Role) || string.IsNullOrEmpty(GroupRole) || !GroupRoleAmbiguous);
+        && (!string.IsNullOrEmpty(Role)
+            || (!GroupRoleUnknown && (string.IsNullOrEmpty(GroupRole) || !GroupRoleAmbiguous)));
+
+    /// <summary>
+    /// Whether this user could be an admin: <see cref="EffectiveRole"/> grants admin, or — without an own
+    /// role — the groups that decide it could not be read (#532). The conservative view of a guard target.
+    /// </summary>
+    public bool MayBeAdmin =>
+        RoleCatalog.GrantsAdmin(EffectiveRole) || (string.IsNullOrEmpty(Role) && GroupRoleUnknown);
 }
 
 /// <summary>Outcome of a lockout-prevention check.</summary>
@@ -105,8 +119,8 @@ public static class UserAdminGuard
     {
         if (!SetEnabledNeedsGuard(newEnabled)) return UserAdminGuardResult.Allowed;
         if (string.Equals(actorSub, target.Id, StringComparison.Ordinal)) return UserAdminGuardResult.SelfLockout;
-        // Disabling a non-admin cannot remove the last admin.
-        return RoleCatalog.GrantsAdmin(target.EffectiveRole) ? null : UserAdminGuardResult.Allowed;
+        // Disabling a non-admin cannot remove the last admin; an unreadable group role may be admin (#532).
+        return target.MayBeAdmin ? null : UserAdminGuardResult.Allowed;
     }
 
     /// <summary>
@@ -120,9 +134,10 @@ public static class UserAdminGuard
         // Before: conservative (an admin from any group is an admin). After: an explicit role write
         // replaces the own role and removes the legacy one, so a cleared own role falls back to the
         // groups — which keeps the user an admin only if every role-carrying group agrees on admin.
-        var wasAdmin = RoleCatalog.GrantsAdmin(target.EffectiveRole);
+        // An unreadable group role (#532) counts as admin before and as not admin after: fail safe.
+        var wasAdmin = target.MayBeAdmin;
         var willBeAdmin = string.IsNullOrWhiteSpace(newRole)
-            ? !target.GroupRoleAmbiguous && RoleCatalog.GrantsAdmin(target.GroupRole)
+            ? !target.GroupRoleAmbiguous && !target.GroupRoleUnknown && RoleCatalog.GrantsAdmin(target.GroupRole)
             : RoleCatalog.GrantsAdmin(newRole);
 
         // Only a demotion away from admin can cause lockout.
@@ -137,7 +152,8 @@ public static class UserAdminGuard
     /// acting admin (<paramref name="actorSub"/>, when not the target): the caller has already checked their
     /// token is admin, which proves which of their groups' values Keycloak emits, so they count whenever
     /// the snapshot still makes them an enabled admin at all (a stale token for an account since demoted or
-    /// disabled does not).
+    /// disabled does not). That includes an actor whose own groups could not be read (#532,
+    /// <see cref="UserRoleState.MayBeAdmin"/>): the token proves the admin role those groups carry.
     /// </summary>
     public static UserAdminGuardResult CheckLastAdmin(
         string targetId, IReadOnlyList<UserRoleState> allUsers, string? actorSub = null) =>
@@ -145,7 +161,7 @@ public static class UserAdminGuard
             u.Enabled
             && !string.Equals(u.Id, targetId, StringComparison.Ordinal)
             && (u.IsUnambiguouslyAdmin
-                || (string.Equals(u.Id, actorSub, StringComparison.Ordinal) && RoleCatalog.GrantsAdmin(u.EffectiveRole))))
+                || (string.Equals(u.Id, actorSub, StringComparison.Ordinal) && u.MayBeAdmin)))
             ? UserAdminGuardResult.Allowed
             : UserAdminGuardResult.LastAdmin;
 

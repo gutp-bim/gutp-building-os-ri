@@ -82,6 +82,37 @@ public class AuthorizationContextMiddleware
                 var user = await userService.GetUserByIdAsync(objectId).ConfigureAwait(false);
                 if (user != null)
                 {
+                    // The user's groups could not be read (#532): the group role is unknown. Only the user's
+                    // OWN `role` attribute is trusted then — never the legacy buildingos_role, which a group role
+                    // would hide (own → group → legacy), so it could turn e.g. a viewer-group member into an
+                    // admin. Without an own role this fails closed (role=user, no permissions) exactly as before
+                    // #532. Not cached, so the next request retries the groups.
+                    if (user.GroupRoleUnresolved)
+                    {
+                        if (string.IsNullOrEmpty(user.OwnAttributeRole))
+                        {
+                            _logger.LogWarning(
+                                "Groups of user {UserId} could not be read and they have no own role; " +
+                                "defaulting to role=user with no permissions", userId);
+                            return new AuthorizationContext
+                            {
+                                UserId = userId, Role = "user", Permissions = Array.Empty<string>()
+                            };
+                        }
+
+                        var ownContext = new AuthorizationContext
+                        {
+                            UserId = userId,
+                            Role = user.OwnAttributeRole,
+                            Permissions = user.Permissions.ToList()
+                        };
+                        _logger.LogWarning(
+                            "Groups of user {UserId} could not be read; authorizing from their own role attribute: " +
+                            "role={Role}, permissions={PermissionCount}",
+                            userId, ownContext.Role, ownContext.Permissions.Count);
+                        return ownContext;
+                    }
+
                     var authContext = new AuthorizationContext
                     {
                         UserId = userId,

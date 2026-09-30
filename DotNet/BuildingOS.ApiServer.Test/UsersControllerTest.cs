@@ -660,4 +660,132 @@ public class UsersControllerTest
             It.Is<AdminAuditRecord>(r => r.Action == "add-permission" && r.Result == AdminAuditResult.Failure),
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    // ── #532: a write Keycloak accepted is not reported as failed ─────────────
+
+    private static UserAttributesWrittenUnverifiedException Unverified(string id) =>
+        new(id, User(id, "operator"), new HttpRequestException("verifying read failed"));
+
+    private static bool IsUnverifiedSuccess(AdminAuditRecord r, string action) =>
+        r.Action == action && r.Result == AdminAuditResult.Success
+        && r.DetailJson!.Contains("\"verified\":false") && r.DetailJson.Contains("verifying read failed");
+
+    [Fact]
+    public async Task UpdateAttributes_WrittenButUnverified_Returns200_SavesTheMapping_AndAuditsAWarning()
+    {
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"), mapping: mapping);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(Unverified("op"));
+
+        var result = await controller.UpdateAttributes(
+            "op",
+            new UsersController.UpdateUserAttributesApiRequest { Permissions = ["building:bldg-1:read"] },
+            default);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("op", Assert.IsType<UsersController.UserResponse>(ok.Value).Id);
+        mapping.Verify(m => m.SaveMappingAsync("building", "bldg-1", It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => IsUnverifiedSuccess(r, "set-attributes")), It.IsAny<CancellationToken>()), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Result == AdminAuditResult.Failure), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AddPermission_WrittenButUnverified_Returns200_SavesTheMapping_AndAuditsAWarning()
+    {
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"), mapping: mapping);
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(Unverified("op"));
+
+        var result = await controller.AddPermission(
+            "op", new UsersController.AddPermissionRequest { Permission = "building:bldg-1:read" }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        mapping.Verify(m => m.SaveMappingAsync("building", "bldg-1", It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => IsUnverifiedSuccess(r, "add-permission")), It.IsAny<CancellationToken>()), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Result == AdminAuditResult.Failure), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RemovePermission_WrittenButUnverified_Returns200_AndAuditsAWarning()
+    {
+        var (controller, svc, audit) = Build(Auth("admin", "admin-a"));
+        svc.Setup(s => s.UpdateUserAttributesAsync("op", It.IsAny<UpdateUserAttributesRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(Unverified("op"));
+
+        var result = await controller.RemovePermission(
+            "op", new UsersController.RemovePermissionRequest { Permission = "group:g1:read" }, default);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => IsUnverifiedSuccess(r, "remove-permission")), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddPermission_CancelledDuringThePostWriteGroupLookup_Returns200_AndSavesTheMapping()
+    {
+        // Real service: the PUT and its verifying read succeed, then the request is cancelled while the
+        // user's groups are read. The write is committed, so the caller gets a success, the reverse-lookup
+        // mapping is saved and the audit is a success with a warning — not a 400 + failure audit (#532).
+        using var cts = new CancellationTokenSource();
+        var attributes = new Dictionary<string, string[]>();
+        var puts = 0;
+        var http = new HttpClient(new StubHandler(req =>
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (path.Contains("openid-connect/token"))
+                return Json(new { access_token = "t", token_type = "Bearer", expires_in = 300 });
+            if (path.EndsWith("/groups"))
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            }
+            if (req.Method == HttpMethod.Put)
+            {
+                puts++;
+                using var doc = System.Text.Json.JsonDocument.Parse(req.Content!.ReadAsStringAsync().Result);
+                attributes = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string[]>>(
+                    doc.RootElement.GetProperty("attributes").GetRawText())!;
+                return new HttpResponseMessage(System.Net.HttpStatusCode.NoContent);
+            }
+            return Json(new { id = "op", username = "op", enabled = true, attributes });
+        })) { BaseAddress = new Uri("http://localhost:8080") };
+        var service = new KeycloakUserManagementService(
+            http, "building-os", "admin-client", "secret", NullLogger<KeycloakUserManagementService>.Instance);
+        var mapping = new Mock<IResourceIdMappingRepository>();
+        var (controller, _, audit) = Build(Auth("admin", "admin-a"), service: service, mapping: mapping);
+
+        var result = await controller.AddPermission(
+            "op", new UsersController.AddPermissionRequest { Permission = "building:bldg-1:read" }, cts.Token);
+
+        Assert.Equal(1, puts);
+        Assert.IsType<OkObjectResult>(result.Result);
+        mapping.Verify(m => m.SaveMappingAsync("building", "bldg-1", It.IsAny<string?>(),
+            It.Is<CancellationToken>(t => !t.IsCancellationRequested)), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Action == "add-permission" && r.Result == AdminAuditResult.Success
+                                         && r.DetailJson!.Contains("\"verified\":false")),
+            It.IsAny<CancellationToken>()), Times.Once);
+        audit.Verify(a => a.RecordAsync(
+            It.Is<AdminAuditRecord>(r => r.Result == AdminAuditResult.Failure), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static HttpResponseMessage Json(object body) => new(System.Net.HttpStatusCode.OK)
+    {
+        Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(body),
+            System.Text.Encoding.UTF8, "application/json"),
+    };
+
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> handler) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(handler(request));
+    }
 }
