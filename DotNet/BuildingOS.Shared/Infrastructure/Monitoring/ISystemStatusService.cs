@@ -1,3 +1,5 @@
+using BuildingOS.Shared.Domain.Configuration;
+
 namespace BuildingOS.Shared.Infrastructure.Monitoring;
 
 /// <summary>
@@ -6,5 +8,7 @@ namespace BuildingOS.Shared.Infrastructure.Monitoring;
 /// </summary>
 public interface ISystemStatusService
 {
-    Task<SystemStatus> GetStatusAsync(CancellationToken ct);
+    /// <param name="thresholds">Effective pipeline KPI thresholds; the Parquet flush-stall window is
+    /// max(<see cref="PipelineKpiThresholds.ParquetFreshnessWarnSeconds"/>, 15m).</param>
+    Task<SystemStatus> GetStatusAsync(PipelineKpiThresholds thresholds, CancellationToken ct);
 }

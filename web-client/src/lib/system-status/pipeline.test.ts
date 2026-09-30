@@ -194,6 +194,49 @@ describe("buildPipelineKpis", () => {
     expect(k.parquetFreshness.tooltip).toContain("3");
   });
 
+  describe("Parquet flush stall (#456)", () => {
+    const withFreshness = (
+      parquetFreshnessP95Seconds: number | null,
+      parquetFlushStalled: boolean | null | undefined,
+      metricsAvailable = true,
+    ) =>
+      byKey({
+        ...full,
+        metricsAvailable,
+        kpis: { ...full.kpis, parquetFreshnessP95Seconds, parquetFlushStalled },
+      });
+
+    it("is ok when flushes are happening", () => {
+      const k = withFreshness(28, false);
+      expect(k.parquetFreshness.level).toBe("ok");
+      expect(k.parquetFreshness.value).toBe("28 s");
+    });
+
+    it("warns with distinct text when the writer stopped flushing (p95 has no samples)", () => {
+      const k = withFreshness(null, true);
+      expect(k.parquetFreshness.level).toBe("warn");
+      expect(k.parquetFreshness.value).toBe("flush 停止の可能性");
+      expect(k.parquetFreshness.tooltip).toContain("flush");
+    });
+
+    it("warns on a stall even while an older p95 is still in the window", () => {
+      const k = withFreshness(28, true);
+      expect(k.parquetFreshness.level).toBe("warn");
+      expect(k.parquetFreshness.value).toContain("flush 停止の可能性");
+    });
+
+    it("stays nodata without Prometheus", () => {
+      const k = withFreshness(null, null, false);
+      expect(k.parquetFreshness.level).toBe("nodata");
+      expect(k.parquetFreshness.value).toBe("—");
+    });
+
+    it("stays nodata without traffic (not stalled)", () => {
+      const k = withFreshness(null, false);
+      expect(k.parquetFreshness.level).toBe("nodata");
+    });
+  });
+
   it("falls back to the default thresholds for a response without them", () => {
     const k = byKey({
       ...full,

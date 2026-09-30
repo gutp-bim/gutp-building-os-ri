@@ -53,9 +53,9 @@ public class SystemController : ControllerBase
             return Forbid();
         }
 
-        var statusTask = _statusService.GetStatusAsync(ct);
+        // Thresholds first: the Parquet flush-stall window is derived from the freshness threshold.
         var thresholds = await GetThresholdsOrDefaultAsync(ct).ConfigureAwait(false);
-        var status = await statusTask.ConfigureAwait(false);
+        var status = await _statusService.GetStatusAsync(thresholds, ct).ConfigureAwait(false);
         return Ok(status with { Thresholds = thresholds });
     }
 

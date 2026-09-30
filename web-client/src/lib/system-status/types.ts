@@ -45,6 +45,11 @@ export interface SystemKpis {
   parquetFreshnessP95Seconds?: number | null;
   parquetDropped15m?: number | null;
   natsPending?: number | null;
+  /**
+   * The Parquet writer's flush counter exists but did not move in max(freshness warn, 15m) while
+   * validated telemetry flows — it has likely stopped flushing. null without Prometheus.
+   */
+  parquetFlushStalled?: boolean | null;
 }
 
 /** Effective warn thresholds (SettingsRegistry `platform.kpi.*`, editable in /platform/settings). */

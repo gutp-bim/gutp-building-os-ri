@@ -34,9 +34,12 @@ public sealed record KpiBreakdownItem(string Label, double Value);
 /// labelled <c>connector:skipped</c> / <c>connector:error</c>.</param>
 /// <param name="EventLagP95Seconds">p95 of <c>building_os.ingress.event_lag</c> (event time → hot store).</param>
 /// <param name="ConsumerLagP95Seconds">p95 of <c>building_os.ingestion.lag</c> (JetStream consumer lag).</param>
-/// <param name="ParquetFreshnessP95Seconds">p95 of <c>building_os.parquet_writer.freshness_lag</c>.</param>
+/// <param name="ParquetFreshnessP95Seconds">p95 of <c>building_os.parquet_writer.freshness_lag</c> over 1h.</param>
 /// <param name="ParquetDropped15m">Rows the Parquet writer dropped in the last 15 minutes (&gt; 0 = warn).</param>
 /// <param name="NatsPending">Sum of <c>nats:jetstream_consumer_pending:max</c> (null without the NATS exporter).</param>
+/// <param name="ParquetFlushStalled">True when the Parquet writer's flush counter exists but did not move in
+/// max(freshness warn threshold, 15m) while validated telemetry is flowing — the writer has likely stopped
+/// flushing (its freshness p95 then has no samples and reads null). False otherwise; null without Prometheus.</param>
 public sealed record SystemKpis(
     double? MsgRate1m,
     double? ControlReq5m,
@@ -50,7 +53,8 @@ public sealed record SystemKpis(
     double? ConsumerLagP95Seconds = null,
     double? ParquetFreshnessP95Seconds = null,
     double? ParquetDropped15m = null,
-    double? NatsPending = null);
+    double? NatsPending = null,
+    bool? ParquetFlushStalled = null);
 
 /// <summary>
 /// Aggregate platform status returned by <c>GET /api/v1/system/status</c>. Built to be useful

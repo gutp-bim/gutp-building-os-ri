@@ -1,3 +1,6 @@
+using System.Globalization;
+using BuildingOS.Shared.Domain.Configuration;
+
 namespace BuildingOS.Shared.Infrastructure.Monitoring;
 
 /// <summary>
@@ -57,8 +60,19 @@ public sealed class SystemStatusService : ISystemStatusService
     private const string IngressRejectedRate =
         "sum(rate(building_os_ingress_messages_total{result!=\"published\"}[1m]))";
 
-    private const string ConnectorDroppedRate =
-        "sum(rate(building_os_connector_messages_processed_total{result=~\"skipped|error\"}[1m]))";
+    /// <summary>
+    /// The connectors whose input the ingress counter already counted: <c>ConnectorWorkerBase</c> tags
+    /// <c>connector</c> with the worker's type name, and only the MQTT / Hono connectors consume what
+    /// <c>MqttIngressWorker</c> / <c>AmqpIngressWorker</c> forwarded to <c>raw.*</c>. The hvac / bacnet /
+    /// environmental / electric / behavior connectors are fed straight from NATS and are not in the
+    /// ingress denominator, so their drops must not count toward rejected %.
+    /// </summary>
+    public const string IngressFedConnectorSelector = "connector=~\"MqttConnectorWorker|HonoConnectorWorker\"";
+
+    private const string ConnectorDroppedSelector =
+        "building_os_connector_messages_processed_total{" + IngressFedConnectorSelector + ",result=~\"skipped|error\"}";
+
+    private const string ConnectorDroppedRate = "sum(rate(" + ConnectorDroppedSelector + "[1m]))";
 
     /// <summary>
     /// Rejected msg/s, measured directly — deliberately NOT ingress − validated: under load the
@@ -80,7 +94,7 @@ public sealed class SystemStatusService : ISystemStatusService
     /// <c>connector:skipped</c> / <c>connector:error</c> so they cannot be confused with an ingress result.
     /// </summary>
     public const string ConnectorDroppedByResultQuery =
-        "sum by (result) (rate(building_os_connector_messages_processed_total{result=~\"skipped|error\"}[1m]))";
+        "sum by (result) (rate(" + ConnectorDroppedSelector + "[1m]))";
 
     /// <summary>Label prefix for connector drops in <see cref="SystemKpis.RejectedByResult"/>.</summary>
     public const string ConnectorResultPrefix = "connector:";
@@ -94,11 +108,29 @@ public sealed class SystemStatusService : ISystemStatusService
         "histogram_quantile(0.95, sum by (le) (rate(building_os_ingestion_lag_seconds_bucket[5m])))";
 
     /// <summary>
-    /// p95 Parquet lake freshness at flush (now − newest event time flushed). 15m window so at least
-    /// one flush lands in it at the default 5-minute <c>PARQUET_FLUSH_INTERVAL</c>.
+    /// p95 Parquet lake freshness at flush (now − newest event time flushed). The histogram is only
+    /// recorded on flush, so the window must hold several flushes at any realistic
+    /// <c>PARQUET_FLUSH_INTERVAL</c> (default 5 min) — 1h. A writer that stops flushing is caught by
+    /// <see cref="ParquetFlushesQuery"/>, not by this p95 (which just runs out of samples → null).
     /// </summary>
     public const string ParquetFreshnessP95Query =
-        "histogram_quantile(0.95, sum by (le) (rate(building_os_parquet_writer_freshness_lag_seconds_bucket[15m])))";
+        "histogram_quantile(0.95, sum by (le) (rate(building_os_parquet_writer_freshness_lag_seconds_bucket[1h])))";
+
+    /// <summary>Shortest stall-detection window: 15 minutes.</summary>
+    public const double MinParquetStallWindowSeconds = 900;
+
+    /// <summary>
+    /// Flushes in the stall window = max(<paramref name="freshnessWarnSeconds"/>, 15m). Returns a value
+    /// only when the writer's <c>_count</c> series exists in the window (a writer that never flushed, or
+    /// timescale mode, returns nothing). 0 with validated traffic flowing = the writer has stopped
+    /// flushing (<see cref="SystemKpis.ParquetFlushStalled"/>).
+    /// </summary>
+    public static string ParquetFlushesQuery(double freshnessWarnSeconds)
+    {
+        var window = (long)Math.Ceiling(Math.Max(freshnessWarnSeconds, MinParquetStallWindowSeconds));
+        return string.Create(CultureInfo.InvariantCulture,
+            $"sum(increase(building_os_parquet_writer_freshness_lag_seconds_count[{window}s]))");
+    }
 
     /// <summary>Rows the Parquet writer dropped (unparseable timestamp) in the last 15 minutes.</summary>
     public const string ParquetDropped15mQuery =
@@ -113,6 +145,7 @@ public sealed class SystemStatusService : ISystemStatusService
         MsgRate1mQuery, ValidatedRate1mQuery, ControlReq5mQuery, IngressRate1mQuery, IngressBySourceQuery,
         RejectedRate1mQuery, RejectedByResultQuery, ConnectorDroppedByResultQuery, EventLagP95Query, ConsumerLagP95Query, ParquetFreshnessP95Query,
         ParquetDropped15mQuery, NatsPendingQuery,
+        ParquetFlushesQuery(PipelineKpiThresholds.Defaults.ParquetFreshnessWarnSeconds),
     ];
 
     private readonly IServiceHealthProbe _healthProbe;
@@ -124,7 +157,11 @@ public sealed class SystemStatusService : ISystemStatusService
         _prometheus = prometheus;
     }
 
-    public async Task<SystemStatus> GetStatusAsync(CancellationToken ct)
+    /// <summary>Status with the registry-default thresholds (stall window from the default freshness threshold).</summary>
+    public Task<SystemStatus> GetStatusAsync(CancellationToken ct) =>
+        GetStatusAsync(PipelineKpiThresholds.Defaults, ct);
+
+    public async Task<SystemStatus> GetStatusAsync(PipelineKpiThresholds thresholds, CancellationToken ct)
     {
         // Health fan-out and KPI queries are independent — run them concurrently. Each already
         // degrades on its own failure (probe → "down", Prometheus → null).
@@ -142,10 +179,11 @@ public sealed class SystemStatusService : ISystemStatusService
         var freshnessTask = ScalarAsync(ParquetFreshnessP95Query, ct);
         var droppedTask = ScalarAsync(ParquetDropped15mQuery, ct);
         var natsPendingTask = ScalarAsync(NatsPendingQuery, ct);
+        var flushesTask = ScalarAsync(ParquetFlushesQuery(thresholds.ParquetFreshnessWarnSeconds), ct);
         await Task.WhenAll(
             probeTask, msgRateTask, validatedTask, controlReqTask, ingressTask, ingressBySourceTask, rejectedTask,
             rejectedByResultTask, connectorDroppedTask, eventLagTask, consumerLagTask, freshnessTask, droppedTask,
-            natsPendingTask).ConfigureAwait(false);
+            natsPendingTask, flushesTask).ConfigureAwait(false);
 
         // Self is always up; add probed services, de-duplicate by name (self wins), then sort so
         // the list has a stable lexicographic order regardless of insertion order.
@@ -158,6 +196,7 @@ public sealed class SystemStatusService : ISystemStatusService
             .ToList();
 
         var ingress = await ingressTask.ConfigureAwait(false);
+        var validated = await validatedTask.ConfigureAwait(false);
         var rejected = RejectedOrZero(await rejectedTask.ConfigureAwait(false), ingress);
 
         return new SystemStatus(
@@ -167,7 +206,7 @@ public sealed class SystemStatusService : ISystemStatusService
                 ControlReq5m: await controlReqTask.ConfigureAwait(false),
                 IngressRate1m: ingress,
                 IngressBySource: Breakdown(await ingressBySourceTask.ConfigureAwait(false), "source"),
-                ValidatedRate1m: await validatedTask.ConfigureAwait(false),
+                ValidatedRate1m: validated,
                 RejectedRate1m: rejected,
                 RejectedPercent: Percent(rejected, ingress),
                 RejectedByResult: Breakdown(
@@ -177,7 +216,10 @@ public sealed class SystemStatusService : ISystemStatusService
                 ConsumerLagP95Seconds: await consumerLagTask.ConfigureAwait(false),
                 ParquetFreshnessP95Seconds: await freshnessTask.ConfigureAwait(false),
                 ParquetDropped15m: await droppedTask.ConfigureAwait(false),
-                NatsPending: await natsPendingTask.ConfigureAwait(false)),
+                NatsPending: await natsPendingTask.ConfigureAwait(false),
+                ParquetFlushStalled: _prometheus.IsConfigured
+                    ? FlushStalled(await flushesTask.ConfigureAwait(false), validated)
+                    : null),
             MetricsAvailable: _prometheus.IsConfigured);
     }
 
@@ -197,6 +239,13 @@ public sealed class SystemStatusService : ISystemStatusService
     /// </summary>
     private static double? RejectedOrZero(double? rejected, double? ingress) =>
         rejected ?? (ingress is not null ? 0 : null);
+
+    /// <summary>
+    /// Stalled = the writer's flush counter exists in the window but did not move, while telemetry is
+    /// still being validated. No counter (never flushed / timescale mode) or no traffic is not a stall.
+    /// </summary>
+    private static bool FlushStalled(double? flushes, double? validated) =>
+        flushes is 0 && validated is > 0;
 
     private static double? Percent(double? rejected, double? ingress) =>
         rejected is { } r && ingress is { } i && i > 0 ? r / i * 100d : null;

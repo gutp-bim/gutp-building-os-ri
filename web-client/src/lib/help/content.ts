@@ -64,7 +64,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   {
     term: "Parquet 鮮度",
     definition:
-      "Parquet レイクへの flush 時点で、書き込んだ最新イベントがどれだけ古いかの p95（building_os.parquet_writer.freshness_lag）。目安は flush 間隔（PARQUET_FLUSH_INTERVAL）× 2 以内。タイムスタンプ不正で破棄した行（parquet_writer.dropped）が 1 件でもあれば警告にします。",
+      "Parquet レイクへの flush 時点で、書き込んだ最新イベントがどれだけ古いかの p95（building_os.parquet_writer.freshness_lag）。目安は flush 間隔（PARQUET_FLUSH_INTERVAL）× 2 以内。タイムスタンプ不正で破棄した行（parquet_writer.dropped）が 1 件でもあれば警告にします。値は flush のたびにしか記録されないため、validated テレメトリが流れているのに max(警告閾値, 15 分) の間 flush が 1 回も無い場合は「flush 停止の可能性」として警告します（Prometheus 未配線の「—」とは区別されます）。",
     category: "metric",
   },
   {

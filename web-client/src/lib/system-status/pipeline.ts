@@ -127,6 +127,8 @@ export function grafanaKpiLink(
   return `${base}/${OVERVIEW_DASHBOARD}${panel !== undefined ? `?viewPanel=${panel}` : ""}`;
 }
 
+const FLUSH_STALLED_TEXT = "flush 停止の可能性";
+
 function joinTooltip(...parts: (string | null | undefined)[]): string | null {
   const present = parts.filter((p): p is string => !!p);
   return present.length > 0 ? present.join("\n") : null;
@@ -163,8 +165,13 @@ export function buildPipelineKpis(
       : "neutral"
     : "nodata";
 
+  const flushStalled = k.parquetFlushStalled === true;
+  // A stalled writer records no freshness samples, so its p95 goes null — without the stall flag
+  // that would read as grey "no data", indistinguishable from Prometheus being absent.
   const droppedLevel: KpiLevel =
-    hasValue(k.parquetDropped15m) && k.parquetDropped15m > 0 ? "warn" : "ok";
+    flushStalled || (hasValue(k.parquetDropped15m) && k.parquetDropped15m > 0)
+      ? "warn"
+      : "ok";
   const freshnessLevel = hasValue(k.parquetFreshnessP95Seconds)
     ? worst(
         kpiLevel(k.parquetFreshnessP95Seconds, t.parquetFreshnessWarnSeconds),
@@ -233,9 +240,16 @@ export function buildPipelineKpis(
       testId: "kpi-parquet-freshness",
       label: "Parquet freshness p95",
       glossaryTerm: "Parquet 鮮度",
-      value: formatSeconds(k.parquetFreshnessP95Seconds),
+      value: flushStalled
+        ? hasValue(k.parquetFreshnessP95Seconds)
+          ? `${formatSeconds(k.parquetFreshnessP95Seconds)}（${FLUSH_STALLED_TEXT}）`
+          : FLUSH_STALLED_TEXT
+        : formatSeconds(k.parquetFreshnessP95Seconds),
       level: freshnessLevel,
       tooltip: joinTooltip(
+        flushStalled
+          ? "validated テレメトリは流れているのに、検知窓（max(警告閾値, 15 分)）の間 Parquet の flush が 1 回もありません。lake writer と MinIO を確認してください。"
+          : null,
         hasValue(k.parquetDropped15m)
           ? `破棄行 (15m): ${formatKpi(k.parquetDropped15m)}（> 0 で警告）`
           : null,

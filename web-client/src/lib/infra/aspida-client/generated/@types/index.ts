@@ -650,6 +650,7 @@ export type SystemKpis = {
   parquetFreshnessP95Seconds?: number | null | undefined;
   parquetDropped15m?: number | null | undefined;
   natsPending?: number | null | undefined;
+  parquetFlushStalled?: boolean | null | undefined;
 }
 
 export type SystemStatus = {

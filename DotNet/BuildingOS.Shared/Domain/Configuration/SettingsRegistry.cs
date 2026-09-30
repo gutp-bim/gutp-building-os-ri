@@ -45,19 +45,19 @@ public static class SettingsRegistry
             Key: EventLagP95WarnSecondsKey,
             Type: SettingType.Number,
             DefaultValue: "30",
-            Description: "Event lag p95（イベント時刻 → Hot 到着, 秒）がこの値を超えたら警告色にする（#456）",
+            Description: "Event lag p95（イベント時刻 → Hot 到着, 秒）がこの値を超えたら警告色にする。p95 はヒストグラム上限 7200 秒で頭打ちになるため、7200 以上は警告にならない（#456）",
             Category: "platform"),
         new SettingDefinition(
             Key: ConsumerLagP95WarnSecondsKey,
             Type: SettingType.Number,
             DefaultValue: "5",
-            Description: "Consumer lag p95（JetStream consumer の遅れ, 秒）がこの値を超えたら警告色にする（#456）",
+            Description: "Consumer lag p95（JetStream consumer の遅れ, 秒）がこの値を超えたら警告色にする。p95 はヒストグラム上限 7200 秒で頭打ちになるため、7200 以上は警告にならない（#456）",
             Category: "platform"),
         new SettingDefinition(
             Key: ParquetFreshnessWarnSecondsKey,
             Type: SettingType.Number,
             DefaultValue: "600",
-            Description: "Parquet freshness p95（秒）がこの値を超えたら警告色にする。目安は PARQUET_FLUSH_INTERVAL（分）× 2 × 60 — 既定 600 は flush 間隔 5 分の場合（#456）",
+            Description: "Parquet freshness p95（秒）がこの値を超えたら警告色にする。目安は PARQUET_FLUSH_INTERVAL（分）× 2 × 60 — 既定 600 は flush 間隔 5 分の場合。p95 はヒストグラム上限 7200 秒で頭打ちになるため、7200 以上は警告にならない。flush 停止の検知窓は max(この値, 900) 秒（#456）",
             Category: "platform"),
         new SettingDefinition(
             Key: NatsPendingWarnKey,

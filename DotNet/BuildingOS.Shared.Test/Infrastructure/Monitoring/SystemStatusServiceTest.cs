@@ -296,7 +296,7 @@ public class SystemStatusServicePipelineKpiTest
         // MQTT/Hono messages the connector cannot resolve are counted by ingress as published (to
         // raw.*) and dropped later by ConnectorWorkerBase as result=skipped|error — still rejections.
         var ingress = "sum(rate(building_os_ingress_messages_total{result!=\"published\"}[1m]))";
-        var connector = "sum(rate(building_os_connector_messages_processed_total{result=~\"skipped|error\"}[1m]))";
+        var connector = "sum(rate(building_os_connector_messages_processed_total{connector=~\"MqttConnectorWorker|HonoConnectorWorker\",result=~\"skipped|error\"}[1m]))";
         Assert.Equal(SystemStatusService.RejectedRate1mQuery, $"({ingress} + {connector}) or {ingress} or {connector}");
         Assert.Contains(SystemStatusService.ConnectorDroppedByResultQuery, SystemStatusService.AllKpiQueries);
     }
@@ -335,13 +335,114 @@ public class SystemStatusServicePipelineKpiTest
     }
 
     [Fact]
+    public void ConnectorDropFilter_NamesTheConnectorsBehindAnIngressTransport()
+    {
+        // ConnectorWorkerBase tags `connector` with GetType().Name. Only the MQTT / Hono connectors
+        // consume what MqttIngressWorker / AmqpIngressWorker counted on the ingress denominator; the
+        // hvac / bacnet / … connectors are fed straight from raw.* and must not inflate rejected %.
+        Assert.Equal(
+            $"connector=~\"{nameof(BuildingOS.ConnectorWorker.Connectors.MqttConnectorWorker)}|{nameof(BuildingOS.ConnectorWorker.Connectors.HonoConnectorWorker)}\"",
+            SystemStatusService.IngressFedConnectorSelector);
+        Assert.DoesNotContain("Hvac", SystemStatusService.RejectedRate1mQuery);
+    }
+
+    [Theory]
+    [InlineData(600, "[900s]")]   // floor: 15 minutes
+    [InlineData(1800, "[1800s]")] // otherwise the freshness warn threshold
+    public void ParquetFlushesQuery_WindowIsMaxOfWarnThresholdAnd15m(double warnSeconds, string window)
+    {
+        var q = SystemStatusService.ParquetFlushesQuery(warnSeconds);
+        Assert.Equal($"sum(increase(building_os_parquet_writer_freshness_lag_seconds_count{window}))", q);
+    }
+
+    private static FakePrometheusClient StallFake(double? flushes, double? validated) => new()
+    {
+        IsConfigured = true,
+        Scalars =
+        {
+            [SystemStatusService.ParquetFlushesQuery(PipelineThresholdsDefaultFreshness)] = flushes,
+            [SystemStatusService.ValidatedRate1mQuery] = validated,
+        },
+    };
+
+    private const double PipelineThresholdsDefaultFreshness = 600;
+
+    [Fact]
+    public async Task ParquetFlushStalled_False_WhenFlushesHappen()
+    {
+        var svc = new SystemStatusService(new FakeHealthProbe(), StallFake(flushes: 3, validated: 100));
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+        Assert.False(k.ParquetFlushStalled);
+    }
+
+    [Fact]
+    public async Task ParquetFlushStalled_True_WhenNoFlushInTheWindow_ButTelemetryIsValidated()
+    {
+        // The freshness histogram is only recorded on flush, so a stalled writer leaves the p95 NaN
+        // (→ null). Without this flag that looked identical to "Prometheus not wired".
+        var svc = new SystemStatusService(new FakeHealthProbe(), StallFake(flushes: 0, validated: 100));
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+        Assert.True(k.ParquetFlushStalled);
+        Assert.Null(k.ParquetFreshnessP95Seconds);
+    }
+
+    [Fact]
+    public async Task ParquetFlushStalled_False_WithoutTraffic()
+    {
+        var svc = new SystemStatusService(new FakeHealthProbe(), StallFake(flushes: 0, validated: 0));
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+        Assert.False(k.ParquetFlushStalled);
+    }
+
+    [Fact]
+    public async Task ParquetFlushStalled_False_WhenTheWriterNeverFlushed()
+    {
+        // No _count series at all (timescale mode, or no writer): not a stall of this writer.
+        var svc = new SystemStatusService(new FakeHealthProbe(), StallFake(flushes: null, validated: 100));
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+        Assert.False(k.ParquetFlushStalled);
+    }
+
+    [Fact]
+    public async Task ParquetFlushStalled_Null_WhenPrometheusAbsent()
+    {
+        var svc = new SystemStatusService(new FakeHealthProbe(), new FakePrometheusClient { IsConfigured = false });
+        var k = (await svc.GetStatusAsync(CancellationToken.None)).Kpis;
+        Assert.Null(k.ParquetFlushStalled);
+    }
+
+    [Fact]
+    public async Task ParquetFlushStalled_UsesTheConfiguredWarnThresholdAsWindow()
+    {
+        var fake = new FakePrometheusClient
+        {
+            IsConfigured = true,
+            Scalars =
+            {
+                [SystemStatusService.ParquetFlushesQuery(3600)] = 0,
+                [SystemStatusService.ValidatedRate1mQuery] = 50,
+            },
+        };
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+        var thresholds = BuildingOS.Shared.Domain.Configuration.PipelineKpiThresholds.Defaults with
+        {
+            ParquetFreshnessWarnSeconds = 3600,
+        };
+
+        var k = (await svc.GetStatusAsync(thresholds, CancellationToken.None)).Kpis;
+
+        Assert.True(k.ParquetFlushStalled);
+    }
+
+    [Fact]
     public void Queries_UseTheOtelToPrometheusNames_AndExistingRecordingRules()
     {
         // OTLP→Prometheus: dots→underscores, counters gain _total, unit "s" histograms gain _seconds.
         Assert.Contains("building_os_ingress_messages_total", SystemStatusService.IngressRate1mQuery);
         Assert.Contains("result!=\"published\"", SystemStatusService.RejectedRate1mQuery);
-        Assert.Contains("building_os_connector_messages_processed_total{result=~\"skipped|error\"}", SystemStatusService.RejectedRate1mQuery);
-        Assert.Contains("building_os_connector_messages_processed_total{result=~\"skipped|error\"}", SystemStatusService.ConnectorDroppedByResultQuery);
+        Assert.Contains("building_os_connector_messages_processed_total{connector=~\"MqttConnectorWorker|HonoConnectorWorker\",result=~\"skipped|error\"}", SystemStatusService.RejectedRate1mQuery);
+        Assert.Contains("building_os_connector_messages_processed_total{connector=~\"MqttConnectorWorker|HonoConnectorWorker\",result=~\"skipped|error\"}", SystemStatusService.ConnectorDroppedByResultQuery);
+        Assert.Contains("[1h]", SystemStatusService.ParquetFreshnessP95Query);
         Assert.Contains("connector:messages_processed:rate1m", SystemStatusService.ValidatedRate1mQuery);
         Assert.Contains("building_os_ingress_messages_total{source=\"gateway-grpc\",result=\"published\"}", SystemStatusService.ValidatedRate1mQuery);
         Assert.Contains("building_os_ingress_messages_total", SystemStatusService.RejectedRate1mQuery);
