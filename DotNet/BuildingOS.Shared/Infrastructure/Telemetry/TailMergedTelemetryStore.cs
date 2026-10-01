@@ -40,7 +40,7 @@ public sealed class TailMergedTelemetryStore : IWarmTelemetryStore, IMultiPointT
 
         // Parallel fetch — lake scan and tail read at the same time.
         var lakeTask = _inner.QueryAsync(pointId, start, end, ct);
-        var tailTask = TryReadTailAsync(pointId, start, end, ct);
+        var tailTask = TryReadTailAsync(new HashSet<string>(StringComparer.Ordinal) { pointId }, start, end, ct);
         await Task.WhenAll(lakeTask, tailTask).ConfigureAwait(false);
 
         var lakeRows = lakeTask.Result;
@@ -58,6 +58,12 @@ public sealed class TailMergedTelemetryStore : IWarmTelemetryStore, IMultiPointT
         string[] pointIds, DateTime start, DateTime end, CancellationToken ct = default)
     {
         var ids = pointIds.Distinct(StringComparer.Ordinal).ToArray();
+        // Decided before the lake scan, as QueryAsync does: a long scan must not age `end` out of
+        // the lookback and drop the unflushed rows a request qualified for when it arrived.
+        var mergeTail = TailMergePolicy.ShouldMergeTail(end, DateTime.UtcNow, _options.LookbackSec);
+        var tailTask = mergeTail
+            ? TryReadTailAsync(new HashSet<string>(ids, StringComparer.Ordinal), start, end, ct)
+            : Task.FromResult(Array.Empty<ValidTelemetryData>());
         Dictionary<string, ValidTelemetryData[]> lake;
         if (_inner is IMultiPointTelemetryStore multi)
         {
@@ -69,26 +75,17 @@ public sealed class TailMergedTelemetryStore : IWarmTelemetryStore, IMultiPointT
             foreach (var id in ids) lake[id] = await _inner.QueryAsync(id, start, end, ct).ConfigureAwait(false);
         }
 
-        var result = new Dictionary<string, ValidTelemetryData[]>(ids.Length, StringComparer.Ordinal);
-        if (!TailMergePolicy.ShouldMergeTail(end, DateTime.UtcNow, _options.LookbackSec))
-        {
-            foreach (var id in ids) result[id] = lake.GetValueOrDefault(id, []);
-            return result;
-        }
+        // One stream scan for every point, split by point id afterwards.
+        var tailByPoint = (await tailTask.ConfigureAwait(false))
+            .Where(r => r.PointId is not null)
+            .GroupBy(r => r.PointId!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
-        var tails = new ValidTelemetryData[ids.Length][];
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, ids.Length),
-            new ParallelOptions { MaxDegreeOfParallelism = MultiTailConcurrency, CancellationToken = ct },
-            async (i, token) => tails[i] = await TryReadTailAsync(ids[i], start, end, token).ConfigureAwait(false))
-            .ConfigureAwait(false);
-        for (var i = 0; i < ids.Length; i++)
-            result[ids[i]] = MergeTail(lake.GetValueOrDefault(ids[i], []), tails[i]);
+        var result = new Dictionary<string, ValidTelemetryData[]>(ids.Length, StringComparer.Ordinal);
+        foreach (var id in ids)
+            result[id] = MergeTail(lake.GetValueOrDefault(id, []), tailByPoint.GetValueOrDefault(id, []));
         return result;
     }
-
-    /// <summary>How many per-point tail reads a multi-point query runs at once.</summary>
-    private const int MultiTailConcurrency = 8;
 
     private static ValidTelemetryData[] MergeTail(ValidTelemetryData[] lakeRows, ValidTelemetryData[] tailRows)
     {
@@ -112,7 +109,7 @@ public sealed class TailMergedTelemetryStore : IWarmTelemetryStore, IMultiPointT
         => _inner.QueryLatestAsync(pointId, ct);
 
     private async Task<ValidTelemetryData[]> TryReadTailAsync(
-        string pointId, DateTime start, DateTime end, CancellationToken ct)
+        IReadOnlySet<string> pointIds, DateTime start, DateTime end, CancellationToken ct)
     {
         try
         {
@@ -125,15 +122,15 @@ public sealed class TailMergedTelemetryStore : IWarmTelemetryStore, IMultiPointT
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(_options.FetchTimeout);
             var rows = await _tailReader.ReadSinceAsync(
-                tailSince, pointId, _options.MaxMsgs, _options.FetchTimeout, timeout.Token).ConfigureAwait(false);
+                tailSince, pointIds, _options.MaxMsgs, _options.FetchTimeout, timeout.Token).ConfigureAwait(false);
             return rows;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             BuildingOsMetrics.TailMergeErrors.Add(1);
             _logger.LogWarning(ex,
-                "TailMergedTelemetryStore: tail fetch failed for point {PointId}; returning lake-only result (degraded)",
-                pointId);
+                "TailMergedTelemetryStore: tail fetch failed for {PointCount} point(s) (e.g. {PointId}); returning lake-only result (degraded)",
+                pointIds.Count, pointIds.FirstOrDefault());
             return Array.Empty<ValidTelemetryData>();
         }
     }
