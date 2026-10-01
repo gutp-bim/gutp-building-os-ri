@@ -203,6 +203,21 @@ GROUP BY ?devDt ?devId ?devName");
         return spaceRows.Select(MapDevice).ToArray();
     }
 
+    public async Task<Device[]> ListFloorDevices(string floorDtId)
+    {
+        if (!IsUsableDtId(floorDtId)) return [];
+        var rows = await _client.QueryAsync($@"{Prefixes}
+SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
+WHERE {{
+  <{floorDtId}> a <{Cls_Level}> .
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName ; <{Prop_LocatedIn}> <{floorDtId}> .
+  BIND(?dev AS ?devDt)
+  OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
+}}
+GROUP BY ?devDt ?devId ?devName");
+        return rows.Select(MapDevice).ToArray();
+    }
+
     public async Task<Device?> GetDevice(string dtId)
     {
         if (!IsUsableDtId(dtId)) return null;

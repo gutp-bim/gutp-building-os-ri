@@ -103,4 +103,29 @@ public class DirectLevelHierarchyTest(OxiGraphFixture oxiGraph)
         Assert.Single(hits, hit => hit.Type == "device" && hit.Id == "DIRECT-EQ");
         Assert.Single(hits, hit => hit.Type == "point" && hit.Id == "DIRECT-PT");
     }
+
+    // #544: equipment placed directly on a Level is listed under that Level — the only way the tree
+    // and /home can reach it, since the floor → room → device walk never passes it.
+    [Fact]
+    public async Task ListFloorDevices_ReturnsEquipmentDirectlyOnTheLevel_NotInItsRooms()
+    {
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:t:b> a sbco:Building ; sbco:id "B" ; sbco:name "B" ; sbco:hasPart <urn:t:l> .
+            <urn:t:l> a sbco:Level ; sbco:id "L" ; sbco:name "1F" ; sbco:hasPart <urn:t:r> .
+            <urn:t:r> a sbco:Room ; sbco:id "R" ; sbco:name "101" .
+            <urn:t:onLevel> a sbco:EquipmentExt ; sbco:id "ON-LEVEL" ; sbco:name "Meter" ;
+              sbco:locatedIn <urn:t:l> .
+            <urn:t:inRoom> a sbco:EquipmentExt ; sbco:id "IN-ROOM" ; sbco:name "VAV" ;
+              sbco:locatedIn <urn:t:r> .
+            # A Room is not a Level: asking for a room's "floor devices" returns nothing.
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var database = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+
+        Assert.Equal(["ON-LEVEL"], (await database.ListFloorDevices("urn:t:l")).Select(d => d.Id));
+        Assert.Empty(await database.ListFloorDevices("urn:t:r"));
+        Assert.Empty(await database.ListFloorDevices("not an iri>"));
+    }
 }

@@ -35,10 +35,22 @@ public class DeviceController(IAuthorizedTwinView twinView) : ControllerBase
     /// <summary>
     /// デバイスの一括取得
     /// </summary>
+    /// <param name="spaceDtId">部屋に置かれた機器（<c>sbco:locatedIn</c> がこの部屋）</param>
+    /// <param name="floorDtId">
+    /// 部屋を介さずフロアに直接置かれた機器（#544）。<c>spaceDtId</c> とは同時に指定できない。
+    /// </param>
+    /// <param name="ct">キャンセル</param>
     [HttpGet]
-    public async Task<ActionResult<Device[]>> List([FromQuery] string? spaceDtId, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<Device[]>> List(
+        [FromQuery] string? spaceDtId, [FromQuery] string? floorDtId, CancellationToken ct)
     {
         var auth = HttpContext.GetAuthorizationContext();
+        if (!string.IsNullOrEmpty(floorDtId))
+        {
+            if (!string.IsNullOrEmpty(spaceDtId)) return BadRequest("spaceDtId と floorDtId は同時に指定できません");
+            return await twinView.ListFloorDevicesAsync(auth, floorDtId, ct);
+        }
         if (string.IsNullOrEmpty(spaceDtId) && !auth.IsAdmin) return Forbid();
         return await twinView.ListDevicesAsync(auth, spaceDtId, ct);
     }

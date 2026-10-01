@@ -231,6 +231,22 @@ public sealed class AuthorizedTwinView(
             .OfType<Device>().ToArray();
     }
 
+    public async Task<Device[]> ListFloorDevicesAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct)
+    {
+        if (!IsUsableDtId(floorDtId)) return [];
+
+        var all = await db.ListFloorDevices(floorDtId).ConfigureAwait(false);
+        if (auth.IsAdmin) return all;
+        var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
+        if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
+        var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
+        var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
+        return all
+            .Select(d => Grants(ids, d.Id, d.DtId) ? d
+                : ancestors.Contains(("device", d.Id)) ? NavigationOnly(d) : null)
+            .OfType<Device>().ToArray();
+    }
+
     public Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct)
         => GetNodeAsync(auth, "device", deviceDtId, () => db.GetDevice(deviceDtId), d => d.Id, ct);
 

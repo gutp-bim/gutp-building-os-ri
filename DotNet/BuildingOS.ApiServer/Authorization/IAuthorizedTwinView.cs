@@ -40,6 +40,8 @@ public interface IAuthorizedTwinView
         AuthorizationContext auth, string spaceDtId, CancellationToken ct);
 
     Task<Device[]> ListDevicesAsync(AuthorizationContext auth, string? spaceDtId, CancellationToken ct);
+    /// <summary>Devices located directly on a Level (#544), authorized like the room-scoped list.</summary>
+    Task<Device[]> ListFloorDevicesAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct);
     Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct);
 
     Task<Point[]> ListPointsAsync(AuthorizationContext auth, string? deviceDtId, CancellationToken ct);

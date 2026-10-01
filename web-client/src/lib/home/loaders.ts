@@ -1,15 +1,16 @@
+import { DEFAULT_HEALTH_QUERY } from "@/lib/health/query";
+import type { HealthSummary } from "@/lib/health/repository";
+import { fetchPointHealthSummary } from "@/lib/health/repository";
+import type { OperationsSummary } from "@/lib/operations/repository";
+import { fetchOperationsSummary } from "@/lib/operations/repository";
 import {
   listBuildings,
   listDevices,
+  listFloorDevices,
   listFloors,
   listPoints,
   listSpaces,
 } from "@/lib/resources/repository";
-import { fetchPointHealthSummary } from "@/lib/health/repository";
-import type { HealthSummary } from "@/lib/health/repository";
-import { DEFAULT_HEALTH_QUERY } from "@/lib/health/query";
-import { fetchOperationsSummary } from "@/lib/operations/repository";
-import type { OperationsSummary } from "@/lib/operations/repository";
 import type { ResourceRef } from "@/lib/resources/types";
 import type { PointAlarm } from "@/lib/telemetry/alarm";
 import { loadPointsAlarms } from "@/lib/telemetry/alarm-loader";
@@ -56,6 +57,68 @@ export type HomeLoaders = {
   ) => Promise<HealthSummary>;
 };
 
+type FloorTraversal = {
+  listSpaces: (floorDtId: string) => Promise<ResourceRef[]>;
+  listDevices: (spaceDtId: string) => Promise<ResourceRef[]>;
+  listFloorDevices: (floorDtId: string) => Promise<ResourceRef[]>;
+  listPoints: (deviceDtId: string) => Promise<
+    {
+      id: string;
+      name: string;
+      expectedIntervalSeconds?: number | null;
+      alarmHigh?: number | null;
+      alarmLow?: number | null;
+      warnHigh?: number | null;
+      warnLow?: number | null;
+    }[]
+  >;
+};
+
+/**
+ * Every point on a floor: those of devices in its rooms (room → device → point), then those of devices
+ * placed directly on the floor (#544), which have no room name. Carries the owning room + device names
+ * so the attention list can say where a point lives without a second lookup. A failing room, device or
+ * floor-device read degrades to an empty list rather than sinking the floor.
+ */
+export async function collectFloorPoints(
+  floorDtId: string,
+  deps: FloorTraversal,
+): Promise<NamedPoint[]> {
+  const pointsOf = async (d: ResourceRef, spaceName?: string) => {
+    const points = await deps.listPoints(d.dtId).catch(() => []);
+    return points.map((p) => ({
+      pointId: p.id,
+      name: p.name,
+      deviceName: d.name,
+      spaceName,
+      expectedIntervalSeconds: p.expectedIntervalSeconds,
+      thresholds: {
+        alarmHigh: p.alarmHigh,
+        alarmLow: p.alarmLow,
+        warnHigh: p.warnHigh,
+        warnLow: p.warnLow,
+      },
+    }));
+  };
+
+  const [spaces, floorDevices] = await Promise.all([
+    deps.listSpaces(floorDtId),
+    deps.listFloorDevices(floorDtId).catch(() => [] as ResourceRef[]),
+  ]);
+  const inRooms = await Promise.all(
+    spaces.map(async (s) => {
+      const devices = await deps
+        .listDevices(s.dtId)
+        .catch(() => [] as ResourceRef[]);
+      return (
+        await Promise.all(devices.map((d) => pointsOf(d, s.name)))
+      ).flat();
+    }),
+  );
+  const onFloor = await Promise.all(floorDevices.map((d) => pointsOf(d)));
+  return [...inRooms.flat(), ...onFloor.flat()];
+}
+
 /**
  * Production wiring over the resource/telemetry façades. Freshness is scoped to one floor's points at
  * a time by the caller, keeping the unbounded N+1 fan-out in {@link loadPointsFreshness} to a sensible
@@ -64,36 +127,13 @@ export type HomeLoaders = {
 export const productionHomeLoaders: HomeLoaders = {
   loadBuildings: () => listBuildings(),
   loadFloors: (buildingDtId) => listFloors(buildingDtId),
-  loadFloorPoints: async (floorDtId) => {
-    const spaces = await listSpaces(floorDtId);
-    // Carry the owning space + device names down to each point so the attention list can show where
-    // a stale/missing point lives (space → device) without a second lookup.
-    const perSpace = await Promise.all(
-      spaces.map(async (s) => {
-        const devices = await listDevices(s.dtId).catch(() => [] as ResourceRef[]);
-        const perDevice = await Promise.all(
-          devices.map(async (d) => {
-            const points = await listPoints(d.dtId).catch(() => []);
-            return points.map((p) => ({
-              pointId: p.id,
-              name: p.name,
-              deviceName: d.name,
-              spaceName: s.name,
-              expectedIntervalSeconds: p.expectedIntervalSeconds,
-              thresholds: {
-                alarmHigh: p.alarmHigh,
-                alarmLow: p.alarmLow,
-                warnHigh: p.warnHigh,
-                warnLow: p.warnLow,
-              },
-            }));
-          }),
-        );
-        return perDevice.flat();
-      }),
-    );
-    return perSpace.flat();
-  },
+  loadFloorPoints: (floorDtId) =>
+    collectFloorPoints(floorDtId, {
+      listSpaces,
+      listDevices,
+      listFloorDevices,
+      listPoints,
+    }),
   loadFreshness: async (points) => {
     // Live thresholds (system default + admin override) from the all-role read surface (#183); the
     // fetch is cached, so this per-floor call does not refetch. Falls back to the defaults on failure.
@@ -120,5 +160,9 @@ export const productionHomeLoaders: HomeLoaders = {
     ),
   loadOperationsSummary: () => fetchOperationsSummary(),
   loadHealthSummary: (buildingDtId, floorDtId) =>
-    fetchPointHealthSummary({ ...DEFAULT_HEALTH_QUERY, buildingDtId, floorDtId }),
+    fetchPointHealthSummary({
+      ...DEFAULT_HEALTH_QUERY,
+      buildingDtId,
+      floorDtId,
+    }),
 };

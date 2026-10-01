@@ -54,8 +54,8 @@ equipment = { weatherStation = 1 }
 # ── Equipment types ─────────────────────────────────────────────────────────
 # placement: "room" = round-robin over the floor's rooms; "machineRoom" = the floor's machine room
 # (<floor>-MR, created when any equipment asks for it); "level" = sbco:locatedIn the Level directly.
-# Plant equipment goes in a machine room rather than straight on the Level because /home's attention
-# list walks floor → rooms → devices and does not see Level-placed equipment yet (#544).
+# Plant equipment sits in a machine room, as in a real building; equipment placed straight on the
+# Level ("level") is also listed under its floor in the tree and /home (#544).
 [equipmentTypes.ahu]
 code = "AHU"
 deviceType = "AHU"
