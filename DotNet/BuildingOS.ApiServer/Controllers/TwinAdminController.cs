@@ -180,9 +180,11 @@ public class TwinAdminController : ControllerBase
             {
                 try
                 {
-                    await _lakeKeys.MarkChangedAsync(ct).ConfigureAwait(false);
+                    // Not the request token: the import is applied, so a client that disconnects now
+                    // must neither skip the record nor turn a success into a "failed" audit.
+                    await _lakeKeys.MarkChangedAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Twin import applied, but the lake partition-key change could not be recorded");
                 }
