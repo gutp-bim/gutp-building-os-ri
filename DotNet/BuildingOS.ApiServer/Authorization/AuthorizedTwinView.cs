@@ -52,6 +52,11 @@ public sealed class AuthorizedTwinView(
         => hashedIds.Contains(PermissionHelper.HashResourceId(businessId))
            || hashedIds.Contains(PermissionHelper.HashResourceId(dtId));
 
+    private async Task<HashSet<string>> AccessibleIdSetAsync(
+        AuthorizationContext auth, string resourceType, CancellationToken ct)
+        => (await authService.GetAccessibleResourceIdsAsync(auth, resourceType, "read", ct).ConfigureAwait(false))
+            .ToHashSet(StringComparer.Ordinal);
+
     private Task<bool> CanReadNodeAsync(
         AuthorizationContext auth, string resourceType, string dtId, string? businessId, CancellationToken ct)
         => NodeAuthorization.CanAccessAsync(authService, auth, resourceType, dtId, businessId, "read", ct);
@@ -232,6 +237,8 @@ public sealed class AuthorizedTwinView(
         // 太らせられる）。読める見込みがゼロなら台帳に触れずに空を返す。
         HashSet<string> pointIds = [];
         HashSet<string> deviceIds = [];
+        HashSet<string> spaceIds = [];
+        HashSet<string> floorIds = [];
         // Only the building node (one small read) is loaded ahead of the check, for its business id —
         // the ledger itself is still not touched until the caller is known to read something.
         var readsWholeBuilding = auth.IsAdmin
@@ -239,15 +246,20 @@ public sealed class AuthorizedTwinView(
                 (await db.GetBuilding(buildingDtId).ConfigureAwait(false))?.Id, ct).ConfigureAwait(false);
         if (!readsWholeBuilding)
         {
-            // 建物の権限が無ければ、直接付与された point / device のぶんだけ見せる（ListPointsAsync の
-            // 「device の read 権があればその配下の Point は読める」を建物スコープに写したもの）。
+            // 建物の権限が無ければ、付与された point / device / space / floor の範囲だけ見せる
+            // （ListPointsAsync の「device の read 権があればその配下の Point は読める」を建物スコープに
+            // 写したもの）。space / floor（#518）は、ツリーで部屋・フロアから辿れる範囲と台帳を揃えるため。
+            // どの集合も Group 経由の付与を含む（GetAccessibleResourceIdsAsync が展開する）。
+            // 祖先の判定を Device ごとの CanAccessAsync（祖先 SPARQL + Group 照会）でやると数千回に
+            // なるので、ハッシュ集合と各行の space / floor の業務 ID を照合する。
             // HashSet に移す。台帳は建物 1 棟で数千 Point になり得るので、IReadOnlyList の Contains
             // （線形探索）のままだと絞り込みが O(Point 数 × 許可 ID 数) になる（#460 レビュー）。
-            pointIds = (await authService.GetAccessibleResourceIdsAsync(auth, "point", "read", ct)
-                .ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
-            deviceIds = (await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct)
-                .ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
-            if (pointIds.Count == 0 && deviceIds.Count == 0) return [];
+            pointIds = await AccessibleIdSetAsync(auth, "point", ct).ConfigureAwait(false);
+            deviceIds = await AccessibleIdSetAsync(auth, "device", ct).ConfigureAwait(false);
+            spaceIds = await AccessibleIdSetAsync(auth, "space", ct).ConfigureAwait(false);
+            floorIds = await AccessibleIdSetAsync(auth, "floor", ct).ConfigureAwait(false);
+            if (pointIds.Count == 0 && deviceIds.Count == 0 && spaceIds.Count == 0 && floorIds.Count == 0)
+                return [];
         }
 
         // キャッシュに載るのは**認可前**の twin データ。絞り込みは毎リクエストこの下で適用する。
@@ -258,7 +270,9 @@ public sealed class AuthorizedTwinView(
         if (readsWholeBuilding) return all;
         return all.Where(d =>
                 pointIds.Contains(PermissionHelper.HashResourceId(d.Point.Id))
-                || (d.Device is not null && Grants(deviceIds, d.Device.Id, d.Device.DtId)))
+                || (d.Device is not null && Grants(deviceIds, d.Device.Id, d.Device.DtId))
+                || (d.Space is not null && Grants(spaceIds, d.Space.Id, d.Space.DtId))
+                || (d.Floor is not null && Grants(floorIds, d.Floor.Id, d.Floor.DtId)))
             .ToArray();
     }
 
