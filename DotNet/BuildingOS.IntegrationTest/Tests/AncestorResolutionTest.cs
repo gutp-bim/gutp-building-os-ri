@@ -106,7 +106,10 @@ public class AncestorResolutionTest(OxiGraphFixture oxiGraph)
         var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
 
         // More ids than one VALUES chunk, a quote that must be escaped, and the real one last.
-        var ids = Enumerable.Range(0, 450).Select(i => $"NOPE-{i}").Append("x\"y").Append("R501").ToArray();
+        // CR / LF are not allowed raw in a SPARQL short string; an id carrying them must not break the
+        // whole query (and with it every hierarchy list for that user).
+        var ids = Enumerable.Range(0, 450).Select(i => $"NOPE-{i}")
+            .Append("x\"y").Append("line\nbreak").Append("cr\rret").Append("tab\tbed").Append("R501").ToArray();
 
         var union = await resolver.GetAncestorUnionAsync("space", ids);
 

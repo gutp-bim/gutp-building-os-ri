@@ -226,5 +226,11 @@ SELECT ?dt WHERE {{
         return result;
     }
 
-    private static string EscapeLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    // SPARQL short strings may not hold a raw `"`, `\`, LF or CR (tab is allowed). Matches
+    // OxiGraphDescendantResolver: an id with a line break must not make the whole query unparseable.
+    private static string EscapeLiteral(string s) => s
+        .Replace("\\", "\\\\")
+        .Replace("\"", "\\\"")
+        .Replace("\r", "\\r")
+        .Replace("\n", "\\n");
 }
