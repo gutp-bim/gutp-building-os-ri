@@ -12,6 +12,13 @@ public interface IPrometheusQueryClient
     bool IsConfigured { get; }
 
     /// <summary>
+    /// True when a base URL is configured <b>and</b> the query API answers right now. Configured is not
+    /// enough to call metrics available: the default compose stack sets <c>PROMETHEUS_URL</c> even
+    /// though Prometheus only runs with <c>--profile observability</c> (#456). Never throws.
+    /// </summary>
+    Task<bool> IsReachableAsync(CancellationToken ct);
+
+    /// <summary>
     /// Runs an instant query and returns the first sample's value, or <c>null</c> when there is
     /// no result, Prometheus is unconfigured, or the request fails.
     /// </summary>

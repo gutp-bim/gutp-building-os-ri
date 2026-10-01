@@ -428,11 +428,11 @@ function errMsg(e: unknown, fallback: string): string {
  * データ流量（#451 Phase 1）。Platform 由来（Prometheus 集計）の KPI で、建物/フロアのスコープを
  * 持たない。値が 1 つも無ければカードごと出さない — エラーにしない。
  *
- * `metricsAvailable` だけでは判定しない: 既定の docker-compose スタックは observability プロファイル
- * を有効にしなくても `PROMETHEUS_URL` を設定する（Prometheus 未起動でも no-op で動くようにするため、
- * CLAUDE.md の Observability セクション参照）。`IsConfigured` は「URL が空でないか」しか見ないので、
- * この既定構成では `metricsAvailable: true` のままクエリだけが両方 null になり、`!metricsAvailable`
- * だけを見ると「—」だけの空カードが出てしまう。
+ * `metricsAvailable` だけでは判定しない: #456 以降 API は「Prometheus に到達できるか（または値が
+ * 返ったか）」で `metricsAvailable` を決めるので、既定の docker-compose スタック（`PROMETHEUS_URL` は
+ * 設定されるが Prometheus は observability プロファイルでしか起動しない）では false になる。それでも
+ * 到達できるのにまだ系列が無い（起動直後・流量ゼロ）ときは `metricsAvailable: true` のままクエリが
+ * 両方 null になるので、`!metricsAvailable` だけを見ると「—」だけの空カードが出てしまう。
  */
 function DataThroughputPanel({
   summary,

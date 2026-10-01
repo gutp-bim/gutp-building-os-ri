@@ -58,7 +58,7 @@ public sealed record SystemKpis(
 
 /// <summary>
 /// Aggregate platform status returned by <c>GET /api/v1/system/status</c>. Built to be useful
-/// even without Grafana — and to not hard-fail when Prometheus is absent
+/// even without Grafana — and to not hard-fail when Prometheus is unconfigured or unreachable
 /// (<see cref="MetricsAvailable"/> is then false and KPIs are null).
 /// </summary>
 /// <param name="Thresholds">The effective pipeline KPI warn thresholds (#456, editable in

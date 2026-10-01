@@ -6,7 +6,7 @@ public sealed record IngressRejectionCount(string Reason, long Count);
 /// <summary>
 /// Ingress-rejection counts by reason (#292), for the admin-facing visibility panel. Built to
 /// degrade gracefully — <see cref="MetricsAvailable"/> is false and <see cref="Rejections"/> is
-/// empty when Prometheus is unconfigured, matching <see cref="SystemStatus"/>.
+/// empty when Prometheus is unconfigured or unreachable, matching <see cref="SystemStatus"/>.
 /// </summary>
 public sealed record IngressRejectionStats(
     IReadOnlyList<IngressRejectionCount> Rejections,

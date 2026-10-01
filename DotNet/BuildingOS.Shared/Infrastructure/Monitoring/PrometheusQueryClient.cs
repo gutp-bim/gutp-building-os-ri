@@ -25,6 +25,15 @@ public sealed class PrometheusQueryClient : IPrometheusQueryClient
 
     public bool IsConfigured => _baseUrl is not null;
 
+    /// <summary>
+    /// Probe query for <see cref="IsReachableAsync"/>: constant, label-free, answered by any
+    /// Prometheus-compatible query API without touching stored series.
+    /// </summary>
+    public const string ReachabilityProbeQuery = "vector(1)";
+
+    public async Task<bool> IsReachableAsync(CancellationToken ct) =>
+        _baseUrl is not null && await QueryAsync(ReachabilityProbeQuery, ct).ConfigureAwait(false) is not null;
+
     public async Task<double?> QueryScalarAsync(string query, CancellationToken ct)
     {
         var data = await QueryAsync(query, ct).ConfigureAwait(false);
