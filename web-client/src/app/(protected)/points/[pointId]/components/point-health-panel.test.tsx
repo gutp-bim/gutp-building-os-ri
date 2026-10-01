@@ -164,4 +164,55 @@ describe("PointHealthPanel (#457)", () => {
     });
     expect(results.violations).toEqual([]);
   });
+
+  // #457: 欠測理由と gateway 接続状態はサーバ側の分類（/api/v1/telemetry/health の該当行）から渡す。
+  describe("server-side reason and gateway (#457)", () => {
+    it("explains a missing point by its gateway being disconnected", () => {
+      renderPanel({
+        latest: null,
+        expectedIntervalSeconds: 60,
+        missingReason: "gatewayDisconnected",
+        gateway: { id: "GW-DEMO-RF", connected: false },
+      });
+
+      expect(screen.getByTestId("health-missing-reason")).toHaveTextContent(
+        "ゲートウェイ切断",
+      );
+      const gw = screen.getByTestId("health-gateway");
+      expect(gw).toHaveTextContent("GW-DEMO-RF");
+      expect(
+        screen.getByTestId("health-gateway-disconnected"),
+      ).toBeInTheDocument();
+    });
+
+    it("does not show a missing reason while the point is receiving", () => {
+      // サーバの行が古く「欠測」のままでも、手元の最新値で受信中なら理由行は出さない。
+      renderPanel({
+        latest: numeric(23.4, 30),
+        expectedIntervalSeconds: 60,
+        missingReason: "neverReceived",
+        gateway: { id: "GW-1", connected: true },
+      });
+
+      expect(
+        screen.queryByTestId("health-missing-reason"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("health-gateway-connected"),
+      ).toBeInTheDocument();
+    });
+
+    it("renders an unknown connection as unknown, not disconnected", () => {
+      renderPanel({ gateway: { id: "GW-1", connected: null } });
+      expect(screen.getByTestId("health-gateway-unknown")).toBeInTheDocument();
+    });
+
+    it("omits both rows when the server row is unavailable", () => {
+      renderPanel({ latest: null });
+      expect(
+        screen.queryByTestId("health-missing-reason"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("health-gateway")).not.toBeInTheDocument();
+    });
+  });
 });

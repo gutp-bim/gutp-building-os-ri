@@ -16,7 +16,11 @@
 
 import { apiClient } from "@/lib/infra/aspida-client";
 import { toHealthRow, type HealthRow } from "./mapping";
-import { normalizeHealthQuery, type HealthQuery } from "./query";
+import {
+  DEFAULT_HEALTH_QUERY,
+  normalizeHealthQuery,
+  type HealthQuery,
+} from "./query";
 
 /**
  * 最終受信インデックスの状態。`warming`（起動直後で走査中）と `degraded`（一部を読めていない）は
@@ -225,4 +229,40 @@ export async function fetchPointHealthSummary(
     dataComplete: body.dataComplete !== false,
     indexState: indexStateOf(body.indexState),
   };
+}
+
+/** 1 Point の行を探すときの頁サイズ。`q` は部分一致なので、同じ接頭辞の Point ぶんの余裕を持たせる。 */
+const POINT_LOOKUP_LIMIT = 50;
+/** 完全一致の行を探して読む頁数の上限（部分一致が異常に多いときに無制限に読まない）。 */
+const POINT_LOOKUP_MAX_PAGES = 10;
+
+/**
+ * 1 Point ぶんのデータ品質行を取得する（Point 詳細の健全性パネル用、#457）。
+ *
+ * 一覧 API には Point ID の完全一致フィルタが無いので、`q`（Point ID・名前の部分一致）で引いて
+ * **ID が完全一致する行**だけを採る。所属機器が分かっていれば `deviceDtId` で絞り、部分一致の
+ * 巻き添え（`PT-1` に対する `PT-10`）を減らす。一覧は重篤度順なので、巻き添えが多いと目的の行が
+ * 1 頁目に来ないことがある — 見つかるか、該当件数を読み切るまで頁を進める。該当行が無ければ null。
+ */
+export async function fetchPointHealthRow(
+  pointId: string,
+  deviceDtId: string | undefined,
+  fetchPage: (query: HealthQuery) => Promise<HealthPage> = fetchPointHealth,
+): Promise<HealthRow | null> {
+  for (let pageIndex = 0; pageIndex < POINT_LOOKUP_MAX_PAGES; pageIndex++) {
+    const offset = pageIndex * POINT_LOOKUP_LIMIT;
+    const page = await fetchPage({
+      ...DEFAULT_HEALTH_QUERY,
+      q: pointId,
+      deviceDtId,
+      limit: POINT_LOOKUP_LIMIT,
+      offset,
+    });
+    const row = page.rows.find((r) => r.pointId === pointId);
+    if (row) return row;
+    if (page.rows.length === 0 || offset + page.rows.length >= page.total) {
+      return null;
+    }
+  }
+  return null;
 }
