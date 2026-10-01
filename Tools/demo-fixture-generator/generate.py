@@ -245,13 +245,20 @@ def render_csv(m: dict, model: dict) -> str:
     wr.writerow(CSV_HEADER)
     for p in model["points"]:
         t, d = p["t"], p["device"]
-        bounded = "lo" in t and "hi" in t and t["kind"] == "number"
+        # The CSV importer maps min/max_pres_value to bos:minValue/maxValue (the control bound), so a
+        # writable number carries its control bounds there; read-only numbers carry their raw span.
+        if t.get("writable") and "minValue" in t and "maxValue" in t:
+            pres = (_num(t["maxValue"]), _num(t["minValue"]))
+        elif "lo" in t and "hi" in t and t["kind"] == "number":
+            pres = (_num(t["hi"]), _num(t["lo"]))
+        else:
+            pres = ("", "")
         labels = [t["enumLabels"][k] for k in sorted(t["enumLabels"], key=int)] if "enumLabels" in t else []
         wr.writerow([
             p["gatewayId"], d["id"], d["name"], d["deviceType"], m["site"]["id"], m["building"]["id"],
             p["level"], d["area"], d["area"], "", t["pointType"], t["spec"], p["pointId"], p["name"],
             "true" if t.get("writable") else "false", _num(t["interval"]), t.get("unit", ""),
-            _num(t["hi"]) if bounded else "", _num(t["lo"]) if bounded else "",
+            *pres,
             "&&".join(labels), "|".join(labels), "1.0", "&&".join(p["tags"]), "", "", "",
             "ns=2;s=" + p["pointId"], "", "", "",
         ])

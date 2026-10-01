@@ -163,3 +163,13 @@ def test_rng_selection_is_independent_of_dict_ordering(tmp_path: Path):
     reordered = generate(manifest, E2E_TWIN.read_text(encoding="utf-8"))
     pick = lambda out: sorted((p["pointId"], p["role"]) for p in _demo_points(out) if p["role"] != "normal")  # noqa: E731
     assert pick(reordered) == pick(_out())
+
+
+def test_pointlist_csv_carries_control_bounds_for_writable_numbers():
+    # The CSV importer (Tools/e2e-performance/seed_from_csv.py) maps min/max_pres_value to
+    # bos:minValue/maxValue, so a writable setpoint without them would import unbounded.
+    rows = list(csv.DictReader(io.StringIO(_out()["pointlist.csv"])))
+    sp = next(r for r in rows if r["point_id"] == "DEMO-1F-AHU01-SATSP")
+    assert (sp["min_pres_value"], sp["max_pres_value"]) == ("12", "28")
+    zsp = next(r for r in rows if r["point_id"].endswith("-ZTSP"))
+    assert (zsp["min_pres_value"], zsp["max_pres_value"]) == ("16", "30")
