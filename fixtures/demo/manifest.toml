@@ -1,0 +1,442 @@
+# =============================================================================
+# Demo dataset manifest (#458) — 東京デモビル
+# =============================================================================
+# The ONLY hand-maintained file in fixtures/demo/. Everything else here is generated from it:
+#
+#   python3 Tools/demo-fixture-generator/generate.py
+#
+#   twin.ttl          digital-twin seed (demo building + the fixtures/e2e/twin.ttl building verbatim,
+#                     so the existing GW-SOS-001 / SOS-PT-001..008 control demo keeps working)
+#   pointlist.csv     the demo building's point list (smart-building standard 30-column CSV)
+#   feeder-plan.json  what the demo feeder streams per point, and which points the `degraded`
+#                     scenario makes stale / missing / alarming
+#
+# Generation is deterministic (fixed `seed`, sorted iteration): two runs produce byte-identical
+# files, and CI (pr-check "Demo Fixture Check") fails if the committed output drifts from this file.
+# Do not edit the generated files by hand.
+# =============================================================================
+
+seed = 458
+
+[site]
+id = "site-demo"
+name = "Demo Site"
+
+[building]
+id = "bldg-demo"
+name = "東京デモビル"
+# Prefix for every generated id (rooms, devices, points, gateways) — keeps sbco:id globally unique
+# across the twin (#517) and clear of the e2e building's ids.
+idPrefix = "DEMO"
+
+# One gateway per floor (GW-DEMO-<floor>). RF holds a small weather station on its own gateway so
+# the degraded scenario can take one gateway down without blacking out a whole floor.
+[[floors]]
+name = "1F"
+rooms = 8
+equipment = { ahu = 2, vav = 25, fcu = 15, envSensor = 64, powerMeter = 10 }
+
+[[floors]]
+name = "2F"
+rooms = 8
+equipment = { ahu = 2, vav = 25, fcu = 15, envSensor = 64, powerMeter = 10 }
+
+[[floors]]
+name = "3F"
+rooms = 8
+equipment = { ahu = 2, vav = 25, fcu = 15, envSensor = 64, powerMeter = 10 }
+
+[[floors]]
+name = "RF"
+rooms = 0
+equipment = { weatherStation = 1 }
+
+# ── Equipment types ─────────────────────────────────────────────────────────
+# placement: "room" = round-robin over the floor's rooms; "machineRoom" = the floor's machine room
+# (<floor>-MR, created when any equipment asks for it); "level" = sbco:locatedIn the Level directly.
+# Plant equipment goes in a machine room rather than straight on the Level because /home's attention
+# list walks floor → rooms → devices and does not see Level-placed equipment yet (#544).
+[equipmentTypes.ahu]
+code = "AHU"
+deviceType = "AHU"
+name = "空調機"
+placement = "machineRoom"
+points = ["supply_temp", "return_temp", "supply_temp_sp", "supply_humidity", "return_co2",
+          "fan_status", "fan_speed", "damper_pos", "filter_dp", "valve_pos", "fault_status", "power"]
+
+[equipmentTypes.vav]
+code = "VAV"
+deviceType = "VAV"
+name = "VAV"
+placement = "room"
+points = ["zone_temp", "zone_temp_sp", "airflow", "damper_pos"]
+
+[equipmentTypes.fcu]
+code = "FCU"
+deviceType = "FCU"
+name = "ファンコイル"
+placement = "room"
+points = ["zone_temp", "fan_status", "fan_speed", "valve_pos"]
+
+[equipmentTypes.envSensor]
+code = "ENV"
+deviceType = "Sensor"
+name = "環境センサー"
+placement = "room"
+points = ["room_temp", "room_humidity", "co2"]
+
+[equipmentTypes.powerMeter]
+code = "PM"
+deviceType = "PowerMeter"
+name = "電力量計"
+placement = "machineRoom"
+points = ["active_power", "energy"]
+
+[equipmentTypes.weatherStation]
+code = "WS"
+deviceType = "WeatherStation"
+name = "気象観測"
+placement = "machineRoom"
+points = ["outdoor_temp", "outdoor_humidity"]
+
+# ── Point templates ─────────────────────────────────────────────────────────
+# kind: number | boolean | enum (the ingress contract is numeric, so boolean/enum stream as codes).
+# base/amplitude/period shape the feeder's sine; lo/hi clamp numbers and bound enum codes.
+# alarmHigh/alarmLow/warnHigh/warnLow → bos:* (ADR-0005). minValue/maxValue/enumLabels → control schema.
+[pointTemplates.supply_temp]
+code = "SAT"
+name = "給気温度"
+pointType = "Temperature"
+spec = "Measurement"
+unit = "degC"
+interval = 60
+kind = "number"
+base = 16.0
+amplitude = 1.5
+period = 900
+alarmHigh = 30
+warnHigh = 26
+alarmLow = 10
+
+[pointTemplates.return_temp]
+code = "RAT"
+name = "還気温度"
+pointType = "Temperature"
+spec = "Measurement"
+unit = "degC"
+interval = 60
+kind = "number"
+base = 25.0
+amplitude = 1.0
+period = 1200
+
+[pointTemplates.supply_temp_sp]
+code = "SATSP"
+name = "給気温度設定"
+pointType = "Setpoint"
+spec = "Setpoint"
+unit = "degC"
+interval = 300
+kind = "number"
+base = 16.0
+amplitude = 0.0
+period = 3600
+writable = true
+minValue = 12
+maxValue = 28
+
+[pointTemplates.supply_humidity]
+code = "SAH"
+name = "給気湿度"
+pointType = "Humidity"
+spec = "Measurement"
+unit = "%"
+interval = 60
+kind = "number"
+base = 50.0
+amplitude = 5.0
+period = 1500
+
+[pointTemplates.return_co2]
+code = "RCO2"
+name = "還気CO2濃度"
+pointType = "CO2"
+spec = "Measurement"
+unit = "ppm"
+interval = 300
+kind = "number"
+base = 650.0
+amplitude = 120.0
+period = 1800
+alarmHigh = 1500
+warnHigh = 1000
+
+[pointTemplates.fan_status]
+code = "FST"
+name = "ファン運転状態"
+pointType = "Status"
+spec = "Status"
+interval = 5
+kind = "boolean"
+base = 0.0
+amplitude = 0.0
+period = 7200
+
+[pointTemplates.fan_speed]
+code = "FSPD"
+name = "ファン風量段"
+pointType = "FanSpeed"
+spec = "Command"
+interval = 60
+kind = "enum"
+base = 0.0
+amplitude = 0.0
+period = 2400
+lo = 1
+hi = 4
+writable = true
+enumLabels = { "1" = "Off", "2" = "Low", "3" = "Medium", "4" = "High" }
+
+[pointTemplates.damper_pos]
+code = "DMP"
+name = "ダンパー開度"
+pointType = "Position"
+spec = "Measurement"
+unit = "%"
+interval = 60
+kind = "number"
+base = 55.0
+amplitude = 20.0
+period = 1800
+lo = 0
+hi = 100
+
+[pointTemplates.filter_dp]
+code = "FDP"
+name = "フィルタ差圧"
+pointType = "Pressure"
+spec = "Measurement"
+unit = "Pa"
+interval = 300
+kind = "number"
+base = 120.0
+amplitude = 10.0
+period = 3600
+warnHigh = 250
+alarmHigh = 300
+
+[pointTemplates.valve_pos]
+code = "VLV"
+name = "冷温水弁開度"
+pointType = "Position"
+spec = "Measurement"
+unit = "%"
+interval = 60
+kind = "number"
+base = 40.0
+amplitude = 25.0
+period = 1500
+lo = 0
+hi = 100
+
+[pointTemplates.fault_status]
+code = "FLT"
+name = "故障"
+pointType = "Alarm"
+spec = "Status"
+interval = 60
+kind = "boolean"
+base = 0.0
+amplitude = 0.0
+period = 0
+
+[pointTemplates.power]
+code = "KW"
+name = "消費電力"
+pointType = "Power"
+spec = "Measurement"
+unit = "kW"
+interval = 60
+kind = "number"
+base = 12.0
+amplitude = 4.0
+period = 1800
+
+[pointTemplates.zone_temp]
+code = "ZT"
+name = "室温"
+pointType = "Temperature"
+spec = "Measurement"
+unit = "degC"
+interval = 60
+kind = "number"
+base = 24.5
+amplitude = 1.2
+period = 1200
+alarmHigh = 32
+warnHigh = 28
+alarmLow = 12
+
+[pointTemplates.zone_temp_sp]
+code = "ZTSP"
+name = "室温設定"
+pointType = "Setpoint"
+spec = "Setpoint"
+unit = "degC"
+interval = 300
+kind = "number"
+base = 25.0
+amplitude = 0.0
+period = 3600
+writable = true
+minValue = 16
+maxValue = 30
+
+[pointTemplates.airflow]
+code = "AF"
+name = "風量"
+pointType = "Airflow"
+spec = "Measurement"
+unit = "m3/h"
+interval = 60
+kind = "number"
+base = 600.0
+amplitude = 150.0
+period = 1500
+
+[pointTemplates.room_temp]
+code = "T"
+name = "室温"
+pointType = "Temperature"
+spec = "Measurement"
+unit = "degC"
+interval = 60
+kind = "number"
+base = 24.0
+amplitude = 1.5
+period = 1200
+alarmHigh = 32
+warnHigh = 28
+alarmLow = 12
+
+[pointTemplates.room_humidity]
+code = "RH"
+name = "湿度"
+pointType = "Humidity"
+spec = "Measurement"
+unit = "%"
+interval = 60
+kind = "number"
+base = 48.0
+amplitude = 6.0
+period = 1500
+
+[pointTemplates.co2]
+code = "CO2"
+name = "CO2濃度"
+pointType = "CO2"
+spec = "Measurement"
+unit = "ppm"
+interval = 300
+kind = "number"
+base = 620.0
+amplitude = 150.0
+period = 1800
+alarmHigh = 1500
+warnHigh = 1000
+
+[pointTemplates.active_power]
+code = "KW"
+name = "有効電力"
+pointType = "Power"
+spec = "Measurement"
+unit = "kW"
+interval = 60
+kind = "number"
+base = 8.0
+amplitude = 3.0
+period = 1800
+
+[pointTemplates.energy]
+code = "KWH"
+name = "電力量"
+pointType = "Energy"
+spec = "Measurement"
+unit = "kWh"
+interval = 1800
+kind = "number"
+base = 1200.0
+amplitude = 50.0
+period = 86400
+
+[pointTemplates.outdoor_temp]
+code = "OAT"
+name = "外気温度"
+pointType = "Temperature"
+spec = "Measurement"
+unit = "degC"
+interval = 60
+kind = "number"
+base = 22.0
+amplitude = 4.0
+period = 3600
+
+[pointTemplates.outdoor_humidity]
+code = "OAH"
+name = "外気湿度"
+pointType = "Humidity"
+spec = "Measurement"
+unit = "%"
+interval = 60
+kind = "number"
+base = 60.0
+amplitude = 10.0
+period = 3600
+
+# ── customTags ──────────────────────────────────────────────────────────────
+# Selectors decide at GENERATION time which points carry a tag; only the tag key lands in the twin
+# (sbco:customTags, value true). Per the tagging guideline (#454 / 横断 D), tags carry operational
+# meaning — never structure such as "floor=3F", which the twin already models.
+# Selector fields (all optional, ANDed): floor, equipment, template (list), everyNth (the n-th,
+# 2n-th, … instance of the equipment type on each floor).
+[[tags]]
+key = "critical"
+equipment = "ahu"
+template = ["supply_temp"]
+
+[[tags]]
+key = "tenant-a"
+floor = "2F"
+
+[[tags]]
+key = "energy-saving-target"
+template = ["active_power", "energy", "power"]
+
+[[tags]]
+key = "maintenance-required"
+equipment = "fcu"
+everyNth = 5
+
+# ── Degraded scenario (DEMO_SCENARIO=degraded, the `make demo` default) ──────
+# Points are picked with a seeded RNG from the sorted candidate list, so the same ids every time.
+[scenario]
+# Gateways the feeder never opens an egress stream for and never streams telemetry from:
+# their points are missing with reason gateway_disconnected (ADR-0004 connection axis).
+disconnectedGateways = ["GW-DEMO-RF"]
+
+# Stale: one reading back-dated to now − interval × 4, then silence → over the interval × 3 threshold
+# from the first second. Short-interval templates make the threshold breach easy to read.
+[scenario.stale]
+count = 18
+templates = ["fan_status", "zone_temp", "room_temp"]
+
+# Missing (never received): nothing is ever sent. Together with the disconnected gateway's points.
+[scenario.missing]
+count = 3
+templates = ["co2", "room_humidity"]
+
+# Alarm: streamed on its interval, but at a value past alarmHigh.
+[scenario.alarm]
+count = 2
+templates = ["supply_temp"]
+value = 33.5

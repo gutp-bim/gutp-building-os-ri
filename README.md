@@ -56,7 +56,10 @@ make demo
 
 これ 1 つで OSS スタック + Web Client + テレメトリ生成器が起動し、サンプルツイン（`GW-SOS-001` /
 `SOS-PT-001..008`、#124 で自動シード）に**動いている値**が流れます。`/resources` → ポイント詳細で
-最新値と履歴を見て、書込可ポイント（照明/設定温度/ファン）で**制御まで**実行できます（#155）。停止は
+最新値と履歴を見て、書込可ポイント（照明/設定温度/ファン）で**制御まで**実行できます（#155）。
+あわせて約 1,200 Point のデモビル（東京デモビル）がシードされ、鮮度切れ・欠測・値異常が意図的に入った
+状態で起動します。異常の発見から原因の確認までを見せる 5 分デモの手順は
+**[docs/guides/demo-walkthrough.md](docs/guides/demo-walkthrough.md)** です（#458）。停止は
 `make demo-down`。詳細は **[docs/guides/getting-started.md](docs/guides/getting-started.md)**、用語は
 **[docs/guides/concepts.md](docs/guides/concepts.md)** を参照してください。
 

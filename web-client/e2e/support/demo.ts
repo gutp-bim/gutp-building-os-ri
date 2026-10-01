@@ -15,8 +15,12 @@ export async function loginWithKeycloak(page: Page): Promise<void> {
     .catch(() => undefined);
   if (new URL(page.url()).pathname === "/sign-in") {
     await page.getByRole("button", { name: "Keycloakでサインイン" }).click();
-    await page.getByRole("textbox", { name: /username|ユーザー名/i }).fill(DEMO_ADMIN_USER);
-    await page.getByRole("textbox", { name: /password|パスワード/i }).fill(DEMO_ADMIN_PASSWORD);
+    await page
+      .getByRole("textbox", { name: /username|ユーザー名/i })
+      .fill(DEMO_ADMIN_USER);
+    await page
+      .getByRole("textbox", { name: /password|パスワード/i })
+      .fill(DEMO_ADMIN_PASSWORD);
     await page.getByRole("button", { name: /sign in|ログイン/i }).click();
   }
 
@@ -30,7 +34,12 @@ export async function loginWithKeycloak(page: Page): Promise<void> {
   });
 }
 
-export async function openDemoPoint(page: Page, pointId = DEMO_POINT_ID): Promise<void> {
+export async function openDemoPoint(
+  page: Page,
+  pointId = DEMO_POINT_ID,
+): Promise<void> {
   await page.goto(`/points/${encodeURIComponent(pointId)}`);
-  await expect(page.getByText(pointId)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(pointId, { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
 }

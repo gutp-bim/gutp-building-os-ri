@@ -23,6 +23,7 @@ jobs:
       dotnet: ${{ steps.filter.outputs.dotnet }}
       frontend: ${{ steps.filter.outputs.frontend }}
       workflows: ${{ steps.filter.outputs.workflows }}
+      demo: ${{ steps.filter.outputs.demo }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -53,6 +54,15 @@ jobs:
               - '.github/workflows/pr-check.yml'
             workflows:
               - '.github/workflows/**'
+            # #458: the demo dataset is generated from fixtures/demo/manifest.toml and also embeds
+            # fixtures/e2e/twin.ttl, so an edit to either side must re-run the drift check.
+            demo:
+              - 'fixtures/demo/**'
+              - 'fixtures/e2e/twin.ttl'
+              - 'Tools/demo-fixture-generator/**'
+              - 'Tools/development-edge-device/grpc_demo_feeder.py'
+              - 'Tools/development-edge-device/test_grpc_demo_feeder.py'
+              - '.github/workflows/pr-check.yml'
 
   # ── Workflow lint ─────────────────────────────────────────────
   actionlint:
@@ -72,6 +82,31 @@ jobs:
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
           args: -color
+
+  # ── Demo dataset drift + generator/feeder tests (#458) ───────
+  demo-fixture-check:
+    name: Demo Fixture Check
+    needs: changes
+    if: needs.changes.outputs.demo == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          # tomllib (stdlib) needs 3.11+; the generator has no other dependency.
+          python-version: "3.12"
+
+      # Same idea as the swagger / aspida checks (#354 / #357): the generated twin, point list and
+      # feeder plan are committed, so a manifest edit without regenerating must fail here.
+      - name: Demo fixtures are up to date
+        run: python3 Tools/demo-fixture-generator/generate.py --check
+
+      - name: Generator and feeder tests
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest -q Tools/demo-fixture-generator Tools/development-edge-device/test_grpc_demo_feeder.py
 
   # ── .NET build + unit tests ───────────────────────────────────
   dotnet-check:

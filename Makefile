@@ -45,6 +45,8 @@ demo:
 		--profile demo --profile webclient up -d --build
 	@echo ""
 	@echo "Demo up. Open http://localhost:3000 (admin/admin)."
+	@echo "  /home → 東京デモビル ~1,200 Point（stale / missing / alarm 入り。DEMO_SCENARIO=healthy で全 fresh）"
+	@echo "  5 分デモ台本: docs/guides/demo-walkthrough.md"
 	@echo "  /resources → SOS-PT-001..008 に動く値（feeder が GW-SOS-001 へ gRPC 投入中）"
 	@echo "  制御は書込可の SOS-PT-004(照明)/006(設定温度)/007(ファン)で実行 → 200 が返る"
 	@echo "  停止: make demo-down"

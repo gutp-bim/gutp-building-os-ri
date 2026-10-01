@@ -8,9 +8,19 @@
 #   #       --profile demo --profile webclient up -d --build
 #
 # 構成:
-#  1) building-os.demo-feeder — 既定シード twin（#124, `fixtures/e2e/twin.ttl` の GW-SOS-001 /
-#     SOS-PT-001..008）へ gRPC GatewayIngress で周期テレメトリを投入（`profiles: [demo]`）。
+#  1) building-os.demo-feeder — gRPC GatewayIngress で周期テレメトリを投入（`profiles: [demo]`）。
 #     受け口（connector-worker の `GRPC_INGRESS_PORT=5051`）は oss.yaml で既定 ON なので追加設定不要。
+#     対象は 2 つ:
+#       - e2e の制御デモ点（`fixtures/e2e/twin.ttl` の GW-SOS-001 / SOS-PT-001..008）— 常に正常
+#       - デモデータセット（#458, `fixtures/demo/`）— 東京デモビル ~1,200 Point。`DEMO_SCENARIO`
+#         （既定 `degraded`）で stale 18 / missing 5（うち 2 は gateway 断）/ alarm 2 を起動直後から
+#         決定論的に作る。`DEMO_SCENARIO=healthy make demo` で全 Point fresh。
+#     GatewayBridge へ gateway ごとの egress ストリームも張る（= 接続状態 connected、ADR-0004）。
+#     degraded では GW-DEMO-RF だけ張らない（= 切断）。
+#  0) api の起動時シードを `fixtures/demo/twin.ttl`（デモビル + e2e の twin をそのまま同梱）に切替。
+#     シードは OxiGraph が空のときだけ走る（#484）。旧デモの twin が残っている場合は
+#     /admin/twin から `fixtures/demo/twin.ttl` を replace でアップロードする
+#     （手順: docs/guides/demo-walkthrough.md）。
 #  2) api / connector-worker の GW-SOS-001 制御 binding を `bacnet-sim` → `simulated` に上書き。
 #     OSS 単体（実ゲートウェイ無し）でも制御が in-process の SimulatedDeviceControlHandler で 200 で
 #     返る（`bacnet-sim` のままだと GatewayBridge 経由 egress となり実 gateway 不在で 503 gateway_offline）。
@@ -29,6 +39,9 @@ services:
       # Demo: route GW-SOS-001 control to the in-process simulated handler so control
       # returns 200 without an external gateway. Overrides oss.yaml's bacnet-sim binding.
       GatewayConnectionTypes__Map__GW-SOS-001: "simulated"
+      # Demo dataset (#458): the demo building + the e2e twin verbatim (generated from
+      # fixtures/demo/manifest.toml). Only seeds an EMPTY store (#484).
+      OXIGRAPH_SEED_TTL_PATH: ${DEMO_TWIN_PATH:-/fixtures/demo/twin.ttl}
 
   building-os.connector-worker:
     environment:
@@ -59,10 +72,17 @@ services:
       GATEWAY_ID: GW-SOS-001
       INTERVAL_SECONDS: "5"
       PROTO_PATH: /proto/gateway_ingress.proto
+      # #458 demo dataset: per-point intervals + the stale/missing/alarm scenario.
+      DEMO_PLAN_PATH: /fixtures/demo/feeder-plan.json
+      DEMO_SCENARIO: ${DEMO_SCENARIO:-degraded}
+      # One egress stream per connected gateway → GatewayBridge heartbeat → "connected" (ADR-0004).
+      EGRESS_TARGET: building-os.gateway-bridge:5052
     volumes:
       - ./proto:/proto:ro
+      - ./fixtures/demo:/fixtures/demo:ro
     depends_on:
       - building-os.connector-worker
+      - building-os.gateway-bridge
     networks:
       - oss
     restart: unless-stopped
