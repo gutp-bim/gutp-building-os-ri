@@ -77,4 +77,68 @@ public class AncestorResolutionTest(OxiGraphFixture oxiGraph)
             Assert.Equal("F5", detail.Floor?.Id);
         }
     }
+
+    // #548: the batched union must equal the union of the per-id chains — it is what lets a user who
+    // holds only a room/point grant see that node's building and floor as navigation containers.
+    [Theory]
+    [InlineData("point", new[] { "P1", "P2" })]
+    [InlineData("device", new[] { "DUAL", "LITERAL" })]
+    [InlineData("space", new[] { "R501" })]
+    [InlineData("floor", new[] { "F5", "F6" })]
+    public async Task AncestorUnion_EqualsTheUnionOfPerIdChains(string type, string[] ids)
+    {
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(Ttl);
+        var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
+
+        var expected = new HashSet<(string, string)>();
+        foreach (var id in ids)
+            foreach (var a in await resolver.GetAncestorsAsync(type, id)) expected.Add(a);
+
+        var union = await resolver.GetAncestorUnionAsync(type, ids);
+
+        Assert.Equal(expected.OrderBy(a => a), union.OrderBy(a => a));
+    }
+
+    [Fact]
+    public async Task AncestorUnion_IgnoresUnknownIds_EscapesLiterals_AndSpansChunks()
+    {
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(Ttl);
+        var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
+
+        // More ids than one VALUES chunk, a quote that must be escaped, and the real one last.
+        // CR / LF are not allowed raw in a SPARQL short string; an id carrying them must not break the
+        // whole query (and with it every hierarchy list for that user).
+        var ids = Enumerable.Range(0, 450).Select(i => $"NOPE-{i}")
+            .Append("x\"y").Append("line\nbreak").Append("cr\rret").Append("tab\tbed").Append("R501").ToArray();
+
+        var union = await resolver.GetAncestorUnionAsync("space", ids);
+
+        Assert.Equal(new[] { ("building", "B1"), ("floor", "F5") }, union.OrderBy(a => a));
+    }
+
+    [Fact]
+    public async Task AncestorUnion_EmptyInput_AsksNothing()
+    {
+        var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
+        Assert.Empty(await resolver.GetAncestorUnionAsync("point", []));
+    }
+
+    /// <summary>
+    /// A legacy grant recorded against a dtId (#504 migration) still authorizes its node, so its
+    /// ancestors must be found too: an input that is an absolute IRI also matches the node itself.
+    /// </summary>
+    [Theory]
+    [InlineData("space", "urn:t:r501", new[] { "building:B1", "floor:F5" })]
+    [InlineData("floor", "urn:t:f6", new[] { "building:B1" })]
+    [InlineData("device", "urn:t:dual", new[] { "building:B1", "floor:F5", "floor:F6", "space:R501" })]
+    [InlineData("point", "urn:t:p1", new[] { "building:B1", "device:DUAL", "floor:F5", "floor:F6", "space:R501" })]
+    public async Task AncestorUnion_MatchesLegacyDtIdGrants(string type, string dtId, string[] expected)
+    {
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(Ttl);
+        var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
+
+        var union = await resolver.GetAncestorUnionAsync(type, [dtId, "R501-not-an-iri>"]);
+
+        Assert.Equal(expected, union.Select(a => $"{a.ResourceType}:{a.ResourceId}").Order());
+    }
 }

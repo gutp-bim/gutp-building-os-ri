@@ -15,11 +15,45 @@ namespace BuildingOs.ApiServer.Authorization;
 /// 絞り込みは <see cref="ListPointDetailsAsync"/> がキャッシュヒットでも毎回やり直す。
 /// null なら毎回 twin を読む（データ健全性以外の経路は従来どおり）。
 /// </param>
+/// <param name="navigable">
+/// 付与されたノードの祖先（#548）。階層の一覧（建物・フロア・部屋・機器）にだけ「辿るための入れ物」
+/// として加える。祖先そのものの取得（GET）は従来どおり拒否する。null なら #548 以前の挙動。
+/// </param>
 public sealed class AuthorizedTwinView(
     IDigitalTwinDatabase db,
     IAuthorizationService authService,
-    PointDetailInventoryCache? inventory = null) : IAuthorizedTwinView
+    PointDetailInventoryCache? inventory = null,
+    INavigableAncestorResolver? navigable = null) : IAuthorizedTwinView
 {
+    // ── Navigable ancestors (#548) ────────────────────────────────────────────
+    //
+    // Memoized per view instance (one request) on top of the resolver's own short cross-request cache,
+    // which is what actually spares /home's per-space device requests from re-resolving every grant.
+    // The memo holds the caller-scoped wait (WaitAsync), so it is only reused within this request.
+    private static readonly IReadOnlySet<(string, string)> NoAncestors = new HashSet<(string, string)>();
+    private AuthorizationContext? _navigableFor;
+    private Task<IReadOnlySet<(string ResourceType, string ResourceId)>>? _navigable;
+
+    private Task<IReadOnlySet<(string ResourceType, string ResourceId)>> NavigableAsync(
+        AuthorizationContext auth, CancellationToken ct)
+    {
+        if (navigable is null || auth.IsAdmin) return Task.FromResult(NoAncestors);
+        if (_navigable is null || !ReferenceEquals(_navigableFor, auth))
+        {
+            _navigableFor = auth;
+            _navigable = navigable.ResolveAsync(auth, ct);
+        }
+        return _navigable;
+    }
+
+    // A navigation-only entry is listed so the user can walk past it, not read it: only its name and
+    // position (dtId, business id) go out — never the owner, supplier, gateway, identifiers or tags of
+    // a node whose GET stays Forbidden. A node the user is granted keeps its full metadata.
+    private static Building NavigationOnly(Building b) => new() { DtId = b.DtId, Id = b.Id, Name = b.Name };
+    private static Floor NavigationOnly(Floor f) => new() { DtId = f.DtId, Id = f.Id, Name = f.Name };
+    private static Space NavigationOnly(Space x) => new() { DtId = x.DtId, Id = x.Id, Name = x.Name };
+    private static Device NavigationOnly(Device d) => new() { DtId = d.DtId, Id = d.Id, Name = d.Name };
+
     // ── dtId guard (#446) ─────────────────────────────────────────────────────
     //
     // Every dtId below is interpolated by the twin into a SPARQL IRI reference (<{dtId}>), which has
@@ -86,7 +120,11 @@ public sealed class AuthorizedTwinView(
         var all = await db.ListBuildings();
         if (auth.IsAdmin) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "building", "read", ct).ConfigureAwait(false);
-        return all.Where(b => Grants(ids, b.Id, b.DtId)).ToArray();
+        var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
+        return all
+            .Select(b => Grants(ids, b.Id, b.DtId) ? b
+                : ancestors.Contains(("building", b.Id)) ? NavigationOnly(b) : null)
+            .OfType<Building>().ToArray();
     }
 
     public Task<TwinGetResult<Building>> GetBuildingAsync(AuthorizationContext auth, string buildingDtId, CancellationToken ct)
@@ -105,7 +143,11 @@ public sealed class AuthorizedTwinView(
         var parent = await db.GetBuilding(buildingDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "building", buildingDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "floor", "read", ct).ConfigureAwait(false);
-        return all.Where(f => Grants(ids, f.Id, f.DtId)).ToArray();
+        var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
+        return all
+            .Select(f => Grants(ids, f.Id, f.DtId) ? f
+                : ancestors.Contains(("floor", f.Id)) ? NavigationOnly(f) : null)
+            .OfType<Floor>().ToArray();
     }
 
     public Task<TwinGetResult<Floor>> GetFloorAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct)
@@ -124,7 +166,11 @@ public sealed class AuthorizedTwinView(
         var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "space", "read", ct).ConfigureAwait(false);
-        return all.Where(s => Grants(ids, s.Id, s.DtId)).ToArray();
+        var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
+        return all
+            .Select(s => Grants(ids, s.Id, s.DtId) ? s
+                : ancestors.Contains(("space", s.Id)) ? NavigationOnly(s) : null)
+            .OfType<Space>().ToArray();
     }
 
     public Task<TwinGetResult<Space>> GetSpaceAsync(AuthorizationContext auth, string spaceDtId, CancellationToken ct)
@@ -178,7 +224,11 @@ public sealed class AuthorizedTwinView(
         var parent = await db.GetSpace(spaceDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "space", spaceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
-        return all.Where(d => Grants(ids, d.Id, d.DtId)).ToArray();
+        var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
+        return all
+            .Select(d => Grants(ids, d.Id, d.DtId) ? d
+                : ancestors.Contains(("device", d.Id)) ? NavigationOnly(d) : null)
+            .OfType<Device>().ToArray();
     }
 
     public Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct)

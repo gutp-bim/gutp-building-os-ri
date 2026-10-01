@@ -30,6 +30,98 @@ public class OxiGraphHierarchyResolver : IResourceHierarchyResolver
         };
     }
 
+    /// <summary>
+    /// Ids per SPARQL query in <see cref="GetAncestorUnionAsync"/>. A Group can hold thousands of
+    /// points; one VALUES block per chunk keeps each query a reasonable size.
+    /// </summary>
+    internal const int AncestorUnionChunkSize = 200;
+
+    // The Room-or-direct-Level placement of ?dev, binding ?spaceId (Room path only), ?floorId and
+    // ?buildingId — the same topology the per-id queries above walk (union of every placement).
+    private static readonly string DevicePlacement = $@"
+  OPTIONAL {{
+    {{
+      ?dev <{Prop_LocatedIn}> ?space .
+      ?space a <{Cls_Space}> ; <{Prop_Id}> ?spaceId .
+      ?floor <{Prop_HasPart}> ?space .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }} UNION {{
+      ?dev <{Prop_LocatedIn}> ?floor .
+      ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+      ?building <{Prop_HasPart}> ?floor .
+      ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+    }}
+  }}";
+
+    /// <summary>
+    /// The union of the ancestor chains of many resources of one type (#548), one VALUES query per
+    /// <see cref="AncestorUnionChunkSize"/> ids instead of one query per id.
+    /// </summary>
+    public async Task<IReadOnlyCollection<(string ResourceType, string ResourceId)>> GetAncestorUnionAsync(
+        string resourceType, IReadOnlyCollection<string> resourceIds, CancellationToken ct = default)
+    {
+        var union = new HashSet<(string, string)>();
+        var type = resourceType.ToLowerInvariant();
+        foreach (var chunk in resourceIds.Distinct(StringComparer.Ordinal).Chunk(AncestorUnionChunkSize))
+        {
+            var (sparql, columns) = type switch
+            {
+                "point" => ($@"{Prefixes}
+SELECT DISTINCT ?buildingId ?floorId ?spaceId ?devId
+WHERE {{
+{Input("pt", Cls_Point, chunk)}
+  ?dev <{Prop_HasPoint}> ?pt .
+  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId .{DevicePlacement}
+}}", new[] { ("buildingId", "building"), ("floorId", "floor"), ("spaceId", "space"), ("devId", "device") }),
+                "device" => ($@"{Prefixes}
+SELECT DISTINCT ?buildingId ?floorId ?spaceId
+WHERE {{
+{Input("dev", Cls_Equipment, chunk)}{DevicePlacement}
+}}", new[] { ("buildingId", "building"), ("floorId", "floor"), ("spaceId", "space") }),
+                "space" => ($@"{Prefixes}
+SELECT DISTINCT ?buildingId ?floorId
+WHERE {{
+{Input("space", Cls_Space, chunk)}
+  ?floor <{Prop_HasPart}> ?space .
+  ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
+  ?building <{Prop_HasPart}> ?floor .
+  ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+}}", new[] { ("buildingId", "building"), ("floorId", "floor") }),
+                "floor" => ($@"{Prefixes}
+SELECT DISTINCT ?buildingId
+WHERE {{
+{Input("floor", Cls_Level, chunk)}
+  ?building <{Prop_HasPart}> ?floor .
+  ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
+}}", new[] { ("buildingId", "building") }),
+                _ => ((string?)null, Array.Empty<(string, string)>()),
+            };
+            if (sparql is null) break;
+
+            var rows = await _client.QueryAsync(sparql, ct);
+            foreach (var ancestor in Union(rows, columns)) union.Add(ancestor);
+        }
+        return union;
+    }
+
+    /// <summary>
+    /// Binds <c>?{var}</c> to the nodes of <paramref name="cls"/> the ids name: by business id
+    /// (<c>sbco:id</c>), and — for an id that is a well-formed absolute IRI — as the node itself, so a
+    /// legacy grant recorded against a dtId (#504 migration) still finds its ancestors. Only validated
+    /// IRIs are written as <c>&lt;…&gt;</c>, which has no escape mechanism (#446).
+    /// </summary>
+    private static string Input(string var, string cls, IEnumerable<string> ids)
+    {
+        var list = ids.ToList();
+        var literals = string.Join(" ", list.Select(id => $"\"{EscapeLiteral(id)}\""));
+        var iris = string.Join(" ", list.Where(SparqlIriValidator.IsValidAbsoluteIri).Select(id => $"<{id}>"));
+        var byId = $"{{ VALUES ?inId {{ {literals} }} ?{var} <{Prop_Id}> ?inId . }}";
+        var match = iris.Length == 0 ? byId : $"{byId} UNION {{ VALUES ?{var} {{ {iris} }} }}";
+        return $"  {match}\n  ?{var} a <{cls}> .";
+    }
+
     private async Task<IReadOnlyList<(string, string)>> GetPointAncestors(string pointId, CancellationToken ct)
     {
         var dtId = await ResolvePointDtId(pointId, ct);
@@ -145,5 +237,11 @@ SELECT ?dt WHERE {{
         return result;
     }
 
-    private static string EscapeLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    // SPARQL short strings may not hold a raw `"`, `\`, LF or CR (tab is allowed). Matches
+    // OxiGraphDescendantResolver: an id with a line break must not make the whole query unparseable.
+    private static string EscapeLiteral(string s) => s
+        .Replace("\\", "\\\\")
+        .Replace("\"", "\\\"")
+        .Replace("\r", "\\r")
+        .Replace("\n", "\\n");
 }
