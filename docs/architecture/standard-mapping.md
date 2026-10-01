@@ -142,6 +142,8 @@ REC 由来の階層（`rec:hasPart` 等）と併用できるよう設計され�
 ## 3. データプロパティ対応表
 
 `sbco:PointExt` / `sbco:EquipmentExt` の主なデータプロパティと各標準の対応。
+値の語彙と Building OS での扱い（点種別の決め方、`writable` と制御、単位、`scale` の向き、`interval`）は
+[`point-vocabulary.md`](point-vocabulary.md) を参照。
 
 | SBCO プロパティ | 説明 | Brick 相当 | REC 相当 | ラベル |
 |----------------|------|-----------|---------|--------|
