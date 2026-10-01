@@ -42,9 +42,9 @@ public static class BuildingOsMetrics
             description: "Connector message processing duration in milliseconds.");
 
     /// <summary>
-    /// #527: a lake read found a point's telemetry under more than one building partition — its
-    /// partition key changed, so reads pruned to the building learned before may have missed rows.
-    /// Each point is counted once until the learned map is reset.
+    /// #527: a lake read found a point's telemetry under more than one building partition after the
+    /// last recorded partition-key change — its key changed unrecorded, so reads pruned to the building
+    /// learned before may have missed rows. The reader records the change when it sees this.
     /// </summary>
     public static readonly Counter<long> LakePointBuildingConflicts =
         Meter.CreateCounter<long>(

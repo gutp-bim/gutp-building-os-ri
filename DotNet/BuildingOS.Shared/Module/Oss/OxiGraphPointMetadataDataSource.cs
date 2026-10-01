@@ -214,8 +214,8 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
                 "Digital twin has {MismatchCount} placed point(s) whose sbco:building literal names a different " +
                 "building than the topology reaches (e.g. {SamplePointIds}). Telemetry for them is partitioned " +
                 "under the topology's building (#527), so their older telemetry sits under another lake partition: " +
-                "reset the API server's learned point → building map (POST /api/v1/system/lake/point-buildings/reset) " +
-                "after this worker starts, and correct or drop the stale literal",
+                "record the key change once on the API server (POST /api/v1/system/lake/point-buildings/reset) " +
+                "so lake reads spanning it are not pruned to one building, and correct or drop the stale literal",
                 mismatched.Length, string.Join(", ", mismatched.Take(AmbiguousPointIdSampleLimit)));
         }
 

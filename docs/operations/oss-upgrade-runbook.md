@@ -96,19 +96,21 @@ ConnectorWorker の gRPC ingress は、テレメトリの `building`（Parquet �
   `building_id=` パーティション**に入る。食い違う Point の件数とサンプルは、ConnectorWorker が
   メタデータを読み込むたびに `placed point(s) whose sbco:building literal names a different building`
   の警告ログで出す。更新前にこのログ（または twin の `sbco:building` と所属建物の比較）で件数を確認する。
-- **読み取り側（API Server）。** レイクの読み取りは「Point → 建物」を学習して、走査する建物を絞る（#273）。
-  この絞り込みは「Point の建物は変わらない」前提に立つので、キーが変わった Point では次のように扱う。
-  - 読み取りが 1 つの Point を 2 つの建物（建物の無い行は `unknown` として数える）で見つけたら、警告ログ
-    （`has telemetry under more than one building partition`）とメトリクス
-    `building_os.lake.point_building_conflicts` を出し、その Point は以後 1 日、絞り込まない。
-  - **学習のリセット：** `POST /api/v1/system/lake/point-buildings/reset`（管理者、API Server の
-    レプリカごと）で学習を全部忘れさせられる。twin の取り込み（`/admin/twin/import/apply`）を適用した
-    ときは、そのレプリカで自動的にリセットする。API Server の再起動でも空から始まる。
-  - **手順：** 食い違う Point がある（上の ConnectorWorker の警告が出る）場合は、ConnectorWorker を更新した
-    後に各 API Server レプリカでリセットを実行する。
-  - **残る制約：** 学習は最初に全建物を読んだ時点の行から決まる。切り替えの片側だけを読んで学習した後、
-    30 分以内に切り替えをまたぐ期間を読むと、もう片側の行が欠けうる（その読み取りは絞り込まれていて、
-    2 つ目の建物を見ないので検出もされない）。トポロジーの変更はまれなので、この窓は移行直後に限られる。
+- **読み取り側（API Server）。** レイクの読み取りは Point の建物を学習して走査する建物を絞る（#273）。
+  これは「Point の建物は変わらない」前提なので、**「パーティションキーが変わった時刻」**を記録し、
+  その時刻（+1 時間の猶予：ingress のメタデータキャッシュと flush が追いつくまで）より前から始まる
+  期間の読み取りは、絞り込まず、学習にも使わない。記録はレイクのバケット（`cold/_meta/partition-keys-changed-at`）
+  にあるので、すべてのレプリカと再起動後にも効き、保持期間（`LAKE_RETENTION_DAYS`）で古いデータと一緒に消える。
+  - **記録のしかた：** `POST /api/v1/system/lake/point-buildings/reset`（管理者）。twin の取り込みを適用した
+    ときは自動で記録される。また、記録後の期間の読み取りが 1 つの Point を 2 つの建物（建物の無い行は
+    `unknown` として数える）で見つけたら、警告ログ（`has telemetry under more than one building partition`）と
+    `building_os.lake.point_building_conflicts` を出し、その時点を自動で記録する。
+  - **#527 への更新手順：** 食い違う Point がある（上の ConnectorWorker の警告が出る）場合は、ConnectorWorker を
+    更新した後に上の API を 1 回実行する。
+  - **費用：** 記録した時刻より前から始まる読み取りは全建物を走査する（#273 以前の挙動）。それ以降だけの
+    読み取りは従来どおり絞り込まれる。
+  - **残る制約：** 記録せずにキーが変わった場合（twin を API 以外の経路で変えた等）、検出されるまでの間は、
+    変更をまたぐ読み取りが片側の建物の行を落としうる。
 - compaction / ロールアップ / バックフィルの単位は建物ごとなので、食い違う Point の切り替え前後の
   データは別々の建物単位で処理される（データは失われない）。建物単位の保持やバックフィルを運用している
   場合は、切り替え前の期間を旧建物 ID で扱うこと。

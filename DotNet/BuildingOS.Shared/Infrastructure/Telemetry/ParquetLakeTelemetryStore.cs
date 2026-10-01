@@ -45,10 +45,12 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
     {
         // Point→building pruning (#273): if we already know this point's building, scan only it
         // instead of every building in the lake; otherwise scan all and learn the building below.
-        var known = _scan.GetCachedBuilding(pointId);
+        // #527: only a range after the last recorded partition-key change may be pruned or learned from.
+        var prunable = await _scan.CanPruneAsync(start, cancellationToken).ConfigureAwait(false);
+        var known = prunable ? _scan.GetCachedBuilding(pointId) : null;
         var deduped = await ScanAsync(known is null ? null : new[] { known }).ConfigureAwait(false);
-        if (known is null)
-            Learn(pointId, deduped);
+        if (prunable && known is null)
+            await LearnAsync(pointId, deduped, cancellationToken).ConfigureAwait(false);
         return deduped;
 
         async Task<ValidTelemetryData[]> ScanAsync(IReadOnlyList<string>? buildings)
@@ -73,7 +75,9 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
         // Point→building pruning (#273): prune only when EVERY requested point's building is known,
         // to the (distinct) union of those buildings; otherwise scan all (a single unknown point in a
         // different building would otherwise be missed).
-        var cached = wanted.Select(p => _scan.GetCachedBuilding(p)).ToList();
+        // #527: only a range after the last recorded partition-key change may be pruned or learned from.
+        var prunable = await _scan.CanPruneAsync(start, cancellationToken).ConfigureAwait(false);
+        var cached = wanted.Select(p => prunable ? _scan.GetCachedBuilding(p) : null).ToList();
         IReadOnlyList<string>? filter = cached.All(b => b is not null)
             ? cached.Cast<string>().Distinct(StringComparer.Ordinal).ToList()
             : null;
@@ -85,8 +89,8 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             {
                 var deduped = ParquetLakeReadPlanner.DedupById(rows);
                 result[id] = deduped;
-                if (filter is null)
-                    Learn(id, deduped);
+                if (prunable && filter is null)
+                    await LearnAsync(id, deduped, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -108,28 +112,14 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
     {
         var now = DateTime.UtcNow;
         var hours = ParquetLakeReadPlanner.LookbackHours(now, _options.LatestLookbackHours).ToList();
-        // Point→building pruning (#273): probe only the point's building when known.
-        var known = _scan.GetCachedBuilding(pointId);
-
-        if (known is not null)
-        {
-            var (pruned, hourIndex) = await FindNewestAsync(new[] { known }, hours).ConfigureAwait(false);
-
-            // #527: the point may have been re-keyed to another building since we learned this one —
-            // even within the very hour the pruned read matched, where the old building holds the
-            // earlier rows and the new one the later. So the pruned answer only bounds the search:
-            // every building is read for that hour and the newer ones, and the newest row wins. The
-            // pruning still pays for a stale point, whose answer sits many hours back. A pruned miss
-            // is retried over every building and the whole lookback. (The lake is only the fallback
-            // for latest — the router asks the Hot KV first.)
-            var all = await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
-            var probe = pruned is null ? hours : hours.Take(hourIndex + 1).ToList();
-            var (newest, _) = await FindNewestAsync(all, probe).ConfigureAwait(false);
-            return newest ?? pruned;
-        }
-
-        var everyBuilding = await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
-        return (await FindNewestAsync(everyBuilding, hours).ConfigureAwait(false)).Row;
+        // Point→building pruning (#273): probe only the point's building when known — and, as for the
+        // range reads, only when the whole lookback lies after the last partition-key change (#527).
+        var prunable = await _scan.CanPruneAsync(hours[^1], cancellationToken).ConfigureAwait(false);
+        var known = prunable ? _scan.GetCachedBuilding(pointId) : null;
+        var buildings = known is not null
+            ? new[] { known }
+            : await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
+        return (await FindNewestAsync(buildings, hours).ConfigureAwait(false)).Row;
 
         // The newest row of the point in the first (most recent) of `probe` hours that has one, and
         // that hour's index in `probe`. Learns from what it read.
@@ -152,7 +142,8 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
                 if (rows.Count > 0)
                 {
                     var deduped = ParquetLakeReadPlanner.DedupById(rows); // ascending by time
-                    Learn(pointId, deduped);
+                    if (prunable && known is null)
+                        await LearnAsync(pointId, deduped, cancellationToken).ConfigureAwait(false);
                     return (deduped[^1], h); // newest in the most recent hour with data
                 }
             }
@@ -161,20 +152,29 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
     }
 
     /// <summary>
-    /// Learns the point's building from a full scan, and warns when the point turns out to live under
-    /// more than one (#527): reads pruned to one of them before this could have missed rows in the
-    /// other. The point is not pruned from now on; LakePointBuildingCache.Reset clears the slate.
+    /// Learns the point's building from a full scan of a range after the last recorded key change.
+    /// Finding the point under more than one building there means its key changed without being
+    /// recorded (#527): reads pruned before this may have missed rows. Warn, and record the change now,
+    /// so no read that starts before it is pruned again.
     /// </summary>
-    private void Learn(string pointId, IReadOnlyList<ValidTelemetryData> rows)
+    private async Task LearnAsync(string pointId, IReadOnlyList<ValidTelemetryData> rows, CancellationToken ct)
     {
         if (_scan.LearnBuilding(pointId, rows) is not { } buildings) return;
         BuildingOsMetrics.LakePointBuildingConflicts.Add(1);
         _logger.LogWarning(
-            "Lake point {PointId} has telemetry under more than one building partition ({Buildings}); its " +
-            "partition key changed (twin topology change or the #527 key migration). Its reads are no longer " +
-            "pruned to one building. Reads pruned before this was detected may have missed rows; reset the " +
-            "learned point → building map (POST /api/v1/system/lake/point-buildings/reset) after a twin change",
+            "Lake point {PointId} has telemetry under more than one building partition ({Buildings}): its " +
+            "partition key changed without being recorded (twin topology change, or the #527 key migration). " +
+            "Recording the change now; reads pruned to one building before this may have missed rows. " +
+            "After a twin change, record it explicitly: POST /api/v1/system/lake/point-buildings/reset",
             pointId, string.Join(", ", buildings));
+        try
+        {
+            await _scan.MarkKeysChangedAsync(DateTime.UtcNow, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not record the lake partition-key change for point {PointId}", pointId);
+        }
     }
 
     private IReadOnlyList<string> CapFiles(IReadOnlyList<string> keys, string queryLabel, DateTime start, DateTime end)

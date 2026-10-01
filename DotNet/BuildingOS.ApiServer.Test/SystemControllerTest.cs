@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOs.ApiServer.Controllers;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
@@ -18,13 +19,15 @@ public class SystemControllerTest
         AuthorizationContext auth,
         IIngressRejectionStatsService? ingressStats = null,
         ISystemStatusService? statusService = null,
-        ISystemSettingsService? settings = null)
+        ISystemSettingsService? settings = null,
+        ILakePartitionKeyChanges? lakeKeys = null)
     {
         return new SystemController(
             statusService ?? Mock.Of<ISystemStatusService>(),
             Mock.Of<IEffectiveConfigService>(),
             ingressStats ?? Mock.Of<IIngressRejectionStatsService>(),
-            settings ?? Mock.Of<ISystemSettingsService>())
+            settings ?? Mock.Of<ISystemSettingsService>(),
+            lakeKeys: lakeKeys)
         {
             ControllerContext = new ControllerContext
             {
@@ -103,35 +106,30 @@ public class SystemControllerTest
         Assert.Equal(PipelineKpiThresholds.Defaults, body.Thresholds);
     }
 
-    // ── #527: reset the lake reader's learned point → building map ───────────────
+    // ── #527: record a lake partition-key change ─────────────────────────────────
 
     [Fact]
-    public void ResetLakePointBuildings_Admin_ResetsAndReturns204()
+    public async Task ResetLakePointBuildings_Admin_RecordsTheChange()
     {
-        var before = LakePointBuildingCacheProbe.Generation();
+        var lake = new Mock<ILakePartitionKeyChanges>();
 
-        var result = Build(Auth("admin")).ResetLakePointBuildings();
-
-        Assert.IsType<NoContentResult>(result);
-        Assert.NotEqual(before, LakePointBuildingCacheProbe.Generation());
+        Assert.IsType<NoContentResult>(await Build(Auth("admin"), lakeKeys: lake.Object).ResetLakePointBuildings(default));
+        lake.Verify(l => l.MarkChangedAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]
     [InlineData("operator")]
     [InlineData("viewer")]
-    public void ResetLakePointBuildings_NonAdmin_IsForbidden(string role)
+    [InlineData("group-manager")]
+    public async Task ResetLakePointBuildings_NonAdmin_IsForbidden(string role)
     {
-        var before = LakePointBuildingCacheProbe.Generation();
+        var lake = new Mock<ILakePartitionKeyChanges>();
 
-        Assert.IsType<ForbidResult>(Build(Auth(role)).ResetLakePointBuildings());
-        Assert.Equal(before, LakePointBuildingCacheProbe.Generation());
+        Assert.IsType<ForbidResult>(await Build(Auth(role), lakeKeys: lake.Object).ResetLakePointBuildings(default));
+        lake.Verify(l => l.MarkChangedAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
-}
 
-/// <summary>Reads the reset generation without making it public API.</summary>
-internal static class LakePointBuildingCacheProbe
-{
-    public static long Generation() => (long)typeof(BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake.LakePointBuildingCache)
-        .GetProperty("Generation", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
-        .GetValue(null)!;
+    [Fact]
+    public async Task ResetLakePointBuildings_WithoutALake_Is409()
+        => Assert.IsType<ConflictObjectResult>(await Build(Auth("admin")).ResetLakePointBuildings(default));
 }

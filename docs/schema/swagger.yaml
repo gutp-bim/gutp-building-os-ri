@@ -2149,12 +2149,24 @@ paths:
     post:
       tags:
         - System
-      summary: "Parquet レイク読み取りが学習した「Point → 建物」の対応（#273 の絞り込み）を忘れさせる（#527）。\n絞り込みは Point の建物が変わらない前提なので、twin のトポロジーを変えた後や、#527 で\nパーティションキーがトポロジー由来に変わった後に実行すると、以後の読み取りは全建物を走査して\n学習し直す。この API Server プロセスの学習だけが対象（レプリカごとに実行する）。twin の取り込みを\n適用したときは自動で行われる。管理者のみ。"
+      summary: "Parquet レイクのパーティションキー（建物）が「今」変わったと記録する（#527）。レイクの読み取りは\nPoint の建物を学習して走査する建物を絞るが（#273）、記録した時刻（+1 時間の猶予）より前から\n始まる期間の読み取りは、以後絞り込まない（その前の行は別の建物の下にありうるため）。記録は\nレイクのバケットに置くので、すべての API Server レプリカに 1 分以内に効く。twin の取り込みを\n適用したときと、読み取りが 1 つの Point を 2 つの建物で見つけたときは自動で記録される。\n#527 への更新時など、twin の外でキーが変わったときに実行する。管理者のみ。"
       responses:
         '204':
           description: No Content
         '403':
           description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict
           content:
             text/plain:
               schema:

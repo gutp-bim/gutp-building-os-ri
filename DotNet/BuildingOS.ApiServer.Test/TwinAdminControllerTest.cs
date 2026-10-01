@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOs.ApiServer.Controllers;
 using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
@@ -163,18 +164,25 @@ public class TwinAdminControllerTest
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    /// <summary>#527: an applied import may move points between buildings, so the lake reader forgets what it learned.</summary>
+    /// <summary>#527: an applied import may move points between buildings, so it records a lake key change.</summary>
     [Fact]
-    public async Task ApplyImport_Applied_ResetsTheLakePointBuildingMap()
+    public async Task ApplyImport_Applied_RecordsALakeKeyChange()
     {
-        var (c, svc, _) = Build(Auth("admin"));
+        var lake = new Mock<ILakePartitionKeyChanges>();
+        var svc = new Mock<ITwinAdminService>();
         svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
-        var before = LakePointBuildingCacheProbe.Generation();
+        var c = new TwinAdminController(svc.Object, Mock.Of<IAdminAuditRecorder>(), new MemoryPointListRevisionCoordinator(),
+            Mock.Of<IPointListMaterializerSweepTrigger>(), NullLogger<TwinAdminController>.Instance, lake.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { Items = { ["AuthorizationContext"] = Auth("admin") } },
+            },
+        };
 
         Assert.IsType<OkObjectResult>(await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default));
-
-        Assert.NotEqual(before, LakePointBuildingCacheProbe.Generation());
+        lake.Verify(l => l.MarkChangedAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

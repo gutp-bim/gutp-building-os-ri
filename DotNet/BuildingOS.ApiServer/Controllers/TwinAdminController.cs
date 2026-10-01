@@ -31,13 +31,17 @@ public class TwinAdminController : ControllerBase
     private readonly IPointListMaterializerSweepTrigger _pointListMaterializerSweep;
     private readonly ILogger<TwinAdminController> _logger;
 
+    private readonly ILakePartitionKeyChanges? _lakeKeys;
+
     public TwinAdminController(
         ITwinAdminService twin,
         IAdminAuditRecorder audit,
         IPointListRevisionCoordinator pointListRevisions,
         IPointListMaterializerSweepTrigger pointListMaterializerSweep,
-        ILogger<TwinAdminController> logger)
+        ILogger<TwinAdminController> logger,
+        ILakePartitionKeyChanges? lakeKeys = null)
     {
+        _lakeKeys = lakeKeys;
         _twin = twin;
         _audit = audit;
         _pointListRevisions = pointListRevisions;
@@ -168,10 +172,21 @@ public class TwinAdminController : ControllerBase
             // rather than rebuilding inline — the admin response is not blocked on a full-twin
             // materialization. Reads stay correct in the meantime via the ETag invalidation above.
             _pointListMaterializerSweep.RequestSweep();
-            // The import may move points between buildings, which changes their lake partition key;
-            // forget the reader's learned point → building map so no read stays pruned to an old one
-            // (#527). Only this replica's map — the others age out (30 min) or are reset by the API.
-            LakePointBuildingCache.Reset();
+            // The import may move points between buildings, which changes their lake partition key:
+            // record the change, so no lake read starting before now is pruned to a learned building
+            // (#527). Best-effort — the twin is already changed, and a read that later finds a point
+            // under two buildings records it too.
+            if (_lakeKeys is not null)
+            {
+                try
+                {
+                    await _lakeKeys.MarkChangedAsync(ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Twin import applied, but the lake partition-key change could not be recorded");
+                }
+            }
             await AuditAsync(auth, "import-apply", null, AdminAuditResult.Success,
                 Meta(request.Turtle, mode.ToString(), preview, request.AllowOrphans), ct).ConfigureAwait(false);
             return Ok(preview);
