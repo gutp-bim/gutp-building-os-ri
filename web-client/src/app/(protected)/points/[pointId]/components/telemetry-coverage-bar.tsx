@@ -30,9 +30,9 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = {
 };
 
 const UNAVAILABLE_TEXT = {
-  "too-dense":
-    "高頻度ポイントのため受信状況バーは表示していません（24h の全件取得を避けるため、集計 API の提供後に表示します）。",
   "no-interval": "期待更新周期が未設定のため、受信率を計算できません。",
+  partial:
+    "保存データの読み取りが上限で打ち切られたため、24h の受信状況を確定できません（欠測とは限りません）。",
 } as const;
 
 function timeLabel(iso: string): string {

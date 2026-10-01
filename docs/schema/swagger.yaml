@@ -2699,6 +2699,84 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/telemetries/coverage:
+    get:
+      tags:
+        - Telemetry
+      summary: "24 時間の受信件数を 15 分ごとに数えて返す（#551）。Point 詳細の「受信状況 24h」バー（#457）用で、\n高頻度ポイント（5 秒周期なら 1 日約 17,000 件）でも生データをブラウザへ送らずに 96 個の件数だけを返す。\n区間は `end` から遡る 24 時間で、古い順・`end` 基準で揃えた半開区間。受信率への換算\n（期待件数 = 900 / 期待周期）はクライアント側で行う。読み取りが打ち切られた場合は\n`/telemetries/query` と同じく `X-Partial-Result` / `X-Covered-From` を付ける（#499）。"
+      parameters:
+        - name: pointId
+          in: query
+          description: 必須. ポイントID
+          schema:
+            type: string
+        - name: end
+          in: query
+          description: 窓の終端（UTC）。省略時は現在時刻
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TelemetryCoverage'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryCoverage'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryCoverage'
+        '401':
+          description: Unauthorized
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Not Found
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v1/telemetries/query/batch-latest:
     post:
       tags:
@@ -4765,6 +4843,27 @@ components:
         thresholds:
           $ref: '#/components/schemas/PipelineKpiThresholds'
       additionalProperties: false
+    TelemetryCoverage:
+      type: object
+      properties:
+        pointId:
+          type: string
+        windowStart:
+          type: string
+          format: date-time
+        windowEnd:
+          type: string
+          format: date-time
+        bucketSeconds:
+          type: integer
+          format: int32
+        counts:
+          type: array
+          items:
+            type: integer
+            format: int32
+      additionalProperties: false
+      description: "24 h receive counts per 15-minute bucket for one point (#551) — the server-side half of the Point\ndetail's 24 h coverage bar (#457). The web client used to download the raw readings and count them\nitself, which it skips for points whose 24 h would exceed ~2,000 rows (interval ≲ 43 s); a 5-second\npoint has ~17,000. Counting here keeps the wire to 96 integers whatever the rate.\n            \n\nBuckets are oldest first, aligned to BuildingOs.ApiServer.Telemetry.TelemetryCoverage.WindowEnd (not the wall clock) and\nhalf-open `[start, start + 15 min)` — the same layout as `bucketCoverage` in\n`web-client/src/lib/telemetry/coverage.ts`, which turns them into a coverage ratio using the\npoint's expected interval."
     TelemetryGranularity:
       enum:
         - 0

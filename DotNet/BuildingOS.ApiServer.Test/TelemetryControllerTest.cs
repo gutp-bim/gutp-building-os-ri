@@ -435,4 +435,86 @@ public class TelemetryControllerTest
             CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
     }
+
+    // ── GET /telemetries/coverage (#551) ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Coverage_CountsTheLast24HoursOnTheServer()
+    {
+        var (controller, router, _, _, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+        var end = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc);
+        TelemetryQueryRequest? asked = null;
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .Callback<TelemetryQueryRequest, CancellationToken>((q, _) => asked = q)
+              .ReturnsAsync([Sample("p1", "2026-10-02T11:59:00Z", 1), Sample("p1", "2026-10-02T11:58:00Z", 2)]);
+
+        var result = await controller.Coverage("p1", end);
+
+        var body = Assert.IsType<TelemetryCoverage>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(2, body.Counts[^1]);
+        Assert.Equal("p1", body.PointId);
+        Assert.NotNull(asked);
+        Assert.Equal(TelemetryGranularity.Raw, asked!.Granularity);
+        Assert.False(asked.Latest);
+        Assert.Equal(end.AddHours(-24), asked.Start);
+        Assert.Equal(end, asked.End);
+    }
+
+    /// <summary>An end too early to hold a 24 h window is a client error, not a 500.</summary>
+    [Fact]
+    public async Task Coverage_RejectsAnEndThatCannotHoldTheWindow()
+    {
+        var (controller, _, _, _, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+
+        var result = await controller.Coverage("p1", DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc));
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Coverage_RequiresPointId()
+    {
+        var (controller, _, _) = Build();
+        Assert.IsType<BadRequestObjectResult>((await controller.Coverage("", null)).Result);
+    }
+
+    [Fact]
+    public async Task Coverage_ForbidsAPointTheUserCannotRead()
+    {
+        var (controller, _, authz) = Build(role: "viewer");
+        authz.Setup(a => a.CanAccessAsync(
+                It.IsAny<AuthorizationContext>(), "point", "p1", "read", It.IsAny<CancellationToken>()))
+             .ReturnsAsync(false);
+
+        Assert.IsType<ForbidResult>((await controller.Coverage("p1", null)).Result);
+    }
+
+    [Fact]
+    public async Task Coverage_UnknownPoint_IsNotFound()
+    {
+        var (controller, _, _) = Build();
+        Assert.IsType<NotFoundResult>((await controller.Coverage("ghost", null)).Result);
+    }
+
+    [Fact]
+    public async Task Coverage_MarksAPartialResult_WithHeaders()
+    {
+        // #499 applies here too: counts from a truncated read would look like missing data.
+        var (controller, router, _, _, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+        var coveredFrom = new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Utc);
+        router.Setup(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()))
+              .Returns(() =>
+              {
+                  TelemetryQueryCompleteness.ReportTruncated(coveredFrom);
+                  return Task.FromResult(Array.Empty<ValidTelemetryData>());
+              });
+
+        await controller.Coverage("p1", new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal("true", controller.Response.Headers["X-Partial-Result"].ToString());
+        Assert.Equal("2026-10-02T06:00:00.0000000Z", controller.Response.Headers["X-Covered-From"].ToString());
+    }
 }
