@@ -230,6 +230,11 @@ public class PointController(
         var auth = HttpContext.GetAuthorizationContext();
         var decodedPointId = Uri.UnescapeDataString(pointId);
 
+        // A group-manager reads twin structure, never values, and control history is a value (#506).
+        // Refused here explicitly rather than left to whatever GetPointAsync decides for that role.
+        if (!auth.IsAdmin && auth.IsGroupManager)
+            return Forbid();
+
         // Read-authorization: the history reveals control activity on the point, so gate it on read
         // access to the point itself — the same check as GET /api/v1/points/{id} (admin bypasses via twinView).
         switch (await twinView.GetPointAsync(auth, decodedPointId, ct).ConfigureAwait(false))

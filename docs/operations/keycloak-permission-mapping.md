@@ -41,10 +41,19 @@ role only selects the UI workspace; it grants no data access by itself. The real
 **`group-manager` (#506)** is for an external application's service account that keeps Building OS
 Groups in sync (e.g. a tenant portal) without being a full admin. It may:
 
-- create, change and delete Groups and their resource items (`/api/v1/groups/**`);
+- create Groups, and list, change and delete **only the Groups it created itself** (`/api/v1/groups/**`;
+  someone else's Group answers 404). A Group's items are grants to every user holding
+  `group:<id>:<actions>`, so a group-manager must never edit an admin's Group that users hold `write` on.
+  Groups created before this release carry no creator and stay admin-only. Every Group change is
+  recorded in the admin audit (`subjectType=group`);
 - read the twin's **structure** in full regardless of grants — the building / floor / space / device
   lists and gets (including the unscoped lists), the point list of a device or of the whole twin, room
-  adjacency and resource search — so it can choose what a Group holds.
+  adjacency and resource search — as **names and ids only** (no native/BACnet addressing, gateways,
+  owners or thresholds), so it can choose what a Group holds.
+
+A group-manager context never carries permission strings, even if its token has some. Note for admins:
+deleting a Group does not remove `group:<id>` grants from users; remove them too, or a group-manager that
+later creates a Group with the same id would decide what those users can reach.
 
 It reads **no values** and changes nothing else: a single point (`GET /points/{id}`, which also gates
 the control history), telemetry, data health, control, twin import, user / permission management and

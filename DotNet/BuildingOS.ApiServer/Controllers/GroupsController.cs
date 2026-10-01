@@ -2,6 +2,8 @@ using BuildingOs.ApiServer.Routing;
 namespace BuildingOs.ApiServer.Controllers;
 
 using BuildingOs.ApiServer.Extensions;
+using BuildingOS.Shared.Domain.AdminAudit;
+using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.Grouping.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -18,11 +20,40 @@ public class GroupsController : ControllerBase
 {
     private readonly IGroupRepository _groupRepository;
     private readonly ILogger<GroupsController> _logger;
+    private readonly IAdminAuditRecorder? _audit;
 
-    public GroupsController(IGroupRepository groupRepository, ILogger<GroupsController> logger)
+    public GroupsController(
+        IGroupRepository groupRepository, ILogger<GroupsController> logger, IAdminAuditRecorder? audit = null)
     {
         _groupRepository = groupRepository;
         _logger = logger;
+        _audit = audit;
+    }
+
+    // #506: a Group's items are access grants for every user holding group:<id>:<actions>, so a
+    // group-manager only sees and changes the Groups it created itself — never an admin's Group that
+    // users may hold write on. Someone else's Group answers 404, as if it did not exist. Groups from
+    // before ownership was recorded (CreatedBy null) are admin-only.
+    private static bool Manages(AuthorizationContext auth, ResourceGroup group)
+        => auth.IsAdmin || (auth.CanManageGroups && group.CreatedBy == auth.UserId);
+
+    private async Task<ResourceGroup?> LoadManagedAsync(
+        AuthorizationContext auth, string id, bool withItems, CancellationToken ct)
+    {
+        var group = withItems
+            ? await _groupRepository.GetByIdWithItemsAsync(id, ct).ConfigureAwait(false)
+            : await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
+        return group is not null && Manages(auth, group) ? group : null;
+    }
+
+    private Task AuditAsync(AuthorizationContext auth, string action, string targetId, object? detail, CancellationToken ct)
+    {
+        if (_audit is null) return Task.CompletedTask;
+        var detailJson = detail is null ? null : System.Text.Json.JsonSerializer.Serialize(detail);
+        return _audit.RecordAsync(
+            AdminAuditRecord.Create(AdminAuditSubjects.Group, action, targetId, auth.UserId, actorName: null,
+                AdminAuditResult.Success, detailJson),
+            ct);
     }
 
     // === Group CRUD ===
@@ -37,7 +68,7 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
         var groups = await _groupRepository.GetAllAsync(ct).ConfigureAwait(false);
-        return Ok(groups.Select(ToResponse));
+        return Ok(groups.Where(g => Manages(authContext, g)).Select(ToResponse));
     }
 
     /// <summary>
@@ -51,7 +82,7 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
 
-        var group = await _groupRepository.GetByIdWithItemsAsync(id, ct).ConfigureAwait(false);
+        var group = await LoadManagedAsync(authContext, id, withItems: true, ct).ConfigureAwait(false);
         if (group == null)
         {
             return NotFound();
@@ -85,10 +116,12 @@ public class GroupsController : ControllerBase
         {
             Id = request.Id,
             Name = request.Name,
-            Description = request.Description
+            Description = request.Description,
+            CreatedBy = authContext.UserId,
         };
 
         var created = await _groupRepository.CreateAsync(group, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-create", created.Id, new { name = created.Name }, ct).ConfigureAwait(false);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, ToResponse(created));
     }
 
@@ -103,7 +136,7 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
 
-        var existing = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
+        var existing = await LoadManagedAsync(authContext, id, withItems: false, ct).ConfigureAwait(false);
         if (existing == null)
         {
             return NotFound();
@@ -113,6 +146,7 @@ public class GroupsController : ControllerBase
         existing.Description = request.Description;
 
         await _groupRepository.UpdateAsync(existing, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-update", id, new { name = existing.Name }, ct).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -127,13 +161,14 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
 
-        var existing = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
+        var existing = await LoadManagedAsync(authContext, id, withItems: false, ct).ConfigureAwait(false);
         if (existing == null)
         {
             return NotFound();
         }
 
         await _groupRepository.DeleteAsync(id, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-delete", id, null, ct).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -154,7 +189,7 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
 
-        var group = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
+        var group = await LoadManagedAsync(authContext, id, withItems: false, ct).ConfigureAwait(false);
         if (group == null)
         {
             return NotFound();
@@ -169,6 +204,8 @@ public class GroupsController : ControllerBase
         {
             var item = await _groupRepository.AddResourceItemAsync(
                 id, request.ResourceType, request.ResourceId, ct).ConfigureAwait(false);
+            await AuditAsync(authContext, "group-add-resource", id,
+                new { resourceType = request.ResourceType, resourceId = request.ResourceId }, ct).ConfigureAwait(false);
             return CreatedAtAction(nameof(GetById), new { id }, ToResourceItemResponse(item));
         }
         catch (Exception ex) when (ex.InnerException?.Message?.Contains("duplicate") == true ||
@@ -189,13 +226,18 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
 
-        var group = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
-        if (group == null)
+        var group = await LoadManagedAsync(authContext, id, withItems: true, ct).ConfigureAwait(false);
+        // The item must belong to the Group in the route; otherwise a caller managing one Group could
+        // remove items from any other by naming its item id (#506 review).
+        var item = group?.ResourceItems.FirstOrDefault(i => i.Id == itemId);
+        if (item == null)
         {
             return NotFound();
         }
 
         await _groupRepository.RemoveResourceItemAsync(itemId, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-remove-resource", id,
+            new { resourceType = item.ResourceType, resourceId = item.ResourceId }, ct).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -213,7 +255,7 @@ public class GroupsController : ControllerBase
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
 
-        var group = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
+        var group = await LoadManagedAsync(authContext, id, withItems: false, ct).ConfigureAwait(false);
         if (group == null)
         {
             return NotFound();
@@ -238,6 +280,8 @@ public class GroupsController : ControllerBase
             }
         }
 
+        await AuditAsync(authContext, "group-add-resources-bulk", id,
+            new { added = added.Select(a => $"{a.ResourceType}:{a.ResourceId}"), failed }, ct).ConfigureAwait(false);
         return Ok(new BulkAddResourceResponse { Added = added, Failed = failed });
     }
 

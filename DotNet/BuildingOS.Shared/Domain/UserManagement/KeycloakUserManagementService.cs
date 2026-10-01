@@ -254,7 +254,7 @@ public class KeycloakUserManagementService : IUserManagementService
     /// <summary>
     /// The roles a user's groups would put into the token. Keycloak's non-aggregating mapper emits ONE of
     /// them and does not define which, so the guard's target view is conservative (admin if any group
-    /// grants admin), the authorization view fails closed (a non-admin role if any group carries one), and
+    /// grants admin), the authorization view fails closed (the least privileged role any group carries), and
     /// disagreement is flagged.
     /// </summary>
     private readonly record struct GroupRoles(string? Conservative, string? FailClosed, bool Ambiguous, bool Unknown = false)
@@ -269,7 +269,9 @@ public class KeycloakUserManagementService : IUserManagementService
                 ? None
                 : new GroupRoles(
                     roles.FirstOrDefault(RoleCatalog.GrantsAdmin) ?? roles[0],
-                    roles.FirstOrDefault(r => !RoleCatalog.GrantsAdmin(r)) ?? roles[0],
+                    // Least privileged, not merely "not admin": group-manager is non-admin yet can change
+                    // Groups, so it must not win over viewer/operator (#506).
+                    RoleCatalog.LeastPrivileged(roles) ?? roles[0],
                     roles.Distinct(StringComparer.Ordinal).Skip(1).Any());
     }
 

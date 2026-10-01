@@ -53,6 +53,13 @@ public sealed class AuthorizedTwinView(
     private static Floor NavigationOnly(Floor f) => new() { DtId = f.DtId, Id = f.Id, Name = f.Name };
     private static Space NavigationOnly(Space x) => new() { DtId = x.DtId, Id = x.Id, Name = x.Name };
     private static Device NavigationOnly(Device d) => new() { DtId = d.DtId, Id = d.Id, Name = d.Name };
+    private static Point NavigationOnly(Point p) => new() { DtId = p.DtId, Id = p.Id, Name = p.Name };
+
+    // #506: the structure a group-manager reads in full is names and ids only — enough to choose what
+    // a Group holds. Native addressing (BACnet ids, local ids), gateways, owners/suppliers, alarm and
+    // warning thresholds and tags stay with admins and with callers granted the node.
+    private static T[] Structure<T>(AuthorizationContext auth, T[] all, Func<T, T> navigationOnly)
+        => auth.IsAdmin ? all : all.Select(navigationOnly).ToArray();
 
     // ── dtId guard (#446) ─────────────────────────────────────────────────────
     //
@@ -102,7 +109,7 @@ public sealed class AuthorizedTwinView(
     /// </summary>
     private async Task<TwinGetResult<T>> GetNodeAsync<T>(
         AuthorizationContext auth, string resourceType, string dtId, Func<Task<T?>> load, Func<T, string> businessId,
-        CancellationToken ct) where T : class
+        Func<T, T> navigationOnly, CancellationToken ct) where T : class
     {
         if (!IsUsableDtId(dtId)) return new TwinGetResult<T>.NotFound();
         var resource = await load().ConfigureAwait(false);
@@ -110,7 +117,9 @@ public sealed class AuthorizedTwinView(
             && (resource is null
                 || !await CanReadNodeAsync(auth, resourceType, dtId, businessId(resource), ct).ConfigureAwait(false)))
             return new TwinGetResult<T>.Forbidden();
-        return resource is null ? new TwinGetResult<T>.NotFound() : new TwinGetResult<T>.Ok(resource);
+        if (resource is null) return new TwinGetResult<T>.NotFound();
+        // A group-manager reads the node through the structural bypass: names and ids only (#506).
+        return new TwinGetResult<T>.Ok(auth.IsAdmin || !auth.ReadsWholeTwinStructure ? resource : navigationOnly(resource));
     }
 
     // ── Building ──────────────────────────────────────────────────────────────
@@ -118,7 +127,7 @@ public sealed class AuthorizedTwinView(
     public async Task<Building[]> ListBuildingsAsync(AuthorizationContext auth, CancellationToken ct)
     {
         var all = await db.ListBuildings();
-        if (auth.ReadsWholeTwinStructure) return all;
+        if (auth.ReadsWholeTwinStructure) return Structure(auth, all, NavigationOnly);
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "building", "read", ct).ConfigureAwait(false);
         var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
         return all
@@ -128,18 +137,18 @@ public sealed class AuthorizedTwinView(
     }
 
     public Task<TwinGetResult<Building>> GetBuildingAsync(AuthorizationContext auth, string buildingDtId, CancellationToken ct)
-        => GetNodeAsync(auth, "building", buildingDtId, () => db.GetBuilding(buildingDtId), b => b.Id, ct);
+        => GetNodeAsync(auth, "building", buildingDtId, () => db.GetBuilding(buildingDtId), b => b.Id, NavigationOnly, ct);
 
     // ── Floor ─────────────────────────────────────────────────────────────────
 
     public async Task<Floor[]> ListFloorsAsync(AuthorizationContext auth, string? buildingDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(buildingDtId))
-            return auth.ReadsWholeTwinStructure ? await db.ListFloors("") : [];
+            return auth.ReadsWholeTwinStructure ? Structure(auth, await db.ListFloors(""), NavigationOnly) : [];
         if (IsUnusableScopeId(buildingDtId)) return [];
 
         var all = await db.ListFloors(buildingDtId);
-        if (auth.ReadsWholeTwinStructure) return all;
+        if (auth.ReadsWholeTwinStructure) return Structure(auth, all, NavigationOnly);
         var parent = await db.GetBuilding(buildingDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "building", buildingDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "floor", "read", ct).ConfigureAwait(false);
@@ -151,18 +160,18 @@ public sealed class AuthorizedTwinView(
     }
 
     public Task<TwinGetResult<Floor>> GetFloorAsync(AuthorizationContext auth, string floorDtId, CancellationToken ct)
-        => GetNodeAsync(auth, "floor", floorDtId, () => db.GetFloor(floorDtId), f => f.Id, ct);
+        => GetNodeAsync(auth, "floor", floorDtId, () => db.GetFloor(floorDtId), f => f.Id, NavigationOnly, ct);
 
     // ── Space ─────────────────────────────────────────────────────────────────
 
     public async Task<Space[]> ListSpacesAsync(AuthorizationContext auth, string? floorDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(floorDtId))
-            return auth.ReadsWholeTwinStructure ? await db.ListSpaces("") : [];
+            return auth.ReadsWholeTwinStructure ? Structure(auth, await db.ListSpaces(""), NavigationOnly) : [];
         if (IsUnusableScopeId(floorDtId)) return [];
 
         var all = await db.ListSpaces(floorDtId);
-        if (auth.ReadsWholeTwinStructure) return all;
+        if (auth.ReadsWholeTwinStructure) return Structure(auth, all, NavigationOnly);
         var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "space", "read", ct).ConfigureAwait(false);
@@ -174,7 +183,7 @@ public sealed class AuthorizedTwinView(
     }
 
     public Task<TwinGetResult<Space>> GetSpaceAsync(AuthorizationContext auth, string spaceDtId, CancellationToken ct)
-        => GetNodeAsync(auth, "space", spaceDtId, () => db.GetSpace(spaceDtId), s => s.Id, ct);
+        => GetNodeAsync(auth, "space", spaceDtId, () => db.GetSpace(spaceDtId), s => s.Id, NavigationOnly, ct);
 
     public async Task<TwinGetResult<Space[]>> ListAdjacentSpacesAsync(
         AuthorizationContext auth, string spaceDtId, CancellationToken ct)
@@ -195,7 +204,7 @@ public sealed class AuthorizedTwinView(
         if (subject is null) return new TwinGetResult<Space[]>.NotFound();
 
         var neighbours = await db.ListAdjacentSpaces(spaceDtId).ConfigureAwait(false);
-        if (auth.ReadsWholeTwinStructure) return new TwinGetResult<Space[]>.Ok(neighbours);
+        if (auth.ReadsWholeTwinStructure) return new TwinGetResult<Space[]>.Ok(Structure(auth, neighbours, NavigationOnly));
 
         // One CanAccessAsync per neighbour rather than a hash match against
         // GetAccessibleResourceIdsAsync("space"): CanAccessAsync already resolves the ancestor chain
@@ -216,11 +225,11 @@ public sealed class AuthorizedTwinView(
     public async Task<Device[]> ListDevicesAsync(AuthorizationContext auth, string? spaceDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(spaceDtId))
-            return auth.ReadsWholeTwinStructure ? await db.ListDevices("") : [];
+            return auth.ReadsWholeTwinStructure ? Structure(auth, await db.ListDevices(""), NavigationOnly) : [];
         if (IsUnusableScopeId(spaceDtId)) return [];
 
         var all = await db.ListDevices(spaceDtId);
-        if (auth.ReadsWholeTwinStructure) return all;
+        if (auth.ReadsWholeTwinStructure) return Structure(auth, all, NavigationOnly);
         var parent = await db.GetSpace(spaceDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "space", spaceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
@@ -236,7 +245,7 @@ public sealed class AuthorizedTwinView(
         if (!IsUsableDtId(floorDtId)) return [];
 
         var all = await db.ListFloorDevices(floorDtId, ct).ConfigureAwait(false);
-        if (auth.ReadsWholeTwinStructure) return all;
+        if (auth.ReadsWholeTwinStructure) return Structure(auth, all, NavigationOnly);
         var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
@@ -248,21 +257,21 @@ public sealed class AuthorizedTwinView(
     }
 
     public Task<TwinGetResult<Device>> GetDeviceAsync(AuthorizationContext auth, string deviceDtId, CancellationToken ct)
-        => GetNodeAsync(auth, "device", deviceDtId, () => db.GetDevice(deviceDtId), d => d.Id, ct);
+        => GetNodeAsync(auth, "device", deviceDtId, () => db.GetDevice(deviceDtId), d => d.Id, NavigationOnly, ct);
 
     // ── Point ─────────────────────────────────────────────────────────────────
 
     public async Task<Point[]> ListPointsAsync(AuthorizationContext auth, string? deviceDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(deviceDtId))
-            return auth.ReadsWholeTwinStructure ? await db.ListPoints("") : [];
+            return auth.ReadsWholeTwinStructure ? Structure(auth, await db.ListPoints(""), NavigationOnly) : [];
         // The device scope reaches SPARQL as VALUES ?dev { <deviceDtId> } (BuildPointSelect) rather
         // than as a triple pattern, which is why it reads as an exception at a glance — it is not:
         // that is an IRI reference like every other dtId here.
         if (IsUnusableScopeId(deviceDtId)) return [];
 
         var all = await db.ListPoints(deviceDtId);
-        if (auth.ReadsWholeTwinStructure) return all;
+        if (auth.ReadsWholeTwinStructure) return Structure(auth, all, NavigationOnly);
         var parent = await db.GetDevice(deviceDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "device", deviceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         // Point は DtId ではなくビジネス ID（Point.Id）で権限照合する

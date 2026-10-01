@@ -22,6 +22,12 @@ public class ResourceGroup
     public string? Description { get; set; }
 
     /// <summary>
+    /// 作成した主体（JWT の sub）。#506: group-manager は自分が作った Group だけを変更できる。
+    /// この列ができる前に作られた Group は null で、admin だけが変更できる。
+    /// </summary>
+    public string? CreatedBy { get; set; }
+
+    /// <summary>
     /// 作成日時
     /// </summary>
     public DateTime CreatedAt { get; set; }

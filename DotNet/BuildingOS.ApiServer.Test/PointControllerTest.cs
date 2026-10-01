@@ -239,6 +239,20 @@ public class PointControllerTest
         Assert.Equal("kc-sub-42", actor!.Sub);
     }
 
+    /// <summary>#506: control history is a value; a group-manager is refused even where the point read would pass.</summary>
+    [Fact]
+    public async Task ControlAudit_GroupManager_IsForbidden()
+    {
+        var (controller, repo, _) = BuildAuditController([AuditEntry("PT001", null, DateTime.UtcNow)]);
+        controller.ControllerContext.HttpContext = BuildHttpContext(
+            new AuthorizationContext { UserId = "svc", Role = "group-manager", Permissions = [] });
+
+        var result = await controller.ControlAudit("PT001", 50, ct: CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result.Result);
+        repo.Verify(r => r.ListAuditByPointAsync(It.IsAny<ControlAuditQuery>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task ControlAudit_ExposesTheActor()
     {

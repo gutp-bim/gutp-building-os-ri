@@ -50,6 +50,17 @@ public class AuthorizationContextMiddleware
         var fromClaims = AuthorizationClaimResolver.TryResolve(claims);
         if (fromClaims != null)
         {
+            // #506: an app token is downgraded only by exactly building_os_role=group-manager. Any other
+            // role claim on it is ignored and the client stays admin — almost certainly a misconfigured
+            // group-manager (wrong case, stray space), so say so instead of failing open silently.
+            var appRole = claims.FirstOrDefault(c => c.Type == AuthorizationClaimResolver.RoleClaim)?.Value;
+            if (fromClaims.IsAdmin && claims.Any(c => c.Type == "idtyp" && c.Value == "app")
+                && !string.IsNullOrEmpty(appRole) && appRole != "admin")
+            {
+                _logger.LogWarning(
+                    "Client-credentials token for {UserId} carries building_os_role {Role}, which only " +
+                    "'group-manager' (exact) changes; the client is treated as admin", fromClaims.UserId, appRole);
+            }
             return fromClaims;
         }
 

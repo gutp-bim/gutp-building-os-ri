@@ -1,4 +1,5 @@
 using BuildingOs.ApiServer.Controllers;
+using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Grouping;
 using BuildingOS.Shared.Domain.Grouping.Entities;
@@ -15,19 +16,123 @@ namespace BuildingOS.ApiServer.Test;
 /// </summary>
 public class GroupsControllerRoleTest
 {
-    private static GroupsController Build(string role, Mock<IGroupRepository>? repo = null)
+    private static GroupsController Build(
+        string role, Mock<IGroupRepository>? repo = null, Mock<IAdminAuditRecorder>? audit = null, string userId = "svc")
     {
         repo ??= new Mock<IGroupRepository>();
-        return new GroupsController(repo.Object, NullLogger<GroupsController>.Instance)
+        return new GroupsController(repo.Object, NullLogger<GroupsController>.Instance, (audit ?? new Mock<IAdminAuditRecorder>()).Object)
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
                 {
-                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = "svc", Role = role, Permissions = [] } },
+                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = userId, Role = role, Permissions = [] } },
                 },
             },
         };
+    }
+
+    private static ResourceGroup G(string id, string? createdBy, params GroupResourceItem[] items) =>
+        new() { Id = id, Name = id, CreatedBy = createdBy, ResourceItems = items.ToList() };
+
+    private static Mock<IGroupRepository> Repo(params ResourceGroup[] groups)
+    {
+        var repo = new Mock<IGroupRepository>();
+        repo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(groups);
+        foreach (var g in groups)
+        {
+            repo.Setup(r => r.GetByIdAsync(g.Id, It.IsAny<CancellationToken>())).ReturnsAsync(g);
+            repo.Setup(r => r.GetByIdWithItemsAsync(g.Id, It.IsAny<CancellationToken>())).ReturnsAsync(g);
+        }
+        repo.Setup(r => r.CreateAsync(It.IsAny<ResourceGroup>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ResourceGroup g, CancellationToken _) => g);
+        repo.Setup(r => r.AddResourceItemAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string gid, string t, string rid, CancellationToken _) => new GroupResourceItem { Id = "new", GroupId = gid, ResourceType = t, ResourceId = rid });
+        return repo;
+    }
+
+    // ── Ownership (#506 review): a group-manager changes only the Groups it created ─────────────
+    //
+    // A Group's items are access grants for every user holding group:<id>:<actions>. Editing an
+    // admin's Group (one users hold write on) would let a group-manager hand out control indirectly.
+
+    [Fact]
+    public async Task Create_RecordsTheCreator()
+    {
+        var repo = Repo();
+        await Build("group-manager", repo, userId: "svc-portal").Create(new GroupsController.CreateGroupRequest { Id = "t-a", Name = "A" }, default);
+
+        repo.Verify(r => r.CreateAsync(It.Is<ResourceGroup>(g => g.CreatedBy == "svc-portal"), It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task GroupManager_SeesAndChangesOnlyItsOwnGroups()
+    {
+        var mine = G("t-a", "svc");
+        var admins = G("ops", "admin-user");
+        var legacy = G("old", null);   // created before ownership was recorded: admin-only
+        var repo = Repo(mine, admins, legacy);
+        var c = Build("group-manager", repo);
+
+        var listed = Assert.IsAssignableFrom<IEnumerable<GroupsController.GroupResponse>>(
+            Assert.IsType<OkObjectResult>((await c.GetAll(default)).Result).Value);
+        Assert.Equal(["t-a"], listed.Select(g => g.Id));
+
+        Assert.IsType<OkObjectResult>((await c.GetById("t-a", default)).Result);
+        foreach (var other in new[] { "ops", "old" })
+        {
+            Assert.IsType<NotFoundResult>((await c.GetById(other, default)).Result);
+            Assert.IsType<NotFoundResult>(await c.Update(other, new GroupsController.UpdateGroupRequest { Name = "x" }, default));
+            Assert.IsType<NotFoundResult>(await c.Delete(other, default));
+            Assert.IsType<NotFoundResult>((await c.AddResource(other, new GroupsController.AddResourceRequest { ResourceType = "building", ResourceId = "B1" }, default)).Result);
+            Assert.IsType<NotFoundResult>((await c.AddResourcesBulk(other, new GroupsController.BulkAddResourceRequest { Items = [] }, default)).Result);
+            Assert.IsType<NotFoundResult>(await c.RemoveResource(other, "i1", default));
+        }
+        repo.Verify(r => r.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        repo.Verify(r => r.AddResourceItemAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Admin_StillManagesEveryGroup()
+    {
+        var repo = Repo(G("ops", "admin-user"), G("old", null), G("t-a", "svc"));
+        var c = Build("admin", repo, userId: "another-admin");
+
+        var listed = Assert.IsAssignableFrom<IEnumerable<GroupsController.GroupResponse>>(
+            Assert.IsType<OkObjectResult>((await c.GetAll(default)).Result).Value);
+        Assert.Equal(3, listed.Count());
+        Assert.IsType<NoContentResult>(await c.Delete("old", default));
+    }
+
+    /// <summary>The item must belong to the group named in the route — for everyone, admins included.</summary>
+    [Fact]
+    public async Task RemoveResource_ItemOfAnotherGroup_IsNotFound()
+    {
+        var mine = G("t-a", "svc", new GroupResourceItem { Id = "i-mine", GroupId = "t-a", ResourceType = "space", ResourceId = "S1" });
+        var theirs = G("t-b", "svc", new GroupResourceItem { Id = "i-theirs", GroupId = "t-b", ResourceType = "space", ResourceId = "S2" });
+        var repo = Repo(mine, theirs);
+        var c = Build("group-manager", repo);
+
+        Assert.IsType<NotFoundResult>(await c.RemoveResource("t-a", "i-theirs", default));
+        Assert.IsType<NoContentResult>(await c.RemoveResource("t-a", "i-mine", default));
+        repo.Verify(r => r.RemoveResourceItemAsync("i-theirs", It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Mutations_AreAudited()
+    {
+        var audit = new Mock<IAdminAuditRecorder>();
+        var repo = Repo(G("t-a", "svc"));
+        var c = Build("group-manager", repo, audit);
+
+        await c.Create(new GroupsController.CreateGroupRequest { Id = "t-b", Name = "B" }, default);
+        await c.AddResource("t-a", new GroupsController.AddResourceRequest { ResourceType = "space", ResourceId = "S1" }, default);
+        await c.Delete("t-a", default);
+
+        foreach (var action in new[] { "group-create", "group-add-resource", "group-delete" })
+            audit.Verify(a => a.RecordAsync(
+                It.Is<AdminAuditRecord>(r => r.SubjectType == "group" && r.Action == action && r.ActorSub == "svc"),
+                It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]

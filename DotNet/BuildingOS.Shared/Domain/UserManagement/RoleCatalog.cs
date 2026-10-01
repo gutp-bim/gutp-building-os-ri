@@ -50,6 +50,26 @@ public static class RoleCatalog
     public static bool IsAssignable(string? role) =>
         role is not null && AssignableRoles.Contains(role);
 
+    /// <summary>
+    /// The least privileged of <paramref name="roles"/> (the first such, in order): an unknown role
+    /// (grants nothing) &lt; viewer &lt; operator &lt; group-manager &lt; admin. What authorization falls
+    /// back to when a user's groups disagree on the role (#506).
+    /// </summary>
+    public static string? LeastPrivileged(IEnumerable<string> roles)
+        => roles.Select((r, i) => (Role: r, Index: i))
+            .OrderBy(x => Rank(x.Role)).ThenBy(x => x.Index)
+            .Select(x => x.Role)
+            .FirstOrDefault();
+
+    private static int Rank(string role) => role switch
+    {
+        Viewer => 1,
+        Operator => 2,
+        GroupManager => 3,
+        Admin => 4,
+        _ => 0,
+    };
+
     /// <summary>True if the role grants admin privileges (only <c>admin</c> does).</summary>
     public static bool GrantsAdmin(string? role) =>
         string.Equals(role, Admin, StringComparison.Ordinal);

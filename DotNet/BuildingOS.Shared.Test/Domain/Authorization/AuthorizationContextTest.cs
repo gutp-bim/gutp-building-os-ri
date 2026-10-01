@@ -21,4 +21,18 @@ public class AuthorizationContextTest
         Assert.Equal(managesGroups, ctx.CanManageGroups);
         Assert.Equal(readsWholeTwinStructure, ctx.ReadsWholeTwinStructure);
     }
+
+    /// <summary>
+    /// #506 review: a group-manager carries no permission strings, whatever the token says. Otherwise a
+    /// human given the role who also holds group:X:write could add any building to X and control it.
+    /// </summary>
+    [Fact]
+    public void GroupManager_HasNoPermissions_EvenIfTheTokenCarriesSome()
+    {
+        var ctx = new AuthorizationContext { UserId = "u", Role = "group-manager", Permissions = ["group:x:read,write"] };
+        Assert.Empty(ctx.Permissions);
+
+        var op = new AuthorizationContext { UserId = "u", Role = "operator", Permissions = ["group:x:read,write"] };
+        Assert.Single(op.Permissions);
+    }
 }

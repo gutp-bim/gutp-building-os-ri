@@ -116,6 +116,21 @@ public class TelemetryHealthControllerTest
         return new Harness(controller, view, index, gateways);
     }
 
+    /// <summary>#506: a group-manager reads no values, so data health is empty and touches no ledger.</summary>
+    [Fact]
+    public async Task GroupManager_GetsNothing_AndNoLedgerIsRead()
+    {
+        var h = Build(new Dictionary<string, PointDetail[]> { ["urn:dtid:b1"] = [] });
+        h.Controller.ControllerContext.HttpContext.Items["AuthorizationContext"] =
+            new AuthorizationContext { UserId = "svc", Role = "group-manager", Permissions = [] };
+
+        var body = Body(await h.Controller.Summary(null, null, null, null, null, null));
+
+        Assert.Equal(0, body.TotalPoints);
+        h.View.Verify(v => v.ListPointDetailsAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        h.View.Verify(v => v.ListBuildingsAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static Harness Build(params PointDetail[] points) =>
         Build(new Dictionary<string, PointDetail[]> { ["urn:dtid:b1"] = points });
 

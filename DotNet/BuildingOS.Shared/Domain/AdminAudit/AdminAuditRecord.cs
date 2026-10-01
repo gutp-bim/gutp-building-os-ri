@@ -58,6 +58,8 @@ public static class AdminAuditSubjects
     public const string Gateway = "gateway";
     public const string OidcClient = "oidc-client";
     public const string User = "user";
+    /// <summary>#506: resource Group CRUD — now also reachable by the group-manager service role.</summary>
+    public const string Group = "group";
 }
 
 /// <summary>Filter for listing audit records (most-recent first, capped by <see cref="Limit"/>).</summary>

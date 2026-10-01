@@ -97,6 +97,39 @@ public class AuthorizedTwinViewGroupManagerTest
         Assert.Equal(2, hits.Length);
     }
 
+    /// <summary>
+    /// #506 review: the structure is names and ids — not native addressing, gateways or thresholds,
+    /// which the gateway point list guards with machine auth. Admins still get everything.
+    /// </summary>
+    [Fact]
+    public async Task StructureIsNamesAndIdsOnly()
+    {
+        var point = new Point
+        {
+            DtId = Iri + "pt-P1", Id = "P1", Name = "Temp", LocalId = "L1", GatewayName = "GW1",
+            DeviceIdBacnet = "1001", ObjectTypeBacnet = "AI", InstanceNoBacnet = 3, AlarmHigh = 30,
+        };
+        var device = new Device { DtId = Iri + "D1", Id = "D1", Name = "AHU", Owner = "Owner Co", GatewayId = "GW1" };
+        _db.Setup(d => d.ListPoints(It.IsAny<string>())).ReturnsAsync([point]);
+        _db.Setup(d => d.ListDevices(It.IsAny<string>())).ReturnsAsync([device]);
+        _db.Setup(d => d.GetDevice(Iri + "D1")).ReturnsAsync(device);
+
+        var p = Assert.Single(await View.ListPointsAsync(GroupManager(), "", default));
+        Assert.Equal(("P1", "Temp", Iri + "pt-P1"), (p.Id, p.Name, p.DtId));
+        Assert.Null(p.LocalId);
+        Assert.Null(p.GatewayName);
+        Assert.Null(p.DeviceIdBacnet);
+        Assert.Null(p.InstanceNoBacnet);
+        Assert.Null(p.AlarmHigh);
+        var d = Assert.IsType<TwinGetResult<Device>.Ok>(await View.GetDeviceAsync(GroupManager(), Iri + "D1", default)).Resource;
+        Assert.Null(d.Owner);
+        Assert.Null(d.GatewayId);
+        Assert.Null(Assert.Single(await View.ListDevicesAsync(GroupManager(), Iri + "S1", default)).Owner);
+
+        var admin = new AuthorizationContext { UserId = "a", Role = "admin", Permissions = [] };
+        Assert.Equal("L1", Assert.Single(await View.ListPointsAsync(admin, "", default)).LocalId);
+    }
+
     // ── Values and writes: exactly as a non-admin without grants ────────────
 
     /// <summary>

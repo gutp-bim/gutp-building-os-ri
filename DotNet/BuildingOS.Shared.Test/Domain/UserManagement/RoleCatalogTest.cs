@@ -67,4 +67,20 @@ public class RoleCatalogTest
     {
         Assert.Equal(expected, RoleCatalog.GrantsAdmin(role));
     }
+
+    /// <summary>
+    /// #506 review: when a user's groups carry different roles, authorization fails closed to the
+    /// LEAST privileged one. "Any non-admin role" stopped meaning least privilege once group-manager
+    /// (non-admin, but able to change Groups) existed. An unknown role grants nothing, so it is least.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { "group-manager", "viewer" }, "viewer")]
+    [InlineData(new[] { "admin", "group-manager" }, "group-manager")]
+    [InlineData(new[] { "operator", "group-manager", "admin" }, "operator")]
+    [InlineData(new[] { "group-manager", "superuser" }, "superuser")]
+    [InlineData(new[] { "admin" }, "admin")]
+    public void LeastPrivileged_PicksTheLowestRankedRole(string[] roles, string expected)
+    {
+        Assert.Equal(expected, RoleCatalog.LeastPrivileged(roles));
+    }
 }
