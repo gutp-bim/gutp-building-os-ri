@@ -418,6 +418,8 @@ The `AuthorizationContext` (populated from the Keycloak JWT) carries `IsAdmin`, 
 
 Authorization checks: controllers call `HttpContext.GetAuthorizationContext()` then either check `IsAdmin` directly or delegate to `IAuthorizationService.CanAccessAsync()`.
 
+**Navigable ancestors (#548):** the hierarchy *lists* (`ListBuildings/Floors/Spaces/DevicesAsync`) also include the ancestors of every floor/space/device/point the user can read (`NavigableAncestorResolver`, batched via `IResourceHierarchyResolver.GetAncestorUnionAsync`, resolved once per request), so a `space:R501`-only user can walk building → floor → room and pick the building on `/home` / `/health`. Listing an ancestor reveals only its name and position: reading it (`GET /buildings/{id}`) stays Forbidden, and its other children stay hidden. A hash-only direct grant is placed through the id-mapping table; one with no mapping is skipped.
+
 The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) correspond to SBCO ontology classes (`sbco:Building`, `sbco:Level`, `sbco:Room`, `sbco:EquipmentExt`, `sbco:PointExt`); `bos:` is retained only for the `ControlSchema` extension. See `docs/architecture/standard-mapping.md` for the mapping between SBCO / `bos:` vocabulary and Brick / REC / IFC / DTDL standards.
 
 ## Technology Stack

@@ -16,6 +16,7 @@ public static partial class IServiceCollectionExtension
         // Both depend on RelationalDbContext/IGroupRepository registered unconditionally in Startup.ConfigureServices.
         services.AddScoped<IGroupMembershipResolver, GroupMembershipResolver>();
         services.AddScoped<IResourceIdMappingRepository, ResourceIdMappingRepository>();
+        services.AddScoped<INavigableAncestorResolver, NavigableAncestorResolver>();
         services.AddScoped<IAuthorizedTwinView, AuthorizedTwinView>();
         // Gateway provisioning (#224): identity from the mTLS-derived trusted header (ingress-injected).
         services.AddSingleton<IGatewayIdentityResolver>(_ => new HeaderGatewayIdentityResolver());
