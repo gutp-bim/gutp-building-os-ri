@@ -1,6 +1,7 @@
 using BuildingOs.ApiServer.Authorization;
 using BuildingOS.Shared.Domain.Authorization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace BuildingOS.ApiServer.Test.Authorization;
@@ -33,10 +34,21 @@ public class NavigableAncestorResolverTest
         hierarchy.Setup(h => h.GetAncestorUnionAsync(
                 It.IsAny<string>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<(string, string)>());
-        return new Setup(
-            new NavigableAncestorResolver(auth.Object, mapping.Object, hierarchy.Object,
-                cache ?? new MemoryCache(new MemoryCacheOptions())),
+        return new Setup(NewResolver(auth, mapping, hierarchy, cache ?? new MemoryCache(new MemoryCacheOptions())),
             auth, mapping, hierarchy);
+    }
+
+    /// <summary>The resolver resolves its dependencies from a DI scope of its own, as in production.</summary>
+    private static NavigableAncestorResolver NewResolver(
+        Mock<IAuthorizationService> auth, Mock<IResourceIdMappingRepository> mapping,
+        Mock<IResourceHierarchyResolver> hierarchy, IMemoryCache cache)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped(_ => auth.Object);
+        services.AddScoped(_ => mapping.Object);
+        services.AddScoped(_ => hierarchy.Object);
+        return new NavigableAncestorResolver(
+            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(), cache);
     }
 
     private static void Grant(Setup s, string type, params AccessibleResource[] resources)
@@ -140,8 +152,7 @@ public class NavigableAncestorResolverTest
         var cache = new MemoryCache(new MemoryCacheOptions());
         var first = Build(cache);
         Grant(first, "space", Known("R501"));
-        var second = new NavigableAncestorResolver(
-            first.Auth.Object, first.Mapping.Object, first.Hierarchy.Object, cache);
+        var second = NewResolver(first.Auth, first.Mapping, first.Hierarchy, cache);
 
         await first.Resolver.ResolveAsync(User("u1", "sp:abc:r"), default);
         await second.ResolveAsync(User("u1", "sp:abc:r"), default);
@@ -195,27 +206,43 @@ public class NavigableAncestorResolverTest
     }
 
     /// <summary>
-    /// A request that joined another request's resolution, which then failed (say that request's scope
-    /// was disposed under it), retries on its own instead of failing too.
+    /// One caller giving up (its request was cancelled) stops only its own wait; the shared resolution
+    /// carries on for everyone else awaiting it.
     /// </summary>
     [Fact]
-    public async Task AJoinedResolutionThatFails_IsRetriedByTheJoiner()
+    public async Task ACancelledCaller_DoesNotCancelTheSharedResolution()
     {
         var cache = new MemoryCache(new MemoryCacheOptions());
         var s = Build(cache);
         Grant(s, "space", Known("R501"));
         var gate = new TaskCompletionSource<IReadOnlyCollection<(string, string)>>();
-        s.Hierarchy.SetupSequence(h => h.GetAncestorUnionAsync(
+        s.Hierarchy.Setup(h => h.GetAncestorUnionAsync(
                 "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
-            .Returns(gate.Task)
-            .ReturnsAsync([("building", "B1")]);
-        var joiner = new NavigableAncestorResolver(s.Auth.Object, s.Mapping.Object, s.Hierarchy.Object, cache);
+            .Returns(gate.Task);
+        using var cancelled = new CancellationTokenSource();
 
-        var first = s.Resolver.ResolveAsync(User("u1", "x"), default);
-        var second = joiner.ResolveAsync(User("u1", "x"), default);
-        gate.SetException(new ObjectDisposedException("RelationalDbContext"));
+        var first = s.Resolver.ResolveAsync(User("u1", "x"), cancelled.Token);
+        var second = NewResolver(s.Auth, s.Mapping, s.Hierarchy, cache).ResolveAsync(User("u1", "x"), default);
+        cancelled.Cancel();
+        gate.SetResult([("building", "B1")]);
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => first);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
         Assert.Contains(("building", "B1"), await second);
+        s.Hierarchy.Verify(h => h.GetAncestorUnionAsync(
+            "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()), Times.Once());
+    }
+
+    /// <summary>The resolution never runs on the caller's token (which would let one request cancel it).</summary>
+    [Fact]
+    public async Task TheSharedResolution_IsNotGivenTheCallersToken()
+    {
+        var s = Build();
+        Grant(s, "space", Known("R501"));
+        using var callerToken = new CancellationTokenSource();
+
+        await s.Resolver.ResolveAsync(User("u1", "x"), callerToken.Token);
+
+        s.Hierarchy.Verify(h => h.GetAncestorUnionAsync(
+            "space", It.IsAny<IReadOnlyCollection<string>>(), callerToken.Token), Times.Never());
     }
 }

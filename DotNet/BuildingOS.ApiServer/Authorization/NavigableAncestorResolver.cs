@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using BuildingOS.Shared.Domain.Authorization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingOs.ApiServer.Authorization;
 
@@ -36,15 +37,20 @@ public interface INavigableAncestorResolver
 /// space. Concurrent requests share one resolution; a failed one is not cached. A changed grant or
 /// Group membership, or a twin edit, shows after at most the TTL — the same trade-off as the
 /// data-health inventory cache (#452).</para>
+///
+/// <para>Because a resolution is shared, it must not borrow any one request's scoped services (its
+/// DbContext would be disposed under the others when that request ends or is cancelled). It runs in a
+/// DI scope of its own, bounded by <see cref="ResolutionTimeout"/> rather than any caller's token, and
+/// each caller only stops <i>waiting</i> when its own request is cancelled.</para>
 /// </summary>
-public sealed class NavigableAncestorResolver(
-    IAuthorizationService authService,
-    IResourceIdMappingRepository mapping,
-    IResourceHierarchyResolver hierarchy,
-    IMemoryCache cache) : INavigableAncestorResolver
+public sealed class NavigableAncestorResolver(IServiceScopeFactory scopes, IMemoryCache cache)
+    : INavigableAncestorResolver
 {
     /// <summary>How long one user's ancestor set is reused across requests.</summary>
     internal static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
+
+    /// <summary>Upper bound on one shared resolution, which no single caller's token cancels.</summary>
+    internal static readonly TimeSpan ResolutionTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>Building grants have no ancestors; the four types below are the ones that can.</summary>
     private static readonly string[] DescendantTypes = ["floor", "space", "device", "point"];
@@ -52,38 +58,20 @@ public sealed class NavigableAncestorResolver(
     private static readonly IReadOnlySet<(string, string)> None = new HashSet<(string, string)>();
     private static readonly object Gate = new();
 
-    public async Task<IReadOnlySet<(string ResourceType, string ResourceId)>> ResolveAsync(
+    public Task<IReadOnlySet<(string ResourceType, string ResourceId)>> ResolveAsync(
         AuthorizationContext auth, CancellationToken ct)
-    {
-        if (auth.IsAdmin) return None;
+        => auth.IsAdmin ? Task.FromResult(None) : GetOrStart(CacheKey(auth), auth).WaitAsync(ct);
 
-        var key = CacheKey(auth);
-        var (shared, startedHere) = GetOrStart(key, auth);
-        try
-        {
-            return await shared.WaitAsync(ct).ConfigureAwait(false);
-        }
-        catch (Exception) when (!startedHere && !ct.IsCancellationRequested)
-        {
-            // The resolution we joined ran on another request's scoped services (its DbContext), and
-            // that request may have ended under it. Failures are never cached, so this starts afresh on
-            // our own scope — once; a second failure is ours to report.
-            var (retry, _) = GetOrStart(key, auth);
-            return await retry.WaitAsync(ct).ConfigureAwait(false);
-        }
-    }
-
-    private (Task<IReadOnlySet<(string ResourceType, string ResourceId)>> Task, bool StartedHere) GetOrStart(
+    private Task<IReadOnlySet<(string ResourceType, string ResourceId)>> GetOrStart(
         string key, AuthorizationContext auth)
     {
         lock (Gate)
         {
             if (cache.TryGetValue(key, out Task<IReadOnlySet<(string ResourceType, string ResourceId)>>? cached)
                 && cached is { IsFaulted: false, IsCanceled: false })
-                return (cached, false);
+                return cached;
 
-            // Not tied to this caller's token: other requests may be awaiting the same task.
-            var started = ResolveUncachedAsync(auth, CancellationToken.None);
+            var started = ResolveInOwnScopeAsync(auth);
             cache.Set(key, started, CacheTtl);
             _ = started.ContinueWith(
                 _ =>
@@ -95,7 +83,7 @@ public sealed class NavigableAncestorResolver(
                     }
                 },
                 CancellationToken.None, TaskContinuationOptions.NotOnRanToCompletion, TaskScheduler.Default);
-            return (started, true);
+            return started;
         }
     }
 
@@ -106,9 +94,18 @@ public sealed class NavigableAncestorResolver(
         return "nav-ancestors:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 
-    private async Task<IReadOnlySet<(string ResourceType, string ResourceId)>> ResolveUncachedAsync(
-        AuthorizationContext auth, CancellationToken ct)
+    private async Task<IReadOnlySet<(string ResourceType, string ResourceId)>> ResolveInOwnScopeAsync(
+        AuthorizationContext auth)
     {
+        // Yield first so the work never runs inside the caller's lock.
+        await Task.Yield();
+        using var timeout = new CancellationTokenSource(ResolutionTimeout);
+        var ct = timeout.Token;
+        await using var scope = scopes.CreateAsyncScope();
+        var authService = scope.ServiceProvider.GetRequiredService<IAuthorizationService>();
+        var mapping = scope.ServiceProvider.GetRequiredService<IResourceIdMappingRepository>();
+        var hierarchy = scope.ServiceProvider.GetRequiredService<IResourceHierarchyResolver>();
+
         var result = new HashSet<(string, string)>();
 
         var granted = new Dictionary<string, IReadOnlyList<AccessibleResource>>();

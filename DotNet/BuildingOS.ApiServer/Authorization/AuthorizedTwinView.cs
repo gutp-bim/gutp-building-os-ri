@@ -29,6 +29,7 @@ public sealed class AuthorizedTwinView(
     //
     // Memoized per view instance (one request) on top of the resolver's own short cross-request cache,
     // which is what actually spares /home's per-space device requests from re-resolving every grant.
+    // The memo holds the caller-scoped wait (WaitAsync), so it is only reused within this request.
     private static readonly IReadOnlySet<(string, string)> NoAncestors = new HashSet<(string, string)>();
     private AuthorizationContext? _navigableFor;
     private Task<IReadOnlySet<(string ResourceType, string ResourceId)>>? _navigable;

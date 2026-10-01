@@ -10,6 +10,7 @@ using BuildingOS.Shared.Infrastructure.Authorization;
 using BuildingOs.ApiServer.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -223,6 +224,17 @@ public class HierarchyBusinessIdAuthorizationTest(PostgresFixture postgres, OxiG
         return db;
     }
 
+    /// <summary>The resolver's own scope, holding the same real services the API server registers.</summary>
+    private static IServiceScopeFactory NavigationScope(
+        DefaultAuthorizationService authz, RelationalDbContext db, OxiGraphHierarchyResolver hierarchy)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IAuthorizationService>(authz);
+        services.AddSingleton<IResourceIdMappingRepository>(new ResourceIdMappingRepository(db));
+        services.AddSingleton<IResourceHierarchyResolver>(hierarchy);
+        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    }
+
     private (DefaultAuthorizationService Authz, AuthorizedTwinView View) Stack(
         RelationalDbContext db, bool navigable = false)
     {
@@ -234,7 +246,7 @@ public class HierarchyBusinessIdAuthorizationTest(PostgresFixture postgres, OxiG
         var view = new AuthorizedTwinView(
             new OxiGraphDigitalTwinDatabase(oxiGraph.Client, new MemoryCache(new MemoryCacheOptions())), authz,
             navigable: navigable
-                ? new NavigableAncestorResolver(authz, new ResourceIdMappingRepository(db), hierarchy,
+                ? new NavigableAncestorResolver(NavigationScope(authz, db, hierarchy),
                     new MemoryCache(new MemoryCacheOptions()))
                 : null);
         return (authz, view);
