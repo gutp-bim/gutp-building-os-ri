@@ -339,7 +339,8 @@ public class TelemetryController(
     /// 複数ポイントの期間履歴を1リクエストで取得する（#510）。<c>GET /query</c> の複数ポイント版で、
     /// tier の自動選択・粒度は同じ。認可は batch-latest と同じく各ポイントを read 権限で個別に判定し
     /// （admin はバイパス）、読めないポイントは 403 にせず結果から除外する（存在を漏らさない）。
-    /// データが無いポイント・twin に無いポイントは区別せず <c>readings: []</c> で返す。
+    /// twin への存在確認は行わない（batch-latest と同じ）。データが無いポイントは <c>readings: []</c>、
+    /// twin から削除済みでも保存済みのテレメトリがあり読み取り権限があれば、その履歴を返す。
     /// 1 リクエストの大きさは、ポイント数（最大 <see cref="MaxBatchPointIds"/>）と、集計時は
     /// 「ポイント数 × バケット数」（最大 <see cref="MaxBatchQueryBuckets"/>）、raw 時は
     /// 「ポイント数 × 時間」（最大 <see cref="MaxBatchRawPointHours"/> ポイント時間）で制限し、超えたら 400。
@@ -366,6 +367,10 @@ public class TelemetryController(
             return BadRequest("start and end are required");
         if (end < start)
             return BadRequest("end must be greater than or equal to start");
+        // A numeric value the enum does not define would match neither budget below, and the router
+        // reads anything that is not hour/day as raw — so it would scan raw with no budget at all.
+        if (!Enum.IsDefined(request.Granularity))
+            return BadRequest("granularity must be raw, hour or day");
 
         var hours = (end - start).TotalHours;
         switch (request.Granularity)
@@ -384,21 +389,35 @@ public class TelemetryController(
 
         var accessibleIds = await AuthorizeReadSequentiallyAsync(ids, ct).ConfigureAwait(false);
 
-        // Unlike batch-latest, each read here can scan many lake objects, so the fan-out is bounded
-        // rather than one task per point. The completeness scope is an AsyncLocal opened before the
-        // fan-out, so every per-point read reports into this one scope.
+        // The completeness scope is an AsyncLocal opened before any read, so every store call below —
+        // the multi-point read or each per-point one — reports into this one scope.
         using var completeness = TelemetryQueryCompleteness.Begin();
         var series = new TelemetrySeries[accessibleIds.Length];
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, accessibleIds.Length),
-            new ParallelOptions { MaxDegreeOfParallelism = MaxBatchQueryConcurrency, CancellationToken = ct },
-            async (i, token) =>
-            {
-                var rows = await telemetryQueryRouter
-                    .QueryAsync(new TelemetryQueryRequest(accessibleIds[i], start, end, request.Granularity, false), token)
-                    .ConfigureAwait(false);
-                series[i] = new TelemetrySeries(accessibleIds[i], TelemetryReading.From(rows));
-            }).ConfigureAwait(false);
+        if (request.Granularity == TelemetryGranularity.Raw
+            && telemetryQueryRouter is IMultiPointTelemetryQueryRouter multi)
+        {
+            // Raw: one pass over the lake for every point, instead of listing and decoding the same
+            // objects once per point.
+            var byPoint = await multi.QueryRawMultiAsync(accessibleIds, start, end, ct).ConfigureAwait(false);
+            for (var i = 0; i < accessibleIds.Length; i++)
+                series[i] = new TelemetrySeries(
+                    accessibleIds[i], TelemetryReading.From(byPoint.GetValueOrDefault(accessibleIds[i])));
+        }
+        else
+        {
+            // Aggregates (and a router without multi-point support): one read per point, bounded rather
+            // than one task per point, since each read can scan many lake objects.
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, accessibleIds.Length),
+                new ParallelOptions { MaxDegreeOfParallelism = MaxBatchQueryConcurrency, CancellationToken = ct },
+                async (i, token) =>
+                {
+                    var rows = await telemetryQueryRouter
+                        .QueryAsync(new TelemetryQueryRequest(accessibleIds[i], start, end, request.Granularity, false), token)
+                        .ConfigureAwait(false);
+                    series[i] = new TelemetrySeries(accessibleIds[i], TelemetryReading.From(rows));
+                }).ConfigureAwait(false);
+        }
 
         Response.Headers["Cache-Control"] = "max-age=60";
         if (completeness.CoveredFrom is { } coveredFrom)
@@ -467,7 +486,8 @@ public sealed record BatchQueryRequest(
 
 /// <summary>
 /// One point's history in a <c>POST /api/v1/telemetries/query/batch</c> response (#510).
-/// <c>Readings</c> is empty when the point has no data in the range, or is not in the twin.
+/// <c>Readings</c> is empty when the point has no data in the range. Existence in the twin is not
+/// checked (as in batch-latest), so a point removed from the twin still returns the history it left.
 /// </summary>
 public sealed record TelemetrySeries(string PointId, TelemetryReading[] Readings);
 

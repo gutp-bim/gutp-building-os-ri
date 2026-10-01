@@ -152,6 +152,8 @@ public class TelemetryBatchQueryTest
         { Enumerable.Range(0, 500).Select(i => $"p{i}").ToArray(), Start, Start.AddDays(365), TelemetryGranularity.Hour },
         // raw: 100 points × 31 days is far more point-time than a raw batch may scan
         { Enumerable.Range(0, 100).Select(i => $"p{i}").ToArray(), Start, Start.AddDays(31), TelemetryGranularity.Raw },
+        // a numeric enum value the API does not define must not slip past both budgets
+        { ["p1"], Start, Start.AddYears(5), (TelemetryGranularity)3 },
     };
 
     [Theory]
@@ -205,5 +207,43 @@ public class TelemetryBatchQueryTest
         await controller.QueryBatch(Req(Enumerable.Range(0, 10).Select(i => $"p{i}").ToArray()), CancellationToken.None);
 
         Assert.Equal(1, max);
+    }
+
+    public interface IMultiRouter : ITelemetryQueryRouter, IMultiPointTelemetryQueryRouter { }
+
+    /// <summary>
+    /// Raw history for many points goes through one multi-point read where the router supports it,
+    /// so the lake objects are listed and decoded once rather than once per point (Codex on #510).
+    /// </summary>
+    [Fact]
+    public async Task Raw_UsesTheRoutersMultiPointRead_Once()
+    {
+        var router = new Mock<IMultiRouter>();
+        router.Setup(r => r.QueryRawMultiAsync(It.IsAny<string[]>(), Start, End, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new Dictionary<string, ValidTelemetryData[]>
+              {
+                  ["p1"] = [Sample("p1", "2026-09-01T00:00:00Z", 1)],
+                  ["p2"] = [],
+              });
+        var controller = new TelemetryController(
+            new Mock<IDigitalTwinDatabase>().Object, new Mock<ITelemetryDatabase>().Object, router.Object,
+            new Mock<IAuthorizationService>().Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    Items = { ["AuthorizationContext"] = new AuthorizationContext { UserId = "u1", Role = "admin", Permissions = [] } },
+                },
+            },
+        };
+
+        var body = Body(await controller.QueryBatch(Req(["p2", "p1"], TelemetryGranularity.Raw), CancellationToken.None));
+
+        Assert.Equal(["p2", "p1"], body.Select(b => b.PointId));
+        Assert.Empty(body[0].Readings);
+        Assert.Single(body[1].Readings);
+        router.Verify(r => r.QueryRawMultiAsync(It.IsAny<string[]>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        router.Verify(r => r.QueryAsync(It.IsAny<TelemetryQueryRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -123,6 +123,40 @@ public class TailMergeTest
         Assert.Equal(0, tailReader.CallCount); // tail not involved in latest
     }
 
+    /// <summary>#510: the lake half of a multi-point read is one scan; the tail is merged per point.</summary>
+    [Fact]
+    public async Task QueryMultiAsync_ReadsTheLakeOnce_AndMergesTheTailPerPoint()
+    {
+        var now = DateTime.UtcNow;
+        var inner = new MultiStore(new Dictionary<string, ValidTelemetryData[]>
+        {
+            ["p1"] = [Row("a", 1.0, now.AddMinutes(-10))],
+        });
+        var tailReader = new CountingTailReader([Row("b", 2.0, now.AddSeconds(-30))]);
+        var store = new TailMergedTelemetryStore(inner, tailReader, new TailMergeOptions { LookbackSec = 900 });
+
+        var result = await store.QueryMultiAsync(["p1", "p2"], now.AddHours(-1), now);
+
+        Assert.Equal(1, inner.MultiCalls);
+        Assert.Equal(0, inner.SingleCalls);
+        Assert.Equal(2, tailReader.CallCount);
+        Assert.Equal(2, result["p1"].Length);
+        Assert.Single(result["p2"]);
+    }
+
+    [Fact]
+    public async Task QueryMultiAsync_InnerWithoutMultiSupport_ReadsPerPoint()
+    {
+        var inner = new FixedStore([Row("a", 1.0, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))]);
+        var store = new TailMergedTelemetryStore(inner, new CountingTailReader([]), new TailMergeOptions { LookbackSec = 900 });
+
+        var end = DateTime.UtcNow.AddDays(-1);
+        var result = await store.QueryMultiAsync(["p1", "p2"], end.AddHours(-1), end);
+
+        Assert.Single(result["p1"]);
+        Assert.Single(result["p2"]);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private sealed class FixedStore : IWarmTelemetryStore
@@ -132,6 +166,23 @@ public class TailMergeTest
         public FixedStore(ValidTelemetryData[] rows, ValidTelemetryData? latest = null) { _rows = rows; _latest = latest; }
         public Task<ValidTelemetryData[]> QueryAsync(string pid, DateTime start, DateTime end, CancellationToken ct = default) => Task.FromResult(_rows);
         public Task<ValidTelemetryData?> QueryLatestAsync(string pid, CancellationToken ct = default) => Task.FromResult(_latest);
+    }
+
+    private sealed class MultiStore(Dictionary<string, ValidTelemetryData[]> rows) : IWarmTelemetryStore, IMultiPointTelemetryStore
+    {
+        public int MultiCalls { get; private set; }
+        public int SingleCalls { get; private set; }
+        public Task<ValidTelemetryData[]> QueryAsync(string pid, DateTime start, DateTime end, CancellationToken ct = default)
+        {
+            SingleCalls++;
+            return Task.FromResult(rows.GetValueOrDefault(pid, []));
+        }
+        public Task<ValidTelemetryData?> QueryLatestAsync(string pid, CancellationToken ct = default) => Task.FromResult<ValidTelemetryData?>(null);
+        public Task<Dictionary<string, ValidTelemetryData[]>> QueryMultiAsync(string[] ids, DateTime start, DateTime end, CancellationToken ct = default)
+        {
+            MultiCalls++;
+            return Task.FromResult(ids.Where(rows.ContainsKey).ToDictionary(id => id, id => rows[id]));
+        }
     }
 
     private sealed class CountingTailReader : IJetStreamTailReader

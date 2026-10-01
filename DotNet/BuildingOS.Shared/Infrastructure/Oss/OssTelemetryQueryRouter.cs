@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingOS.Shared.Infrastructure.Oss;
 
-public class OssTelemetryQueryRouter : ITelemetryQueryRouter
+public class OssTelemetryQueryRouter : ITelemetryQueryRouter, IMultiPointTelemetryQueryRouter
 {
     private static readonly TimeSpan DefaultWarmRetention = TimeSpan.FromDays(90);
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
@@ -116,6 +116,62 @@ public class OssTelemetryQueryRouter : ITelemetryQueryRouter
             : Array.Empty<ValidTelemetryData>();
 
         return coldPart.Concat(warmPart).ToArray();
+    }
+
+    /// <summary>
+    /// #510: <see cref="QueryRawAsync"/> for many points at once — the same warm/cold split, but each
+    /// segment is one <see cref="IMultiPointTelemetryStore.QueryMultiAsync"/> call where the store
+    /// supports it (the Parquet lake reads each object once for every point).
+    /// </summary>
+    public async Task<Dictionary<string, ValidTelemetryData[]>> QueryRawMultiAsync(
+        string[] pointIds, DateTime start, DateTime end, CancellationToken cancellationToken = default)
+    {
+        start = start.ToUniversalTime();
+        end = end.ToUniversalTime();
+        var warmBoundary = DateTime.UtcNow - _warmRetention;
+
+        Dictionary<string, ValidTelemetryData[]> result;
+        if (start >= warmBoundary)
+        {
+            result = await QueryStoreMultiAsync(_warm, _warm is null ? null : _warm.QueryAsync, pointIds, start, end, cancellationToken).ConfigureAwait(false);
+        }
+        else if (end < warmBoundary)
+        {
+            result = await QueryStoreMultiAsync(_cold, _cold is null ? null : _cold.QueryAsync, pointIds, start, end, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var coldPart = await QueryStoreMultiAsync(_cold, _cold is null ? null : _cold.QueryAsync, pointIds, start, warmBoundary.AddTicks(-1), cancellationToken).ConfigureAwait(false);
+            var warmPart = await QueryStoreMultiAsync(_warm, _warm is null ? null : _warm.QueryAsync, pointIds, warmBoundary, end, cancellationToken).ConfigureAwait(false);
+            result = pointIds.Distinct(StringComparer.Ordinal).ToDictionary(
+                id => id,
+                id => coldPart.GetValueOrDefault(id, []).Concat(warmPart.GetValueOrDefault(id, [])).ToArray(),
+                StringComparer.Ordinal);
+        }
+
+        foreach (var id in pointIds) result.TryAdd(id, []);
+        return result;
+    }
+
+    /// <summary>How many per-point reads the fallback (a store without multi-point support) runs at once.</summary>
+    private const int PerPointFallbackConcurrency = 8;
+
+    private static async Task<Dictionary<string, ValidTelemetryData[]>> QueryStoreMultiAsync(
+        object? store,
+        Func<string, DateTime, DateTime, CancellationToken, Task<ValidTelemetryData[]>>? queryOne,
+        string[] pointIds, DateTime start, DateTime end, CancellationToken ct)
+    {
+        if (store is null || queryOne is null) return new Dictionary<string, ValidTelemetryData[]>(StringComparer.Ordinal);
+        if (store is IMultiPointTelemetryStore multi)
+            return await multi.QueryMultiAsync(pointIds, start, end, ct).ConfigureAwait(false);
+
+        var result = new System.Collections.Concurrent.ConcurrentDictionary<string, ValidTelemetryData[]>(StringComparer.Ordinal);
+        await Parallel.ForEachAsync(
+            pointIds.Distinct(StringComparer.Ordinal),
+            new ParallelOptions { MaxDegreeOfParallelism = PerPointFallbackConcurrency, CancellationToken = ct },
+            async (id, token) => result[id] = await queryOne(id, start, end, token).ConfigureAwait(false))
+            .ConfigureAwait(false);
+        return new Dictionary<string, ValidTelemetryData[]>(result, StringComparer.Ordinal);
     }
 
     private async Task<ValidTelemetryData[]> QueryAggregatedAsync(

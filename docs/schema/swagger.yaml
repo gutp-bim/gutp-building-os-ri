@@ -2852,7 +2852,7 @@ paths:
     post:
       tags:
         - Telemetry
-      summary: "複数ポイントの期間履歴を1リクエストで取得する（#510）。`GET /query` の複数ポイント版で、\ntier の自動選択・粒度は同じ。認可は batch-latest と同じく各ポイントを read 権限で個別に判定し\n（admin はバイパス）、読めないポイントは 403 にせず結果から除外する（存在を漏らさない）。\nデータが無いポイント・twin に無いポイントは区別せず `readings: []` で返す。\n1 リクエストの大きさは、ポイント数（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchPointIds）と、集計時は\n「ポイント数 × バケット数」（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchQueryBuckets）、raw 時は\n「ポイント数 × 時間」（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchRawPointHours ポイント時間）で制限し、超えたら 400。\nどれかのポイントの読み取りが打ち切られた場合は `/query` と同じく\n`X-Partial-Result` / `X-Covered-From` を付ける（#499、全ポイントで揃っている時刻）。\n非推奨の `/cold-multi-point` の後継。"
+      summary: "複数ポイントの期間履歴を1リクエストで取得する（#510）。`GET /query` の複数ポイント版で、\ntier の自動選択・粒度は同じ。認可は batch-latest と同じく各ポイントを read 権限で個別に判定し\n（admin はバイパス）、読めないポイントは 403 にせず結果から除外する（存在を漏らさない）。\ntwin への存在確認は行わない（batch-latest と同じ）。データが無いポイントは `readings: []`、\ntwin から削除済みでも保存済みのテレメトリがあり読み取り権限があれば、その履歴を返す。\n1 リクエストの大きさは、ポイント数（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchPointIds）と、集計時は\n「ポイント数 × バケット数」（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchQueryBuckets）、raw 時は\n「ポイント数 × 時間」（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchRawPointHours ポイント時間）で制限し、超えたら 400。\nどれかのポイントの読み取りが打ち切られた場合は `/query` と同じく\n`X-Partial-Result` / `X-Covered-From` を付ける（#499、全ポイントで揃っている時刻）。\n非推奨の `/cold-multi-point` の後継。"
       requestBody:
         content:
           application/json:
@@ -5017,7 +5017,7 @@ components:
           items:
             $ref: '#/components/schemas/TelemetryReading'
       additionalProperties: false
-      description: "One point's history in a `POST /api/v1/telemetries/query/batch` response (#510).\n`Readings` is empty when the point has no data in the range, or is not in the twin."
+      description: "One point's history in a `POST /api/v1/telemetries/query/batch` response (#510).\n`Readings` is empty when the point has no data in the range. Existence in the twin is not\nchecked (as in batch-latest), so a point removed from the twin still returns the history it left."
     TelemetryThresholds:
       type: object
       properties:

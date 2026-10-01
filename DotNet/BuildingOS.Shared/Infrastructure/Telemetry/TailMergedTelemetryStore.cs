@@ -10,7 +10,7 @@ namespace BuildingOS.Shared.Infrastructure.Telemetry;
 /// JetStream fetch run concurrently; on any tail fetch error the store degrades gracefully to
 /// lake-only results so availability is never compromised.
 /// </summary>
-public sealed class TailMergedTelemetryStore : IWarmTelemetryStore
+public sealed class TailMergedTelemetryStore : IWarmTelemetryStore, IMultiPointTelemetryStore
 {
     private readonly IWarmTelemetryStore _inner;
     private readonly IJetStreamTailReader _tailReader;
@@ -46,6 +46,52 @@ public sealed class TailMergedTelemetryStore : IWarmTelemetryStore
         var lakeRows = lakeTask.Result;
         var tailRows = tailTask.Result;
 
+        return MergeTail(lakeRows, tailRows);
+    }
+
+    /// <summary>
+    /// #510: the lake half is one multi-point scan when the inner store supports it (the Parquet lake
+    /// reads each object once for every point); the tail, when the range reaches it, is still read
+    /// and merged per point, exactly as <see cref="QueryAsync"/> does for one.
+    /// </summary>
+    public async Task<Dictionary<string, ValidTelemetryData[]>> QueryMultiAsync(
+        string[] pointIds, DateTime start, DateTime end, CancellationToken ct = default)
+    {
+        var ids = pointIds.Distinct(StringComparer.Ordinal).ToArray();
+        Dictionary<string, ValidTelemetryData[]> lake;
+        if (_inner is IMultiPointTelemetryStore multi)
+        {
+            lake = await multi.QueryMultiAsync(ids, start, end, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            lake = new Dictionary<string, ValidTelemetryData[]>(StringComparer.Ordinal);
+            foreach (var id in ids) lake[id] = await _inner.QueryAsync(id, start, end, ct).ConfigureAwait(false);
+        }
+
+        var result = new Dictionary<string, ValidTelemetryData[]>(ids.Length, StringComparer.Ordinal);
+        if (!TailMergePolicy.ShouldMergeTail(end, DateTime.UtcNow, _options.LookbackSec))
+        {
+            foreach (var id in ids) result[id] = lake.GetValueOrDefault(id, []);
+            return result;
+        }
+
+        var tails = new ValidTelemetryData[ids.Length][];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, ids.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = MultiTailConcurrency, CancellationToken = ct },
+            async (i, token) => tails[i] = await TryReadTailAsync(ids[i], start, end, token).ConfigureAwait(false))
+            .ConfigureAwait(false);
+        for (var i = 0; i < ids.Length; i++)
+            result[ids[i]] = MergeTail(lake.GetValueOrDefault(ids[i], []), tails[i]);
+        return result;
+    }
+
+    /// <summary>How many per-point tail reads a multi-point query runs at once.</summary>
+    private const int MultiTailConcurrency = 8;
+
+    private static ValidTelemetryData[] MergeTail(ValidTelemetryData[] lakeRows, ValidTelemetryData[] tailRows)
+    {
         if (tailRows.Length == 0) return lakeRows;
 
         // Merge: exclude tail rows whose (non-null) id already appears in the lake result.

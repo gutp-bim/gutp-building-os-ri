@@ -754,7 +754,8 @@ export type TelemetryReading = {
 
 /**
  * One point's history in a `POST /api/v1/telemetries/query/batch` response (#510).
- * `Readings` is empty when the point has no data in the range, or is not in the twin.
+ * `Readings` is empty when the point has no data in the range. Existence in the twin is not
+ * checked (as in batch-latest), so a point removed from the twin still returns the history it left.
  */
 export type TelemetrySeries = {
   pointId?: string | undefined;
