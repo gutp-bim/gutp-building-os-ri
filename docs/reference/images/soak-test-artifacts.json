@@ -35,13 +35,15 @@
       "name": "connector_worker_restart",
       "executed_at_utc": "2026-09-22T05:32:37Z",
       "rto_seconds_range": [13, 16],
-      "data_loss_events": 0
+      "observed_cumulative_count_gap": 0,
+      "loss_basis": "aggregate cumulative-count continuity across the fault window only; not a per-sequence or per-point reconciliation, so this is observed evidence of no loss, not proof (see final_reconciliation.reconciliation_method)"
     },
     {
       "elapsed_hours": 36,
       "name": "network_partition",
       "rto_seconds_range": [48, 78],
-      "data_loss_events": 0,
+      "observed_cumulative_count_gap": 0,
+      "loss_basis": "aggregate cumulative-count continuity across the fault window only; not a per-sequence or per-point reconciliation, so this is observed evidence of no loss, not proof (see final_reconciliation.reconciliation_method)",
       "note": "backlog burst-caught-up on reconnect"
     },
     {
