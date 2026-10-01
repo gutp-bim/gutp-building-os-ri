@@ -5,7 +5,9 @@
     "base_commit": "158ec83542196acdcc26603725cdae76410a3567",
     "base_commit_subject": "feat(e2e): gate E10 on retention rather than on how far RSS climbed, and add the capped-run variant (#297) (#393)",
     "base_commit_date": "2026-08-28T14:16:40+09:00",
-    "image_build_timestamp_utc": "2026-09-09T03:50:3x.xxxxxxxxxZ",
+    "image_build_timestamp_utc": null,
+    "image_build_time_utc_minute": "2026-09-09T03:50",
+    "image_build_timestamp_note": "Seconds and below are redacted; the build happened within the minute given above.",
     "image_ids": {
       "building-os.api": "sha256:294c875203d636acf9c4c29d0223eae5c9564433df51ea17e3be9ec877a32849",
       "building-os.connector-worker": "sha256:5ba7c16ea280e5b6dd2d008b93c5fc1f808023ddb160455902d33ef2f6046c0e",
