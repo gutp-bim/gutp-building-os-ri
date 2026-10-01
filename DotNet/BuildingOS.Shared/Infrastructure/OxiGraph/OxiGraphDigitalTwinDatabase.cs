@@ -221,7 +221,7 @@ WHERE {{
   BIND(?dev AS ?devDt)
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
 }}
-GROUP BY ?devDt ?devId ?devName", ct);
+GROUP BY ?devDt ?devId ?devName", ct).ConfigureAwait(false);
         return rows.Select(MapDevice).ToArray();
     }
 
