@@ -129,6 +129,9 @@ namespace BuildingOs.ApiServer
                 });
                 services.AddSingleton<IBlobStorage>(sp =>
                     new MinioBlobStorage(sp.GetRequiredService<Amazon.S3.IAmazonS3>()));
+                // #527: lets a twin import / the admin API record that lake partition keys changed.
+                services.AddSingleton<ILakePartitionKeyChanges>(sp =>
+                    new LakePartitionKeyChanges(sp.GetRequiredService<IBlobStorage>(), sp.GetRequiredService<IMemoryCache>()));
 
                 if (parquetMode)
                 {

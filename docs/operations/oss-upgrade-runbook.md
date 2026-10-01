@@ -85,6 +85,38 @@ API 呼び出しがすべて 404 になる。したがって:
   アプリ・スクリプトは更新しなくても動く（応答に `Deprecation` が付く）。旧パスの利用状況は
   `building_os.api.legacy_requests{root}` で確認する。
 
+### テレメトリの建物キーがトポロジー由来になる（#527）
+
+ConnectorWorker の gRPC ingress は、テレメトリの `building`（Parquet レイクのパーティションキー
+`building_id=…`）を、Point の `sbco:building` リテラルではなく **トポロジー（`hasPart` / `locatedIn` /
+`hasPoint`）で到達した Building の `sbco:id`** から決めるようになった。トポロジーで建物に届かない Point
+だけが従来どおりリテラルを使う。
+
+- リテラルとトポロジーが食い違う Point（古い値が残っている等）は、更新後のテレメトリから**別の
+  `building_id=` パーティション**に入る。食い違う Point の件数とサンプルは、ConnectorWorker が
+  メタデータを読み込むたびに `placed point(s) whose sbco:building literal names a different building`
+  の警告ログで出す。更新前にこのログ（または twin の `sbco:building` と所属建物の比較）で件数を確認する。
+- **読み取り側（API Server）。** レイクの読み取りは Point の建物を学習して走査する建物を絞る（#273）。
+  これは「Point の建物は変わらない」前提なので、**「パーティションキーが変わった時刻」**を記録し、
+  その時刻（+1 時間の猶予：ingress のメタデータキャッシュと flush が追いつくまで）より前から始まる
+  期間の読み取りは、絞り込まず、学習にも使わない。記録はレイクのバケット（`cold/_meta/partition-keys-changed-at`）
+  にあるので、すべてのレプリカと再起動後にも効き、保持期間（`LAKE_RETENTION_DAYS`）で古いデータと一緒に消える。
+  - **記録のしかた：** `POST /api/v1/system/lake/point-buildings/reset`（管理者）。twin の取り込みを適用した
+    とき、API Server が空の OxiGraph に seed を入れたときは自動で記録される（建物が実際に変わったかは
+    見ないので、取り込みのたびに、その時刻より前から始まる読み取りは 1 時間以上の間、絞り込まれない）。また、記録後の期間の読み取りが 1 つの Point を 2 つの建物（建物の無い行は
+    `unknown` として数える）で見つけたら、警告ログ（`has telemetry under more than one building partition`）と
+    `building_os.lake.point_building_conflicts` を出し、その時点を自動で記録する。
+  - **#527 への更新手順：** 食い違う Point がある（上の ConnectorWorker の警告が出る）場合は、ConnectorWorker を
+    更新した後に上の API を 1 回実行する。
+  - **費用：** 記録した時刻より前から始まる読み取りは全建物を走査する（#273 以前の挙動）。それ以降だけの
+    読み取りは従来どおり絞り込まれる。
+  - **残る制約：** 記録せずにキーが変わった場合（twin を API・seed 以外の経路で変えた等）、検出されるまでの
+    間は、変更をまたぐ読み取りが片側の建物の行を落としうる。最新値（Hot KV が取れないときの予備の経路）も、
+    その間は古い建物の最後の値を返しうる。
+- compaction / ロールアップ / バックフィルの単位は建物ごとなので、食い違う Point の切り替え前後の
+  データは別々の建物単位で処理される（データは失われない）。建物単位の保持やバックフィルを運用している
+  場合は、切り替え前の期間を旧建物 ID で扱うこと。
+
 ### compose（単一ホスト）での等価
 
 ```bash

@@ -2145,6 +2145,38 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/system/lake/point-buildings/reset:
+    post:
+      tags:
+        - System
+      summary: "Parquet レイクのパーティションキー（建物）が「今」変わったと記録する（#527）。レイクの読み取りは\nPoint の建物を学習して走査する建物を絞るが（#273）、記録した時刻（+1 時間の猶予）より前から\n始まる期間の読み取りは、以後絞り込まない（その前の行は別の建物の下にありうるため）。記録は\nレイクのバケットに置くので、すべての API Server レプリカに 1 分以内に効く。twin の取り込みを\n適用したときと、読み取りが 1 つの Point を 2 つの建物で見つけたときは自動で記録される。\n#527 への更新時など、twin の外でキーが変わったときに実行する。管理者のみ。"
+      responses:
+        '204':
+          description: No Content
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v1/system/settings:
     get:
       tags:

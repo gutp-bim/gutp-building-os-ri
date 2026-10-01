@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,7 +37,8 @@ public sealed class OxiGraphSeedHostedService(
     OxiGraphIngestMaterializer materializer,
     ILogger<OxiGraphSeedHostedService> logger,
     IPointListUpdatePublisher? pointListUpdatePublisher = null,
-    TimeSpan? startupTimeout = null) : IHostedService
+    TimeSpan? startupTimeout = null,
+    ILakePartitionKeyChanges? lakeKeys = null) : IHostedService
 {
     /// <summary>
     /// How long to wait for OxiGraph to start accepting connections before giving up (#321).
@@ -380,6 +382,24 @@ ORDER BY ?cls ?id";
 
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 
+    /// <summary>
+    /// #527: a seeded twin may place points under other buildings than the twin the lake was written
+    /// with, which changes their lake partition key — record it, so lake reads spanning the seed are not
+    /// pruned to one building. Best-effort and uncancellable: the twin is already seeded.
+    /// </summary>
+    private async Task RecordLakeKeyChangeAsync()
+    {
+        if (lakeKeys is null) return;
+        try
+        {
+            await lakeKeys.MarkChangedAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Twin seeded, but the lake partition-key change could not be recorded");
+        }
+    }
+
     private async Task TrySeedAsync(string seedTtlPath, CancellationToken ct)
     {
         if (!File.Exists(seedTtlPath))
@@ -393,6 +413,7 @@ ORDER BY ?cls ?id";
             var turtle = await File.ReadAllTextAsync(seedTtlPath, ct).ConfigureAwait(false);
             await materializer.MaterializeAsync(turtle, ct).ConfigureAwait(false);
             logger.LogInformation("Imported OxiGraph seed RDF from {Path}", seedTtlPath);
+            await RecordLakeKeyChangeAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {

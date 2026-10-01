@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
@@ -24,14 +25,17 @@ public class SystemController : ControllerBase
     private readonly IIngressRejectionStatsService _ingressRejectionStats;
     private readonly ISystemSettingsService _settings;
     private readonly ILogger<SystemController> _logger;
+    private readonly ILakePartitionKeyChanges? _lakeKeys;
 
     public SystemController(
         ISystemStatusService statusService,
         IEffectiveConfigService configService,
         IIngressRejectionStatsService ingressRejectionStats,
         ISystemSettingsService settings,
-        ILogger<SystemController>? logger = null)
+        ILogger<SystemController>? logger = null,
+        ILakePartitionKeyChanges? lakeKeys = null)
     {
+        _lakeKeys = lakeKeys;
         _statusService = statusService;
         _configService = configService;
         _ingressRejectionStats = ingressRejectionStats;
@@ -112,5 +116,34 @@ public class SystemController : ControllerBase
 
         var stats = await _ingressRejectionStats.GetAsync(ct).ConfigureAwait(false);
         return Ok(stats);
+    }
+
+    /// <summary>
+    /// Parquet レイクのパーティションキー（建物）が「今」変わったと記録する（#527）。レイクの読み取りは
+    /// Point の建物を学習して走査する建物を絞るが（#273）、記録した時刻（+1 時間の猶予）より前から
+    /// 始まる期間の読み取りは、以後絞り込まない（その前の行は別の建物の下にありうるため）。記録は
+    /// レイクのバケットに置くので、すべての API Server レプリカに 1 分以内に効く。twin の取り込みを
+    /// 適用したときと、読み取りが 1 つの Point を 2 つの建物で見つけたときは自動で記録される。
+    /// #527 への更新時など、twin の外でキーが変わったときに実行する。管理者のみ。
+    /// </summary>
+    [HttpPost("lake/point-buildings/reset")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ResetLakePointBuildings(CancellationToken ct)
+    {
+        var authContext = HttpContext.GetAuthorizationContext();
+        if (!authContext.IsAdmin)
+        {
+            return Forbid();
+        }
+        if (_lakeKeys is null)
+        {
+            return Conflict(new { error = "the telemetry lake (MinIO) is not configured" });
+        }
+
+        await _lakeKeys.MarkChangedAsync(ct).ConfigureAwait(false);
+        _logger.LogInformation("Lake partition-key change recorded by {UserId}", authContext.UserId);
+        return NoContent();
     }
 }
