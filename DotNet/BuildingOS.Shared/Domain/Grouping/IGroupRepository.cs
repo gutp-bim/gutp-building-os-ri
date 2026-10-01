@@ -24,6 +24,9 @@ public interface IGroupRepository
     /// </summary>
     Task<IReadOnlyList<ResourceGroup>> GetAllAsync(CancellationToken ct = default);
 
+    /// <summary>The Groups created by <paramref name="createdBy"/> (#506 — a group-manager's own).</summary>
+    Task<IReadOnlyList<ResourceGroup>> GetByCreatorAsync(string createdBy, CancellationToken ct = default);
+
     /// <summary>
     /// グループを作成
     /// </summary>

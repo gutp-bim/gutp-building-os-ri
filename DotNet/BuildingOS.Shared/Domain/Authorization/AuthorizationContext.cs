@@ -42,4 +42,10 @@ public record AuthorizationContext
     /// grants for anyone but an admin.
     /// </summary>
     public bool ReadsWholeTwinStructure => IsAdmin || IsGroupManager;
+
+    /// <summary>
+    /// Reads twin structure only — no values, identifiers or tags (#506). Endpoints that serve such
+    /// data through the structural reads refuse a caller for which this is true.
+    /// </summary>
+    public bool IsStructureOnly => IsGroupManager;
 }

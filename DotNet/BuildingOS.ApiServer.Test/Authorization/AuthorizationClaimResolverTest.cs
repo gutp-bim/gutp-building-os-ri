@@ -73,6 +73,7 @@ public class AuthorizationClaimResolverTest
         Assert.False(ctx!.IsGroupManager);
         Assert.False(ctx.CanManageGroups);
         Assert.False(ctx.ReadsWholeTwinStructure);
+        Assert.Empty(ctx.Permissions);   // nothing — not even the grants that came with it
     }
 
     /// <summary>

@@ -77,7 +77,7 @@ public static class AuthorizationClaimResolver
             // group-manager is a client-credentials role (#506). On a user token — where Keycloak's
             // single-valued mapper may emit it in place of the user's own viewer/operator — it grants nothing.
             Role = role == RoleCatalog.GroupManager ? NoRole : role,
-            Permissions = permissions,
+            Permissions = role == RoleCatalog.GroupManager ? Array.Empty<string>() : permissions,
         };
     }
 

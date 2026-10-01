@@ -232,6 +232,8 @@ namespace BuildingOS.Shared.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedBy");
+
                     b.HasIndex("Name");
 
                     b.ToTable("resource_groups", (string)null);

@@ -33,7 +33,7 @@ public class ResourceMetadataController(
     private bool IsStructureOnly()
     {
         var auth = HttpContext.GetAuthorizationContext();
-        return !auth.IsAdmin && auth.IsGroupManager;
+        return auth.IsStructureOnly;
     }
 
     [HttpGet(ApiRoutes.V1 + "/buildings/{buildingDtId}/metadata")]

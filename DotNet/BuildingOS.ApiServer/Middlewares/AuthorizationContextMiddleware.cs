@@ -43,7 +43,7 @@ public class AuthorizationContextMiddleware
             // #506: group-manager is a client-credentials role. A user resolved to it (e.g. through the
             // Admin-API fallback) gets nothing, exactly as a user token carrying it does.
             if (authContext.IsGroupManager && !IsAppToken(context.User.Claims))
-                authContext = authContext with { Role = AuthorizationClaimResolver.NoRole };
+                authContext = authContext with { Role = AuthorizationClaimResolver.NoRole, Permissions = Array.Empty<string>() };
             context.Items[HttpContextKey] = authContext;
         }
 

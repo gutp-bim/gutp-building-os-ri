@@ -59,7 +59,7 @@ public sealed class AuthorizedTwinView(
     // a Group holds. Native addressing (BACnet ids, local ids), gateways, owners/suppliers, alarm and
     // warning thresholds and tags stay with admins and with callers granted the node.
     private static T[] Structure<T>(AuthorizationContext auth, T[] all, Func<T, T> navigationOnly)
-        => auth.IsAdmin ? all : all.Select(navigationOnly).ToArray();
+        => auth.IsStructureOnly ? all.Select(navigationOnly).ToArray() : all;
 
     // ── dtId guard (#446) ─────────────────────────────────────────────────────
     //
@@ -119,7 +119,7 @@ public sealed class AuthorizedTwinView(
             return new TwinGetResult<T>.Forbidden();
         if (resource is null) return new TwinGetResult<T>.NotFound();
         // A group-manager reads the node through the structural bypass: names and ids only (#506).
-        return new TwinGetResult<T>.Ok(auth.IsAdmin || !auth.ReadsWholeTwinStructure ? resource : navigationOnly(resource));
+        return new TwinGetResult<T>.Ok(auth.IsStructureOnly ? navigationOnly(resource) : resource);
     }
 
     // ── Building ──────────────────────────────────────────────────────────────
@@ -390,7 +390,7 @@ public sealed class AuthorizedTwinView(
         // building, so the search finds nothing — the same answer an unknown building gets.
         if (IsUnusableScopeId(buildingDtId)) return [];
         // #506: tags are hidden from a group-manager, so a tag filter must not answer for it (an oracle).
-        if (!auth.IsAdmin && auth.IsGroupManager && tags.Count > 0) return [];
+        if (auth.IsStructureOnly && tags.Count > 0) return [];
 
         var hits = await db.SearchResources(q, type, buildingDtId, tags, limit, offset).ConfigureAwait(false);
         if (auth.ReadsWholeTwinStructure) return hits;

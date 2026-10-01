@@ -40,6 +40,7 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.CreatedAt).IsRequired();
             entity.Property(e => e.UpdatedAt).IsRequired();
             entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.CreatedBy);
         });
 
         modelBuilder.Entity<GroupResourceItem>(entity =>

@@ -48,15 +48,28 @@ public class GroupsController : ControllerBase
 
     // Written after the change has committed, so not on the request token: a client that disconnects
     // now must not leave a change to who-can-reach-what without its audit row.
-    private Task AuditAsync(AuthorizationContext auth, string action, string targetId, object? detail, CancellationToken _)
+    // A failed audit write is logged, not turned into an error: the change it describes has already
+    // committed, and a 500 would only send the client into retries ("already exists", a second delete).
+    private async Task AuditAsync(AuthorizationContext auth, string action, string targetId, object? detail)
     {
-        if (_audit is null) return Task.CompletedTask;
+        if (_audit is null) return;
         var detailJson = detail is null ? null : System.Text.Json.JsonSerializer.Serialize(detail);
-        return _audit.RecordAsync(
-            AdminAuditRecord.Create(AdminAuditSubjects.Group, action, targetId, auth.UserId, actorName: null,
-                AdminAuditResult.Success, detailJson),
-            CancellationToken.None);
+        try
+        {
+            await _audit.RecordAsync(
+                AdminAuditRecord.Create(AdminAuditSubjects.Group, action, targetId, auth.UserId, actorName: null,
+                    AdminAuditResult.Success, detailJson),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Group {Action} on {GroupId} committed but its audit record could not be written",
+                action, targetId);
+        }
     }
+
+    /// <summary>The column limit of a Group id (resource_groups.Id).</summary>
+    public const int MaxGroupIdLength = 100;
 
     /// <summary>
     /// The id prefix of the Groups a group-manager creates (#506): <c>gm-</c> + 12 hex of SHA-256 of its
@@ -81,7 +94,9 @@ public class GroupsController : ControllerBase
     {
         var authContext = HttpContext.GetAuthorizationContext();
         if (!authContext.CanManageGroups) return Forbid();
-        var groups = await _groupRepository.GetAllAsync(ct).ConfigureAwait(false);
+        var groups = authContext.IsAdmin
+            ? await _groupRepository.GetAllAsync(ct).ConfigureAwait(false)
+            : await _groupRepository.GetByCreatorAsync(authContext.UserId, ct).ConfigureAwait(false);
         return Ok(groups.Where(g => Manages(authContext, g)).Select(ToResponse));
     }
 
@@ -129,6 +144,17 @@ public class GroupsController : ControllerBase
             if (!id.StartsWith(prefix, StringComparison.Ordinal)) id = prefix + id;
         }
 
+        // ':' and ',' are the separators of a group:<id>:<actions> grant — an id carrying one could never
+        // be granted; an over-long id would fail at the database instead of here.
+        if (id.IndexOfAny([':', ',']) >= 0)
+        {
+            return BadRequest("Id must not contain ':' or ','");
+        }
+        if (id.Length > MaxGroupIdLength)
+        {
+            return BadRequest($"Id is too long: at most {MaxGroupIdLength} characters including the '{id[..(id.Length - request.Id.Length)]}' prefix");
+        }
+
         var existing = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (existing != null)
         {
@@ -144,7 +170,7 @@ public class GroupsController : ControllerBase
         };
 
         var created = await _groupRepository.CreateAsync(group, ct).ConfigureAwait(false);
-        await AuditAsync(authContext, "group-create", created.Id, new { name = created.Name }, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-create", created.Id, new { name = created.Name }).ConfigureAwait(false);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, ToResponse(created));
     }
 
@@ -169,7 +195,7 @@ public class GroupsController : ControllerBase
         existing.Description = request.Description;
 
         await _groupRepository.UpdateAsync(existing, ct).ConfigureAwait(false);
-        await AuditAsync(authContext, "group-update", id, new { name = existing.Name }, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-update", id, new { name = existing.Name }).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -191,7 +217,7 @@ public class GroupsController : ControllerBase
         }
 
         await _groupRepository.DeleteAsync(id, ct).ConfigureAwait(false);
-        await AuditAsync(authContext, "group-delete", id, null, ct).ConfigureAwait(false);
+        await AuditAsync(authContext, "group-delete", id, null).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -228,7 +254,7 @@ public class GroupsController : ControllerBase
             var item = await _groupRepository.AddResourceItemAsync(
                 id, request.ResourceType, request.ResourceId, ct).ConfigureAwait(false);
             await AuditAsync(authContext, "group-add-resource", id,
-                new { resourceType = request.ResourceType, resourceId = request.ResourceId }, ct).ConfigureAwait(false);
+                new { resourceType = request.ResourceType, resourceId = request.ResourceId }).ConfigureAwait(false);
             return CreatedAtAction(nameof(GetById), new { id }, ToResourceItemResponse(item));
         }
         catch (Exception ex) when (ex.InnerException?.Message?.Contains("duplicate") == true ||
@@ -260,7 +286,7 @@ public class GroupsController : ControllerBase
 
         await _groupRepository.RemoveResourceItemAsync(itemId, ct).ConfigureAwait(false);
         await AuditAsync(authContext, "group-remove-resource", id,
-            new { resourceType = item.ResourceType, resourceId = item.ResourceId }, ct).ConfigureAwait(false);
+            new { resourceType = item.ResourceType, resourceId = item.ResourceId }).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -304,7 +330,7 @@ public class GroupsController : ControllerBase
         }
 
         await AuditAsync(authContext, "group-add-resources-bulk", id,
-            new { added = added.Select(a => $"{a.ResourceType}:{a.ResourceId}"), failed }, ct).ConfigureAwait(false);
+            new { added = added.Select(a => $"{a.ResourceType}:{a.ResourceId}"), failed }).ConfigureAwait(false);
         return Ok(new BulkAddResourceResponse { Added = added, Failed = failed });
     }
 

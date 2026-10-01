@@ -289,7 +289,7 @@ public class TelemetryHealthController : ControllerBase
         // #506: data health is value-derived, and a group-manager reads no values. Answer empty up front
         // rather than walking every building — its structural bypass lists them all — only for each
         // ledger read to come back empty.
-        if (!auth.IsAdmin && auth.IsGroupManager)
+        if (auth.IsStructureOnly)
             return [];
 
         if (!string.IsNullOrWhiteSpace(buildingDtId))

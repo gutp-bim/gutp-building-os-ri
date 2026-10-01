@@ -232,7 +232,7 @@ public class PointController(
 
         // A group-manager reads twin structure, never values, and control history is a value (#506).
         // Refused here explicitly rather than left to whatever GetPointAsync decides for that role.
-        if (!auth.IsAdmin && auth.IsGroupManager)
+        if (auth.IsStructureOnly)
             return Forbid();
 
         // Read-authorization: the history reveals control activity on the point, so gate it on read

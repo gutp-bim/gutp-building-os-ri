@@ -37,6 +37,21 @@ public class AuthorizationContextMiddlewareTest
         return svc;
     }
 
+    /// <summary>
+    /// #506: group-manager is a client-credentials role. A user the Admin API resolves to it gets nothing
+    /// — not the role, and not the grants that came with it (a record copy must not resurrect them).
+    /// </summary>
+    [Fact]
+    public async Task ResolvedUser_WithGroupManager_GetsNothing()
+    {
+        var svc = Service(new EntraUser { Id = "u1", DisplayName = "u1", Role = "group-manager", Permissions = ["building:x:read,write"] });
+
+        var ctx = await ResolveAsync(svc, new MemoryCache(new MemoryCacheOptions()));
+
+        Assert.False(ctx.IsGroupManager);
+        Assert.Empty(ctx.Permissions);
+    }
+
     [Fact]
     public async Task ResolvedUser_UsesTheRole_AndIsCached()
     {

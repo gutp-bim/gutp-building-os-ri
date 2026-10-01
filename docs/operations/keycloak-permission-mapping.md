@@ -39,10 +39,11 @@ role only selects the UI workspace; it grants no data access by itself. The real
 `admin` user and the `building-os-admins` group; add operators and viewers with explicit grants.
 
 **`group-manager` (#506)** is for an external application's service account that keeps Building OS
-Groups in sync (e.g. a tenant portal) without being a full admin. It may:
+Groups in sync (e.g. a tenant portal) without being a full admin. It is a **client-credentials role
+only**: it is not offered by the admin UI's role picker, and a user token (or Admin-API lookup) that
+resolves to `group-manager` grants nothing — neither the role nor any permission strings.
 
-It is a **client-credentials role only**: it is not offered by the admin UI's role picker, and a user
-token (or Admin-API lookup) that resolves to `group-manager` grants nothing.
+It may:
 
 - create Groups — **ids are placed under `gm-<12 hex of SHA-256(subject)>-`** (an id sent without the
   prefix gets it; the response carries the actual id), so it can never claim an id that existing user
@@ -55,6 +56,15 @@ token (or Admin-API lookup) that resolves to `group-manager` grants nothing.
   lists and gets (including the unscoped lists), the point list of a device or of the whole twin, room
   adjacency and resource search — as **names and ids only** (no native/BACnet addressing, gateways,
   owners or thresholds), so it can choose what a Group holds.
+
+Group ids must not contain `:` or `,` (the separators of a `group:<id>:<actions>` grant) and may be at
+most 100 characters including the prefix.
+
+**Ownership follows the service account's `sub`.** Recreating the Keycloak client (or its
+service-account user) gives it a new `sub`: its old Groups are then visible and editable only by an
+admin (their `createdBy` still names the old subject), and Groups it creates again land under a new
+prefix, so users' existing `group:<old id>` grants do not carry over. Keep the client, or have an admin
+migrate the Groups.
 
 A group-manager context never carries permission strings, even if its token has some. The Groups API
 shows each Group's `createdBy`, so an admin can see which Groups an application controls before granting

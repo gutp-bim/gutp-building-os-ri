@@ -39,6 +39,8 @@ public class GroupsControllerRoleTest
     {
         var repo = new Mock<IGroupRepository>();
         repo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(groups);
+        repo.Setup(r => r.GetByCreatorAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string sub, CancellationToken _) => groups.Where(g => g.CreatedBy == sub).ToList());
         foreach (var g in groups)
         {
             repo.Setup(r => r.GetByIdAsync(g.Id, It.IsAny<CancellationToken>())).ReturnsAsync(g);
@@ -174,6 +176,7 @@ public class GroupsControllerRoleTest
     {
         var repo = new Mock<IGroupRepository>();
         repo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<ResourceGroup>());
+        repo.Setup(r => r.GetByCreatorAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(Array.Empty<ResourceGroup>());
 
         var result = await Build(role, repo).GetAll(CancellationToken.None);
 

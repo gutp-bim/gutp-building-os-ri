@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BuildingOS.Shared.Migrations
 {
     [DbContext(typeof(RelationalDbContext))]
-    [Migration("20261001225212_AddResourceGroupCreatedBy")]
+    [Migration("20261001231321_AddResourceGroupCreatedBy")]
     partial class AddResourceGroupCreatedBy
     {
         /// <inheritdoc />
@@ -234,6 +234,8 @@ namespace BuildingOS.Shared.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
 
                     b.HasIndex("Name");
 
