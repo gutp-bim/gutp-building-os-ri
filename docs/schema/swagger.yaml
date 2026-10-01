@@ -2518,7 +2518,7 @@ paths:
     get:
       tags:
         - Telemetry
-      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。正本は `GET /api/v1/telemetries/query`。'
+      summary: '[非推奨] 指定期間の Cold テレメトリデータを取得（複数ポイント, Cold 層 直接）。後継は `POST /api/v1/telemetries/query/batch`（#510）。'
       parameters:
         - name: pointIds
           in: query
@@ -2812,6 +2812,77 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/LatestSample'
+        '401':
+          description: Unauthorized
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '400':
+          description: Bad Request
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/telemetries/query/batch:
+    post:
+      tags:
+        - Telemetry
+      summary: "複数ポイントの期間履歴を1リクエストで取得する（#510）。`GET /query` の複数ポイント版で、\ntier の自動選択・粒度は同じ。認可は batch-latest と同じく各ポイントを read 権限で個別に判定し\n（admin はバイパス）、読めないポイントは 403 にせず結果から除外する（存在を漏らさない）。\nデータが無いポイント・twin に無いポイントは区別せず `readings: []` で返す。\n1 リクエストの大きさは、ポイント数（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchPointIds）と、集計時は\n「ポイント数 × バケット数」（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchQueryBuckets）、raw 時は\n「ポイント数 × 時間」（最大 BuildingOs.ApiServer.Controllers.TelemetryController.MaxBatchRawPointHours ポイント時間）で制限し、超えたら 400。\nどれかのポイントの読み取りが打ち切られた場合は `/query` と同じく\n`X-Partial-Result` / `X-Covered-From` を付ける（#499、全ポイントで揃っている時刻）。\n非推奨の `/cold-multi-point` の後継。"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchQueryRequest'
+          text/json:
+            schema:
+              $ref: '#/components/schemas/BatchQueryRequest'
+          application/*+json:
+            schema:
+              $ref: '#/components/schemas/BatchQueryRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetrySeries'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetrySeries'
+            text/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetrySeries'
         '401':
           description: Unauthorized
           content:
@@ -3665,6 +3736,28 @@ components:
             type: string
       additionalProperties: false
       description: Request body for `POST /api/v1/telemetries/query/batch-latest` (#182).
+    BatchQueryRequest:
+      type: object
+      properties:
+        pointIds:
+          type: array
+          items:
+            type: string
+          description: Points to read; duplicates and blanks are ignored. At most 500.
+        start:
+          type: string
+          description: Range start (inclusive). Required.
+          format: date-time
+          nullable: true
+        end:
+          type: string
+          description: 'Range end. Required, and not before Start.'
+          format: date-time
+          nullable: true
+        granularity:
+          $ref: '#/components/schemas/TelemetryGranularity'
+      additionalProperties: false
+      description: Request body for `POST /api/v1/telemetries/query/batch` (#510).
     Building:
       required:
         - dtId
@@ -4914,6 +5007,17 @@ components:
           description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359).\n\nIt exists for the one row shape that carries two readings at once: an aggregate bucket sets\nValue to the average unconditionally (the continuous-aggregate contract), so a\nmixed hour ships the number while its last-in-bucket state has nowhere else to live. That is what\nthe state timeline reads at Hour/Day granularity.\nA raw non-numeric row <b>repeats</b> its reading here rather than leaving this null. The\nduplication is deliberate: it makes this field mean one thing unconditionally, so a client reads\nit with a single lookup instead of falling back to Value — the fallback chain\n#359 exists to delete. Widened to `oneOf: [string, boolean]` by\n`TelemetryValueSchemaFilter`, for the same reason Value is."
       additionalProperties: false
       description: "Response-only wire DTO for telemetry reads (#344).\n            \n\nUntil now the controllers returned BuildingOS.Shared.ValidTelemetryData directly, so the storage\nlayer's discriminated split (`value`/`valueType`/`valueText`/`valueBool`,\n#152) leaked into the HTTP contract and every API consumer had to reassemble it. That split is a\nParquet/EF concern — BuildingOS.Shared.ValidTelemetryData is an EF entity and binds the lake's column\nmodel, so it cannot be retyped in place — while the canonical schema\n(`Defines/Schemas/valid-message.json`) and the NATS bus have always carried one polymorphic\n`value`. This DTO restores that shape at the boundary.\n<b>#359 removed the legacy payload fields.</b>`valueText`/`valueBool` are gone; the\nnon-numeric half of a reading now travels in BuildingOs.ApiServer.Telemetry.TelemetryReading.State. BuildingOs.ApiServer.Telemetry.TelemetryReading.ValueType stays,\nbecause it never duplicated the payload the way those two did — it describes BuildingOs.ApiServer.Telemetry.TelemetryReading.Value,\nderived from the value actually shipped rather than copied from the stored tag. (Copying the\nstored tag is what made the wire say `{ value: 42, valueType: \"string\" }` for a mixed\naggregate bucket, where the stored tag classifies the bucket's last-in-bucket reading.)"
+    TelemetrySeries:
+      type: object
+      properties:
+        pointId:
+          type: string
+        readings:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelemetryReading'
+      additionalProperties: false
+      description: "One point's history in a `POST /api/v1/telemetries/query/batch` response (#510).\n`Readings` is empty when the point has no data in the range, or is not in the twin."
     TelemetryThresholds:
       type: object
       properties:
