@@ -217,7 +217,7 @@ describe("PointDetailPageComponent 24h coverage bar (#457)", () => {
     (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
     (queryPointCoverage as Mock).mockResolvedValue({
       kind: "unavailable",
-      reason: "too-dense",
+      reason: "no-interval",
     });
 
     render(<PointDetailPageComponent pointId="p1" />);

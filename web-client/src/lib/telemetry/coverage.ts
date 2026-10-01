@@ -11,7 +11,8 @@
  * raw / hour / day しか無く、集計行に件数（count）も載らないので、集計粒度から coverage は出せない。
  * そのため raw を取るのは **宣言周期から 24h の件数が小さいと分かるポイントだけ**
  * （{@link planCoverageFetch}）。5 秒周期のような高頻度ポイント（24h ≒ 17k 件）は raw を取らず、
- * coverage API を待つ。
+ * サーバが 15 分ごとの件数だけを返す `GET /telemetries/coverage`（#551）を使い、
+ * {@link bucketsFromCounts} で同じバケットに組み立てる。
  */
 
 export const COVERAGE_BUCKET_SECONDS = 15 * 60;
@@ -127,6 +128,51 @@ export function bucketCoverage({
   return buckets;
 }
 
+/**
+ * サーバが数えた 15 分ごとの受信件数（`GET /telemetries/coverage`, #551）を、{@link bucketCoverage}
+ * と同じ {@link CoverageBucket} 配列にする。窓の並び・半開区間・期待件数・判定はすべて同じなので、
+ * 描画部品はどちらの経路から来たかを知らなくてよい。
+ *
+ * 期待周期がバケットより長いポイントの look-back は、直前のバケット件数の合計で近似する（バケット
+ * 境界に揃う分だけ）。サーバ経路を使うのは高頻度ポイント（周期 ≦ 43.2 秒 < 15 分）だけなので、
+ * 実際には look-back = バケットそのもので、近似は入らない。
+ */
+export function bucketsFromCounts({
+  counts,
+  windowStart,
+  bucketSeconds,
+  intervalSeconds,
+}: {
+  counts: readonly number[];
+  windowStart: Date;
+  bucketSeconds: number;
+  /** 期待更新周期（秒, sbco:interval）。正の値であること。 */
+  intervalSeconds: number;
+}): CoverageBucket[] {
+  const bucketMs = bucketSeconds * 1000;
+  const lookback = lookbackSeconds(intervalSeconds, bucketSeconds);
+  const expected = lookback / intervalSeconds;
+  const lookbackBuckets = Math.max(1, Math.ceil(lookback / bucketSeconds));
+  const startMs = windowStart.getTime();
+
+  return counts.map((received, i) => {
+    let inLookback = 0;
+    for (let k = Math.max(0, i - lookbackBuckets + 1); k <= i; k++) {
+      inLookback += counts[k];
+    }
+    const coverage = Math.min(1, inLookback / expected);
+    const bStart = startMs + i * bucketMs;
+    return {
+      start: new Date(bStart).toISOString(),
+      end: new Date(bStart + bucketMs).toISOString(),
+      received,
+      expected,
+      coverage,
+      level: coverageLevel(coverage),
+    };
+  });
+}
+
 export type CoverageSummary = Record<CoverageLevel, number> & {
   /** 連続した none バケットの最長区間（分）。欠測なしなら 0。 */
   longestGapMinutes: number;
@@ -159,12 +205,14 @@ export function summarizeCoverage(
 
 export type CoverageFetchPlan =
   | { kind: "raw"; start: Date; end: Date }
-  | { kind: "unavailable"; reason: "no-interval" | "too-dense" };
+  /** 高頻度ポイント: raw は取らず、サーバに 15 分ごとの件数を数えてもらう（#551）。 */
+  | { kind: "server"; end: Date }
+  | { kind: "unavailable"; reason: "no-interval" };
 
 /**
  * coverage を出すためにどの範囲の raw を取るか（取ってよいか）を決める。期待周期が無ければ
  * expected が決まらないので出せない。宣言周期から見て 24h の件数が
- * {@link MAX_RAW_COVERAGE_SAMPLES} を超えるなら raw は取らない（高頻度ポイントの全件取得を防ぐ）。
+ * {@link MAX_RAW_COVERAGE_SAMPLES} を超えるなら raw は取らず、サーバ側の集計（#551）に回す。
  */
 export function planCoverageFetch({
   intervalSeconds,
@@ -187,7 +235,7 @@ export function planCoverageFetch({
   const spanSeconds =
     COVERAGE_WINDOW_SECONDS + (lookback - COVERAGE_BUCKET_SECONDS);
   if (spanSeconds / intervalSeconds > maxRawSamples) {
-    return { kind: "unavailable", reason: "too-dense" };
+    return { kind: "server", end: new Date(windowEnd.getTime()) };
   }
   const end = new Date(windowEnd.getTime());
   const start = new Date(end.getTime() - spanSeconds * 1000);

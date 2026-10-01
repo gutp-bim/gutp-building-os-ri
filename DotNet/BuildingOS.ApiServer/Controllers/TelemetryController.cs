@@ -232,6 +232,56 @@ public class TelemetryController(
     }
 
     /// <summary>
+    /// 24 時間の受信件数を 15 分ごとに数えて返す（#551）。Point 詳細の「受信状況 24h」バー（#457）用で、
+    /// 高頻度ポイント（5 秒周期なら 1 日約 17,000 件）でも生データをブラウザへ送らずに 96 個の件数だけを返す。
+    /// 区間は <c>end</c> から遡る 24 時間で、古い順・<c>end</c> 基準で揃えた半開区間。受信率への換算
+    /// （期待件数 = 900 / 期待周期）はクライアント側で行う。読み取りが打ち切られた場合は
+    /// <c>/telemetries/query</c> と同じく <c>X-Partial-Result</c> / <c>X-Covered-From</c> を付ける（#499）。
+    /// </summary>
+    /// <param name="pointId">必須. ポイントID</param>
+    /// <param name="end">窓の終端（UTC）。省略時は現在時刻</param>
+    /// <param name="ct">キャンセル</param>
+    [HttpGet("coverage")]
+    [ProducesResponseType(typeof(TelemetryCoverage), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TelemetryCoverage>> Coverage(
+        [FromQuery] string pointId,
+        [FromQuery] DateTime? end,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(pointId))
+            return BadRequest("pointId is required");
+
+        var authContext = HttpContext.GetAuthorizationContext();
+        if (!authContext.IsAdmin)
+        {
+            var canAccess = await authorizationService.CanAccessAsync(
+                authContext, "point", pointId, "read", ct).ConfigureAwait(false);
+            if (!canAccess) return Forbid();
+        }
+
+        if (!await CheckExistPoint(pointId).ConfigureAwait(false)) return NotFound();
+
+        var windowEnd = end is { } e
+            ? new DateTimeOffset(DateTime.SpecifyKind(e.ToUniversalTime(), DateTimeKind.Utc))
+            : DateTimeOffset.UtcNow;
+        var windowStart = windowEnd.AddSeconds(-TelemetryCoverage.DefaultBucketSeconds * TelemetryCoverage.DefaultBucketCount);
+
+        using var completeness = TelemetryQueryCompleteness.Begin();
+        var rows = await telemetryQueryRouter.QueryAsync(
+            new TelemetryQueryRequest(pointId, windowStart.UtcDateTime, windowEnd.UtcDateTime, TelemetryGranularity.Raw, false),
+            ct).ConfigureAwait(false);
+
+        if (completeness.CoveredFrom is { } coveredFrom)
+        {
+            Response.Headers[TelemetryResponseHeaders.PartialResult] = "true";
+            Response.Headers[TelemetryResponseHeaders.CoveredFrom] = coveredFrom.ToString("O");
+        }
+        return Ok(TelemetryCoverage.Count(rows.Select(r => r.Datetime), windowEnd, pointId));
+    }
+
+    /// <summary>
     /// 複数ポイントの最新値を1リクエストで取得する（#182）。オペレーターホームの鮮度表示が行っていた
     /// ポイント単位の N+1 fan-out（ブラウザから <c>GET /query?latest=true</c> をポイント数だけ発行）を
     /// サーバー側の1往復に置き換える。各ポイントは read 権限で個別に認可し（admin はバイパス）、

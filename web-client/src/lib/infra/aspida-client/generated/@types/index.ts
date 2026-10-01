@@ -661,6 +661,26 @@ export type SystemStatus = {
   thresholds?: PipelineKpiThresholds | undefined;
 }
 
+/**
+ * 24 h receive counts per 15-minute bucket for one point (#551) — the server-side half of the Point
+ * detail's 24 h coverage bar (#457). The web client used to download the raw readings and count them
+ * itself, which it skips for points whose 24 h would exceed ~2,000 rows (interval ≲ 43 s); a 5-second
+ * point has ~17,000. Counting here keeps the wire to 96 integers whatever the rate.
+ *             
+ * 
+ * Buckets are oldest first, aligned to BuildingOs.ApiServer.Telemetry.TelemetryCoverage.WindowEnd (not the wall clock) and
+ * half-open `[start, start + 15 min)` — the same layout as `bucketCoverage` in
+ * `web-client/src/lib/telemetry/coverage.ts`, which turns them into a coverage ratio using the
+ * point's expected interval.
+ */
+export type TelemetryCoverage = {
+  pointId?: string | undefined;
+  windowStart?: string | undefined;
+  windowEnd?: string | undefined;
+  bucketSeconds?: number | undefined;
+  counts?: number[] | undefined;
+}
+
 export type TelemetryGranularity = 0 | 1 | 2
 
 /**

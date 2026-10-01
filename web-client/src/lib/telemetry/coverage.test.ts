@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bucketCoverage,
+  bucketsFromCounts,
   COVERAGE_BUCKET_COUNT,
   coverageLevel,
   planCoverageFetch,
@@ -186,10 +187,10 @@ describe("planCoverageFetch", () => {
     expect(plan.start.toISOString()).toBe(at(24 * 60 + 45));
   });
 
-  it("refuses to fetch raw samples for a fast point (e.g. 5 s → ~17k rows)", () => {
+  it("asks the server to count a fast point instead of fetching ~17k raw rows (#551)", () => {
     expect(planCoverageFetch({ intervalSeconds: 5, windowEnd: END })).toEqual({
-      kind: "unavailable",
-      reason: "too-dense",
+      kind: "server",
+      end: END,
     });
   });
 
@@ -204,5 +205,65 @@ describe("planCoverageFetch", () => {
       kind: "unavailable",
       reason: "no-interval",
     });
+  });
+});
+
+describe("bucketsFromCounts (#551)", () => {
+  const windowStart = new Date(END.getTime() - 24 * 60 * MIN);
+
+  it("turns server counts into the same buckets bucketCoverage would draw", () => {
+    // 5 s point: 180 expected per 15 min. Bucket 0 full, bucket 1 partial, the rest empty.
+    const counts = Array.from({ length: COVERAGE_BUCKET_COUNT }, (_, i) =>
+      i === 0 ? 180 : i === 1 ? 90 : 0,
+    );
+
+    const buckets = bucketsFromCounts({
+      counts,
+      windowStart,
+      bucketSeconds: 900,
+      intervalSeconds: 5,
+    });
+
+    expect(buckets).toHaveLength(COVERAGE_BUCKET_COUNT);
+    expect(buckets[0]).toMatchObject({
+      start: windowStart.toISOString(),
+      received: 180,
+      expected: 180,
+      coverage: 1,
+      level: "full",
+    });
+    expect(buckets[1]).toMatchObject({ received: 90, level: "partial" });
+    expect(buckets[2].level).toBe("none");
+    expect(buckets.at(-1)!.end).toBe(END.toISOString());
+  });
+
+  it("agrees with bucketCoverage on the same receipts", () => {
+    const timestamps = [at(1), at(2), at(3), at(20), at(24 * 60 - 1)];
+    const fromRaw = bucketCoverage({
+      timestamps,
+      windowEnd: END,
+      intervalSeconds: 60,
+    });
+    const counts = fromRaw.map((b) => b.received);
+
+    expect(
+      bucketsFromCounts({
+        counts,
+        windowStart,
+        bucketSeconds: 900,
+        intervalSeconds: 60,
+      }),
+    ).toEqual(fromRaw);
+  });
+
+  it("caps coverage at 1 when more arrive than expected (jitter)", () => {
+    const counts = Array.from({ length: COVERAGE_BUCKET_COUNT }, () => 200);
+    const [b] = bucketsFromCounts({
+      counts,
+      windowStart,
+      bucketSeconds: 900,
+      intervalSeconds: 5,
+    });
+    expect(b.coverage).toBe(1);
   });
 });

@@ -58,19 +58,6 @@ describe("TelemetryCoverageBar (#457)", () => {
     );
   });
 
-  it("explains why the bar is not drawn for a fast point", () => {
-    render(
-      <TelemetryCoverageBar
-        state={{ kind: "unavailable", reason: "too-dense" }}
-      />,
-    );
-
-    expect(screen.getByTestId("coverage-unavailable")).toHaveTextContent(
-      "高頻度",
-    );
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
-  });
-
   it("explains why the bar is not drawn without an expected interval", () => {
     render(
       <TelemetryCoverageBar

@@ -3,6 +3,8 @@ import { apiClient } from "@/lib/infra/aspida-client";
 import type { LatestSample } from "@/lib/infra/aspida-client/generated/@types";
 import {
   bucketCoverage,
+  bucketsFromCounts,
+  COVERAGE_BUCKET_COUNT,
   planCoverageFetch,
   type CoverageBucket,
   type CoverageFetchPlan,
@@ -158,6 +160,32 @@ export async function queryPointCoverage(
 ): Promise<PointCoverageResult> {
   const plan = planCoverageFetch({ intervalSeconds, windowEnd });
   if (plan.kind === "unavailable") return plan;
+
+  if (plan.kind === "server") {
+    // #551: a fast point's 24 h is ~17k rows; the server counts them and sends 96 integers.
+    const res = await apiClient(token).api.v1.telemetries.coverage.$get({
+      query: { pointId, end: plan.end.toISOString() },
+    });
+    const windowStart = Date.parse(res.windowStart ?? "");
+    if (
+      !Array.isArray(res.counts) ||
+      res.counts.length !== COVERAGE_BUCKET_COUNT ||
+      !Number.isFinite(windowStart) ||
+      !res.bucketSeconds
+    ) {
+      throw new Error("受信状況の集計結果を解釈できませんでした");
+    }
+    return {
+      kind: "buckets",
+      buckets: bucketsFromCounts({
+        counts: res.counts,
+        windowStart: new Date(windowStart),
+        bucketSeconds: res.bucketSeconds,
+        // plan.kind === "server" なら intervalSeconds は正の有限値。
+        intervalSeconds: intervalSeconds as number,
+      }),
+    };
+  }
 
   const res = await apiClient(token).api.v1.telemetries.query.$get({
     query: {

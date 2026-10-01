@@ -30,8 +30,6 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = {
 };
 
 const UNAVAILABLE_TEXT = {
-  "too-dense":
-    "高頻度ポイントのため受信状況バーは表示していません（24h の全件取得を避けるため、集計 API の提供後に表示します）。",
   "no-interval": "期待更新周期が未設定のため、受信率を計算できません。",
 } as const;
 
