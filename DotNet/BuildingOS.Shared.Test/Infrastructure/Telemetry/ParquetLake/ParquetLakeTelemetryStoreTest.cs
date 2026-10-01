@@ -219,6 +219,221 @@ public class ParquetLakeTelemetryStoreTest
         Assert.Contains(s.ListPrefixes, p => p.Contains("building_id=b1", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// #527: a point re-keyed to the building its topology reaches has its older rows under the old
+    /// partition and its newer rows under the new one. A read whose rows span both must not learn
+    /// either building — learning the first (the old one) would prune every later read to the old
+    /// partition and silently drop the point's current data until the cache entry expires.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_RowsSpanningTwoBuildings_LearnNoBuilding()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("b-old", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = "b-old", Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+
+        var store = NewStore(s);
+        Assert.Equal(2, (await store.QueryAsync("p1", h12, h13.AddHours(1))).Length);
+
+        var recent = await store.QueryAsync("p1", h13, h13.AddHours(1));
+        Assert.Equal(2, Assert.Single(recent).Value);
+        Assert.Equal(2.0, (await store.QueryLatestAsync("p1"))?.Value ?? 2.0);
+    }
+
+    [Fact]
+    public async Task QueryMultiAsync_RowsSpanningTwoBuildings_LearnNoBuilding()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("b-old", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = "b-old", Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+
+        var store = NewStore(s);
+        Assert.Equal(2, (await store.QueryMultiAsync(["p1"], h12, h13.AddHours(1)))["p1"].Length);
+
+        var recent = await store.QueryAsync("p1", h13, h13.AddHours(1));
+        Assert.Equal(2, Assert.Single(recent).Value);
+    }
+
+    private static async Task<(InMemoryBlobStorage s, DateTime h12, DateTime h13)> RekeyedPointAsync()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("b-old", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = "b-old", Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+        return (s, h12, h13);
+    }
+
+    /// <summary>
+    /// Once a read has seen the point under two buildings, a later read that happens to see only one
+    /// of them must not re-enable pruning (Codex on #527) — the old-range read must still find b-old.
+    /// </summary>
+    [Fact]
+    public async Task OnceSeenUnderTwoBuildings_LaterSingleBuildingReadsDoNotReenablePruning()
+    {
+        var (s, h12, h13) = await RekeyedPointAsync();
+        var store = NewStore(s);
+
+        await store.QueryAsync("p1", h12, h13.AddHours(1));                 // sees both
+        Assert.Single(await store.QueryAsync("p1", h13, h13.AddHours(1)));  // sees only b-new
+
+        var old = await store.QueryAsync("p1", h12, h12.AddHours(1));
+        Assert.Equal(1, Assert.Single(old).Value);
+    }
+
+    /// <summary>
+    /// A pruned read with no rows is trusted (no second scan of every building): a point with no
+    /// data in the range is the ordinary case, and topology changes are rare enough to be handled by
+    /// conflict detection and LakePointBuildingCache.Reset instead.
+    /// </summary>
+    [Fact]
+    public async Task PrunedReadThatFindsNothing_DoesNotRescanEveryBuilding()
+    {
+        var (s, h12, h13) = await RekeyedPointAsync();
+        var store = NewStore(s);
+        Assert.Single(await store.QueryAsync("p1", h13, h13.AddHours(1)));  // learns b-new
+
+        s.ClearListLog();
+        await store.QueryAsync("p1", h13.AddHours(5), h13.AddHours(6));      // no data there
+
+        Assert.All(s.ListPrefixes, p => Assert.Contains("building_id=b-new", p));
+    }
+
+    /// <summary>
+    /// #527 (code review): a placed point that had no sbco:building literal was stored under the
+    /// "unknown" partition and now under its topology building. Rows with no building count as
+    /// "unknown", so a read seeing both marks the point not prunable instead of learning only the new
+    /// building and dropping its older history.
+    /// </summary>
+    [Fact]
+    public async Task RowsWithoutABuilding_CountAsTheUnknownPartition()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("unknown", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = null, Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+        var store = NewStore(s);
+
+        Assert.Equal(2, (await store.QueryAsync("p1", h12, h13.AddHours(1))).Length);
+
+        var old = await store.QueryAsync("p1", h12, h12.AddHours(1));
+        Assert.Equal(1, Assert.Single(old).Value);
+    }
+
+    [Fact]
+    public void Scan_ReportsAConflictOnce_WhenAPointShowsUpUnderAnotherBuilding()
+    {
+        var scan = new ParquetLakeScan(new InMemoryBlobStorage(), new MemoryCache(new MemoryCacheOptions()));
+        Row1(scan, "b-old");
+
+        Assert.Equal(["b-new", "b-old"], scan.LearnBuilding("p1", [new ValidTelemetryData { PointId = "p1", Building = "b-new" }])!);
+        Assert.Null(scan.GetCachedBuilding("p1"));
+        Assert.Null(scan.LearnBuilding("p1", [new ValidTelemetryData { PointId = "p1", Building = "b-other" }])); // already reported
+
+        static void Row1(ParquetLakeScan scan, string b) =>
+            Assert.Null(scan.LearnBuilding("p1", [new ValidTelemetryData { PointId = "p1", Building = b }]));
+    }
+
+    // ── #527: "partition keys changed at" ───────────────────────────────────────────────────────
+
+    private static ParquetLakeScan Scan(InMemoryBlobStorage s) => new(s, new MemoryCache(new MemoryCacheOptions()));
+
+    /// <summary>
+    /// A read whose range starts before the recorded key change (+ grace) is never pruned — the
+    /// point's older rows may sit under another building — even when a building was learned.
+    /// </summary>
+    [Fact]
+    public async Task ReadStartingBeforeTheRecordedChange_IsNotPruned()
+    {
+        var (s, h12, h13) = await RekeyedPointAsync();
+        await Scan(s).MarkKeysChangedAsync(h12.AddMinutes(30), default);   // keys changed at 12:30
+        var store = NewStore(s);
+        // 14:00 is after 12:30 + 1h grace: pruned and learned from (b-new has nothing there; learns nothing).
+        var late = h13.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("b-new", late, 9, 9),
+            new ValidTelemetryData { Id = "c", PointId = "p1", Building = "b-new", Datetime = late.AddMinutes(1).ToString("O"), Value = 3 });
+        Assert.Single(await store.QueryAsync("p1", late, late.AddHours(1)));  // learns b-new
+
+        var history = await store.QueryAsync("p1", h12, late.AddHours(1));
+        Assert.Equal(new double?[] { 1, 2, 3 }, history.Select(r => r.Value));
+
+        s.ClearListLog();
+        await store.QueryAsync("p1", late, late.AddHours(1));
+        Assert.All(s.ListPrefixes, p => Assert.Contains("building_id=b-new", p));   // after it: pruned
+    }
+
+    [Fact]
+    public async Task RecordedChange_IsSeenByAnotherProcess_AndNeverMovesBackwards()
+    {
+        var s = new InMemoryBlobStorage();
+        var t = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        await Scan(s).MarkKeysChangedAsync(t, default);
+        await Scan(s).MarkKeysChangedAsync(t.AddHours(-5), default);
+
+        var other = Scan(s);   // another replica: its own memory cache, same bucket
+        Assert.Equal(t, await other.GetKeysChangedAtAsync(default));
+        Assert.False(await other.CanPruneAsync(t.AddMinutes(59), default));
+        Assert.True(await other.CanPruneAsync(t.AddHours(1), default));
+    }
+
+    [Fact]
+    public async Task NoRecordedChange_EverythingIsPrunable()
+    {
+        var scan = Scan(new InMemoryBlobStorage());
+        Assert.Null(await scan.GetKeysChangedAtAsync(default));
+        Assert.True(await scan.CanPruneAsync(DateTime.MinValue, default));
+    }
+
+    /// <summary>
+    /// A point found under two buildings by a read after the last recorded change means its key changed
+    /// unrecorded: the reader records the change itself, so no later read starting before now is pruned.
+    /// </summary>
+    [Fact]
+    public async Task UnrecordedChange_DetectedByARead_IsRecorded()
+    {
+        var (s, h12, h13) = await RekeyedPointAsync();
+        var store = NewStore(s);
+
+        await store.QueryAsync("p1", h12, h13.AddHours(1));
+
+        var recorded = await Scan(s).GetKeysChangedAtAsync(default);
+        Assert.NotNull(recorded);
+        Assert.InRange(recorded!.Value, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(1));
+    }
+
+    /// <summary>Latest is not pruned while its lookback reaches back before the recorded change.</summary>
+    [Fact]
+    public async Task QueryLatestAsync_LookbackBeforeTheRecordedChange_ReadsEveryBuilding()
+    {
+        var s = new InMemoryBlobStorage();
+        var now = DateTime.UtcNow;
+        var cur = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0, DateTimeKind.Utc);
+        var old = cur.AddHours(-3);
+        await PutAsync(s, LakePartitionKey.For("b-old", old, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = "b-old", Datetime = old.AddMinutes(1).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", cur, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = cur.ToString("O"), Value = 2 });
+        var store = NewStore(s);
+        Assert.Single(await store.QueryAsync("p1", old, old.AddHours(1)));   // learns b-old (nothing recorded yet)
+
+        await Scan(s).MarkKeysChangedAsync(cur, default);
+        var fresh = NewStore(s);
+        Assert.Equal(2, (await fresh.QueryLatestAsync("p1"))!.Value);
+    }
+
     [Fact]
     public async Task QueryLatestAsync_OutsideLookback_ReturnsNull()
     {

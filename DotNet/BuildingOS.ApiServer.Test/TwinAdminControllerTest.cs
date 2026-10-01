@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOs.ApiServer.Controllers;
 using BuildingOs.ApiServer.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
@@ -161,6 +162,46 @@ public class TwinAdminControllerTest
             It.Is<AdminAuditRecord>(r => r.Action == "import-apply" && r.Result == AdminAuditResult.Success
                 && r.DetailJson!.Contains("\"orphanCount\":2") && r.DetailJson.Contains("\"allowOrphans\":true")),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>A client disconnecting after the import is applied still leaves a success audit (#527 review).</summary>
+    [Fact]
+    public async Task ApplyImport_CancelledAfterApplying_StillAuditsSuccess()
+    {
+        using var cts = new CancellationTokenSource();
+        var (c, svc, audit) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
+        svc.Setup(s => s.ApplyImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .Callback(() => cts.Cancel())
+            .Returns(Task.CompletedTask);
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .Returns((AdminAuditRecord _, CancellationToken t) => t.IsCancellationRequested
+                ? Task.FromCanceled(t) : Task.CompletedTask);
+
+        Assert.IsType<OkObjectResult>(await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, cts.Token));
+        audit.Verify(a => a.RecordAsync(It.Is<AdminAuditRecord>(r => r.Result == AdminAuditResult.Success), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>#527: an applied import may move points between buildings, so it records a lake key change.</summary>
+    [Fact]
+    public async Task ApplyImport_Applied_RecordsALakeKeyChange()
+    {
+        var lake = new Mock<ILakePartitionKeyChanges>();
+        var svc = new Mock<ITwinAdminService>();
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
+        var c = new TwinAdminController(svc.Object, Mock.Of<IAdminAuditRecorder>(), new MemoryPointListRevisionCoordinator(),
+            Mock.Of<IPointListMaterializerSweepTrigger>(), NullLogger<TwinAdminController>.Instance, lake.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { Items = { ["AuthorizationContext"] = Auth("admin") } },
+            },
+        };
+
+        Assert.IsType<OkObjectResult>(await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default));
+        lake.Verify(l => l.MarkChangedAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -250,4 +250,62 @@ public class OssTelemetryQueryRouterTest
 
         Assert.Equal(expected, result);
     }
+
+    // ── #510: raw multi-point reads go through one lake scan, not one per point ──────────────────
+
+    public interface IMultiWarm : IWarmTelemetryStore, IMultiPointTelemetryStore { }
+    public interface IMultiCold : IColdTelemetryStore, IMultiPointTelemetryStore { }
+
+    [Fact]
+    public async Task QueryRawMultiAsync_RecentRange_ReadsTheWarmStoreOnceForAllPoints()
+    {
+        var warm = new Mock<IMultiWarm>();
+        warm.Setup(w => w.QueryMultiAsync(It.IsAny<string[]>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, ValidTelemetryData[]>
+            {
+                ["p1"] = [new ValidTelemetryData { PointId = "p1", Value = 1 }],
+            });
+        var sut = new OssTelemetryQueryRouter(NullLogger<OssTelemetryQueryRouter>.Instance, _cache,
+            _hot.Object, warm.Object, _cold.Object, _agg.Object, WarmRetention);
+
+        var result = await sut.QueryRawMultiAsync(["p1", "p2"], DateTime.UtcNow.AddDays(-1), DateTime.UtcNow);
+
+        Assert.Single(result["p1"]);
+        Assert.Empty(result["p2"]); // every requested id has an entry
+        warm.Verify(w => w.QueryMultiAsync(
+            It.Is<string[]>(ids => ids.SequenceEqual(new[] { "p1", "p2" })),
+            It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        warm.Verify(w => w.QueryAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task QueryRawMultiAsync_SpanningTheBoundary_ConcatenatesColdThenWarmPerPoint()
+    {
+        var warm = new Mock<IMultiWarm>();
+        var cold = new Mock<IMultiCold>();
+        cold.Setup(c => c.QueryMultiAsync(It.IsAny<string[]>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, ValidTelemetryData[]> { ["p1"] = [new() { PointId = "p1", Value = 1 }] });
+        warm.Setup(w => w.QueryMultiAsync(It.IsAny<string[]>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, ValidTelemetryData[]> { ["p1"] = [new() { PointId = "p1", Value = 2 }] });
+        var sut = new OssTelemetryQueryRouter(NullLogger<OssTelemetryQueryRouter>.Instance, _cache,
+            _hot.Object, warm.Object, cold.Object, _agg.Object, WarmRetention);
+
+        var result = await sut.QueryRawMultiAsync(["p1"], DateTime.UtcNow.AddDays(-100), DateTime.UtcNow);
+
+        Assert.Equal(new double?[] { 1, 2 }, result["p1"].Select(r => r.Value));
+    }
+
+    [Fact]
+    public async Task QueryRawMultiAsync_StoreWithoutMultiSupport_FallsBackToPerPointReads()
+    {
+        _warm.Setup(w => w.QueryAsync("p1", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+             .ReturnsAsync([new ValidTelemetryData { PointId = "p1" }]);
+        _warm.Setup(w => w.QueryAsync("p2", It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+             .ReturnsAsync(Array.Empty<ValidTelemetryData>());
+
+        var result = await CreateSut().QueryRawMultiAsync(["p1", "p2"], DateTime.UtcNow.AddDays(-1), DateTime.UtcNow);
+
+        Assert.Single(result["p1"]);
+        Assert.Empty(result["p2"]);
+    }
 }

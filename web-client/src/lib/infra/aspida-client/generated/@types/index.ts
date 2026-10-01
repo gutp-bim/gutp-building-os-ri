@@ -52,6 +52,17 @@ export type BatchLatestRequest = {
   pointIds?: string[] | undefined;
 }
 
+/** Request body for `POST /api/v1/telemetries/query/batch` (#510). */
+export type BatchQueryRequest = {
+  /** Points to read; duplicates and blanks are ignored. At most 500. */
+  pointIds?: string[] | undefined;
+  /** Range start (inclusive). Required. */
+  start?: string | null | undefined;
+  /** Range end. Required, and not before Start. */
+  end?: string | null | undefined;
+  granularity?: TelemetryGranularity | undefined;
+}
+
 export type Building = {
   dtId: string;
   id: string;
@@ -743,6 +754,16 @@ export type TelemetryReading = {
    * `TelemetryValueSchemaFilter`, for the same reason Value is.
    */
   state?: string | null | boolean | undefined;
+}
+
+/**
+ * One point's history in a `POST /api/v1/telemetries/query/batch` response (#510).
+ * `Readings` is empty when the point has no data in the range. Existence in the twin is not
+ * checked (as in batch-latest), so a point removed from the twin still returns the history it left.
+ */
+export type TelemetrySeries = {
+  pointId?: string | undefined;
+  readings?: TelemetryReading[] | undefined;
 }
 
 export type TelemetryThresholds = {
