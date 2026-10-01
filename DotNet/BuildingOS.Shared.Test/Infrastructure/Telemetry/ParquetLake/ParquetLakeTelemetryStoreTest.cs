@@ -353,6 +353,29 @@ public class ParquetLakeTelemetryStoreTest
         Assert.Equal(2, (await store.QueryLatestAsync("p1"))!.Value);
     }
 
+    /// <summary>
+    /// Concurrent reads learning different buildings for one point must still end with the point
+    /// marked as never prunable — a lost update would let one building win and re-enable pruning.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentLearnsOfDifferentBuildings_AlwaysEndUnprunable()
+    {
+        for (var round = 0; round < 50; round++)
+        {
+            var scan = new ParquetLakeScan(new InMemoryBlobStorage(), new MemoryCache(new MemoryCacheOptions()));
+            using var go = new ManualResetEventSlim(false);
+            var tasks = Enumerable.Range(0, 8).Select(i => Task.Run(() =>
+            {
+                go.Wait();
+                scan.CacheBuilding("p1", i % 2 == 0 ? "b-old" : "b-new");
+            })).ToArray();
+            go.Set();
+            await Task.WhenAll(tasks);
+
+            Assert.Null(scan.GetCachedBuilding("p1"));
+        }
+    }
+
     [Fact]
     public async Task QueryLatestAsync_OutsideLookback_ReturnsNull()
     {

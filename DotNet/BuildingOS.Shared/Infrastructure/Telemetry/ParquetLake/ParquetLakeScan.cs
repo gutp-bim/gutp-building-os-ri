@@ -35,6 +35,7 @@ internal sealed class ParquetLakeScan
     // for the life of the process. Held without expiry: re-learning one building after a TTL would
     // reopen exactly the hole this closes. One small entry per re-keyed point.
     private const string MultiBuildingMarker = "\0multi";
+    private static readonly object LearnGate = new();
 
     /// <summary>The learned building for a point, or null if not yet resolved (or never prunable).</summary>
     public string? GetCachedBuilding(string pointId)
@@ -45,13 +46,20 @@ internal sealed class ParquetLakeScan
     {
         if (string.IsNullOrEmpty(pointId) || string.IsNullOrEmpty(building)) return;
         var key = PointBuildingCachePrefix + pointId;
-        if (_cache.TryGetValue(key, out string? current) && current is not null && current != building)
+        // Read-modify-write under one lock: two reads learning different buildings at once must not
+        // both see the old state and let one building overwrite the other — or the marker (#527).
+        // Static because every ParquetLakeScan in the process shares the one IMemoryCache; it is only
+        // taken when a read learns, never on the pruned path.
+        lock (LearnGate)
         {
-            // Seen under another building before (in this read or an earlier one): never prune it.
-            _cache.Set(key, MultiBuildingMarker);
-            return;
+            if (_cache.TryGetValue(key, out string? current) && current is not null && current != building)
+            {
+                // Seen under another building before (in this read or an earlier one): never prune it.
+                _cache.Set(key, MultiBuildingMarker);
+                return;
+            }
+            _cache.Set(key, building, PointBuildingCacheTtl);
         }
-        _cache.Set(key, building, PointBuildingCacheTtl);
     }
 
     /// <summary>
