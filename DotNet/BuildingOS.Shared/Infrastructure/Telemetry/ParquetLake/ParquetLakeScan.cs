@@ -54,13 +54,6 @@ internal sealed class ParquetLakeScan
     public string? GetCachedBuilding(string pointId)
         => _cache.TryGetValue(PointBuildingKey(pointId), out string? b) ? b : null;
 
-    /// <summary>Records the building a point's data was found in, to prune later scans.</summary>
-    public void CacheBuilding(string? pointId, string? building)
-    {
-        if (!string.IsNullOrEmpty(pointId) && !string.IsNullOrEmpty(building))
-            _cache.Set(PointBuildingKey(pointId), building, PointBuildingCacheTtl);
-    }
-
     /// <summary>
     /// Learns a point's building from the rows of a read that is allowed to learn (see
     /// <see cref="CanPruneAsync"/>). Rows under more than one building (a row with no building counts

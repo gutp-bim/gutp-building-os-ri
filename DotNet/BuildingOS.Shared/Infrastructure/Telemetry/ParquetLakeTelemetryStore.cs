@@ -119,17 +119,16 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
         var buildings = known is not null
             ? new[] { known }
             : await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
-        return (await FindNewestAsync(buildings, hours).ConfigureAwait(false)).Row;
+        return await FindNewestAsync(buildings, hours).ConfigureAwait(false);
 
-        // The newest row of the point in the first (most recent) of `probe` hours that has one, and
-        // that hour's index in `probe`. Learns from what it read.
-        async Task<(ValidTelemetryData? Row, int HourIndex)> FindNewestAsync(
+        // The newest row of the point in the first (most recent) of `probe` hours that has one.
+        // Learns from what it read.
+        async Task<ValidTelemetryData?> FindNewestAsync(
             IReadOnlyList<string> buildings, IReadOnlyList<DateTime> probe)
         {
-            if (buildings.Count == 0) return (null, -1);
-            for (var h = 0; h < probe.Count; h++)
+            if (buildings.Count == 0) return null;
+            foreach (var hour in probe)
             {
-                var hour = probe[h];
                 // List each building's hour partition concurrently so fallback latency does not grow
                 // linearly with the building count (the listings are independent reads).
                 var perBuilding = await Task.WhenAll(
@@ -144,10 +143,10 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
                     var deduped = ParquetLakeReadPlanner.DedupById(rows); // ascending by time
                     if (prunable && known is null)
                         await LearnAsync(pointId, deduped, cancellationToken).ConfigureAwait(false);
-                    return (deduped[^1], h); // newest in the most recent hour with data
+                    return deduped[^1]; // newest in the most recent hour with data
                 }
             }
-            return (null, -1);
+            return null;
         }
     }
 
