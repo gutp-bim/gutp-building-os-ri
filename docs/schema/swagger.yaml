@@ -4332,6 +4332,8 @@ components:
       properties:
         point:
           $ref: '#/components/schemas/Point'
+        building:
+          $ref: '#/components/schemas/Building'
         floor:
           $ref: '#/components/schemas/Floor'
         space:

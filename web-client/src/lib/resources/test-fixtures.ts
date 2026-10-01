@@ -83,6 +83,7 @@ export function aControlSchema(
 export function aPointDetail(
   overrides: {
     point?: Partial<PointResource>;
+    building?: ResourceRef | null;
     device?: DeviceResource | null;
     floor?: ResourceRef | null;
     space?: ResourceRef | null;
@@ -91,6 +92,7 @@ export function aPointDetail(
 ): PointDetailResource {
   return {
     point: aPoint(overrides.point),
+    building: overrides.building ?? null,
     device: overrides.device ?? null,
     floor: overrides.floor ?? null,
     space: overrides.space ?? null,

@@ -257,16 +257,15 @@ export default function PointDetailPageComponent({
 
   // 補助情報なので失敗はバナーにしない（権限で弾かれる / 一覧 API が落ちている場合も、パネルの
   // 手元判定はそのまま使える）。古い応答が新しい応答を上書きしないよう要求 id で捨てる。
-  // PointDetail に建物 dtId が無いため建物スコープを付けられない（台帳は建物ごとにキャッシュ済みで、
-  // コストは /health を建物指定なしで開くのと同じ）。スコープ化は #547。
+  // 建物を付けてサーバの分類を 1 棟ぶんに絞る（#547）。twin が建物に置いていない Point だけは全建物ぶん。
   const fetchHealthRow = async () => {
     if (!pointDetail?.point.id) return;
     const requestId = ++healthRequestId.current;
     try {
-      const row = await fetchPointHealthRow(
-        pointDetail.point.id,
-        pointDetail.device?.dtId ?? undefined,
-      );
+      const row = await fetchPointHealthRow(pointDetail.point.id, {
+        deviceDtId: pointDetail.device?.dtId ?? undefined,
+        buildingDtId: pointDetail.building?.dtId ?? undefined,
+      });
       if (requestId === healthRequestId.current) setHealthRow(row);
     } catch (e) {
       console.warn("point health row unavailable", e);

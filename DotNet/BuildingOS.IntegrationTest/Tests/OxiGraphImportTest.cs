@@ -190,6 +190,10 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         // Device.BuildingName had no assignment anywhere in the repository — the field the point
         // detail UI reads was structurally always null.
         Assert.Equal("bldg-1", detail!.Device?.BuildingName);
+        // #547: the building as a node (dtId + business id), so a client can scope by it.
+        Assert.Equal("https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-1", detail.Building?.DtId);
+        Assert.Equal("building:site:site-1/bldg-1", detail.Building?.Id);
+        Assert.Equal("bldg-1", detail.Building?.Name);
     }
 
     // The floor-literal-only shape: Building → Level, equipment naming the level only through the
@@ -224,6 +228,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
 
         Assert.NotNull(detail);
         Assert.True(string.IsNullOrEmpty(detail!.Device?.BuildingName));
+        Assert.Null(detail.Building);
         Assert.True(string.IsNullOrEmpty(detail.Floor?.Name));
         // The point itself still resolves with its metadata.
         Assert.Equal("On_Off_Status", detail.Point.Type);
@@ -257,6 +262,8 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
 
         Assert.NotNull(detail);
         Assert.Equal("EXAMPLE", detail!.Device?.BuildingName);
+        Assert.Equal("https://www.sbco.or.jp/ont/resource/bldg-example", detail.Building?.DtId);
+        Assert.Equal("EXAMPLE", detail.Building?.Id);
         Assert.Equal("3F", detail.Floor?.Name);
         Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
     }
@@ -277,6 +284,12 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.NotEmpty(details);
         // List and detail must agree about which building a point is in (#294).
         Assert.All(details, d => Assert.Equal("bldg-1", d.Device?.BuildingName));
+        Assert.All(details, d =>
+        {
+            Assert.Equal(Bldg1DtId, d.Building?.DtId);
+            Assert.Equal("building:site:site-1/bldg-1", d.Building?.Id);
+            Assert.Equal("bldg-1", d.Building?.Name);
+        });
     }
 
     private async Task<int> CountTriplesAsync()

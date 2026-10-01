@@ -302,7 +302,8 @@ SELECT {PointVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
         // because a device satisfying both paths would otherwise duplicate rows.
         var sparql = $@"{Prefixes}
 SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
-       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding) {DeviceAttrAggregates}
+       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding)
+       (SAMPLE(?bldg) AS ?bldgDt) (SAMPLE(?bldgIdRaw) AS ?bldgId) {DeviceAttrAggregates}
 WHERE {{
   ?dev <{Prop_HasPoint}> <{pointUri}> ;
        a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
@@ -334,6 +335,7 @@ WHERE {{
       ?bldg <{Prop_HasPart}> ?bFloorDirect .
       ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
     }}
+    OPTIONAL {{ ?bldg <{Prop_Id}> ?bldgIdRaw . }}
   }}
 }}
 GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
@@ -344,9 +346,20 @@ ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
         var rows = await _client.QueryAsync(sparql);
         if (rows.Count == 0) return null;
         var r = rows[0];
+        var buildingDt = r.GetValueOrDefault("bldgDt", "");
         return new PointDetail
         {
             Point = point,
+            // ?bldgDt / ?bldgId / ?devBuilding are SAMPLEd separately; they agree because a device is
+            // placed in one building (a Level belongs to one Building via sbco:hasPart).
+            Building = string.IsNullOrEmpty(buildingDt)
+                ? null
+                : new Building
+                {
+                    DtId = buildingDt,
+                    Id = r.GetValueOrDefault("bldgId", ""),
+                    Name = r.GetValueOrDefault("devBuilding", ""),
+                },
             Floor = new Floor { DtId = r.GetValueOrDefault("floorDt", ""), Id = r.GetValueOrDefault("floorId", ""), Name = r.GetValueOrDefault("floorName", "") },
             Space = new Space { DtId = r.GetValueOrDefault("spaceDt", ""), Id = r.GetValueOrDefault("spaceId", ""), Name = r.GetValueOrDefault("spaceName", "") },
             Device = MapDevice(r),
@@ -367,11 +380,12 @@ ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
         // point is in (#294). Its triple is OPTIONAL: the building is the query's input, and a nameless
         // one must not silently collapse the whole result the way a required triple would.
         var sparql = $@"{Prefixes}
-SELECT {PointVars} ?devBuilding
+SELECT {PointVars} ?devBuilding ?bldgId
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
        (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
 WHERE {{
   OPTIONAL {{ <{buildingDtId}> <{Prop_Name}> ?devBuilding . }}
+  OPTIONAL {{ <{buildingDtId}> <{Prop_Id}> ?bldgId . }}
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
   BIND(?floor AS ?floorDt)
@@ -398,13 +412,19 @@ WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
   BIND(?pt AS ?ptDt){PointOptionals}
 }}
-GROUP BY {PointVars} ?devBuilding
+GROUP BY {PointVars} ?devBuilding ?bldgId
          ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
 
         var rows = await _client.QueryAsync(sparql);
         return rows.Select(r => new PointDetail
         {
             Point = MapPoint(r),
+            Building = new Building
+            {
+                DtId = buildingDtId,
+                Id = r.GetValueOrDefault("bldgId", ""),
+                Name = r.GetValueOrDefault("devBuilding", ""),
+            },
             Floor = new Floor { DtId = r.GetValueOrDefault("floorDt", ""), Id = r.GetValueOrDefault("floorId", ""), Name = r.GetValueOrDefault("floorName", "") },
             Space = new Space { DtId = r.GetValueOrDefault("spaceDt", ""), Id = r.GetValueOrDefault("spaceId", ""), Name = r.GetValueOrDefault("spaceName", "") },
             Device = MapDevice(r),

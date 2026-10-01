@@ -110,6 +110,8 @@ export type DeviceResource = ResourceRef & {
  */
 export type PointDetailResource = {
   point: PointResource;
+  /** The building the twin places the point in (#547) — lets callers scope building-level reads. */
+  building: ResourceRef | null;
   device: DeviceResource | null;
   floor: ResourceRef | null;
   space: ResourceRef | null;

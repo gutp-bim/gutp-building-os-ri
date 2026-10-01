@@ -95,6 +95,7 @@ function toControlSchemaResource(c: ControlSchema): ControlSchemaResource {
 export function toPointDetail(d: PointDetail): PointDetailResource {
   return {
     point: toPointResource(d.point),
+    building: d.building ? toRef("building", d.building) : null,
     device: d.device ? toDeviceResource(d.device) : null,
     floor: d.floor ? toRef("floor", d.floor) : null,
     space: d.space ? toRef("space", d.space) : null,
