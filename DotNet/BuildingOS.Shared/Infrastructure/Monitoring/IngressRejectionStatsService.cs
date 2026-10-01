@@ -34,6 +34,8 @@ public sealed class IngressRejectionStatsService : IIngressRejectionStatsService
             .ToList();
 
         // Reachable, not merely configured (#456): an unreachable backend must not read as "no rejections".
-        return new IngressRejectionStats(rejections, await reachableTask.ConfigureAwait(false));
+        // Returned samples also prove reachability, so a transient probe failure cannot hide real ones.
+        var available = await reachableTask.ConfigureAwait(false) || samples.Count > 0;
+        return new IngressRejectionStats(rejections, available);
     }
 }

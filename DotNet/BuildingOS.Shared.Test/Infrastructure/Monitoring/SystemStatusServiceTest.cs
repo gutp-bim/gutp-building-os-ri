@@ -90,6 +90,21 @@ public class SystemStatusServiceTest
     }
 
     [Fact]
+    public async Task GetStatusAsync_MetricsAvailable_WhenProbeFailsButKpisReturnData()
+    {
+        // A transient failure of the vector(1) probe alone (e.g. its 3 s timeout under load) must not
+        // hide real KPI numbers behind the "metrics unavailable" empty state.
+        var fake = new FakePrometheusClient { IsConfigured = true, Reachable = false };
+        fake.Scalars[SystemStatusService.IngressRate1mQuery] = 12.5;
+        var svc = new SystemStatusService(new FakeHealthProbe(), fake);
+
+        var status = await svc.GetStatusAsync(CancellationToken.None);
+
+        Assert.True(status.MetricsAvailable);
+        Assert.Equal(12.5, status.Kpis.IngressRate1m);
+    }
+
+    [Fact]
     public async Task GetStatusAsync_DeduplicatesSelf_WhenAlsoProbed()
     {
         var probe = new FakeHealthProbe(new ServiceStatus(SystemStatusService.SelfJob, "down"));

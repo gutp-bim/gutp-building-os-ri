@@ -200,34 +200,47 @@ public sealed class SystemStatusService : ISystemStatusService
             .OrderBy(s => s.Name, StringComparer.Ordinal)
             .ToList();
 
-        // Configured is not available: the default compose stack sets PROMETHEUS_URL without running
-        // Prometheus (#456). Unreachable → the UI shows its "metrics unavailable" empty state.
-        var metricsAvailable = await reachableTask.ConfigureAwait(false);
         var ingress = await ingressTask.ConfigureAwait(false);
         var validated = await validatedTask.ConfigureAwait(false);
         var rejected = await rejectedTask.ConfigureAwait(false);
+        var msgRate = await msgRateTask.ConfigureAwait(false);
+        var controlReq = await controlReqTask.ConfigureAwait(false);
+        var ingressBySource = await ingressBySourceTask.ConfigureAwait(false);
+        var rejectedByResult = await rejectedByResultTask.ConfigureAwait(false);
+        var connectorDropped = await connectorDroppedTask.ConfigureAwait(false);
+        var eventLag = await eventLagTask.ConfigureAwait(false);
+        var consumerLag = await consumerLagTask.ConfigureAwait(false);
+        var freshness = await freshnessTask.ConfigureAwait(false);
+        var dropped = await droppedTask.ConfigureAwait(false);
+        var natsPending = await natsPendingTask.ConfigureAwait(false);
+        var flushes = await flushesTask.ConfigureAwait(false);
+
+        // Reachable, not merely configured: the default compose stack sets PROMETHEUS_URL without running
+        // Prometheus (#456), and unreachable → the UI shows its "metrics unavailable" empty state. Any KPI
+        // that actually returned data also proves reachability, so a transient failure of the vector(1)
+        // probe alone cannot hide real numbers behind that empty state.
+        var metricsAvailable = await reachableTask.ConfigureAwait(false)
+            || new[] { ingress, validated, rejected, msgRate, controlReq, eventLag, consumerLag, freshness,
+                       dropped, natsPending, flushes }.Any(v => v is not null)
+            || ingressBySource.Count > 0 || rejectedByResult.Count > 0 || connectorDropped.Count > 0;
 
         return new SystemStatus(
             Services: ordered,
             Kpis: new SystemKpis(
-                MsgRate1m: await msgRateTask.ConfigureAwait(false),
-                ControlReq5m: await controlReqTask.ConfigureAwait(false),
+                MsgRate1m: msgRate,
+                ControlReq5m: controlReq,
                 IngressRate1m: ingress,
-                IngressBySource: Breakdown(await ingressBySourceTask.ConfigureAwait(false), "source"),
+                IngressBySource: Breakdown(ingressBySource, "source"),
                 ValidatedRate1m: validated,
                 RejectedRate1m: rejected,
                 RejectedPercent: Percent(rejected, ingress),
-                RejectedByResult: Breakdown(
-                    await rejectedByResultTask.ConfigureAwait(false), "result",
-                    await connectorDroppedTask.ConfigureAwait(false), ConnectorResultPrefix),
-                EventLagP95Seconds: await eventLagTask.ConfigureAwait(false),
-                ConsumerLagP95Seconds: await consumerLagTask.ConfigureAwait(false),
-                ParquetFreshnessP95Seconds: await freshnessTask.ConfigureAwait(false),
-                ParquetDropped15m: await droppedTask.ConfigureAwait(false),
-                NatsPending: await natsPendingTask.ConfigureAwait(false),
-                ParquetFlushStalled: metricsAvailable
-                    ? FlushStalled(await flushesTask.ConfigureAwait(false), validated)
-                    : null),
+                RejectedByResult: Breakdown(rejectedByResult, "result", connectorDropped, ConnectorResultPrefix),
+                EventLagP95Seconds: eventLag,
+                ConsumerLagP95Seconds: consumerLag,
+                ParquetFreshnessP95Seconds: freshness,
+                ParquetDropped15m: dropped,
+                NatsPending: natsPending,
+                ParquetFlushStalled: metricsAvailable ? FlushStalled(flushes, validated) : null),
             MetricsAvailable: metricsAvailable);
     }
 

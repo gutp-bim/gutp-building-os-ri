@@ -65,4 +65,23 @@ public class OperationsControllerTest
         Assert.Null(body.MsgRate1m);
         Assert.False(body.MetricsAvailable);
     }
+
+    [Fact]
+    public async Task Summary_MetricsAvailable_WhenProbeFailsButRateReturnsData()
+    {
+        // The vector(1) probe alone timing out must not hide a real msg rate.
+        var prometheus = new Mock<IPrometheusQueryClient>();
+        prometheus.SetupGet(p => p.IsConfigured).Returns(true);
+        prometheus.Setup(p => p.IsReachableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        prometheus
+            .Setup(p => p.QueryScalarAsync(SystemStatusService.MsgRate1mQuery, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(4.2);
+        var c = new OperationsController(prometheus.Object);
+
+        var result = Assert.IsType<OkObjectResult>((await c.Summary(default)).Result);
+        var body = Assert.IsType<OperationsSummaryResponse>(result.Value);
+
+        Assert.Equal(4.2, body.MsgRate1m);
+        Assert.True(body.MetricsAvailable);
+    }
 }

@@ -47,10 +47,13 @@ public class OperationsController : ControllerBase
         var reachableTask = _prometheus.IsReachableAsync(ct);
         await Task.WhenAll(rate1mTask, rate1hAvgTask, reachableTask).ConfigureAwait(false);
 
+        var rate1m = await rate1mTask.ConfigureAwait(false);
+        var rate1hAvg = await rate1hAvgTask.ConfigureAwait(false);
         return Ok(new OperationsSummaryResponse(
-            MsgRate1m: await rate1mTask.ConfigureAwait(false),
-            MsgRate1hAvg: await rate1hAvgTask.ConfigureAwait(false),
+            MsgRate1m: rate1m,
+            MsgRate1hAvg: rate1hAvg,
             // Reachable, not merely configured (#456): compose sets PROMETHEUS_URL without Prometheus.
-            MetricsAvailable: await reachableTask.ConfigureAwait(false)));
+            // A returned value also proves reachability (a transient probe failure must not hide it).
+            MetricsAvailable: await reachableTask.ConfigureAwait(false) || rate1m is not null || rate1hAvg is not null));
     }
 }
