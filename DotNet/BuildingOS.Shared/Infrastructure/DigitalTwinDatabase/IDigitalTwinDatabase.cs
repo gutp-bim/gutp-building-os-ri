@@ -22,6 +22,11 @@ public interface IDigitalTwinDatabase
     public Task<Space[]> ListAdjacentSpaces(string spaceDtId);
 
     public Task<Device[]> ListDevices(string? spaceDtId);
+    /// <summary>
+    /// Equipment located directly on the Level (<c>sbco:locatedIn &lt;floorDtId&gt;</c>, no Room) — the
+    /// placement the floor → room → device walk never reaches (#544). Empty if the dtId is not a Level.
+    /// </summary>
+    public Task<Device[]> ListFloorDevices(string floorDtId, CancellationToken ct = default);
     public Task<Device?> GetDevice(string dtId);
     public Task<Point[]> ListPoints(string? deviceDtId);
     public Task<Point?> GetPoint(string pointId);

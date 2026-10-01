@@ -68,6 +68,20 @@ export async function listDevices(
   return res.map(toDeviceResource);
 }
 
+/**
+ * Devices placed directly on a floor, with no room in between (#544). The floor → room → device walk
+ * never reaches them, so the tree and the operator home list them under the floor.
+ */
+export async function listFloorDevices(
+  floorDtId: string,
+  token?: string,
+): Promise<DeviceResource[]> {
+  const res = await apiClient(token).api.v1.devices.$get({
+    query: { floorDtId },
+  });
+  return res.map(toDeviceResource);
+}
+
 export async function listPoints(
   deviceDtId: string,
   token?: string,
@@ -86,8 +100,14 @@ export async function listChildren(
   switch (parent.type) {
     case "building":
       return listFloors(parent.dtId, token);
-    case "floor":
-      return listSpaces(parent.dtId, token);
+    case "floor": {
+      // Rooms first, then the equipment placed directly on the floor (#544).
+      const [spaces, devices] = await Promise.all([
+        listSpaces(parent.dtId, token),
+        listFloorDevices(parent.dtId, token),
+      ]);
+      return [...spaces, ...devices];
+    }
     case "space":
       return listDevices(parent.dtId, token);
     case "device":

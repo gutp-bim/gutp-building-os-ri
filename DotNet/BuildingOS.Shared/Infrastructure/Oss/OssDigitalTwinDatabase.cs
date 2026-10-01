@@ -73,6 +73,12 @@ public class OssDigitalTwinDatabase(ILogger<OssDigitalTwinDatabase> logger) : ID
         return Task.FromResult<Point?>(null);
     }
 
+    public Task<Device[]> ListFloorDevices(string floorDtId, CancellationToken ct = default)
+    {
+        logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListFloorDevices — no-op placeholder");
+        return Task.FromResult(Array.Empty<Device>());
+    }
+
     public Task<PointDetail?> GetPointDetailByPointId(string pointId)
     {
         logger.LogWarning("[OSS] OssDigitalTwinDatabase.GetPointDetailByPointId — no-op placeholder");

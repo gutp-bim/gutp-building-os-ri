@@ -100,8 +100,8 @@ twin の階層で表すのでタグには入れません。デモには `critica
 - feeder（`Tools/development-edge-device/grpc_demo_feeder.py`）は Point ごとの期待周期で送ります。
   全体で約 25 frame/s（5 秒周期の Point は 51 点）で、既存の soak（#297、1,865 Point）より軽い負荷です。
   gateway ごとに GatewayBridge へ egress ストリームを張るので、gateway は「接続」と表示されます。
-- 空調機・電力量計・気象観測は各フロアの「機械室」（Room）に置いています。`/home` の要対応リストが
-  Level 直下の機器をまだ拾わないためです（#544）。
+- 空調機・電力量計・気象観測は各フロアの「機械室」（Room）に置いています。部屋を介さずフロアに直接
+  置いた機器も、ツリーと `/home` ではフロアの下に並びます（#544）。
 
 ## 画面写真の再生成
 
