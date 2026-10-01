@@ -9,7 +9,7 @@
 > 生の集計 artifact(匿名化済み)は
 > [`images/soak-test-artifacts.json`](images/soak-test-artifacts.json) に添付する。
 
-> **命名について**: このリポジトリの `e2e/plan.md` は独自の評価軸番号(E1〜E11)を持ち、
+> **命名について**: このリポジトリの `e2e/plan.md` は独自の評価軸番号(E1〜E12)を持ち、
 > **E9 は「運用・可観測性(OTel トレース相関)」、E10 が「長時間ソーク(endurance)」**として
 > 既に定義されている(`e2e/scenarios/E10-endurance-soak.md`、`s19_endurance_soak.py`)。本評価は
 > それらとは別に手動で行ったものであり、混同を避けるため E 番号を付けない。E10 は本評価より
@@ -45,8 +45,8 @@ Building OS OSS スタックに接続し、**約 73.6 時間**の連続稼働評
   という観察は、評価対象イメージにおいては正確だが、`main` では既に `#425` で修正済みである
   ことが事後に判明した(§3.3・§10 参照)。
 
-したがって、本評価は R3(リソース安定性)〜R5(同期の信頼性)の運用適合性を補強する有用な
-データを提供するが、**R4 の Control 安全性を含めた完全な運用適合性を証明するものではない**。
+したがって、本評価はリソース安定性・障害復旧・Point List 同期の信頼性について運用適合性を補強する
+有用なデータを提供するが、**Control 安全性(§6)を含めた完全な運用適合性を証明するものではない**。
 
 ## 2. マイルストーン結果
 
@@ -263,7 +263,7 @@ Parquet Lake の 3 層で突合したものではない**。したがって「�
 
 - [`docs/reference/performance-evaluation-report.md`](performance-evaluation-report.md) — スケールスイープ(#261)・Gateway 再接続(#262)の既存評価
 - [`e2e/evaluation-report.md`](../../e2e/evaluation-report.md) — E1〜E8 定量評価ゲート(Control 安全性 E6 含む)
-- [`e2e/plan.md`](../../e2e/plan.md) — このリポジトリの E1〜E11 評価軸の定義(E9=運用・可観測性、E10=長時間ソーク)
+- [`e2e/plan.md`](../../e2e/plan.md) — このリポジトリの E1〜E12 評価軸の定義(E9=運用・可観測性、E10=長時間ソーク)
 - [`e2e/scenarios/E10-endurance-soak.md`](../../e2e/scenarios/E10-endurance-soak.md) — 本評価と別に、より厳密な gate 条件と GC 分離計測手段を備えた長時間ソーク軸
 - [`docs/architecture/oss-control-safety.md`](../architecture/oss-control-safety.md) — 制御系安全分界ドキュメント
 - [gutp-bim/gutp-building-os-ri#484](https://github.com/gutp-bim/gutp-building-os-ri/issues/484) — 本評価で発見した `OxiGraphSeedHostedService` の課題
