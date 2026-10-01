@@ -575,6 +575,6 @@ This is a single-context repository. Read the root domain documentation and rele
 ## Environment Requirements
 
 - .NET SDK 8.0+
-- Node.js 20.19.5+ minimum (`web-client/.node-version` + `package.json` `engines`); 22.x recommended (CI runs 22.x)
+- Node.js 22.12.0+ minimum (`web-client/.node-version` + `package.json` `engines`; Node 20 is EOL and `@testing-library/jest-dom` 7 requires 22, #407); CI and the web Docker image run 22.x
 - Docker Desktop (for local development)
 - Buf CLI (for proto → TypeScript generation)
