@@ -211,6 +211,13 @@ SELECT ?devDt ?devId ?devName (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
 WHERE {{
   <{floorDtId}> a <{Cls_Level}> .
   ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName ; <{Prop_LocatedIn}> <{floorDtId}> .
+  # Also placed in a Room of this same Level: that room already lists it (as ListPointDetails keeps a
+  # same-Level dual placement to one row), so it is not repeated here.
+  FILTER NOT EXISTS {{
+    ?dev <{Prop_LocatedIn}> ?room .
+    ?room a <{Cls_Space}> .
+    <{floorDtId}> <{Prop_HasPart}> ?room .
+  }}
   BIND(?dev AS ?devDt)
   OPTIONAL {{ ?dev <{Prop_HasPoint}> ?pt . ?pt <{Prop_GatewayId}> ?gwRaw . }}{DeviceAttrOptionals()}
 }}

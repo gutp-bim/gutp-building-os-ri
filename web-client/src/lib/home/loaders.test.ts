@@ -43,6 +43,19 @@ describe("collectFloorPoints (#544)", () => {
     ]);
   });
 
+  it("lists a point once even if its device is reachable both ways", async () => {
+    const deps = {
+      listSpaces: vi.fn().mockResolvedValue([ref("space", "R1")]),
+      listDevices: vi.fn().mockResolvedValue([device("DUAL")]),
+      listFloorDevices: vi.fn().mockResolvedValue([device("DUAL")]),
+      listPoints: vi.fn().mockResolvedValue([point("P-DUAL")]),
+    };
+
+    expect(
+      (await collectFloorPoints("urn:F1", deps)).map((p) => p.pointId),
+    ).toEqual(["P-DUAL"]);
+  });
+
   it("a failing floor-device read degrades to the room-placed points", async () => {
     const deps = {
       listSpaces: vi.fn().mockResolvedValue([ref("space", "R1")]),

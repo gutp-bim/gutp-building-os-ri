@@ -116,7 +116,12 @@ export async function collectFloorPoints(
     }),
   );
   const onFloor = await Promise.all(floorDevices.map((d) => pointsOf(d)));
-  return [...inRooms.flat(), ...onFloor.flat()];
+  // A point appears once per floor even if its device is reachable both ways (defence in depth: the
+  // server already leaves a same-floor room-placed device out of the floor list).
+  const seen = new Set<string>();
+  return [...inRooms.flat(), ...onFloor.flat()].filter(
+    (p) => !seen.has(p.pointId) && (seen.add(p.pointId), true),
+  );
 }
 
 /**

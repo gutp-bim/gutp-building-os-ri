@@ -118,6 +118,10 @@ public class DirectLevelHierarchyTest(OxiGraphFixture oxiGraph)
               sbco:locatedIn <urn:t:l> .
             <urn:t:inRoom> a sbco:EquipmentExt ; sbco:id "IN-ROOM" ; sbco:name "VAV" ;
               sbco:locatedIn <urn:t:r> .
+            # Placed in a room of this Level AND on the Level itself: the room already lists it, so the
+            # floor list must not repeat it (Codex review on #554).
+            <urn:t:both> a sbco:EquipmentExt ; sbco:id "BOTH" ; sbco:name "Dual" ;
+              sbco:locatedIn <urn:t:r> , <urn:t:l> .
             # A Room is not a Level: asking for a room's "floor devices" returns nothing.
             """;
         await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
