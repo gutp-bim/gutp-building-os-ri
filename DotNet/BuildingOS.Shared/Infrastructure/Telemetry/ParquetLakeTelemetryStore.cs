@@ -166,16 +166,21 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             "partition key changed without being recorded (twin topology change, or the #527 key migration). " +
             "Recording the change now; reads pruned to one building before this may have missed rows. " +
             "After a twin change, record it explicitly: POST /api/v1/system/lake/point-buildings/reset",
-            pointId, string.Join(", ", buildings));
+            ForLog(pointId), ForLog(string.Join(", ", buildings)));
         try
         {
             await _scan.MarkKeysChangedAsync(DateTime.UtcNow, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "Could not record the lake partition-key change for point {PointId}", pointId);
+            _logger.LogWarning(ex, "Could not record the lake partition-key change for point {PointId}", ForLog(pointId));
         }
     }
+
+    // The point id comes from the request; strip control characters so it cannot forge log lines.
+    private static readonly System.Text.RegularExpressions.Regex ControlChars =
+        new(@"\p{C}", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static string ForLog(string value) => ControlChars.Replace(value, "_");
 
     private IReadOnlyList<string> CapFiles(IReadOnlyList<string> keys, string queryLabel, DateTime start, DateTime end)
     {
