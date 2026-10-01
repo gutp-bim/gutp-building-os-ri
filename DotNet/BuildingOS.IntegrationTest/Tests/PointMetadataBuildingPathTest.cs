@@ -96,9 +96,41 @@ public class PointMetadataBuildingPathTest(OxiGraphFixture oxiGraph)
         var meta = await LoadAsync(StaleLiteralTtl, "PT999");
 
         Assert.False(meta.HasBuildingPath);
-        // The literal is still surfaced verbatim — it stays the enrichment value and the lake's
-        // partition key. Only the hierarchy gate stops trusting it.
+        // Placed nowhere, so the literal is the only building there is: it stays the enrichment
+        // value and the lake's partition key (#527 fallback). Only the hierarchy gate distrusts it.
         Assert.Equal("bldg-typo", meta.Building);
+    }
+
+    // #527: the point is placed in bldg-1 by topology but its literal still names the building it
+    // was moved out of. The topology wins, so its telemetry lands in bldg-1's lake partition.
+    [Fact]
+    public async Task StaleLiteralOnAPlacedPoint_TheTopologyBuildingWins()
+    {
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bldg-1> a sbco:Building ; sbco:id "bldg-1" ; sbco:name "Building 1" ;
+              sbco:hasPart <urn:test:floor-1> .
+            <urn:test:bldg-old> a sbco:Building ; sbco:id "bldg-old" ; sbco:name "Old Building" .
+            <urn:test:floor-1> a sbco:Level ; sbco:id "floor-1" ; sbco:name "floor-1" .
+            <urn:test:dev-1> a sbco:EquipmentExt ; sbco:id "DEV001" ; sbco:name "AHU" ;
+              sbco:locatedIn <urn:test:floor-1> ;
+              sbco:hasPoint <urn:test:pt-1> .
+            <urn:test:pt-1> a sbco:PointExt ; sbco:id "PT001" ; sbco:name "Room Temp" ;
+              sbco:building "bldg-old" .
+            """;
+
+        var meta = await LoadAsync(ttl, "PT001");
+
+        Assert.True(meta.HasBuildingPath);
+        Assert.Equal("bldg-1", meta.Building);
+    }
+
+    [Fact]
+    public async Task SpatialChain_WithoutALiteral_TakesTheReachedBuilding()
+    {
+        var meta = await LoadAsync(SpatialTtl, "PT001");
+
+        Assert.Equal("bldg-1", meta.Building);
     }
 
     [Fact]

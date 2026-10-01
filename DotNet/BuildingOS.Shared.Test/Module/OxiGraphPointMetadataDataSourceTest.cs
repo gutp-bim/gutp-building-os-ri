@@ -280,6 +280,114 @@ public class OxiGraphPointMetadataDataSourceTest
     }
 
     // ---------------------------------------------------------------------------------------------
+    // 6b. #527: the building is the one the topology reaches, not the sbco:building literal.
+    //
+    // Building becomes the telemetry `building` field and the Parquet lake partition key. The
+    // literal is a denormalized copy nobody joins, so it can be stale or missing; the reachability
+    // query already walks to the Building node, so it reports that node's sbco:id and the merge
+    // prefers it. The literal is only the fallback for a point the topology does not place.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Merge_BuildingIsTheTopologyReachedBuilding_EvenWhenTheLiteralSaysOtherwise()
+    {
+        var result = Sut.Merge(
+            points: [Point("PT001", building: "bldg-stale")],
+            deviceLinks: [Link("PT001", "DEV001")],
+            reachable: [Reachable("PT001", buildingId: "bldg-1")]);
+
+        var meta = Assert.Single(result);
+        Assert.Equal("bldg-1", meta.Building);
+        Assert.True(meta.HasBuildingPath);
+    }
+
+    [Fact]
+    public void Merge_ReachedBuilding_FillsAMissingLiteral()
+    {
+        var result = Sut.Merge(
+            points: [Point("PT001")],
+            deviceLinks: [],
+            reachable: [Reachable("PT001", buildingId: "bldg-1")]);
+
+        Assert.Equal("bldg-1", Assert.Single(result).Building);
+    }
+
+    /// <summary>
+    /// A twin is routinely seeded before its hierarchy is complete (#118); such a point keeps the
+    /// literal it had, so its telemetry stays in the partition it was already landing in.
+    /// </summary>
+    [Fact]
+    public void Merge_PointTheTopologyDoesNotPlace_FallsBackToTheLiteral()
+    {
+        var result = Sut.Merge(
+            points: [Point("PT999", building: "bldg-literal")],
+            deviceLinks: [],
+            reachable: []);
+
+        var meta = Assert.Single(result);
+        Assert.Equal("bldg-literal", meta.Building);
+        Assert.False(meta.HasBuildingPath);
+    }
+
+    /// <summary>A reached Building that carries no sbco:id names no key, so the literal stands.</summary>
+    [Fact]
+    public void Merge_ReachedBuildingWithoutAnId_FallsBackToTheLiteral()
+    {
+        var result = Sut.Merge(
+            points: [Point("PT001", building: "bldg-literal")],
+            deviceLinks: [],
+            reachable: [Reachable("PT001")]);
+
+        var meta = Assert.Single(result);
+        Assert.Equal("bldg-literal", meta.Building);
+        Assert.True(meta.HasBuildingPath);
+    }
+
+    /// <summary>
+    /// A point placed under two buildings (twin defect) still gets one partition key, and the same
+    /// one on every load — the ordinal-smallest id — rather than whichever row OxiGraph emitted last.
+    /// </summary>
+    [Fact]
+    public void Merge_PointReachingTwoBuildings_PicksTheOrdinalSmallestIdDeterministically()
+    {
+        var a = Sut.Merge([Point("PT001")], [], [Reachable("PT001", "bldg-b"), Reachable("PT001", "bldg-a")]);
+        var b = Sut.Merge([Point("PT001")], [], [Reachable("PT001", "bldg-a"), Reachable("PT001", "bldg-b")]);
+
+        Assert.Equal("bldg-a", Assert.Single(a).Building);
+        Assert.Equal("bldg-a", Assert.Single(b).Building);
+    }
+
+    [Fact]
+    public void BuildingLiteralMismatches_ReportsOnlyPlacedPointsWhoseLiteralNamesAnotherBuilding()
+    {
+        var mismatches = Sut.BuildingLiteralMismatches(
+            pointRows:
+            [
+                Point("P-STALE", building: "bldg-old"),   // placed in bldg-1, literal says bldg-old → mismatch
+                Point("P-OK", building: "bldg-1"),        // agrees
+                Point("P-NOLIT"),                         // no literal: filled, not contradicted
+                Point("P-ORPHAN", building: "bldg-x"),    // not placed: literal is used as-is
+            ],
+            reachableRows:
+            [
+                Reachable("P-STALE", "bldg-1"),
+                Reachable("P-OK", "bldg-1"),
+                Reachable("P-NOLIT", "bldg-1"),
+            ]);
+
+        Assert.Equal(["P-STALE"], mismatches);
+    }
+
+    [Fact]
+    public async Task ReachabilityQuery_ReportsTheReachedBuildingsId()
+    {
+        var q = await CaptureQueriesAsync();
+
+        Assert.Matches(@"SELECT DISTINCT \?pointId \?buildingId\b", q.Reachability);
+        Assert.Matches(@"OPTIONAL\s*\{\s*\?bldg sbco:id \?buildingId\s*\}", q.Reachability);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // 7. Query structure: three separate queries, quadratic term gone, semantics kept.
     // ---------------------------------------------------------------------------------------------
 
@@ -574,8 +682,12 @@ public class OxiGraphPointMetadataDataSourceTest
             ["deviceId"] = deviceId,
         };
 
-    private static IReadOnlyDictionary<string, string> Reachable(string pointId)
-        => new Dictionary<string, string>(StringComparer.Ordinal) { ["pointId"] = pointId };
+    private static IReadOnlyDictionary<string, string> Reachable(string pointId, string? buildingId = null)
+    {
+        var row = new Dictionary<string, string>(StringComparer.Ordinal) { ["pointId"] = pointId };
+        if (buildingId is not null) row["buildingId"] = buildingId;
+        return row;
+    }
 
     private static OxiGraphClient NewClient(HttpMessageHandler handler)
         // HttpClient.Timeout is left at the framework default (100 s) on purpose: the timeout tests
@@ -730,6 +842,12 @@ internal static class Sut
     /// </summary>
     internal static string[] AmbiguousPointIds(IReadOnlyList<IReadOnlyDictionary<string, string>> points)
         => OxiGraphPointMetadataDataSource.AmbiguousPointIds(points);
+
+    /// <summary>#527: direct call, same reason as <see cref="AmbiguousPointIds"/>.</summary>
+    internal static string[] BuildingLiteralMismatches(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> pointRows,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> reachableRows)
+        => OxiGraphPointMetadataDataSource.BuildingLiteralMismatches(pointRows, reachableRows);
 
     /// <summary>GREEN must expose the default as <c>DefaultQueryTimeout</c> (static field or property).</summary>
     internal static TimeSpan? DefaultQueryTimeout()

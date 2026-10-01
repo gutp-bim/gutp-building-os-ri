@@ -6,14 +6,15 @@ namespace BuildingOS.Shared.Module;
 /// frame. All string fields may be empty when the twin does not define them.
 /// </summary>
 /// <param name="Building">
-/// The denormalized <c>sbco:building</c> literal on the point. This is the enrichment value — it is
-/// published as the validated-telemetry <c>building</c> field and becomes the Parquet lake's
-/// partition key — so it stays exactly as the twin records it.
+/// The enrichment value — published as the validated-telemetry <c>building</c> field and the
+/// Parquet lake's partition key. Since #527 it is the <c>sbco:id</c> of the Building the TOPOLOGY
+/// reaches the point in (the same traversal as <see cref="HasBuildingPath"/>); the denormalized
+/// <c>sbco:building</c> literal is only the fallback for a point the topology does not place, so an
+/// unplaced point keeps the partition it was already landing in.
 /// <para>
-/// It is NOT evidence that the point is placed in the hierarchy: it is a string nobody joins, so it
-/// can be present on a point no building actually contains, and absent from a point a building
-/// plainly does (the twin's own building→equipment join is structural, not this literal).
-/// Use <see cref="HasBuildingPath"/> for that question.
+/// A non-empty value is therefore NOT evidence that the point is placed in the hierarchy: for an
+/// unplaced point it is that literal, a string nobody joins. Use <see cref="HasBuildingPath"/> for
+/// that question.
 /// </para>
 /// </param>
 /// <param name="HasBuildingPath">

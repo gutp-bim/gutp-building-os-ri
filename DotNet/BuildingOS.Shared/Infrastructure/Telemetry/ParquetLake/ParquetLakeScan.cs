@@ -43,6 +43,23 @@ internal sealed class ParquetLakeScan
     }
 
     /// <summary>
+    /// Learns a point's building from the rows a full scan found — but only when they all agree.
+    /// Rows under two buildings mean the point was re-keyed (e.g. #527 moved the partition key from the
+    /// <c>sbco:building</c> literal to the topology's building): pruning to either one would drop the
+    /// point's data in the other, so nothing is learned and later reads keep scanning every building.
+    /// </summary>
+    public void LearnBuilding(string? pointId, IReadOnlyList<ValidTelemetryData> rows)
+    {
+        if (rows.Count == 0) return;
+        var building = rows[0].Building;
+        for (var i = 1; i < rows.Count; i++)
+        {
+            if (!string.Equals(rows[i].Building, building, StringComparison.Ordinal)) return;
+        }
+        CacheBuilding(pointId, building);
+    }
+
+    /// <summary>
     /// Parquet object keys whose hour partition overlaps [start, end]. Scans every building unless
     /// <paramref name="buildingsFilter"/> restricts it (point→building pruning, #273).
     /// </summary>

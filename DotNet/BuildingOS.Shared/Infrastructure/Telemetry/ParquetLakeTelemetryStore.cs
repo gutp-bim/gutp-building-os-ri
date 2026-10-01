@@ -53,8 +53,8 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
 
         var rows = await _scan.ReadKeysAsync(selected, pointId, start, end, cancellationToken).ConfigureAwait(false);
         var deduped = ParquetLakeReadPlanner.DedupById(rows);
-        if (known is null && deduped.Length > 0)
-            _scan.CacheBuilding(pointId, deduped[0].Building);
+        if (known is null)
+            _scan.LearnBuilding(pointId, deduped);
         return deduped;
     }
 
@@ -88,8 +88,8 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             {
                 var deduped = ParquetLakeReadPlanner.DedupById(rows);
                 result[id] = deduped;
-                if (filter is null && deduped.Length > 0)
-                    _scan.CacheBuilding(id, deduped[0].Building);
+                if (filter is null)
+                    _scan.LearnBuilding(id, deduped);
             }
             else
             {
@@ -126,7 +126,7 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             if (rows.Count > 0)
             {
                 var deduped = ParquetLakeReadPlanner.DedupById(rows); // ascending by time
-                if (known is null) _scan.CacheBuilding(pointId, deduped[^1].Building);
+                if (known is null) _scan.LearnBuilding(pointId, deduped);
                 return deduped[^1]; // newest in the most recent hour with data
             }
         }

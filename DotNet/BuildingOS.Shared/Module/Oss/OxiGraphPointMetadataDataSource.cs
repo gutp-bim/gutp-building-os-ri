@@ -96,9 +96,10 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
     // -------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// The point rows themselves. <c>?building</c> is the denormalized literal, kept verbatim for
-    /// telemetry enrichment / the Parquet partition key — it is deliberately NOT the answer to whether
-    /// the twin places the point under a Building (#292); that is <see cref="ReachabilityQuery"/>.
+    /// The point rows themselves. <c>?building</c> is the denormalized literal — only the FALLBACK for
+    /// the enrichment value / Parquet partition key when the topology places the point under no
+    /// Building (#527), and never the answer to whether it is placed (#292); both of those come from
+    /// <see cref="ReachabilityQuery"/>.
     /// <para>
     /// <c>?point</c> is selected but never merged: it is only there so <see cref="AmbiguousPointIds"/>
     /// can see when one point id spans several nodes, which is the one twin shape the id join cannot
@@ -142,7 +143,9 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
 
     /// <summary>
     /// The set of point ids the twin actually places under a <c>sbco:Building</c> — i.e.
-    /// <see cref="PointMetadata.HasBuildingPath"/>.
+    /// <see cref="PointMetadata.HasBuildingPath"/> — each with the <c>sbco:id</c> of the Building it
+    /// reaches (#527), which becomes <see cref="PointMetadata.Building"/>. The id is OPTIONAL so a
+    /// Building without one still makes the point reachable; it just names no partition key.
     /// <para>
     /// The traversal mirrors the import-time orphan definition exactly (#291,
     /// <c>OxiGraphTwinAdminService.OrphanPattern</c>): from the OWNING EQUIPMENT, by topology only —
@@ -165,7 +168,7 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
     /// </summary>
     private const string ReachabilityQuery = """
         PREFIX sbco: <https://www.sbco.or.jp/ont/>
-        SELECT DISTINCT ?pointId WHERE {
+        SELECT DISTINCT ?pointId ?buildingId WHERE {
           ?anyDev sbco:hasPoint ?point .
           ?point a sbco:PointExt ;
                  sbco:id ?pointId .
@@ -182,6 +185,7 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
             ?bldg sbco:hasPart ?anyFloor ;
                   a sbco:Building .
           }
+          OPTIONAL { ?bldg sbco:id ?buildingId }
         }
         """;
 
@@ -202,6 +206,16 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
             await QueryAsync(ReachabilityQuery, "building reachability", cancellationToken).ConfigureAwait(false);
 
         var merged = Merge(pointRows, deviceLinkRows, reachableRows);
+
+        var mismatched = BuildingLiteralMismatches(pointRows, reachableRows);
+        if (mismatched.Length > 0)
+        {
+            _logger.LogWarning(
+                "Digital twin has {MismatchCount} placed point(s) whose sbco:building literal names a different " +
+                "building than the topology reaches (e.g. {SamplePointIds}). Telemetry for them is partitioned " +
+                "under the topology's building (#527); correct or drop the stale literal",
+                mismatched.Length, string.Join(", ", mismatched.Take(AmbiguousPointIdSampleLimit)));
+        }
 
         var ambiguous = AmbiguousPointIds(pointRows);
         if (ambiguous.Length > 0)
@@ -263,12 +277,7 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
             deviceIds.Add(Get(row, "deviceId"));
         }
 
-        var reachable = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var row in reachableRows)
-        {
-            var pointId = Get(row, "pointId");
-            if (pointId.Length != 0) reachable.Add(pointId);
-        }
+        var reachedBuildings = ReachedBuildings(reachableRows);
 
         var merged = new List<PointMetadata>(pointRows.Count);
         foreach (var row in pointRows)
@@ -279,11 +288,13 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
             var pointId = Get(row, "pointId");
             if (pointId.Length == 0) continue;
 
-            var building = Get(row, "building");
             var name = Get(row, "name");
             var gatewayId = Get(row, "gatewayId");
             // Per POINT, not per (point, device) pair — see ReachabilityQuery.
-            var hasBuildingPath = reachable.Contains(pointId);
+            var hasBuildingPath = reachedBuildings.TryGetValue(pointId, out var reachedBuilding);
+            // #527: the building the topology reaches is the partition key; the literal is only the
+            // fallback for a point it does not place (or a reached Building without an sbco:id).
+            var building = string.IsNullOrEmpty(reachedBuilding) ? Get(row, "building") : reachedBuilding;
 
             if (deviceIdsByPoint.TryGetValue(pointId, out var deviceIds))
             {
@@ -300,7 +311,54 @@ public sealed class OxiGraphPointMetadataDataSource : IPointMetadataDataSource
         return [.. merged];
     }
 
-    /// <summary>How many ambiguous point ids the warning below names before it stops listing them.</summary>
+    /// <summary>
+    /// Point id → the <c>sbco:id</c> of the Building the topology reaches it in ("" when that Building
+    /// has no id). A point under several buildings is a twin defect; it still gets ONE key, the
+    /// ordinal-smallest, so the partition does not flip between loads with OxiGraph's row order.
+    /// </summary>
+    private static Dictionary<string, string> ReachedBuildings(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> reachableRows)
+    {
+        var reached = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var row in reachableRows)
+        {
+            var pointId = Get(row, "pointId");
+            if (pointId.Length == 0) continue;
+            var buildingId = Get(row, "buildingId");
+            if (!reached.TryGetValue(pointId, out var current)
+                || (buildingId.Length != 0
+                    && (current.Length == 0 || string.CompareOrdinal(buildingId, current) < 0)))
+                reached[pointId] = buildingId;
+        }
+        return reached;
+    }
+
+    /// <summary>
+    /// Placed points whose <c>sbco:building</c> literal names another building than the topology
+    /// reaches (#527) — the points whose lake partition differs from what the literal would have
+    /// chosen. A missing literal is filled, not contradicted, and an unplaced point keeps its literal,
+    /// so neither is reported. Ordinal-sorted and distinct.
+    /// </summary>
+    internal static string[] BuildingLiteralMismatches(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> pointRows,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> reachableRows)
+    {
+        var reached = ReachedBuildings(reachableRows);
+        var mismatched = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var row in pointRows)
+        {
+            var pointId = Get(row, "pointId");
+            var literal = Get(row, "building");
+            if (literal.Length != 0
+                && reached.TryGetValue(pointId, out var building)
+                && building.Length != 0
+                && !string.Equals(building, literal, StringComparison.Ordinal))
+                mismatched.Add(pointId);
+        }
+        return [.. mismatched];
+    }
+
+    /// <summary>How many point ids a warning below names before it stops listing them.</summary>
     private const int AmbiguousPointIdSampleLimit = 10;
 
     /// <summary>

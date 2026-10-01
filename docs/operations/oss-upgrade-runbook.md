@@ -85,6 +85,27 @@ API 呼び出しがすべて 404 になる。したがって:
   アプリ・スクリプトは更新しなくても動く（応答に `Deprecation` が付く）。旧パスの利用状況は
   `building_os.api.legacy_requests{root}` で確認する。
 
+### テレメトリの建物キーがトポロジー由来になる（#527）
+
+ConnectorWorker の gRPC ingress は、テレメトリの `building`（Parquet レイクのパーティションキー
+`building_id=…`）を、Point の `sbco:building` リテラルではなく **トポロジー（`hasPart` / `locatedIn` /
+`hasPoint`）で到達した Building の `sbco:id`** から決めるようになった。トポロジーで建物に届かない Point
+だけが従来どおりリテラルを使う。
+
+- リテラルとトポロジーが食い違う Point（古い値が残っている等）は、更新後のテレメトリから**別の
+  `building_id=` パーティション**に入る。食い違う Point の件数とサンプルは、ConnectorWorker が
+  メタデータを読み込むたびに `placed point(s) whose sbco:building literal names a different building`
+  の警告ログで出す。更新前にこのログ（または twin の `sbco:building` と所属建物の比較）で件数を確認する。
+- **読み取りの正しさは保たれる。** 切り替え前後の行が 2 つの建物にまたがる Point について、API Server は
+  「この Point はこの建物」と学習して走査を絞ることをしない（全建物を走査する）。ただし切り替えの
+  片側の時間帯だけを読んだ結果から建物を学習した後、30 分（学習キャッシュの TTL）以内に**もう片側の
+  時間帯**を読むと、もう一方のパーティションが走査されずに欠ける（#273 の絞り込みは「Point の建物は
+  変わらない」前提）。食い違う Point がある場合は、ConnectorWorker を更新した後に API Server を再起動して
+  学習キャッシュを空にし、切り替えをまたぐ期間で読むと、その Point は以後絞り込まれない。
+- compaction / ロールアップ / バックフィルの単位は建物ごとなので、食い違う Point の切り替え前後の
+  データは別々の建物単位で処理される（データは失われない）。建物単位の保持やバックフィルを運用している
+  場合は、切り替え前の期間を旧建物 ID で扱うこと。
+
 ### compose（単一ホスト）での等価
 
 ```bash

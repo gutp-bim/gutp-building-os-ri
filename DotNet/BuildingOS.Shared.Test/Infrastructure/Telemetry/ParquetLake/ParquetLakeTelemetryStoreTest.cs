@@ -219,6 +219,49 @@ public class ParquetLakeTelemetryStoreTest
         Assert.Contains(s.ListPrefixes, p => p.Contains("building_id=b1", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// #527: a point re-keyed to the building its topology reaches has its older rows under the old
+    /// partition and its newer rows under the new one. A read whose rows span both must not learn
+    /// either building — learning the first (the old one) would prune every later read to the old
+    /// partition and silently drop the point's current data until the cache entry expires.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_RowsSpanningTwoBuildings_LearnNoBuilding()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("b-old", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = "b-old", Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+
+        var store = NewStore(s);
+        Assert.Equal(2, (await store.QueryAsync("p1", h12, h13.AddHours(1))).Length);
+
+        var recent = await store.QueryAsync("p1", h13, h13.AddHours(1));
+        Assert.Equal(2, Assert.Single(recent).Value);
+        Assert.Equal(2.0, (await store.QueryLatestAsync("p1"))?.Value ?? 2.0);
+    }
+
+    [Fact]
+    public async Task QueryMultiAsync_RowsSpanningTwoBuildings_LearnNoBuilding()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("b-old", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = "b-old", Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+
+        var store = NewStore(s);
+        Assert.Equal(2, (await store.QueryMultiAsync(["p1"], h12, h13.AddHours(1)))["p1"].Length);
+
+        var recent = await store.QueryAsync("p1", h13, h13.AddHours(1));
+        Assert.Equal(2, Assert.Single(recent).Value);
+    }
+
     [Fact]
     public async Task QueryLatestAsync_OutsideLookback_ReturnsNull()
     {
