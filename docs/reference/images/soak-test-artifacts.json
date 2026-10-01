@@ -26,6 +26,7 @@
     "t0_utc": "2026-09-21T03:26:09Z",
     "duration_hours": 73.6,
     "point_count_before": 1468,
+    "point_count_note": "Recorded at run start. The 48h milestone's point_count_before (1469) was recorded separately, just before the Point List update; both values are kept as recorded and the one-point difference was not investigated. The ~2.2x scaling ratio holds with either.",
     "point_count_after_48h_update": 3272,
     "gateway_count": 1
   },
