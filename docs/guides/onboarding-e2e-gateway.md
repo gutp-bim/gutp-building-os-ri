@@ -557,9 +557,10 @@ SHACL 検証で警告(warning)が出ても、それだけでは書き込みは�
 
   このパッチを当てるまでは、`GET /gateways/{id}/pointlist` の `controlSchema` は
   `null` のままです([A-4](#a-4-起動確認)・[Step D-2 補足](#d-2-補足-ポイントリスト同期を手動で確認する)
-  で実際に確認できます)。`sbco:maxPresValue`/`minPresValue`(CSV の `max_pres_value`/
-  `min_pres_value` 由来)は UI 表示のフォールバックにすぎず、制御範囲の検証には使われません
-  (正本は `bos:minValue`/`maxValue`)。
+  で実際に確認できます)。CSV の `max_pres_value`/`min_pres_value` は、取り込みツール
+  (`seed_from_csv.py`)が `bos:maxValue`/`bos:minValue`(制御範囲の正本)として書きます。
+  `sbco:maxPresValue`/`minPresValue`(BACnet の raw の範囲)は UI 表示のフォールバックにすぎず、制御範囲の
+  検証には使われません。詳しくは [Point の語彙](../architecture/point-vocabulary.md) を参照。
 
 #### A-3-3. ツインへインポートする
 

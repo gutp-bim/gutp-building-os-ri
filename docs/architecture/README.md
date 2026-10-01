@@ -14,3 +14,4 @@
 - [制御系安全分界](oss-control-safety.md)
 - [OxiGraph / SPARQL マッピング](oss-sparql-mapping.md)
 - [標準語彙マッピング](standard-mapping.md)
+- [Point の語彙（specification / type / writable / unit / scale / interval）](point-vocabulary.md)
