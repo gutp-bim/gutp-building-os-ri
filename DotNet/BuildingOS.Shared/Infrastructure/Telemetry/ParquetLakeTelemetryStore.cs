@@ -47,15 +47,8 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
         // instead of every building in the lake; otherwise scan all and learn the building below.
         var known = _scan.GetCachedBuilding(pointId);
         var deduped = await ScanAsync(known is null ? null : new[] { known }).ConfigureAwait(false);
-        if (known is not null && deduped.Length == 0)
-        {
-            // #527: a pruned read that finds nothing is not trusted — the point may have been re-keyed
-            // to another building (its older rows sit under the old one). Retry over every building.
-            deduped = await ScanAsync(null).ConfigureAwait(false);
-            known = null;
-        }
         if (known is null)
-            _scan.LearnBuilding(pointId, deduped);
+            Learn(pointId, deduped);
         return deduped;
 
         async Task<ValidTelemetryData[]> ScanAsync(IReadOnlyList<string>? buildings)
@@ -86,13 +79,6 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             : null;
 
         var byPoint = await ScanAsync(filter).ConfigureAwait(false);
-        if (filter is not null && wanted.Any(id => !byPoint.ContainsKey(id)))
-        {
-            // #527: as in QueryAsync, a pruned read that finds nothing for some point is retried over
-            // every building rather than trusted.
-            byPoint = await ScanAsync(null).ConfigureAwait(false);
-            filter = null;
-        }
         foreach (var id in wanted)
         {
             if (byPoint.TryGetValue(id, out var rows))
@@ -100,7 +86,7 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
                 var deduped = ParquetLakeReadPlanner.DedupById(rows);
                 result[id] = deduped;
                 if (filter is null)
-                    _scan.LearnBuilding(id, deduped);
+                    Learn(id, deduped);
             }
             else
             {
@@ -166,12 +152,29 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
                 if (rows.Count > 0)
                 {
                     var deduped = ParquetLakeReadPlanner.DedupById(rows); // ascending by time
-                    _scan.LearnBuilding(pointId, deduped);
+                    Learn(pointId, deduped);
                     return (deduped[^1], h); // newest in the most recent hour with data
                 }
             }
             return (null, -1);
         }
+    }
+
+    /// <summary>
+    /// Learns the point's building from a full scan, and warns when the point turns out to live under
+    /// more than one (#527): reads pruned to one of them before this could have missed rows in the
+    /// other. The point is not pruned from now on; LakePointBuildingCache.Reset clears the slate.
+    /// </summary>
+    private void Learn(string pointId, IReadOnlyList<ValidTelemetryData> rows)
+    {
+        if (_scan.LearnBuilding(pointId, rows) is not { } buildings) return;
+        BuildingOsMetrics.LakePointBuildingConflicts.Add(1);
+        _logger.LogWarning(
+            "Lake point {PointId} has telemetry under more than one building partition ({Buildings}); its " +
+            "partition key changed (twin topology change or the #527 key migration). Its reads are no longer " +
+            "pruned to one building. Reads pruned before this was detected may have missed rows; reset the " +
+            "learned point → building map (POST /api/v1/system/lake/point-buildings/reset) after a twin change",
+            pointId, string.Join(", ", buildings));
     }
 
     private IReadOnlyList<string> CapFiles(IReadOnlyList<string> keys, string queryLabel, DateTime start, DateTime end)

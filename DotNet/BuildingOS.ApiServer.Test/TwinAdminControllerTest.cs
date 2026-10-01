@@ -163,6 +163,20 @@ public class TwinAdminControllerTest
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    /// <summary>#527: an applied import may move points between buildings, so the lake reader forgets what it learned.</summary>
+    [Fact]
+    public async Task ApplyImport_Applied_ResetsTheLakePointBuildingMap()
+    {
+        var (c, svc, _) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
+        var before = LakePointBuildingCacheProbe.Generation();
+
+        Assert.IsType<OkObjectResult>(await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, default));
+
+        Assert.NotEqual(before, LakePointBuildingCacheProbe.Generation());
+    }
+
     [Fact]
     public async Task ApplyImport_IdCollision_IsNotOverridableByAllowOrphans()
     {

@@ -2145,6 +2145,26 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/system/lake/point-buildings/reset:
+    post:
+      tags:
+        - System
+      summary: "Parquet レイク読み取りが学習した「Point → 建物」の対応（#273 の絞り込み）を忘れさせる（#527）。\n絞り込みは Point の建物が変わらない前提なので、twin のトポロジーを変えた後や、#527 で\nパーティションキーがトポロジー由来に変わった後に実行すると、以後の読み取りは全建物を走査して\n学習し直す。この API Server プロセスの学習だけが対象（レプリカごとに実行する）。twin の取り込みを\n適用したときは自動で行われる。管理者のみ。"
+      responses:
+        '204':
+          description: No Content
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v1/system/settings:
     get:
       tags:

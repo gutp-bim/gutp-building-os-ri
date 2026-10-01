@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOs.ApiServer.Routing;
 using System.Security.Cryptography;
 using System.Text;
@@ -167,6 +168,10 @@ public class TwinAdminController : ControllerBase
             // rather than rebuilding inline — the admin response is not blocked on a full-twin
             // materialization. Reads stay correct in the meantime via the ETag invalidation above.
             _pointListMaterializerSweep.RequestSweep();
+            // The import may move points between buildings, which changes their lake partition key;
+            // forget the reader's learned point → building map so no read stays pruned to an old one
+            // (#527). Only this replica's map — the others age out (30 min) or are reset by the API.
+            LakePointBuildingCache.Reset();
             await AuditAsync(auth, "import-apply", null, AdminAuditResult.Success,
                 Meta(request.Turtle, mode.ToString(), preview, request.AllowOrphans), ct).ConfigureAwait(false);
             return Ok(preview);

@@ -292,22 +292,74 @@ public class ParquetLakeTelemetryStoreTest
     }
 
     /// <summary>
-    /// A read pruned to the learned building that finds nothing is not trusted: it is retried over
-    /// every building, so the old-range read after a recent-only one still finds the re-keyed
-    /// point's older rows — and from then on the point is not pruned.
+    /// A pruned read with no rows is trusted (no second scan of every building): a point with no
+    /// data in the range is the ordinary case, and topology changes are rare enough to be handled by
+    /// conflict detection and LakePointBuildingCache.Reset instead.
     /// </summary>
     [Fact]
-    public async Task PrunedReadThatFindsNothing_FallsBackToEveryBuilding()
+    public async Task PrunedReadThatFindsNothing_DoesNotRescanEveryBuilding()
     {
         var (s, h12, h13) = await RekeyedPointAsync();
         var store = NewStore(s);
-
         Assert.Single(await store.QueryAsync("p1", h13, h13.AddHours(1)));  // learns b-new
+
+        s.ClearListLog();
+        await store.QueryAsync("p1", h13.AddHours(5), h13.AddHours(6));      // no data there
+
+        Assert.All(s.ListPrefixes, p => Assert.Contains("building_id=b-new", p));
+    }
+
+    /// <summary>
+    /// #527 (code review): a placed point that had no sbco:building literal was stored under the
+    /// "unknown" partition and now under its topology building. Rows with no building count as
+    /// "unknown", so a read seeing both marks the point not prunable instead of learning only the new
+    /// building and dropping its older history.
+    /// </summary>
+    [Fact]
+    public async Task RowsWithoutABuilding_CountAsTheUnknownPartition()
+    {
+        var s = new InMemoryBlobStorage();
+        var h12 = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var h13 = h12.AddHours(1);
+        await PutAsync(s, LakePartitionKey.For("unknown", h12, 1, 2),
+            new ValidTelemetryData { Id = "a", PointId = "p1", Building = null, Datetime = h12.AddMinutes(5).ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", h13, 3, 4),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = h13.AddMinutes(5).ToString("O"), Value = 2 });
+        var store = NewStore(s);
+
+        Assert.Equal(2, (await store.QueryAsync("p1", h12, h13.AddHours(1))).Length);
 
         var old = await store.QueryAsync("p1", h12, h12.AddHours(1));
         Assert.Equal(1, Assert.Single(old).Value);
+    }
 
-        Assert.Equal(2, (await store.QueryAsync("p1", h12, h13.AddHours(1))).Length);
+    /// <summary>A reset forgets every learned building: the next read scans every building again.</summary>
+    [Fact]
+    public async Task Reset_ForgetsLearnedBuildings()
+    {
+        var (s, _, h13) = await RekeyedPointAsync();
+        var store = NewStore(s);
+        Assert.Single(await store.QueryAsync("p1", h13, h13.AddHours(1)));  // learns b-new
+
+        LakePointBuildingCache.Reset();
+        s.ClearListLog();
+        await store.QueryAsync("p1", h13, h13.AddHours(1));
+
+        Assert.Contains(s.ListPrefixes, p => p.Contains("building_id=b-old", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Scan_ReportsAConflictOnce_WhenAPointShowsUpUnderAnotherBuilding()
+    {
+        var scan = new ParquetLakeScan(new InMemoryBlobStorage(), new MemoryCache(new MemoryCacheOptions()));
+        Row1(scan, "b-old");
+
+        Assert.Equal(["b-new", "b-old"], scan.LearnBuilding("p1", [new ValidTelemetryData { PointId = "p1", Building = "b-new" }])!);
+        Assert.Null(scan.GetCachedBuilding("p1"));
+        Assert.Null(scan.LearnBuilding("p1", [new ValidTelemetryData { PointId = "p1", Building = "b-other" }])); // already reported
+
+        static void Row1(ParquetLakeScan scan, string b) =>
+            Assert.Null(scan.LearnBuilding("p1", [new ValidTelemetryData { PointId = "p1", Building = b }]));
     }
 
     /// <summary>

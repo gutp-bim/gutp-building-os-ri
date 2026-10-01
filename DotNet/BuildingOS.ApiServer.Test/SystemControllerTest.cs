@@ -102,4 +102,36 @@ public class SystemControllerTest
 
         Assert.Equal(PipelineKpiThresholds.Defaults, body.Thresholds);
     }
+
+    // ── #527: reset the lake reader's learned point → building map ───────────────
+
+    [Fact]
+    public void ResetLakePointBuildings_Admin_ResetsAndReturns204()
+    {
+        var before = LakePointBuildingCacheProbe.Generation();
+
+        var result = Build(Auth("admin")).ResetLakePointBuildings();
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.NotEqual(before, LakePointBuildingCacheProbe.Generation());
+    }
+
+    [Theory]
+    [InlineData("operator")]
+    [InlineData("viewer")]
+    public void ResetLakePointBuildings_NonAdmin_IsForbidden(string role)
+    {
+        var before = LakePointBuildingCacheProbe.Generation();
+
+        Assert.IsType<ForbidResult>(Build(Auth(role)).ResetLakePointBuildings());
+        Assert.Equal(before, LakePointBuildingCacheProbe.Generation());
+    }
+}
+
+/// <summary>Reads the reset generation without making it public API.</summary>
+internal static class LakePointBuildingCacheProbe
+{
+    public static long Generation() => (long)typeof(BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake.LakePointBuildingCache)
+        .GetProperty("Generation", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
+        .GetValue(null)!;
 }

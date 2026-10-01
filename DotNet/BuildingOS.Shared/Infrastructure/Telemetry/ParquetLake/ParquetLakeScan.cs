@@ -18,9 +18,20 @@ internal sealed class ParquetLakeScan
 
     // Learned point_id → building map (#273). A point lives in exactly one building (enforced at seed),
     // so once a read resolves a point's building we prune subsequent single-point scans to that one
-    // building instead of every building in the lake. TTL bounds the rare re-assignment case.
+    // building instead of every building in the lake. TTL bounds the rare re-assignment case; a seen
+    // conflict (below) or LakePointBuildingCache.Reset covers the rest.
     private const string PointBuildingCachePrefix = "lake:ptbldg:";
     private static readonly TimeSpan PointBuildingCacheTtl = TimeSpan.FromMinutes(30);
+
+    // #527: a point seen under two buildings (its partition key changed — e.g. the key moved from the
+    // sbco:building literal to the topology's building) is not pruned again until the learned map is
+    // reset or a day passes: pruning to either building would silently drop its rows in the other.
+    private const string MultiBuildingMarker = "\0multi";
+    private static readonly TimeSpan MultiBuildingMarkerTtl = TimeSpan.FromDays(1);
+    private static readonly object LearnGate = new();
+
+    /// <summary>The partition a row with no building lands in (TelemetryBatchAccumulator).</summary>
+    private const string UnknownBuilding = "unknown";
 
     private readonly IBlobStorage _storage;
     private readonly IMemoryCache _cache;
@@ -31,21 +42,21 @@ internal sealed class ParquetLakeScan
         _cache = cache;
     }
 
-    // #527: a point seen under two buildings (its partition key was re-keyed) is never pruned again
-    // for the life of the process. Held without expiry: re-learning one building after a TTL would
-    // reopen exactly the hole this closes. One small entry per re-keyed point.
-    private const string MultiBuildingMarker = "\0multi";
-    private static readonly object LearnGate = new();
+    private static string PointBuildingKey(string pointId)
+        => $"{PointBuildingCachePrefix}{LakePointBuildingCache.Generation}:{pointId}";
 
-    /// <summary>The learned building for a point, or null if not yet resolved (or never prunable).</summary>
+    /// <summary>The learned building for a point, or null if not yet resolved (or not prunable).</summary>
     public string? GetCachedBuilding(string pointId)
-        => _cache.TryGetValue(PointBuildingCachePrefix + pointId, out string? b) && b != MultiBuildingMarker ? b : null;
+        => _cache.TryGetValue(PointBuildingKey(pointId), out string? b) && b != MultiBuildingMarker ? b : null;
 
-    /// <summary>Records the building a point's data was found in, to prune later scans.</summary>
-    public void CacheBuilding(string? pointId, string? building)
+    /// <summary>
+    /// Records the building a point's data was found in, to prune later scans. Returns the building
+    /// learned earlier when it differs — a conflict: the point is then marked not prunable.
+    /// </summary>
+    public string? CacheBuilding(string? pointId, string? building)
     {
-        if (string.IsNullOrEmpty(pointId) || string.IsNullOrEmpty(building)) return;
-        var key = PointBuildingCachePrefix + pointId;
+        if (string.IsNullOrEmpty(pointId) || string.IsNullOrEmpty(building)) return null;
+        var key = PointBuildingKey(pointId);
         // Read-modify-write under one lock: two reads learning different buildings at once must not
         // both see the old state and let one building overwrite the other — or the marker (#527).
         // Static because every ParquetLakeScan in the process shares the one IMemoryCache; it is only
@@ -54,27 +65,34 @@ internal sealed class ParquetLakeScan
         {
             if (_cache.TryGetValue(key, out string? current) && current is not null && current != building)
             {
-                // Seen under another building before (in this read or an earlier one): never prune it.
-                _cache.Set(key, MultiBuildingMarker);
-                return;
+                _cache.Set(key, MultiBuildingMarker, MultiBuildingMarkerTtl);
+                return current == MultiBuildingMarker ? null : current; // report a conflict once
             }
             _cache.Set(key, building, PointBuildingCacheTtl);
+            return null;
         }
     }
 
     /// <summary>
-    /// Learns a point's building from the rows a full scan found — but only when they all agree.
-    /// Rows under two buildings mean the point was re-keyed (e.g. #527 moved the partition key from the
-    /// <c>sbco:building</c> literal to the topology's building): pruning to either one would drop the
-    /// point's data in the other, so the point is marked as never prunable — and that sticks, so a later
-    /// read that happens to see only one of the buildings cannot re-enable pruning (Codex on #527).
-    /// A read that sees one building different from what an earlier read learned marks it the same way.
+    /// Learns a point's building from the rows a full scan found. Rows under more than one building
+    /// (a row with no building counts as the <c>unknown</c> partition it is stored in), or a building
+    /// other than the one learned before, mean the point's partition key changed: it is marked not
+    /// prunable and the buildings involved are returned so the caller can warn. Null when no conflict.
     /// </summary>
-    public void LearnBuilding(string? pointId, IReadOnlyList<ValidTelemetryData> rows)
+    public string[]? LearnBuilding(string? pointId, IReadOnlyList<ValidTelemetryData> rows)
     {
-        if (string.IsNullOrEmpty(pointId) || rows.Count == 0) return;
-        foreach (var building in rows.Select(r => r.Building).Where(b => !string.IsNullOrEmpty(b)).Distinct(StringComparer.Ordinal))
-            CacheBuilding(pointId, building);
+        if (string.IsNullOrEmpty(pointId) || rows.Count == 0) return null;
+        var buildings = rows
+            .Select(r => string.IsNullOrEmpty(r.Building) ? UnknownBuilding : r.Building!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        string[]? conflict = null;
+        foreach (var building in buildings)
+        {
+            if (CacheBuilding(pointId, building) is { } earlier)
+                conflict = [.. buildings.Append(earlier).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        }
+        return conflict;
     }
 
     /// <summary>

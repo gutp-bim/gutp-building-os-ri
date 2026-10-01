@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOs.ApiServer.Routing;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
@@ -112,5 +113,28 @@ public class SystemController : ControllerBase
 
         var stats = await _ingressRejectionStats.GetAsync(ct).ConfigureAwait(false);
         return Ok(stats);
+    }
+
+    /// <summary>
+    /// Parquet レイク読み取りが学習した「Point → 建物」の対応（#273 の絞り込み）を忘れさせる（#527）。
+    /// 絞り込みは Point の建物が変わらない前提なので、twin のトポロジーを変えた後や、#527 で
+    /// パーティションキーがトポロジー由来に変わった後に実行すると、以後の読み取りは全建物を走査して
+    /// 学習し直す。この API Server プロセスの学習だけが対象（レプリカごとに実行する）。twin の取り込みを
+    /// 適用したときは自動で行われる。管理者のみ。
+    /// </summary>
+    [HttpPost("lake/point-buildings/reset")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public IActionResult ResetLakePointBuildings()
+    {
+        var authContext = HttpContext.GetAuthorizationContext();
+        if (!authContext.IsAdmin)
+        {
+            return Forbid();
+        }
+
+        LakePointBuildingCache.Reset();
+        _logger.LogInformation("Lake point → building map reset by {UserId}", authContext.UserId);
+        return NoContent();
     }
 }
