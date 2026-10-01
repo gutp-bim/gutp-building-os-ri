@@ -22,12 +22,16 @@ public class AuthorizedTwinViewPointDetailsTest
     private static AuthorizationContext AdminAuth() => new() { UserId = "admin1", Role = "admin", Permissions = [] };
     private static AuthorizationContext UserAuth() => new() { UserId = "user1", Role = "user", Permissions = [] };
 
-    private static PointDetail Detail(string pointId, string? deviceDtId = null) => new()
+    private static PointDetail Detail(
+        string pointId, string? deviceDtId = null, string? spaceId = null, string? floorId = null) => new()
     {
         Point = new Point { DtId = $"urn:test:pt:{pointId}", Id = pointId, Name = pointId },
         Device = deviceDtId is null
             ? null
             : new Device { DtId = deviceDtId, Id = deviceDtId, Name = deviceDtId },
+        // Business id (sbco:id) differs from the dtId, as in a real twin (#504).
+        Space = spaceId is null ? null : new Space { DtId = $"urn:test:space:{spaceId}", Id = spaceId, Name = spaceId },
+        Floor = floorId is null ? null : new Floor { DtId = $"urn:test:floor:{floorId}", Id = floorId, Name = floorId },
     };
 
     private static (AuthorizedTwinView view, Mock<IDigitalTwinDatabase> db, Mock<IAuthorizationService> auth) Build(
@@ -101,6 +105,76 @@ public class AuthorizedTwinViewPointDetailsTest
         var result = await view.ListPointDetailsAsync(UserAuth(), Building, default);
 
         Assert.Equal("PT002", Assert.Single(result).Point.Id);
+    }
+
+    /// <summary>
+    /// 部屋（space）の read 権があれば、その部屋に置かれた Point は見える（#518）。ツリー
+    /// （<c>/devices?spaceDtId=</c> → <c>/points?deviceDtId=</c>）で辿れる範囲と台帳を揃える。
+    /// 権限は業務 ID（sbco:id）で照合する（#504）。
+    /// </summary>
+    [Fact]
+    public async Task SpaceGrantOnly_SeesPointsInThatSpace()
+    {
+        var (view, _, auth) = Build(
+            Detail("PT001", "urn:test:dev-a", spaceId: "R501", floorId: "F5"),
+            Detail("PT002", "urn:test:dev-b", spaceId: "R502", floorId: "F5"));
+        GrantIds(auth, "space", "R501");
+
+        var result = await view.ListPointDetailsAsync(UserAuth(), Building, default);
+
+        Assert.Equal("PT001", Assert.Single(result).Point.Id);
+    }
+
+    /// <summary>
+    /// フロアの read 権があれば、そのフロアの Point は見える — 部屋に置かれたものも、部屋を介さず
+    /// フロアに直接置かれたものも（#518）。別フロアのものは見えない。
+    /// </summary>
+    [Fact]
+    public async Task FloorGrantOnly_SeesPointsOnThatFloor()
+    {
+        var (view, _, auth) = Build(
+            Detail("PT001", "urn:test:dev-a", spaceId: "R501", floorId: "F5"),
+            Detail("PT002", "urn:test:dev-b", floorId: "F5"),
+            Detail("PT003", "urn:test:dev-c", spaceId: "R601", floorId: "F6"));
+        GrantIds(auth, "floor", "F5");
+
+        var result = await view.ListPointDetailsAsync(UserAuth(), Building, default);
+
+        Assert.Equal(["PT001", "PT002"], result.Select(d => d.Point.Id).Order().ToArray());
+    }
+
+    /// <summary>
+    /// Group 由来の space 権限も同じ集合（<see cref="IAuthorizationService.GetAccessibleResourceIdsAsync"/>）
+    /// に入ってくるので、直接付与と同じ扱いで見える（#518）。ここでは集合の中身だけを差し替えて確認する。
+    /// </summary>
+    [Fact]
+    public async Task SpaceGrantViaGroup_IsHonouredLikeADirectOne()
+    {
+        var (view, _, auth) = Build(
+            Detail("PT001", "urn:test:dev-a", spaceId: "R501", floorId: "F5"),
+            Detail("PT002", "urn:test:dev-b", spaceId: "R502", floorId: "F5"));
+        // Group members are stored by original id and hashed by the service before they reach here.
+        GrantIds(auth, "space", "R502");
+
+        var result = await view.ListPointDetailsAsync(UserAuth(), Building, default);
+
+        Assert.Equal("PT002", Assert.Single(result).Point.Id);
+    }
+
+    /// <summary>space / floor の権限だけを持つ利用者でも、権限ゼロなら台帳に触れない原則は崩さない（#518）。</summary>
+    [Fact]
+    public async Task SpaceAndFloorGrantsAreAskedFor_ButNoGrantStillSkipsTheTwin()
+    {
+        var (view, db, auth) = Build(Detail("PT001", spaceId: "R501", floorId: "F5"));
+
+        var result = await view.ListPointDetailsAsync(UserAuth(), Building, default);
+
+        Assert.Empty(result);
+        db.Verify(d => d.ListPointDetails(It.IsAny<string>()), Times.Never());
+        auth.Verify(s => s.GetAccessibleResourceIdsAsync(
+            It.IsAny<AuthorizationContext>(), "space", "read", It.IsAny<CancellationToken>()), Times.Once());
+        auth.Verify(s => s.GetAccessibleResourceIdsAsync(
+            It.IsAny<AuthorizationContext>(), "floor", "read", It.IsAny<CancellationToken>()), Times.Once());
     }
 
     /// <summary>
