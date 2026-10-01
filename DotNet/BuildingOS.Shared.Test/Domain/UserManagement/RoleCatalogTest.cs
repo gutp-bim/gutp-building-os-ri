@@ -8,19 +8,18 @@ public class RoleCatalogTest
     public void Entries_ContainTheFixedRoles()
     {
         var roles = RoleCatalog.Entries.Select(e => e.Role).ToList();
-        Assert.Equal(new[] { "admin", "operator", "viewer", "group-manager" }, roles);
+        Assert.Equal(new[] { "admin", "operator", "viewer" }, roles);
     }
 
     /// <summary>
-    /// #506: a role for an application's service account that keeps Groups in sync. It is not an
-    /// admin and has no UI workspace (the web client has nothing for it to do).
+    /// #506: group-manager is a client-credentials role, set on an application's service account in
+    /// Keycloak — not a role the admin UI assigns to people, so it is not in the assignable catalog.
     /// </summary>
     [Fact]
-    public void GroupManager_IsNotAdmin_AndHasNoWorkspace()
+    public void GroupManager_IsNotAssignableToUsers()
     {
-        var entry = RoleCatalog.Entries.Single(e => e.Role == "group-manager");
-        Assert.False(entry.IsAdmin);
-        Assert.Empty(entry.Workspaces);
+        Assert.DoesNotContain(RoleCatalog.Entries, e => e.Role == "group-manager");
+        Assert.False(RoleCatalog.IsAssignable("group-manager"));
         Assert.False(RoleCatalog.GrantsAdmin("group-manager"));
     }
 
@@ -42,14 +41,13 @@ public class RoleCatalogTest
             RoleCatalog.Entries.Single(e => e.Role == "operator").Workspaces);
         Assert.Equal(new[] { "operator" },
             RoleCatalog.Entries.Single(e => e.Role == "viewer").Workspaces);
-        Assert.Empty(RoleCatalog.Entries.Single(e => e.Role == "group-manager").Workspaces);
     }
 
     [Theory]
     [InlineData("admin", true)]
     [InlineData("operator", true)]
     [InlineData("viewer", true)]
-    [InlineData("group-manager", true)]
+    [InlineData("group-manager", false)]
     [InlineData("Admin", false)]
     [InlineData("superuser", false)]
     [InlineData(null, false)]

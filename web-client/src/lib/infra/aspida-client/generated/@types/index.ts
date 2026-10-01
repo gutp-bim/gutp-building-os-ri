@@ -223,6 +223,8 @@ export type GroupsControllerGroupDetailResponse = {
   id?: string | undefined;
   name?: string | undefined;
   description?: string | null | undefined;
+  /** Subject that created the Group (#506); null for Groups created before it was recorded. */
+  createdBy?: string | null | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
   resourceItems?: GroupsControllerResourceItemResponse[] | undefined;
@@ -232,6 +234,8 @@ export type GroupsControllerGroupResponse = {
   id?: string | undefined;
   name?: string | undefined;
   description?: string | null | undefined;
+  /** Subject that created the Group (#506); null for Groups created before it was recorded. */
+  createdBy?: string | null | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
 }

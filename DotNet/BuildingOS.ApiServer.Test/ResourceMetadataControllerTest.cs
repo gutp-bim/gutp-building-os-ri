@@ -111,4 +111,24 @@ public class ResourceMetadataControllerTest
         sweep.Verify(s => s.RequestSweep(), Times.Once);
         materializer.Verify(m => m.RebuildGatewayAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    /// <summary>
+    /// #506: identifiers and tags are not structure. A group-manager reads nodes through the structural
+    /// bypass as names and ids only, so the metadata GETs refuse it instead of answering an empty 200.
+    /// </summary>
+    [Fact]
+    public async Task MetadataGets_GroupManager_IsForbidden()
+    {
+        var view = new Mock<IAuthorizedTwinView>();
+        var (controller, _, _, _) = Build(view);
+        controller.ControllerContext.HttpContext.Items[AuthorizationContextMiddleware.HttpContextKey] =
+            new AuthorizationContext { UserId = "svc", Role = "group-manager", Permissions = [] };
+
+        Assert.IsType<ForbidResult>((await controller.GetBuilding("b", default)).Result);
+        Assert.IsType<ForbidResult>((await controller.GetFloor("f", default)).Result);
+        Assert.IsType<ForbidResult>((await controller.GetSpace("s", default)).Result);
+        Assert.IsType<ForbidResult>((await controller.GetDevice("d", default)).Result);
+        Assert.IsType<ForbidResult>((await controller.GetPointMetadata("p", default)).Result);
+        view.VerifyNoOtherCalls();
+    }
 }

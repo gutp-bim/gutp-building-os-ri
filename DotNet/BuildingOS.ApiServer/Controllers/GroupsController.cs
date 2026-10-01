@@ -46,14 +46,28 @@ public class GroupsController : ControllerBase
         return group is not null && Manages(auth, group) ? group : null;
     }
 
-    private Task AuditAsync(AuthorizationContext auth, string action, string targetId, object? detail, CancellationToken ct)
+    // Written after the change has committed, so not on the request token: a client that disconnects
+    // now must not leave a change to who-can-reach-what without its audit row.
+    private Task AuditAsync(AuthorizationContext auth, string action, string targetId, object? detail, CancellationToken _)
     {
         if (_audit is null) return Task.CompletedTask;
         var detailJson = detail is null ? null : System.Text.Json.JsonSerializer.Serialize(detail);
         return _audit.RecordAsync(
             AdminAuditRecord.Create(AdminAuditSubjects.Group, action, targetId, auth.UserId, actorName: null,
                 AdminAuditResult.Success, detailJson),
-            ct);
+            CancellationToken.None);
+    }
+
+    /// <summary>
+    /// The id prefix of the Groups a group-manager creates (#506): <c>gm-</c> + 12 hex of SHA-256 of its
+    /// subject. Users' grants match a Group by its plain id, so an id the caller could choose freely
+    /// could take over grants that already name it (a deleted Group's leftovers, or grants provisioned
+    /// ahead of the Group). Deterministic, so the application can compute it.
+    /// </summary>
+    public static string GroupIdPrefixFor(string subject)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(subject));
+        return "gm-" + Convert.ToHexString(hash)[..12].ToLowerInvariant() + "-";
     }
 
     // === Group CRUD ===
@@ -106,15 +120,24 @@ public class GroupsController : ControllerBase
             return BadRequest("Id and Name are required");
         }
 
-        var existing = await _groupRepository.GetByIdAsync(request.Id, ct).ConfigureAwait(false);
+        // A group-manager's Groups live under its own prefix (see GroupIdPrefixFor); an id given without
+        // it is placed there. So "already exists" can only ever be about the caller's own Groups.
+        var id = request.Id;
+        if (!authContext.IsAdmin)
+        {
+            var prefix = GroupIdPrefixFor(authContext.UserId);
+            if (!id.StartsWith(prefix, StringComparison.Ordinal)) id = prefix + id;
+        }
+
+        var existing = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (existing != null)
         {
-            return BadRequest($"Group with id '{request.Id}' already exists");
+            return BadRequest($"Group with id '{id}' already exists");
         }
 
         var group = new ResourceGroup
         {
-            Id = request.Id,
+            Id = id,
             Name = request.Name,
             Description = request.Description,
             CreatedBy = authContext.UserId,
@@ -292,6 +315,7 @@ public class GroupsController : ControllerBase
         Id = group.Id,
         Name = group.Name,
         Description = group.Description,
+        CreatedBy = group.CreatedBy,
         CreatedAt = group.CreatedAt,
         UpdatedAt = group.UpdatedAt
     };
@@ -301,6 +325,7 @@ public class GroupsController : ControllerBase
         Id = group.Id,
         Name = group.Name,
         Description = group.Description,
+        CreatedBy = group.CreatedBy,
         CreatedAt = group.CreatedAt,
         UpdatedAt = group.UpdatedAt,
         ResourceItems = group.ResourceItems.Select(ToResourceItemResponse).ToList()
@@ -347,6 +372,8 @@ public class GroupsController : ControllerBase
         public string Id { get; init; } = default!;
         public string Name { get; init; } = default!;
         public string? Description { get; init; }
+        /// <summary>Subject that created the Group (#506); null for Groups created before it was recorded.</summary>
+        public string? CreatedBy { get; init; }
         public DateTime CreatedAt { get; init; }
         public DateTime UpdatedAt { get; init; }
     }

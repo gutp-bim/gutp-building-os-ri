@@ -2,7 +2,7 @@ namespace BuildingOS.Shared.Domain.UserManagement;
 
 /// <summary>
 /// One assignable Building OS role and what it grants. This is the backend single source of truth
-/// for the fixed roles (admin / operator / viewer, plus the UI-less group-manager of #506); it mirrors the frontend
+/// for the fixed role triad (admin / operator / viewer); it mirrors the frontend
 /// <c>lib/auth/workspaces.ts</c> role→workspace map. Roles are an authorization concept stored as
 /// the Keycloak <c>role</c> user attribute (<see cref="KeycloakUserAttributes.Role"/>, #519) — not
 /// Keycloak realm roles — and are not dynamic.
@@ -19,6 +19,11 @@ public static class RoleCatalog
     public const string Admin = "admin";
     public const string Operator = "operator";
     public const string Viewer = "viewer";
+    /// <summary>
+    /// #506: client-credentials only — set on an application's service account in Keycloak. Not in
+    /// <see cref="Entries"/>: the admin UI does not assign it to people, and a user token carrying it
+    /// grants nothing (AuthorizationClaimResolver).
+    /// </summary>
     public const string GroupManager = "group-manager";
 
     /// <summary>The assignable roles in display order (highest privilege first).</summary>
@@ -36,10 +41,6 @@ public static class RoleCatalog
             Viewer, IsAdmin: false,
             Workspaces: new[] { "operator" },
             Description: "閲覧のみ。運用ワークスペースを参照できるが制御・管理はできない。"),
-        new RoleCatalogEntry(
-            GroupManager, IsAdmin: false,
-            Workspaces: Array.Empty<string>(),
-            Description: "外部アプリケーションのサービスアカウント用（#506）。Group の作成・変更・削除と、Group に入れるリソースを選ぶためのツイン構造の閲覧だけができる。テレメトリ・制御・ツイン変更・ユーザー管理は不可。画面は持たない。"),
     };
 
     /// <summary>The set of assignable role names (case-sensitive, lowercase).</summary>

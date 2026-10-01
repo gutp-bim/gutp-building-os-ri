@@ -389,6 +389,8 @@ public sealed class AuthorizedTwinView(
         // tags are string literals and stay on EscapeStringLiteral. An unusable scope names no
         // building, so the search finds nothing — the same answer an unknown building gets.
         if (IsUnusableScopeId(buildingDtId)) return [];
+        // #506: tags are hidden from a group-manager, so a tag filter must not answer for it (an oracle).
+        if (!auth.IsAdmin && auth.IsGroupManager && tags.Count > 0) return [];
 
         var hits = await db.SearchResources(q, type, buildingDtId, tags, limit, offset).ConfigureAwait(false);
         if (auth.ReadsWholeTwinStructure) return hits;

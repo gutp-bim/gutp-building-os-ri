@@ -57,12 +57,44 @@ public class GroupsControllerRoleTest
     // admin's Group (one users hold write on) would let a group-manager hand out control indirectly.
 
     [Fact]
-    public async Task Create_RecordsTheCreator()
+    public async Task Create_RecordsTheCreator_AndShowsIt()
     {
         var repo = Repo();
-        await Build("group-manager", repo, userId: "svc-portal").Create(new GroupsController.CreateGroupRequest { Id = "t-a", Name = "A" }, default);
+        var result = await Build("group-manager", repo, userId: "svc-portal").Create(new GroupsController.CreateGroupRequest { Id = "t-a", Name = "A" }, default);
 
         repo.Verify(r => r.CreateAsync(It.Is<ResourceGroup>(g => g.CreatedBy == "svc-portal"), It.IsAny<CancellationToken>()));
+        var body = Assert.IsType<GroupsController.GroupResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        Assert.Equal("svc-portal", body.CreatedBy);
+    }
+
+    /// <summary>
+    /// A group-manager's Group ids live under a prefix derived from its subject. Users' grants match the
+    /// plain id, so an id the caller could choose freely could take over grants that already name it
+    /// (a deleted Group's leftovers, or ones provisioned ahead of the Group).
+    /// </summary>
+    [Fact]
+    public async Task GroupManager_GroupIds_AreNamespacedByTheCaller()
+    {
+        var repo = Repo();
+        var prefix = GroupsController.GroupIdPrefixFor("svc-portal");
+        Assert.StartsWith("gm-", prefix);
+        Assert.NotEqual(prefix, GroupsController.GroupIdPrefixFor("svc-other"));
+
+        var created = await Build("group-manager", repo, userId: "svc-portal").Create(new GroupsController.CreateGroupRequest { Id = "tenant-a", Name = "A" }, default);
+        var again = await Build("group-manager", repo, userId: "svc-portal").Create(new GroupsController.CreateGroupRequest { Id = prefix + "tenant-b", Name = "B" }, default);
+
+        Assert.Equal(prefix + "tenant-a", Assert.IsType<GroupsController.GroupResponse>(Assert.IsType<CreatedAtActionResult>(created.Result).Value).Id);
+        Assert.Equal(prefix + "tenant-b", Assert.IsType<GroupsController.GroupResponse>(Assert.IsType<CreatedAtActionResult>(again.Result).Value).Id);
+        repo.Verify(r => r.CreateAsync(It.Is<ResourceGroup>(g => g.Id == "tenant-a"), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Admin_GroupIds_AreTakenAsGiven()
+    {
+        var repo = Repo();
+        var created = await Build("admin", repo).Create(new GroupsController.CreateGroupRequest { Id = "tenant-a", Name = "A" }, default);
+
+        Assert.Equal("tenant-a", Assert.IsType<GroupsController.GroupResponse>(Assert.IsType<CreatedAtActionResult>(created.Result).Value).Id);
     }
 
     [Fact]

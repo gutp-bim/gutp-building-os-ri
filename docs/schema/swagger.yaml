@@ -3979,6 +3979,10 @@ components:
         description:
           type: string
           nullable: true
+        createdBy:
+          type: string
+          description: Subject that created the Group (#506); null for Groups created before it was recorded.
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -3999,6 +4003,10 @@ components:
           type: string
         description:
           type: string
+          nullable: true
+        createdBy:
+          type: string
+          description: Subject that created the Group (#506); null for Groups created before it was recorded.
           nullable: true
         createdAt:
           type: string

@@ -41,7 +41,12 @@ role only selects the UI workspace; it grants no data access by itself. The real
 **`group-manager` (#506)** is for an external application's service account that keeps Building OS
 Groups in sync (e.g. a tenant portal) without being a full admin. It may:
 
-- create Groups, and list, change and delete **only the Groups it created itself** (`/api/v1/groups/**`;
+It is a **client-credentials role only**: it is not offered by the admin UI's role picker, and a user
+token (or Admin-API lookup) that resolves to `group-manager` grants nothing.
+
+- create Groups — **ids are placed under `gm-<12 hex of SHA-256(subject)>-`** (an id sent without the
+  prefix gets it; the response carries the actual id), so it can never claim an id that existing user
+  grants (`group:<id>`) already name — and list, change and delete **only the Groups it created itself** (`/api/v1/groups/**`;
   someone else's Group answers 404). A Group's items are grants to every user holding
   `group:<id>:<actions>`, so a group-manager must never edit an admin's Group that users hold `write` on.
   Groups created before this release carry no creator and stay admin-only. Every Group change is
@@ -51,9 +56,10 @@ Groups in sync (e.g. a tenant portal) without being a full admin. It may:
   adjacency and resource search — as **names and ids only** (no native/BACnet addressing, gateways,
   owners or thresholds), so it can choose what a Group holds.
 
-A group-manager context never carries permission strings, even if its token has some. Note for admins:
-deleting a Group does not remove `group:<id>` grants from users; remove them too, or a group-manager that
-later creates a Group with the same id would decide what those users can reach.
+A group-manager context never carries permission strings, even if its token has some. The Groups API
+shows each Group's `createdBy`, so an admin can see which Groups an application controls before granting
+users `group:<id>` on them. Identifier/tag metadata, a tag-filtered search, control history and data
+health are refused to it.
 
 It reads **no values** and changes nothing else: a single point (`GET /points/{id}`, which also gates
 the control history), telemetry, data health, control, twin import, user / permission management and
@@ -61,9 +67,11 @@ Gateway management stay as for a non-admin without grants. It has no UI workspac
 
 A client-credentials token (`idtyp=app`) is admin by default (table below). Give the application's
 service-account user the attribute `role` = `group-manager` and add the `building-os-api` client scope
-to its client, so the token carries `building_os_role=group-manager`: that exact value — and only that
-one — makes the app token a group-manager instead of an admin. Any other `building_os_role` value on an
-app token is ignored, so existing client-credentials clients keep working unchanged.
+(and `basic`, so the token carries `sub`) to its client, so the token carries
+`building_os_role=group-manager`: that exact value — and only that one — makes the app token a
+group-manager instead of an admin. Without a `sub` it gets no access (Group ownership is keyed on it).
+Any other `building_os_role` value on an app token is ignored with a one-time warning, so existing
+client-credentials clients keep working unchanged.
 
 Resource IDs that are not group IDs remain hashed by the API authorization
 layer. Keycloak stores permission strings as user or group attributes and emits

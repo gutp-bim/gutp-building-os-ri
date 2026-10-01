@@ -130,6 +130,19 @@ public class AuthorizedTwinViewGroupManagerTest
         Assert.Equal("L1", Assert.Single(await View.ListPointsAsync(admin, "", default)).LocalId);
     }
 
+    /// <summary>Tags are hidden from a group-manager, so a tag filter must not answer for it either (an oracle).</summary>
+    [Fact]
+    public async Task SearchByTag_ReturnsNothing()
+    {
+        _db.Setup(d => d.SearchResources(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<IReadOnlyList<string>>(), It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync([new ResourceSearchHit { Type = "space", Id = "S1", DtId = Iri + "S1" }]);
+
+        Assert.Empty(await View.SearchAsync(GroupManager(), null, null, null, ["vip-tenant"], 50, 0, default));
+        _db.Verify(d => d.SearchResources(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
     // ── Values and writes: exactly as a non-admin without grants ────────────
 
     /// <summary>

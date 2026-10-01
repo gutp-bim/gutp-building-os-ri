@@ -23,6 +23,9 @@ public static class AuthorizationClaimResolver
     public const string LegacyRoleClaim = "extension_BuildingOS_role";
     public const string LegacyPermissionsClaim = "extension_BuildingOS_permissions";
 
+    /// <summary>A role that grants nothing (the same "user" the middleware falls back to).</summary>
+    public const string NoRole = "user";
+
     public static AuthorizationContext? TryResolve(IReadOnlyCollection<Claim> claims)
     {
         var userId = GetUserId(claims);
@@ -38,10 +41,21 @@ public static class AuthorizationClaimResolver
         var idtyp = claims.FirstOrDefault(c => c.Type == "idtyp")?.Value;
         if (idtyp == "app")
         {
+            if (role == RoleCatalog.GroupManager)
+            {
+                // Group ownership is keyed on the subject; without one the client would share the
+                // "app" fallback id with every other such client — so it gets nothing instead.
+                return new AuthorizationContext
+                {
+                    UserId = userId ?? "app",
+                    Role = userId is null ? NoRole : RoleCatalog.GroupManager,
+                    Permissions = Array.Empty<string>(),
+                };
+            }
             return new AuthorizationContext
             {
                 UserId = userId ?? "app",
-                Role = role == RoleCatalog.GroupManager ? RoleCatalog.GroupManager : "admin",
+                Role = "admin",
                 Permissions = Array.Empty<string>(),
             };
         }
@@ -60,7 +74,9 @@ public static class AuthorizationClaimResolver
         return new AuthorizationContext
         {
             UserId = userId ?? "unknown",
-            Role = role,
+            // group-manager is a client-credentials role (#506). On a user token — where Keycloak's
+            // single-valued mapper may emit it in place of the user's own viewer/operator — it grants nothing.
+            Role = role == RoleCatalog.GroupManager ? NoRole : role,
             Permissions = permissions,
         };
     }

@@ -47,6 +47,35 @@ public class AuthorizationClaimResolverTest
     }
 
     /// <summary>
+    /// Ownership of Groups is keyed on the subject, so a group-manager needs a real one: an app token
+    /// without sub would share the "app" fallback with every other such client. Fail closed.
+    /// </summary>
+    [Fact]
+    public void AppToken_GroupManagerWithoutASubject_GetsNothing()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), new Claim("building_os_role", "group-manager")]);
+
+        Assert.False(ctx!.IsAdmin);
+        Assert.False(ctx.IsGroupManager);
+        Assert.Empty(ctx.Permissions);
+    }
+
+    /// <summary>
+    /// group-manager is a client-credentials role only. On a user token — where Keycloak's single-valued
+    /// mapper may pick it over the user's viewer/operator role — it grants nothing.
+    /// </summary>
+    [Fact]
+    public void UserToken_GroupManager_GetsNothing()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+            [Sub("u1"), new Claim("building_os_role", "group-manager"), new Claim("permissions", "group:x:read")]);
+
+        Assert.False(ctx!.IsGroupManager);
+        Assert.False(ctx.CanManageGroups);
+        Assert.False(ctx.ReadsWholeTwinStructure);
+    }
+
+    /// <summary>
     /// Any other role claim on an app token changes nothing: existing client-credentials clients stay
     /// admin exactly as before, whatever attribute their service account happens to carry.
     /// </summary>
