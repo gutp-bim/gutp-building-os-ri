@@ -332,6 +332,27 @@ public class ParquetLakeTelemetryStoreTest
         Assert.Equal(2, (await store.QueryLatestAsync("p1"))!.Value);
     }
 
+    /// <summary>A re-key inside one hour leaves both buildings with rows in that hour; latest is the newer.</summary>
+    [Fact]
+    public async Task QueryLatestAsync_RekeyedWithinTheSameHour_ReturnsTheNewerRow()
+    {
+        var s = new InMemoryBlobStorage();
+        var now = DateTime.UtcNow;
+        var cur = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0, DateTimeKind.Utc);
+        var old = cur.AddHours(-3);
+        await PutAsync(s, LakePartitionKey.For("b-old", old, 1, 2),
+            new ValidTelemetryData { Id = "a0", PointId = "p1", Building = "b-old", Datetime = old.AddMinutes(1).ToString("O"), Value = 0 });
+        await PutAsync(s, LakePartitionKey.For("b-old", cur, 5, 6),
+            new ValidTelemetryData { Id = "a1", PointId = "p1", Building = "b-old", Datetime = cur.ToString("O"), Value = 1 });
+        await PutAsync(s, LakePartitionKey.For("b-new", cur, 7, 8),
+            new ValidTelemetryData { Id = "b", PointId = "p1", Building = "b-new", Datetime = cur.AddTicks(1).ToString("O"), Value = 2 });
+        var store = NewStore(s);
+
+        Assert.Single(await store.QueryAsync("p1", old, old.AddHours(1)));   // learns b-old
+
+        Assert.Equal(2, (await store.QueryLatestAsync("p1"))!.Value);
+    }
+
     [Fact]
     public async Task QueryLatestAsync_OutsideLookback_ReturnsNull()
     {

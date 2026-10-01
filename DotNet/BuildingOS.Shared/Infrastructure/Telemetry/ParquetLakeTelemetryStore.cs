@@ -124,25 +124,26 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
         var hours = ParquetLakeReadPlanner.LookbackHours(now, _options.LatestLookbackHours).ToList();
         // Point→building pruning (#273): probe only the point's building when known.
         var known = _scan.GetCachedBuilding(pointId);
-        IReadOnlyList<string>? all = null;
 
         if (known is not null)
         {
             var (pruned, hourIndex) = await FindNewestAsync(new[] { known }, hours).ConfigureAwait(false);
-            if (pruned is not null && hourIndex == 0) return pruned; // the newest hour: nothing can be newer
 
-            // #527: the point may have been re-keyed to another building since we learned this one,
-            // so a pruned answer only stands if no building has the point in a NEWER hour. A live
-            // point answers in hour 0 above and never gets here; a stale one pays a listing of the
-            // newer hours across buildings. A pruned miss is retried over every building.
-            all = await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
-            var newerHours = pruned is null ? hours : hours.Take(hourIndex).ToList();
-            var (newer, _) = await FindNewestAsync(all, newerHours).ConfigureAwait(false);
-            return newer ?? pruned;
+            // #527: the point may have been re-keyed to another building since we learned this one —
+            // even within the very hour the pruned read matched, where the old building holds the
+            // earlier rows and the new one the later. So the pruned answer only bounds the search:
+            // every building is read for that hour and the newer ones, and the newest row wins. The
+            // pruning still pays for a stale point, whose answer sits many hours back. A pruned miss
+            // is retried over every building and the whole lookback. (The lake is only the fallback
+            // for latest — the router asks the Hot KV first.)
+            var all = await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
+            var probe = pruned is null ? hours : hours.Take(hourIndex + 1).ToList();
+            var (newest, _) = await FindNewestAsync(all, probe).ConfigureAwait(false);
+            return newest ?? pruned;
         }
 
-        all ??= await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
-        return (await FindNewestAsync(all, hours).ConfigureAwait(false)).Row;
+        var everyBuilding = await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
+        return (await FindNewestAsync(everyBuilding, hours).ConfigureAwait(false)).Row;
 
         // The newest row of the point in the first (most recent) of `probe` hours that has one, and
         // that hour's index in `probe`. Learns from what it read.
