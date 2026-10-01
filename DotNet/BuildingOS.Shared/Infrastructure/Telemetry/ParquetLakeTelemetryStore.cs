@@ -46,16 +46,25 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
         // Point→building pruning (#273): if we already know this point's building, scan only it
         // instead of every building in the lake; otherwise scan all and learn the building below.
         var known = _scan.GetCachedBuilding(pointId);
-        var keys = await _scan.ListKeysInRangeAsync(
-            start, end, cancellationToken, known is null ? null : new[] { known }).ConfigureAwait(false);
-        var selected = ParquetLakeReadPlanner.SelectObjectKeys(keys);
-        selected = CapFiles(selected, pointId, start, end);
-
-        var rows = await _scan.ReadKeysAsync(selected, pointId, start, end, cancellationToken).ConfigureAwait(false);
-        var deduped = ParquetLakeReadPlanner.DedupById(rows);
+        var deduped = await ScanAsync(known is null ? null : new[] { known }).ConfigureAwait(false);
+        if (known is not null && deduped.Length == 0)
+        {
+            // #527: a pruned read that finds nothing is not trusted — the point may have been re-keyed
+            // to another building (its older rows sit under the old one). Retry over every building.
+            deduped = await ScanAsync(null).ConfigureAwait(false);
+            known = null;
+        }
         if (known is null)
             _scan.LearnBuilding(pointId, deduped);
         return deduped;
+
+        async Task<ValidTelemetryData[]> ScanAsync(IReadOnlyList<string>? buildings)
+        {
+            var keys = await _scan.ListKeysInRangeAsync(start, end, cancellationToken, buildings).ConfigureAwait(false);
+            var selected = CapFiles(ParquetLakeReadPlanner.SelectObjectKeys(keys), pointId, start, end);
+            var rows = await _scan.ReadKeysAsync(selected, pointId, start, end, cancellationToken).ConfigureAwait(false);
+            return ParquetLakeReadPlanner.DedupById(rows);
+        }
     }
 
     public async Task<Dictionary<string, ValidTelemetryData[]>> QueryMultiAsync(
@@ -76,12 +85,14 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             ? cached.Cast<string>().Distinct(StringComparer.Ordinal).ToList()
             : null;
 
-        var keys = await _scan.ListKeysInRangeAsync(start, end, cancellationToken, filter).ConfigureAwait(false);
-        var selected = ParquetLakeReadPlanner.SelectObjectKeys(keys);
-        selected = CapFiles(selected, string.Join(",", wanted), start, end);
-
-        // One pass over the objects resolves every requested point id (no per-point re-scan).
-        var byPoint = await _scan.ReadKeysMultiAsync(selected, wanted, start, end, cancellationToken).ConfigureAwait(false);
+        var byPoint = await ScanAsync(filter).ConfigureAwait(false);
+        if (filter is not null && wanted.Any(id => !byPoint.ContainsKey(id)))
+        {
+            // #527: as in QueryAsync, a pruned read that finds nothing for some point is retried over
+            // every building rather than trusted.
+            byPoint = await ScanAsync(null).ConfigureAwait(false);
+            filter = null;
+        }
         foreach (var id in wanted)
         {
             if (byPoint.TryGetValue(id, out var rows))
@@ -97,40 +108,69 @@ public sealed class ParquetLakeTelemetryStore : IWarmTelemetryStore, IColdTeleme
             }
         }
         return result;
+
+        // One pass over the objects resolves every requested point id (no per-point re-scan).
+        async Task<Dictionary<string, List<ValidTelemetryData>>> ScanAsync(IReadOnlyList<string>? buildings)
+        {
+            var keys = await _scan.ListKeysInRangeAsync(start, end, cancellationToken, buildings).ConfigureAwait(false);
+            var selected = CapFiles(ParquetLakeReadPlanner.SelectObjectKeys(keys), string.Join(",", wanted), start, end);
+            return await _scan.ReadKeysMultiAsync(selected, wanted, start, end, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task<ValidTelemetryData?> QueryLatestAsync(string pointId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
+        var hours = ParquetLakeReadPlanner.LookbackHours(now, _options.LatestLookbackHours).ToList();
         // Point→building pruning (#273): probe only the point's building when known.
         var known = _scan.GetCachedBuilding(pointId);
-        var buildings = known is not null
-            ? new[] { known }
-            : await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
-        if (buildings.Count == 0)
+        IReadOnlyList<string>? all = null;
+
+        if (known is not null)
         {
-            return null;
+            var (pruned, hourIndex) = await FindNewestAsync(new[] { known }, hours).ConfigureAwait(false);
+            if (pruned is not null && hourIndex == 0) return pruned; // the newest hour: nothing can be newer
+
+            // #527: the point may have been re-keyed to another building since we learned this one,
+            // so a pruned answer only stands if no building has the point in a NEWER hour. A live
+            // point answers in hour 0 above and never gets here; a stale one pays a listing of the
+            // newer hours across buildings. A pruned miss is retried over every building.
+            all = await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
+            var newerHours = pruned is null ? hours : hours.Take(hourIndex).ToList();
+            var (newer, _) = await FindNewestAsync(all, newerHours).ConfigureAwait(false);
+            return newer ?? pruned;
         }
 
-        foreach (var hour in ParquetLakeReadPlanner.LookbackHours(now, _options.LatestLookbackHours))
-        {
-            // List each building's hour partition concurrently so fallback latency does not grow
-            // linearly with the building count (the listings are independent reads).
-            var perBuilding = await Task.WhenAll(
-                buildings.Select(b => _scan.ListHourKeysAsync(b, hour, cancellationToken))).ConfigureAwait(false);
-            var keys = perBuilding.SelectMany(x => x).ToList();
-            if (keys.Count == 0) continue;
+        all ??= await _scan.GetBuildingsAsync(cancellationToken).ConfigureAwait(false);
+        return (await FindNewestAsync(all, hours).ConfigureAwait(false)).Row;
 
-            var selected = ParquetLakeReadPlanner.SelectObjectKeys(keys);
-            var rows = await _scan.ReadKeysAsync(selected, pointId, hour, now, cancellationToken).ConfigureAwait(false);
-            if (rows.Count > 0)
+        // The newest row of the point in the first (most recent) of `probe` hours that has one, and
+        // that hour's index in `probe`. Learns from what it read.
+        async Task<(ValidTelemetryData? Row, int HourIndex)> FindNewestAsync(
+            IReadOnlyList<string> buildings, IReadOnlyList<DateTime> probe)
+        {
+            if (buildings.Count == 0) return (null, -1);
+            for (var h = 0; h < probe.Count; h++)
             {
-                var deduped = ParquetLakeReadPlanner.DedupById(rows); // ascending by time
-                if (known is null) _scan.LearnBuilding(pointId, deduped);
-                return deduped[^1]; // newest in the most recent hour with data
+                var hour = probe[h];
+                // List each building's hour partition concurrently so fallback latency does not grow
+                // linearly with the building count (the listings are independent reads).
+                var perBuilding = await Task.WhenAll(
+                    buildings.Select(b => _scan.ListHourKeysAsync(b, hour, cancellationToken))).ConfigureAwait(false);
+                var keys = perBuilding.SelectMany(x => x).ToList();
+                if (keys.Count == 0) continue;
+
+                var selected = ParquetLakeReadPlanner.SelectObjectKeys(keys);
+                var rows = await _scan.ReadKeysAsync(selected, pointId, hour, now, cancellationToken).ConfigureAwait(false);
+                if (rows.Count > 0)
+                {
+                    var deduped = ParquetLakeReadPlanner.DedupById(rows); // ascending by time
+                    _scan.LearnBuilding(pointId, deduped);
+                    return (deduped[^1], h); // newest in the most recent hour with data
+                }
             }
+            return (null, -1);
         }
-        return null;
     }
 
     private IReadOnlyList<string> CapFiles(IReadOnlyList<string> keys, string queryLabel, DateTime start, DateTime end)

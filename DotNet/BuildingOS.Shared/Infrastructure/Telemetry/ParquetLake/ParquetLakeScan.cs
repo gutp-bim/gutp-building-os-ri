@@ -31,32 +31,42 @@ internal sealed class ParquetLakeScan
         _cache = cache;
     }
 
-    /// <summary>The learned building for a point, or null if not yet resolved.</summary>
+    // #527: a point seen under two buildings (its partition key was re-keyed) is never pruned again
+    // for the life of the process. Held without expiry: re-learning one building after a TTL would
+    // reopen exactly the hole this closes. One small entry per re-keyed point.
+    private const string MultiBuildingMarker = "\0multi";
+
+    /// <summary>The learned building for a point, or null if not yet resolved (or never prunable).</summary>
     public string? GetCachedBuilding(string pointId)
-        => _cache.TryGetValue(PointBuildingCachePrefix + pointId, out string? b) ? b : null;
+        => _cache.TryGetValue(PointBuildingCachePrefix + pointId, out string? b) && b != MultiBuildingMarker ? b : null;
 
     /// <summary>Records the building a point's data was found in, to prune later scans.</summary>
     public void CacheBuilding(string? pointId, string? building)
     {
-        if (!string.IsNullOrEmpty(pointId) && !string.IsNullOrEmpty(building))
-            _cache.Set(PointBuildingCachePrefix + pointId, building, PointBuildingCacheTtl);
+        if (string.IsNullOrEmpty(pointId) || string.IsNullOrEmpty(building)) return;
+        var key = PointBuildingCachePrefix + pointId;
+        if (_cache.TryGetValue(key, out string? current) && current is not null && current != building)
+        {
+            // Seen under another building before (in this read or an earlier one): never prune it.
+            _cache.Set(key, MultiBuildingMarker);
+            return;
+        }
+        _cache.Set(key, building, PointBuildingCacheTtl);
     }
 
     /// <summary>
     /// Learns a point's building from the rows a full scan found — but only when they all agree.
     /// Rows under two buildings mean the point was re-keyed (e.g. #527 moved the partition key from the
     /// <c>sbco:building</c> literal to the topology's building): pruning to either one would drop the
-    /// point's data in the other, so nothing is learned and later reads keep scanning every building.
+    /// point's data in the other, so the point is marked as never prunable — and that sticks, so a later
+    /// read that happens to see only one of the buildings cannot re-enable pruning (Codex on #527).
+    /// A read that sees one building different from what an earlier read learned marks it the same way.
     /// </summary>
     public void LearnBuilding(string? pointId, IReadOnlyList<ValidTelemetryData> rows)
     {
-        if (rows.Count == 0) return;
-        var building = rows[0].Building;
-        for (var i = 1; i < rows.Count; i++)
-        {
-            if (!string.Equals(rows[i].Building, building, StringComparison.Ordinal)) return;
-        }
-        CacheBuilding(pointId, building);
+        if (string.IsNullOrEmpty(pointId) || rows.Count == 0) return;
+        foreach (var building in rows.Select(r => r.Building).Where(b => !string.IsNullOrEmpty(b)).Distinct(StringComparer.Ordinal))
+            CacheBuilding(pointId, building);
     }
 
     /// <summary>
