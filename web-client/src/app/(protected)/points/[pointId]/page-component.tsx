@@ -257,6 +257,8 @@ export default function PointDetailPageComponent({
 
   // 補助情報なので失敗はバナーにしない（権限で弾かれる / 一覧 API が落ちている場合も、パネルの
   // 手元判定はそのまま使える）。古い応答が新しい応答を上書きしないよう要求 id で捨てる。
+  // PointDetail に建物 dtId が無いため建物スコープを付けられない（台帳は建物ごとにキャッシュ済みで、
+  // コストは /health を建物指定なしで開くのと同じ）。スコープ化は #547。
   const fetchHealthRow = async () => {
     if (!pointDetail?.point.id) return;
     const requestId = ++healthRequestId.current;

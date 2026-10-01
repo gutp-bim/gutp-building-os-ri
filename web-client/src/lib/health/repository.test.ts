@@ -429,6 +429,31 @@ describe("fetchPointHealthRow (#457)", () => {
     expect(await fetchPointHealthRow("PT-1", undefined, fetchPage)).toBeNull();
   });
 
+  it("pages on when the exact row is not on the first page", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...page(
+          Array.from({ length: 50 }, (_, i) => ({ pointId: `PT-1${i}` })),
+        ),
+        total: 51,
+      })
+      .mockResolvedValueOnce({ ...page([{ pointId: "PT-1" }]), total: 51 });
+
+    const row = await fetchPointHealthRow("PT-1", undefined, fetchPage);
+
+    expect(row?.pointId).toBe("PT-1");
+    expect(fetchPage.mock.calls.map((c) => c[0].offset)).toEqual([0, 50]);
+  });
+
+  it("stops paging once every matching row has been seen", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValue({ ...page([{ pointId: "PT-10" }]), total: 1 });
+    expect(await fetchPointHealthRow("PT-1", undefined, fetchPage)).toBeNull();
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+
   it("omits the device filter when the device is unknown", async () => {
     const fetchPage = vi.fn().mockResolvedValue(page([]));
     await fetchPointHealthRow("PT-1", undefined, fetchPage);
