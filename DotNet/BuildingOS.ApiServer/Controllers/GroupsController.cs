@@ -64,9 +64,14 @@ public class GroupsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Group {Action} on {GroupId} committed but its audit record could not be written",
-                action, targetId);
+                action, ForLog(targetId));
         }
     }
+
+    // Ids come from the request; strip control characters so they cannot forge log lines.
+    private static readonly System.Text.RegularExpressions.Regex ControlChars =
+        new(@"\p{C}", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static string ForLog(string value) => ControlChars.Replace(value, "_");
 
     /// <summary>The column limit of a Group id (resource_groups.Id).</summary>
     public const int MaxGroupIdLength = 100;
