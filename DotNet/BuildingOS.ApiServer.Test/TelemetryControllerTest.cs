@@ -461,6 +461,18 @@ public class TelemetryControllerTest
         Assert.Equal(end, asked.End);
     }
 
+    /// <summary>An end too early to hold a 24 h window is a client error, not a 500.</summary>
+    [Fact]
+    public async Task Coverage_RejectsAnEndThatCannotHoldTheWindow()
+    {
+        var (controller, _, _, _, twin) = BuildWithStores();
+        twin.Setup(t => t.GetPoint("p1")).ReturnsAsync(new Point { Id = "p1" });
+
+        var result = await controller.Coverage("p1", DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc));
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
     [Fact]
     public async Task Coverage_RequiresPointId()
     {

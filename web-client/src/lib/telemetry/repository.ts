@@ -136,7 +136,21 @@ export async function queryTelemetryWithState(
 
 export type PointCoverageResult =
   | { kind: "buckets"; buckets: CoverageBucket[] }
-  | Extract<CoverageFetchPlan, { kind: "unavailable" }>;
+  | Extract<CoverageFetchPlan, { kind: "unavailable" }>
+  /**
+   * The read was capped (`PARQUET_QUERY_MAX_FILES`, `X-Partial-Result`, #499): fewer rows came back
+   * than were stored, so drawing them would show missing data that is not missing.
+   */
+  | { kind: "unavailable"; reason: "partial" };
+
+/** `X-Partial-Result: true` on a telemetry read (#499). axios lower-cases header names. */
+function isPartialResult(headers: Record<string, string> | undefined): boolean {
+  if (!headers) return false;
+  const key = Object.keys(headers).find(
+    (k) => k.toLowerCase() === "x-partial-result",
+  );
+  return key !== undefined && String(headers[key]).toLowerCase() === "true";
+}
 
 /**
  * 24h 受信状況（coverage）バケット（#457）。Phase 1 は raw の受信時刻をクライアントで数える。
@@ -163,9 +177,13 @@ export async function queryPointCoverage(
 
   if (plan.kind === "server") {
     // #551: a fast point's 24 h is ~17k rows; the server counts them and sends 96 integers.
-    const res = await apiClient(token).api.v1.telemetries.coverage.$get({
+    const { body: res, headers } = await apiClient(
+      token,
+    ).api.v1.telemetries.coverage.get({
       query: { pointId, end: plan.end.toISOString() },
     });
+    if (isPartialResult(headers))
+      return { kind: "unavailable", reason: "partial" };
     const windowStart = Date.parse(res.windowStart ?? "");
     if (
       !Array.isArray(res.counts) ||
@@ -187,7 +205,9 @@ export async function queryPointCoverage(
     };
   }
 
-  const res = await apiClient(token).api.v1.telemetries.query.$get({
+  const { body: res, headers } = await apiClient(
+    token,
+  ).api.v1.telemetries.query.get({
     query: {
       pointId,
       start: plan.start.toISOString(),
@@ -195,6 +215,8 @@ export async function queryPointCoverage(
       granularity: toGranularityParam("raw"),
     },
   });
+  if (isPartialResult(headers))
+    return { kind: "unavailable", reason: "partial" };
   const timestamps = res.flatMap((r) =>
     typeof r.datetime === "string" ? [r.datetime] : [],
   );

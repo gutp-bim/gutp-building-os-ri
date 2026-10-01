@@ -58,6 +58,19 @@ describe("TelemetryCoverageBar (#457)", () => {
     );
   });
 
+  it("explains a capped read instead of showing it as missing (#499)", () => {
+    render(
+      <TelemetryCoverageBar
+        state={{ kind: "unavailable", reason: "partial" }}
+      />,
+    );
+
+    expect(screen.getByTestId("coverage-unavailable")).toHaveTextContent(
+      "欠測とは限りません",
+    );
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
   it("explains why the bar is not drawn without an expected interval", () => {
     render(
       <TelemetryCoverageBar

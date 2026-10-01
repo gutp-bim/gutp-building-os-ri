@@ -266,7 +266,10 @@ public class TelemetryController(
         var windowEnd = end is { } e
             ? new DateTimeOffset(DateTime.SpecifyKind(e.ToUniversalTime(), DateTimeKind.Utc))
             : DateTimeOffset.UtcNow;
-        var windowStart = windowEnd.AddSeconds(-TelemetryCoverage.DefaultBucketSeconds * TelemetryCoverage.DefaultBucketCount);
+        var window = TimeSpan.FromSeconds(TelemetryCoverage.DefaultBucketSeconds * TelemetryCoverage.DefaultBucketCount);
+        if (windowEnd - DateTimeOffset.MinValue < window)
+            return BadRequest("end is too early to hold a 24-hour window");
+        var windowStart = windowEnd - window;
 
         using var completeness = TelemetryQueryCompleteness.Begin();
         var rows = await telemetryQueryRouter.QueryAsync(

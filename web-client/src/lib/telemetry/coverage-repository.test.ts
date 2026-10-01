@@ -9,8 +9,8 @@ vi.mock("@/lib/infra/aspida-client", () => ({
     api: {
       v1: {
         telemetries: {
-          query: { $get: getMock },
-          coverage: { $get: coverageMock },
+          query: { get: getMock },
+          coverage: { get: coverageMock },
         },
       },
     },
@@ -22,6 +22,13 @@ import { queryPointCoverage } from "./repository";
 
 const END = new Date("2026-09-10T12:00:00Z");
 
+/** aspida's full response (`get`, not `$get`) — the partial-result header lives on it (#499). */
+const ok = (body: unknown, headers: Record<string, string> = {}) => ({
+  status: 200,
+  headers,
+  body,
+});
+
 afterEach(() => {
   getMock.mockReset();
   coverageMock.mockReset();
@@ -29,11 +36,13 @@ afterEach(() => {
 
 describe("queryPointCoverage (#457)", () => {
   it("fetches raw receipts for the planned window and returns 96 buckets", async () => {
-    getMock.mockResolvedValue([
-      { datetime: "2026-09-10T11:50:00Z", value: 1, valueType: "number" },
-      { datetime: "2026-09-10T11:51:00Z", value: "ON", valueType: "string" },
-      { datetime: null, value: 2 },
-    ]);
+    getMock.mockResolvedValue(
+      ok([
+        { datetime: "2026-09-10T11:50:00Z", value: 1, valueType: "number" },
+        { datetime: "2026-09-10T11:51:00Z", value: "ON", valueType: "string" },
+        { datetime: null, value: 2 },
+      ]),
+    );
 
     const result = await queryPointCoverage({
       pointId: "p1",
@@ -59,13 +68,15 @@ describe("queryPointCoverage (#457)", () => {
   it("asks the server to count a fast point instead of fetching its raw rows (#551)", async () => {
     const counts = Array.from({ length: COVERAGE_BUCKET_COUNT }, () => 180);
     counts[95] = 0;
-    coverageMock.mockResolvedValue({
-      pointId: "p1",
-      windowStart: "2026-09-09T12:00:00Z",
-      windowEnd: END.toISOString(),
-      bucketSeconds: 900,
-      counts,
-    });
+    coverageMock.mockResolvedValue(
+      ok({
+        pointId: "p1",
+        windowStart: "2026-09-09T12:00:00Z",
+        windowEnd: END.toISOString(),
+        bucketSeconds: 900,
+        counts,
+      }),
+    );
 
     const result = await queryPointCoverage({
       pointId: "p1",
@@ -85,7 +96,9 @@ describe("queryPointCoverage (#457)", () => {
   });
 
   it("rejects a malformed server response rather than drawing a wrong bar", async () => {
-    coverageMock.mockResolvedValue({ bucketSeconds: 900, counts: [1, 2, 3] });
+    coverageMock.mockResolvedValue(
+      ok({ bucketSeconds: 900, counts: [1, 2, 3] }),
+    );
 
     await expect(
       queryPointCoverage({ pointId: "p1", intervalSeconds: 5, windowEnd: END }),
@@ -101,5 +114,43 @@ describe("queryPointCoverage (#457)", () => {
 
     expect(getMock).not.toHaveBeenCalled();
     expect(result).toEqual({ kind: "unavailable", reason: "no-interval" });
+  });
+
+  // #499: a read capped by PARQUET_QUERY_MAX_FILES returns fewer rows; drawn as-is it would look
+  // like missing data. Both paths report "partial" instead.
+  it("does not draw a capped server count as missing data", async () => {
+    coverageMock.mockResolvedValue(
+      ok(
+        {
+          windowStart: "2026-09-09T12:00:00Z",
+          bucketSeconds: 900,
+          counts: Array.from({ length: COVERAGE_BUCKET_COUNT }, () => 0),
+        },
+        {
+          "x-partial-result": "true",
+          "x-covered-from": "2026-09-10T06:00:00Z",
+        },
+      ),
+    );
+
+    expect(
+      await queryPointCoverage({
+        pointId: "p1",
+        intervalSeconds: 5,
+        windowEnd: END,
+      }),
+    ).toEqual({ kind: "unavailable", reason: "partial" });
+  });
+
+  it("does not draw a capped raw read as missing data", async () => {
+    getMock.mockResolvedValue(ok([], { "X-Partial-Result": "true" }));
+
+    expect(
+      await queryPointCoverage({
+        pointId: "p1",
+        intervalSeconds: 60,
+        windowEnd: END,
+      }),
+    ).toEqual({ kind: "unavailable", reason: "partial" });
   });
 });
