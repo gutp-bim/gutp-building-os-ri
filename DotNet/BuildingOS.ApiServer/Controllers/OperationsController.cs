@@ -44,11 +44,13 @@ public class OperationsController : ControllerBase
     {
         var rate1mTask = _prometheus.QueryScalarAsync(SystemStatusService.MsgRate1mQuery, ct);
         var rate1hAvgTask = _prometheus.QueryScalarAsync(MsgRate1hAvgQuery, ct);
-        await Task.WhenAll(rate1mTask, rate1hAvgTask).ConfigureAwait(false);
+        var reachableTask = _prometheus.IsReachableAsync(ct);
+        await Task.WhenAll(rate1mTask, rate1hAvgTask, reachableTask).ConfigureAwait(false);
 
         return Ok(new OperationsSummaryResponse(
             MsgRate1m: await rate1mTask.ConfigureAwait(false),
             MsgRate1hAvg: await rate1hAvgTask.ConfigureAwait(false),
-            MetricsAvailable: _prometheus.IsConfigured));
+            // Reachable, not merely configured (#456): compose sets PROMETHEUS_URL without Prometheus.
+            MetricsAvailable: await reachableTask.ConfigureAwait(false)));
     }
 }

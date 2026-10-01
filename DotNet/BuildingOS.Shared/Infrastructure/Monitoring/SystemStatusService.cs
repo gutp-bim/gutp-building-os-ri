@@ -184,8 +184,9 @@ public sealed class SystemStatusService : ISystemStatusService
         var droppedTask = ScalarAsync(ParquetDropped15mQuery, ct);
         var natsPendingTask = ScalarAsync(NatsPendingQuery, ct);
         var flushesTask = ScalarAsync(ParquetFlushesQuery(thresholds.ParquetFreshnessWarnSeconds), ct);
+        var reachableTask = _prometheus.IsReachableAsync(ct);
         await Task.WhenAll(
-            probeTask, msgRateTask, validatedTask, controlReqTask, ingressTask, ingressBySourceTask, rejectedTask,
+            reachableTask, probeTask, msgRateTask, validatedTask, controlReqTask, ingressTask, ingressBySourceTask, rejectedTask,
             rejectedByResultTask, connectorDroppedTask, eventLagTask, consumerLagTask, freshnessTask, droppedTask,
             natsPendingTask, flushesTask).ConfigureAwait(false);
 
@@ -199,6 +200,9 @@ public sealed class SystemStatusService : ISystemStatusService
             .OrderBy(s => s.Name, StringComparer.Ordinal)
             .ToList();
 
+        // Configured is not available: the default compose stack sets PROMETHEUS_URL without running
+        // Prometheus (#456). Unreachable → the UI shows its "metrics unavailable" empty state.
+        var metricsAvailable = await reachableTask.ConfigureAwait(false);
         var ingress = await ingressTask.ConfigureAwait(false);
         var validated = await validatedTask.ConfigureAwait(false);
         var rejected = await rejectedTask.ConfigureAwait(false);
@@ -221,10 +225,10 @@ public sealed class SystemStatusService : ISystemStatusService
                 ParquetFreshnessP95Seconds: await freshnessTask.ConfigureAwait(false),
                 ParquetDropped15m: await droppedTask.ConfigureAwait(false),
                 NatsPending: await natsPendingTask.ConfigureAwait(false),
-                ParquetFlushStalled: _prometheus.IsConfigured
+                ParquetFlushStalled: metricsAvailable
                     ? FlushStalled(await flushesTask.ConfigureAwait(false), validated)
                     : null),
-            MetricsAvailable: _prometheus.IsConfigured);
+            MetricsAvailable: metricsAvailable);
     }
 
     /// <summary>

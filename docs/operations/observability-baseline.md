@@ -114,6 +114,12 @@ and a histogram whose unit is `s` gains `_seconds` (`_bucket` / `_sum` / `_count
 
 Notes:
 
+- **`metricsAvailable` means "Prometheus answered", not "PROMETHEUS_URL is set".** The default
+  compose stack always sets `PROMETHEUS_URL`, but Prometheus only runs with `--profile
+  observability`. The API therefore probes the query API (`vector(1)`) on every status read and
+  reports `metricsAvailable: false` (and `parquetFlushStalled: null`) when it does not answer, which is
+  what drives the "メトリクスバックエンド（Prometheus）が未接続" empty state on `/platform/status`. The same
+  applies to `/platform/ingress-rejections` and the `/home` data-flow card (`/operations/summary`).
 - **Rejected is measured, never derived.** `ingress − validated` would count queue backlog as
   rejection: under load the validated side trails ingress by whatever is queued. Rejection happens in
   two places, so both are counted: an ingress transport refusing a message (`result!="published"` on

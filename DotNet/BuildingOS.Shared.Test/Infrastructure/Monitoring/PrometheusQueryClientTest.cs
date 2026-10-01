@@ -29,6 +29,38 @@ public class PrometheusQueryClientTest
     }
 
     [Fact]
+    public async Task IsReachableAsync_True_WhenPrometheusAnswers_EvenWithAnEmptyResult()
+    {
+        // Reachability is "the query API answered with status=success", not "there is data".
+        const string json = @"{ ""status"": ""success"", ""data"": { ""resultType"": ""vector"", ""result"": [] } }";
+        var client = BuildClient(json);
+        Assert.True(await client.IsReachableAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IsReachableAsync_False_OnHttpError()
+    {
+        var client = BuildClient("oops", HttpStatusCode.ServiceUnavailable);
+        Assert.False(await client.IsReachableAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IsReachableAsync_False_WhenTheHostCannotBeReached()
+    {
+        // The default compose stack without `--profile observability`: PROMETHEUS_URL is set but the
+        // host does not resolve, so every request throws HttpRequestException.
+        var client = new PrometheusQueryClient(new HttpClient(new UnresolvableHostHttpHandler()), "http://prometheus:9090");
+        Assert.False(await client.IsReachableAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IsReachableAsync_False_WhenNotConfigured_WithoutHittingTheNetwork()
+    {
+        var client = new PrometheusQueryClient(new HttpClient(new ThrowingHttpHandler()), null);
+        Assert.False(await client.IsReachableAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task QueryScalarAsync_ReturnsNull_WhenNotConfigured()
     {
         // Must not hit the network at all when unconfigured (graceful degrade).
@@ -165,6 +197,12 @@ internal sealed class JsonHttpHandler : HttpMessageHandler
         {
             Content = new StringContent(_body, Encoding.UTF8, "application/json")
         });
+}
+
+internal sealed class UnresolvableHostHttpHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        => throw new HttpRequestException("Name or service not known (prometheus:9090)");
 }
 
 internal sealed class ThrowingHttpHandler : HttpMessageHandler

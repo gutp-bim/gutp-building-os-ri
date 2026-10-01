@@ -4,7 +4,7 @@ namespace BuildingOS.Shared.Infrastructure.Monitoring;
 /// Default <see cref="IIngressRejectionStatsService"/>. Queries the same
 /// <c>building_os.ingress.messages</c> counter (source=gateway-grpc) the GatewayIngress accept/
 /// reject policy already increments per outcome, grouped by the <c>result</c> label. Degrades to
-/// null/empty like <see cref="SystemStatusService"/> when Prometheus is unconfigured.
+/// null/empty like <see cref="SystemStatusService"/> when Prometheus is unconfigured or unreachable.
 /// </summary>
 public sealed class IngressRejectionStatsService : IIngressRejectionStatsService
 {
@@ -21,6 +21,7 @@ public sealed class IngressRejectionStatsService : IIngressRejectionStatsService
 
     public async Task<IngressRejectionStats> GetAsync(CancellationToken ct)
     {
+        var reachableTask = _prometheus.IsReachableAsync(ct);
         var samples = await _prometheus.QueryVectorAsync(RejectionsByReasonQuery, ct).ConfigureAwait(false);
 
         var rejections = samples
@@ -32,6 +33,7 @@ public sealed class IngressRejectionStatsService : IIngressRejectionStatsService
             .ThenBy(r => r.Reason, StringComparer.Ordinal)
             .ToList();
 
-        return new IngressRejectionStats(rejections, _prometheus.IsConfigured);
+        // Reachable, not merely configured (#456): an unreachable backend must not read as "no rejections".
+        return new IngressRejectionStats(rejections, await reachableTask.ConfigureAwait(false));
     }
 }

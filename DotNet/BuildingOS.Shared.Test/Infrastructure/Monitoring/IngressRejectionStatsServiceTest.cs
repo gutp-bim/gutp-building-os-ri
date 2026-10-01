@@ -101,4 +101,18 @@ public class IngressRejectionStatsServiceTest
         Assert.False(stats.MetricsAvailable);
         Assert.Empty(stats.Rejections);
     }
+
+    [Fact]
+    public async Task GetAsync_MetricsUnavailable_WhenPrometheusConfiguredButUnreachable()
+    {
+        // #456 demo: PROMETHEUS_URL is set in the default compose stack even without the observability
+        // profile; an unreachable backend must not read as "available, zero rejections".
+        var fake = new FakePrometheusClient { IsConfigured = true, Reachable = false };
+        var svc = new IngressRejectionStatsService(fake);
+
+        var stats = await svc.GetAsync(CancellationToken.None);
+
+        Assert.False(stats.MetricsAvailable);
+        Assert.Empty(stats.Rejections);
+    }
 }

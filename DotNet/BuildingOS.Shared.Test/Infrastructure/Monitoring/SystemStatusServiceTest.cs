@@ -74,6 +74,22 @@ public class SystemStatusServiceTest
     }
 
     [Fact]
+    public async Task GetStatusAsync_MetricsUnavailable_WhenPrometheusConfiguredButUnreachable()
+    {
+        // #456 demo: the default compose stack always sets PROMETHEUS_URL, but Prometheus only runs with
+        // `--profile observability`. Configured-but-unreachable must read as "metrics unavailable" so the
+        // UI shows its empty state instead of a wall of "—" cards, and the stall flag stays unknown.
+        var svc = new SystemStatusService(
+            new FakeHealthProbe(), new FakePrometheusClient { IsConfigured = true, Reachable = false });
+
+        var status = await svc.GetStatusAsync(CancellationToken.None);
+
+        Assert.False(status.MetricsAvailable);
+        Assert.Null(status.Kpis.ParquetFlushStalled);
+        Assert.Null(status.Kpis.IngressRate1m);
+    }
+
+    [Fact]
     public async Task GetStatusAsync_DeduplicatesSelf_WhenAlsoProbed()
     {
         var probe = new FakeHealthProbe(new ServiceStatus(SystemStatusService.SelfJob, "down"));
@@ -520,6 +536,8 @@ internal sealed class FakeHealthProbe : IServiceHealthProbe
 internal sealed class FakePrometheusClient : IPrometheusQueryClient
 {
     public bool IsConfigured { get; set; } = true;
+    /// <summary>Defaults to <see cref="IsConfigured"/>; set false to model a configured-but-down backend.</summary>
+    public bool? Reachable { get; set; }
     public Dictionary<string, double?> Scalars { get; } = new();
     public Dictionary<string, IReadOnlyList<PrometheusSample>> Vectors { get; } = new();
 
@@ -528,4 +546,6 @@ internal sealed class FakePrometheusClient : IPrometheusQueryClient
 
     public Task<IReadOnlyList<PrometheusSample>> QueryVectorAsync(string query, CancellationToken ct)
         => Task.FromResult(Vectors.TryGetValue(query, out var v) ? v : Array.Empty<PrometheusSample>());
+
+    public Task<bool> IsReachableAsync(CancellationToken ct) => Task.FromResult(Reachable ?? IsConfigured);
 }
