@@ -1,5 +1,6 @@
 using BuildingOs.ApiServer.Authorization;
 using BuildingOS.Shared.Domain.Authorization;
+using Microsoft.Extensions.Caching.Memory;
 using Moq;
 
 namespace BuildingOS.ApiServer.Test.Authorization;
@@ -19,7 +20,7 @@ public class NavigableAncestorResolverTest
         Mock<IResourceIdMappingRepository> Mapping,
         Mock<IResourceHierarchyResolver> Hierarchy);
 
-    private static Setup Build()
+    private static Setup Build(IMemoryCache? cache = null)
     {
         var auth = new Mock<IAuthorizationService>();
         auth.Setup(a => a.GetAccessibleResourcesAsync(
@@ -32,7 +33,10 @@ public class NavigableAncestorResolverTest
         hierarchy.Setup(h => h.GetAncestorUnionAsync(
                 It.IsAny<string>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<(string, string)>());
-        return new Setup(new NavigableAncestorResolver(auth.Object, mapping.Object, hierarchy.Object), auth, mapping, hierarchy);
+        return new Setup(
+            new NavigableAncestorResolver(auth.Object, mapping.Object, hierarchy.Object,
+                cache ?? new MemoryCache(new MemoryCacheOptions())),
+            auth, mapping, hierarchy);
     }
 
     private static void Grant(Setup s, string type, params AccessibleResource[] resources)
@@ -120,5 +124,98 @@ public class NavigableAncestorResolverTest
         s.Auth.Verify(a => a.GetAccessibleResourcesAsync(
             It.IsAny<AuthorizationContext>(), "building", It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never());
+    }
+
+    // ── Cross-request cache (Codex review on #553) ────────────────────────────────────────────
+    //
+    // /home asks for the devices of every visible space, one HTTP request each, and every request gets
+    // a fresh scoped view. Without a shared cache each of those re-resolved the user's whole grant set.
+
+    private static AuthorizationContext User(string id, params string[] permissions)
+        => new() { UserId = id, Role = "user", Permissions = permissions };
+
+    [Fact]
+    public async Task TheSameUserAndPermissions_AreResolvedOnceAcrossRequests()
+    {
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var first = Build(cache);
+        Grant(first, "space", Known("R501"));
+        var second = new NavigableAncestorResolver(
+            first.Auth.Object, first.Mapping.Object, first.Hierarchy.Object, cache);
+
+        await first.Resolver.ResolveAsync(User("u1", "sp:abc:r"), default);
+        await second.ResolveAsync(User("u1", "sp:abc:r"), default);
+
+        first.Hierarchy.Verify(h => h.GetAncestorUnionAsync(
+            "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()), Times.Once());
+    }
+
+    [Fact]
+    public async Task DifferentPermissions_AreNotShared()
+    {
+        var s = Build();
+        Grant(s, "space", Known("R501"));
+
+        await s.Resolver.ResolveAsync(User("u1", "sp:abc:r"), default);
+        await s.Resolver.ResolveAsync(User("u1", "sp:abc:r", "fl:def:r"), default);
+        await s.Resolver.ResolveAsync(User("u2", "sp:abc:r"), default);
+
+        s.Hierarchy.Verify(h => h.GetAncestorUnionAsync(
+            "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task PermissionOrder_DoesNotSplitTheCache()
+    {
+        var s = Build();
+        Grant(s, "space", Known("R501"));
+
+        await s.Resolver.ResolveAsync(User("u1", "a", "b"), default);
+        await s.Resolver.ResolveAsync(User("u1", "b", "a"), default);
+
+        s.Hierarchy.Verify(h => h.GetAncestorUnionAsync(
+            "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()), Times.Once());
+    }
+
+    /// <summary>A failed resolution (OxiGraph down) is not cached; the next request tries again.</summary>
+    [Fact]
+    public async Task AFailure_IsNotCached()
+    {
+        var s = Build();
+        Grant(s, "space", Known("R501"));
+        s.Hierarchy.SetupSequence(h => h.GetAncestorUnionAsync(
+                "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("oxigraph down"))
+            .ReturnsAsync([("building", "B1")]);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => s.Resolver.ResolveAsync(User("u1", "x"), default));
+        var result = await s.Resolver.ResolveAsync(User("u1", "x"), default);
+
+        Assert.Contains(("building", "B1"), result);
+    }
+
+    /// <summary>
+    /// A request that joined another request's resolution, which then failed (say that request's scope
+    /// was disposed under it), retries on its own instead of failing too.
+    /// </summary>
+    [Fact]
+    public async Task AJoinedResolutionThatFails_IsRetriedByTheJoiner()
+    {
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var s = Build(cache);
+        Grant(s, "space", Known("R501"));
+        var gate = new TaskCompletionSource<IReadOnlyCollection<(string, string)>>();
+        s.Hierarchy.SetupSequence(h => h.GetAncestorUnionAsync(
+                "space", It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
+            .Returns(gate.Task)
+            .ReturnsAsync([("building", "B1")]);
+        var joiner = new NavigableAncestorResolver(s.Auth.Object, s.Mapping.Object, s.Hierarchy.Object, cache);
+
+        var first = s.Resolver.ResolveAsync(User("u1", "x"), default);
+        var second = joiner.ResolveAsync(User("u1", "x"), default);
+        gate.SetException(new ObjectDisposedException("RelationalDbContext"));
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => first);
+        Assert.Contains(("building", "B1"), await second);
     }
 }

@@ -234,7 +234,8 @@ public class HierarchyBusinessIdAuthorizationTest(PostgresFixture postgres, OxiG
         var view = new AuthorizedTwinView(
             new OxiGraphDigitalTwinDatabase(oxiGraph.Client, new MemoryCache(new MemoryCacheOptions())), authz,
             navigable: navigable
-                ? new NavigableAncestorResolver(authz, new ResourceIdMappingRepository(db), hierarchy)
+                ? new NavigableAncestorResolver(authz, new ResourceIdMappingRepository(db), hierarchy,
+                    new MemoryCache(new MemoryCacheOptions()))
                 : null);
         return (authz, view);
     }

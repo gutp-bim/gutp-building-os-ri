@@ -27,8 +27,8 @@ public sealed class AuthorizedTwinView(
 {
     // ── Navigable ancestors (#548) ────────────────────────────────────────────
     //
-    // Resolved once per view instance (the view is request-scoped) and reused by every list the request
-    // walks — /home reads buildings → floors → spaces → devices in one page load.
+    // Memoized per view instance (one request) on top of the resolver's own short cross-request cache,
+    // which is what actually spares /home's per-space device requests from re-resolving every grant.
     private static readonly IReadOnlySet<(string, string)> NoAncestors = new HashSet<(string, string)>();
     private AuthorizationContext? _navigableFor;
     private Task<IReadOnlySet<(string ResourceType, string ResourceId)>>? _navigable;
