@@ -6,7 +6,7 @@ namespace BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 /// <summary>
 /// Reads unflushed telemetry rows from the validated JetStream using an ephemeral ordered consumer
 /// (#220). Decodes <see cref="ValidTelemetryEnvelope"/> JSON messages, flattens to rows, and filters
-/// by <paramref name="pointId"/>. Failures propagate to the caller (<see cref="TailMergedTelemetryStore"/>
+/// by <paramref name="pointIds"/>. Failures propagate to the caller (<see cref="TailMergedTelemetryStore"/>
 /// catches and degrades to lake-only).
 /// </summary>
 public sealed class NatsTailReader : IJetStreamTailReader
@@ -18,7 +18,7 @@ public sealed class NatsTailReader : IJetStreamTailReader
     public NatsTailReader(INatsJSContext js) => _js = js;
 
     public async Task<ValidTelemetryData[]> ReadSinceAsync(
-        DateTime since, string pointId, int maxMsgs, TimeSpan timeout, CancellationToken ct)
+        DateTime since, IReadOnlySet<string> pointIds, int maxMsgs, TimeSpan timeout, CancellationToken ct)
     {
         // DateTimeOffset(DateTime, offset) throws ArgumentException when Kind == Local.
         var sinceUtc = since.Kind == DateTimeKind.Local ? since.ToUniversalTime()
@@ -51,7 +51,7 @@ public sealed class NatsTailReader : IJetStreamTailReader
                     var envelope = ValidTelemetryEnvelope.Parse(msg.Data);
                     foreach (var row in envelope)
                     {
-                        if (row.PointId == pointId)
+                        if (row.PointId is not null && pointIds.Contains(row.PointId))
                             result.Add(row);
                     }
                 }
