@@ -18,6 +18,11 @@ public class AuthorizationContextMiddleware
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> WarnedAppRoles = new();
 
+    // Claim values come from the token; strip control characters so they cannot forge log lines.
+    private static readonly System.Text.RegularExpressions.Regex ControlChars =
+        new(@"\p{C}", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static string ForLog(string value) => ControlChars.Replace(value, "_");
+
     private static bool IsAppToken(IEnumerable<System.Security.Claims.Claim> claims)
         => claims.Any(c => c.Type == "idtyp" && c.Value == "app");
 
@@ -71,7 +76,7 @@ public class AuthorizationContextMiddleware
             {
                 _logger.LogWarning(
                     "Client-credentials token for {UserId} carries building_os_role {Role}, which only " +
-                    "'group-manager' (exact) changes; the client is treated as admin", fromClaims.UserId, appRole);
+                    "'group-manager' (exact) changes; the client is treated as admin", ForLog(fromClaims.UserId), ForLog(appRole));
             }
             if (!fromClaims.IsAdmin && !fromClaims.IsGroupManager && IsAppToken(claims) && userId is null
                 && WarnedAppRoles.TryAdd("\nno-subject", 0))
