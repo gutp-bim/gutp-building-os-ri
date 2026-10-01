@@ -161,7 +161,21 @@ describe("toPointDetail (#350 4a)", () => {
     expect(d.device).toBeNull();
     expect(d.floor).toBeNull();
     expect(d.space).toBeNull();
+    expect(d.building).toBeNull();
     expect(d.controlSchema).toBeNull();
+  });
+
+  it("maps the building the point is placed in (#547)", () => {
+    const d = toPointDetail({
+      point: { dtId: "urn:pt:1", id: "PT001", name: "室温" },
+      building: { dtId: "urn:bldg:1", id: "B1", name: "本館" },
+    });
+    expect(d.building).toEqual({
+      type: "building",
+      dtId: "urn:bldg:1",
+      id: "B1",
+      name: "本館",
+    });
   });
 
   it("maps the device attributes the detail pane renders", () => {

@@ -298,11 +298,13 @@ SELECT {PointVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
 
         var pointUri = point.DtId;
         // The building is resolved through the Room or direct Level path — topology only, matching the
-        // orphan-reachability definition in #291 (the sbco:floor literal places nothing). SAMPLE
-        // because a device satisfying both paths would otherwise duplicate rows.
+        // orphan-reachability definition in #291 (the sbco:floor literal places nothing) — and from the
+        // row's own ?floor, so it always agrees with the floor/space reported. The aggregates are
+        // per (floor, space, device) group, in which a Level has exactly one Building.
         var sparql = $@"{Prefixes}
 SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
-       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding) {DeviceAttrAggregates}
+       (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding)
+       (SAMPLE(?bldg) AS ?bldgDt) (SAMPLE(?bldgIdRaw) AS ?bldgId) {DeviceAttrAggregates}
 WHERE {{
   ?dev <{Prop_HasPoint}> <{pointUri}> ;
        a <{Cls_Equipment}> ; <{Prop_Id}> ?devId ; <{Prop_Name}> ?devName .
@@ -320,19 +322,15 @@ WHERE {{
       ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
     }}
     BIND(?floor AS ?floorDt)
-  }}
-  OPTIONAL {{
-    {{
-      ?dev <{Prop_LocatedIn}> ?bSpace .
-      ?bFloor <{Prop_HasPart}> ?bSpace .
-      ?bFloor a <{Cls_Level}> .
-      ?bldg <{Prop_HasPart}> ?bFloor .
-      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
-    }} UNION {{
-      ?dev <{Prop_LocatedIn}> ?bFloorDirect .
-      ?bFloorDirect a <{Cls_Level}> .
-      ?bldg <{Prop_HasPart}> ?bFloorDirect .
-      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
+    # The building is the one THIS row's Level belongs to (#547). Resolving it through a separate
+    # traversal of the device would cross-join every placement's building with every row, so a
+    # device placed in two buildings could report a floor from one and a building from the other.
+    # Name and id are OPTIONAL: a nameless Building still places the point, as in ListPointDetails.
+    OPTIONAL {{
+      ?bldg <{Prop_HasPart}> ?floor .
+      ?bldg a <{Cls_Building}> .
+      OPTIONAL {{ ?bldg <{Prop_Name}> ?bldgNameRaw . }}
+      OPTIONAL {{ ?bldg <{Prop_Id}> ?bldgIdRaw . }}
     }}
   }}
 }}
@@ -344,9 +342,20 @@ ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
         var rows = await _client.QueryAsync(sparql);
         if (rows.Count == 0) return null;
         var r = rows[0];
+        var buildingDt = r.GetValueOrDefault("bldgDt", "");
         return new PointDetail
         {
             Point = point,
+            // ?bldgDt / ?bldgId / ?devBuilding are SAMPLEd within one (floor, space, device) group and
+            // derive from that group's ?floor, so they describe the same Building as Floor/Space.
+            Building = string.IsNullOrEmpty(buildingDt)
+                ? null
+                : new Building
+                {
+                    DtId = buildingDt,
+                    Id = r.GetValueOrDefault("bldgId", ""),
+                    Name = r.GetValueOrDefault("devBuilding", ""),
+                },
             Floor = new Floor { DtId = r.GetValueOrDefault("floorDt", ""), Id = r.GetValueOrDefault("floorId", ""), Name = r.GetValueOrDefault("floorName", "") },
             Space = new Space { DtId = r.GetValueOrDefault("spaceDt", ""), Id = r.GetValueOrDefault("spaceId", ""), Name = r.GetValueOrDefault("spaceName", "") },
             Device = MapDevice(r),
@@ -367,11 +376,12 @@ ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
         // point is in (#294). Its triple is OPTIONAL: the building is the query's input, and a nameless
         // one must not silently collapse the whole result the way a required triple would.
         var sparql = $@"{Prefixes}
-SELECT {PointVars} ?devBuilding
+SELECT {PointVars} ?devBuilding ?bldgId
        ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
        (SAMPLE(?gwRaw) AS ?devGw) {DeviceAttrAggregates}
 WHERE {{
   OPTIONAL {{ <{buildingDtId}> <{Prop_Name}> ?devBuilding . }}
+  OPTIONAL {{ <{buildingDtId}> <{Prop_Id}> ?bldgId . }}
   <{buildingDtId}> <{Prop_HasPart}> ?floor .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
   BIND(?floor AS ?floorDt)
@@ -398,13 +408,19 @@ WHERE {{
   ?pt a <{Cls_Point}> ; <{Prop_Id}> ?ptId ; <{Prop_Name}> ?ptName .
   BIND(?pt AS ?ptDt){PointOptionals}
 }}
-GROUP BY {PointVars} ?devBuilding
+GROUP BY {PointVars} ?devBuilding ?bldgId
          ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName";
 
         var rows = await _client.QueryAsync(sparql);
         return rows.Select(r => new PointDetail
         {
             Point = MapPoint(r),
+            Building = new Building
+            {
+                DtId = buildingDtId,
+                Id = r.GetValueOrDefault("bldgId", ""),
+                Name = r.GetValueOrDefault("devBuilding", ""),
+            },
             Floor = new Floor { DtId = r.GetValueOrDefault("floorDt", ""), Id = r.GetValueOrDefault("floorId", ""), Name = r.GetValueOrDefault("floorName", "") },
             Space = new Space { DtId = r.GetValueOrDefault("spaceDt", ""), Id = r.GetValueOrDefault("spaceId", ""), Name = r.GetValueOrDefault("spaceName", "") },
             Device = MapDevice(r),

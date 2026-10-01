@@ -248,6 +248,7 @@ describe("PointDetailPageComponent health row (#457)", () => {
     (getPointDetail as Mock).mockResolvedValue({
       ...detail,
       device: { dtId: "dev-1" },
+      building: { dtId: "bldg-1" },
     });
     (latestTelemetrySample as Mock).mockResolvedValue(null);
     (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
@@ -265,7 +266,10 @@ describe("PointDetailPageComponent health row (#457)", () => {
       expect(health).toHaveAttribute("data-gateway", "GW-1:false"),
     );
     expect(health).toHaveAttribute("data-reason", "gatewayDisconnected");
-    expect(fetchPointHealthRow).toHaveBeenCalledWith("p1", "dev-1");
+    expect(fetchPointHealthRow).toHaveBeenCalledWith("p1", {
+      deviceDtId: "dev-1",
+      buildingDtId: "bldg-1",
+    });
   });
 
   it("leaves the rows out (and shows no error) when the health lookup fails", async () => {

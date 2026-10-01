@@ -415,10 +415,19 @@ describe("fetchPointHealthRow (#457)", () => {
         ]),
       );
 
-    const row = await fetchPointHealthRow("PT-1", "dev-1", fetchPage);
+    const row = await fetchPointHealthRow(
+      "PT-1",
+      { deviceDtId: "dev-1", buildingDtId: "bldg-1" },
+      fetchPage,
+    );
 
+    // #547: scoped to the building so the server classifies one building, not every one.
     expect(fetchPage).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "PT-1", deviceDtId: "dev-1" }),
+      expect.objectContaining({
+        q: "PT-1",
+        deviceDtId: "dev-1",
+        buildingDtId: "bldg-1",
+      }),
     );
     expect(row?.pointId).toBe("PT-1");
     expect(row?.missingReason).toBe("gatewayDisconnected");
@@ -426,7 +435,7 @@ describe("fetchPointHealthRow (#457)", () => {
 
   it("returns null when no row has exactly that id (substring hits only)", async () => {
     const fetchPage = vi.fn().mockResolvedValue(page([{ pointId: "PT-10" }]));
-    expect(await fetchPointHealthRow("PT-1", undefined, fetchPage)).toBeNull();
+    expect(await fetchPointHealthRow("PT-1", {}, fetchPage)).toBeNull();
   });
 
   it("pages on when the exact row is not on the first page", async () => {
@@ -440,7 +449,7 @@ describe("fetchPointHealthRow (#457)", () => {
       })
       .mockResolvedValueOnce({ ...page([{ pointId: "PT-1" }]), total: 51 });
 
-    const row = await fetchPointHealthRow("PT-1", undefined, fetchPage);
+    const row = await fetchPointHealthRow("PT-1", {}, fetchPage);
 
     expect(row?.pointId).toBe("PT-1");
     expect(fetchPage.mock.calls.map((c) => c[0].offset)).toEqual([0, 50]);
@@ -450,13 +459,14 @@ describe("fetchPointHealthRow (#457)", () => {
     const fetchPage = vi
       .fn()
       .mockResolvedValue({ ...page([{ pointId: "PT-10" }]), total: 1 });
-    expect(await fetchPointHealthRow("PT-1", undefined, fetchPage)).toBeNull();
+    expect(await fetchPointHealthRow("PT-1", {}, fetchPage)).toBeNull();
     expect(fetchPage).toHaveBeenCalledTimes(1);
   });
 
-  it("omits the device filter when the device is unknown", async () => {
+  it("omits the device and building filters when they are unknown", async () => {
     const fetchPage = vi.fn().mockResolvedValue(page([]));
-    await fetchPointHealthRow("PT-1", undefined, fetchPage);
+    await fetchPointHealthRow("PT-1", {}, fetchPage);
     expect(fetchPage.mock.calls[0][0].deviceDtId).toBeUndefined();
+    expect(fetchPage.mock.calls[0][0].buildingDtId).toBeUndefined();
   });
 });

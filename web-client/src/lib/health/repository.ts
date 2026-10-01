@@ -240,13 +240,13 @@ const POINT_LOOKUP_MAX_PAGES = 10;
  * 1 Point ぶんのデータ品質行を取得する（Point 詳細の健全性パネル用、#457）。
  *
  * 一覧 API には Point ID の完全一致フィルタが無いので、`q`（Point ID・名前の部分一致）で引いて
- * **ID が完全一致する行**だけを採る。所属機器が分かっていれば `deviceDtId` で絞り、部分一致の
+ * **ID が完全一致する行**だけを採る。所属建物・機器が分かっていれば `buildingDtId` / `deviceDtId` で絞り、部分一致の
  * 巻き添え（`PT-1` に対する `PT-10`）を減らす。一覧は重篤度順なので、巻き添えが多いと目的の行が
  * 1 頁目に来ないことがある — 見つかるか、該当件数を読み切るまで頁を進める。該当行が無ければ null。
  */
 export async function fetchPointHealthRow(
   pointId: string,
-  deviceDtId: string | undefined,
+  scope: { deviceDtId?: string; buildingDtId?: string },
   fetchPage: (query: HealthQuery) => Promise<HealthPage> = fetchPointHealth,
 ): Promise<HealthRow | null> {
   for (let pageIndex = 0; pageIndex < POINT_LOOKUP_MAX_PAGES; pageIndex++) {
@@ -254,7 +254,9 @@ export async function fetchPointHealthRow(
     const page = await fetchPage({
       ...DEFAULT_HEALTH_QUERY,
       q: pointId,
-      deviceDtId,
+      deviceDtId: scope.deviceDtId,
+      // 建物を付けると、サーバはその 1 棟ぶんだけ分類する（無いと認可された全建物ぶん、#547）。
+      buildingDtId: scope.buildingDtId,
       limit: POINT_LOOKUP_LIMIT,
       offset,
     });

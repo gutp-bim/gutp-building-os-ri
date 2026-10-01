@@ -190,6 +190,10 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         // Device.BuildingName had no assignment anywhere in the repository — the field the point
         // detail UI reads was structurally always null.
         Assert.Equal("bldg-1", detail!.Device?.BuildingName);
+        // #547: the building as a node (dtId + business id), so a client can scope by it.
+        Assert.Equal("https://www.sbco.or.jp/ont/resource/building%3Asite%3Asite-1%2Fbldg-1", detail.Building?.DtId);
+        Assert.Equal("building:site:site-1/bldg-1", detail.Building?.Id);
+        Assert.Equal("bldg-1", detail.Building?.Name);
     }
 
     // The floor-literal-only shape: Building → Level, equipment naming the level only through the
@@ -224,6 +228,7 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
 
         Assert.NotNull(detail);
         Assert.True(string.IsNullOrEmpty(detail!.Device?.BuildingName));
+        Assert.Null(detail.Building);
         Assert.True(string.IsNullOrEmpty(detail.Floor?.Name));
         // The point itself still resolves with its metadata.
         Assert.Equal("On_Off_Status", detail.Point.Type);
@@ -257,8 +262,76 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
 
         Assert.NotNull(detail);
         Assert.Equal("EXAMPLE", detail!.Device?.BuildingName);
+        Assert.Equal("https://www.sbco.or.jp/ont/resource/bldg-example", detail.Building?.DtId);
+        Assert.Equal("EXAMPLE", detail.Building?.Id);
         Assert.Equal("3F", detail.Floor?.Name);
         Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
+    }
+
+    // #547 review: equipment placed in a Room of one building AND directly on a Level of another.
+    // The detail reports the Room placement (ORDER BY prefers it), so the building must be the one
+    // that Room's Level belongs to — derived from the same ?floor, not sampled independently. Both
+    // role assignments are run because SAMPLE picks whichever binding the store yields first.
+    [Theory]
+    [InlineData("A", "B")]
+    [InlineData("B", "A")]
+    public async Task GetPointDetailByPointId_BuildingFollowsTheReportedPlacement(string roomSide, string levelSide)
+    {
+        var ttl = $$"""
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bA> a sbco:Building ; sbco:id "BA" ; sbco:name "Building A" ;
+              sbco:hasPart <urn:test:lA> .
+            <urn:test:lA> a sbco:Level ; sbco:id "LA" ; sbco:name "A-1F" ;
+              sbco:hasPart <urn:test:rA> .
+            <urn:test:rA> a sbco:Room ; sbco:id "RA" ; sbco:name "A-101" .
+            <urn:test:bB> a sbco:Building ; sbco:id "BB" ; sbco:name "Building B" ;
+              sbco:hasPart <urn:test:lB> .
+            <urn:test:lB> a sbco:Level ; sbco:id "LB" ; sbco:name "B-1F" ;
+              sbco:hasPart <urn:test:rB> .
+            <urn:test:rB> a sbco:Room ; sbco:id "RB" ; sbco:name "B-101" .
+            <urn:test:dev> a sbco:EquipmentExt ; sbco:id "DEV-X" ; sbco:name "Shared" ;
+              sbco:locatedIn <urn:test:r{{roomSide}}> , <urn:test:l{{levelSide}}> ;
+              sbco:hasPoint <urn:test:pt> .
+            <urn:test:pt> a sbco:PointExt ; sbco:id "PT-X" ; sbco:name "X" ; sbco:writable "false" .
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+        var detail = await db.GetPointDetailByPointId("PT-X");
+
+        Assert.NotNull(detail);
+        Assert.Equal($"R{roomSide}", detail!.Space?.Id);
+        Assert.Equal($"L{roomSide}", detail.Floor?.Id);
+        Assert.Equal($"urn:test:b{roomSide}", detail.Building?.DtId);
+        Assert.Equal($"B{roomSide}", detail.Building?.Id);
+        Assert.Equal($"Building {roomSide}", detail.Building?.Name);
+        Assert.Equal($"Building {roomSide}", detail.Device?.BuildingName);
+    }
+
+    // #547 review: a nameless Building still places the point — the dtId is what scopes reads, so the
+    // missing sbco:name must not drop the whole building (ListPointDetails keeps it too).
+    [Fact]
+    public async Task GetPointDetailByPointId_NamelessBuilding_StillReportsItsDtId()
+    {
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bN> a sbco:Building ; sbco:id "BN" ; sbco:hasPart <urn:test:lN> .
+            <urn:test:lN> a sbco:Level ; sbco:id "LN" ; sbco:name "N-1F" .
+            <urn:test:devN> a sbco:EquipmentExt ; sbco:id "DEV-N" ; sbco:name "Meter" ;
+              sbco:locatedIn <urn:test:lN> ; sbco:hasPoint <urn:test:ptN> .
+            <urn:test:ptN> a sbco:PointExt ; sbco:id "PT-N" ; sbco:name "N" ; sbco:writable "false" .
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+        var detail = await db.GetPointDetailByPointId("PT-N");
+
+        Assert.NotNull(detail);
+        Assert.Equal("urn:test:bN", detail!.Building?.DtId);
+        Assert.Equal("BN", detail.Building?.Id);
+        Assert.Equal("", detail.Building?.Name);
     }
 
     [Fact]
@@ -277,6 +350,12 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.NotEmpty(details);
         // List and detail must agree about which building a point is in (#294).
         Assert.All(details, d => Assert.Equal("bldg-1", d.Device?.BuildingName));
+        Assert.All(details, d =>
+        {
+            Assert.Equal(Bldg1DtId, d.Building?.DtId);
+            Assert.Equal("building:site:site-1/bldg-1", d.Building?.Id);
+            Assert.Equal("bldg-1", d.Building?.Name);
+        });
     }
 
     private async Task<int> CountTriplesAsync()

@@ -472,6 +472,7 @@ export type PointControllerPointControlRequest = {
 
 export type PointDetail = {
   point: Point;
+  building?: Building | undefined;
   floor?: Floor | undefined;
   space?: Space | undefined;
   device?: Device | undefined;
