@@ -34,8 +34,12 @@ public class AuthorizedTwinViewNavigableAncestorsTest
     {
         var db = new Mock<IDigitalTwinDatabase>();
         db.Setup(d => d.ListBuildings()).ReturnsAsync([
-            new Building { DtId = B1, Id = "B1", Name = "本館" },
-            new Building { DtId = B2, Id = "B2", Name = "別館" },
+            new Building
+            {
+                DtId = B1, Id = "B1", Name = "本館",
+                Identifiers = { ["ifc"] = "x" }, CustomTags = { ["vip"] = true },
+            },
+            new Building { DtId = B2, Id = "B2", Name = "別館", CustomTags = { ["vip"] = true } },
         ]);
         db.Setup(d => d.GetBuilding(B1)).ReturnsAsync(new Building { DtId = B1, Id = "B1", Name = "本館" });
         db.Setup(d => d.ListFloors(B1)).ReturnsAsync([
@@ -49,7 +53,12 @@ public class AuthorizedTwinViewNavigableAncestorsTest
         ]);
         db.Setup(d => d.GetSpace(R501)).ReturnsAsync(new Space { DtId = R501, Id = "R501", Name = "501" });
         db.Setup(d => d.ListDevices(R501)).ReturnsAsync([
-            new Device { DtId = "urn:t:dev-a", Id = "DEV-A", Name = "A" },
+            new Device
+            {
+                DtId = "urn:t:dev-a", Id = "DEV-A", Name = "A",
+                Owner = "Tenant A", Supplier = "ACME", GatewayId = "GW-1", DeviceType = "AHU",
+                BuildingName = "本館", Site = "S1", CustomTags = { ["critical"] = true },
+            },
             new Device { DtId = "urn:t:dev-b", Id = "DEV-B", Name = "B" },
         ]);
 
@@ -162,5 +171,44 @@ public class AuthorizedTwinViewNavigableAncestorsTest
         var result = await s.View.ListBuildingsAsync(UserAuth(), default);
 
         Assert.Equal(["B2"], result.Select(b => b.Id));
+    }
+
+    /// <summary>
+    /// A navigation-only entry carries its name and position, nothing else — not the owner, supplier,
+    /// gateway, identifiers or tags of a node the user cannot read (Codex review on #553).
+    /// </summary>
+    [Fact]
+    public async Task NavigationOnlyEntries_AreRedactedToNameAndPosition()
+    {
+        var s = Build(("building", "B1"), ("space", "R501"), ("device", "DEV-A"));
+
+        var building = Assert.Single(await s.View.ListBuildingsAsync(UserAuth(), default));
+        var device = Assert.Single(await s.View.ListDevicesAsync(UserAuth(), R501, default));
+
+        Assert.Equal((B1, "B1", "本館"), (building.DtId, building.Id, building.Name));
+        Assert.Empty(building.Identifiers);
+        Assert.Empty(building.CustomTags);
+        Assert.Equal(("urn:t:dev-a", "DEV-A", "A"), (device.DtId, device.Id, device.Name));
+        Assert.Null(device.Owner);
+        Assert.Null(device.Supplier);
+        Assert.Null(device.GatewayId);
+        Assert.Null(device.DeviceType);
+        Assert.Null(device.BuildingName);
+        Assert.Null(device.Site);
+        Assert.Empty(device.CustomTags);
+    }
+
+    /// <summary>A node the user is granted keeps its full metadata, even if it is also an ancestor.</summary>
+    [Fact]
+    public async Task GrantedEntries_KeepTheirMetadata()
+    {
+        var s = Build(("building", "B2"));
+        s.Auth.Setup(a => a.GetAccessibleResourceIdsAsync(
+                It.IsAny<AuthorizationContext>(), "building", "read", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([PermissionHelper.HashResourceId("B2")]);
+
+        var building = Assert.Single(await s.View.ListBuildingsAsync(UserAuth(), default));
+
+        Assert.True(building.CustomTags["vip"]);
     }
 }
