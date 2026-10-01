@@ -235,7 +235,7 @@ public sealed class AuthorizedTwinView(
     {
         if (!IsUsableDtId(floorDtId)) return [];
 
-        var all = await db.ListFloorDevices(floorDtId).ConfigureAwait(false);
+        var all = await db.ListFloorDevices(floorDtId, ct).ConfigureAwait(false);
         if (auth.IsAdmin) return all;
         var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;

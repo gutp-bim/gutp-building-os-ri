@@ -23,7 +23,7 @@ public class AuthorizedTwinViewFloorDevicesTest
     {
         var db = new Mock<IDigitalTwinDatabase>();
         db.Setup(d => d.GetFloor(F1)).ReturnsAsync(new Floor { DtId = F1, Id = "F1", Name = "1F" });
-        db.Setup(d => d.ListFloorDevices(F1)).ReturnsAsync([
+        db.Setup(d => d.ListFloorDevices(F1, It.IsAny<CancellationToken>())).ReturnsAsync([
             new Device { DtId = "urn:t:meter", Id = "METER", Name = "Meter", Owner = "Tenant A" },
             new Device { DtId = "urn:t:ahu", Id = "AHU", Name = "AHU" },
         ]);
@@ -84,6 +84,18 @@ public class AuthorizedTwinViewFloorDevicesTest
         Assert.Null(device.Owner);
     }
 
+    /// <summary>The request's token reaches the twin query, so an aborted request stops it.</summary>
+    [Fact]
+    public async Task TheCallersToken_ReachesTheTwinQuery()
+    {
+        var (view, db, _) = Build();
+        using var cts = new CancellationTokenSource();
+
+        await view.ListFloorDevicesAsync(AdminAuth(), F1, cts.Token);
+
+        db.Verify(d => d.ListFloorDevices(F1, cts.Token), Times.Once());
+    }
+
     [Fact]
     public async Task NoGrant_SeesNothing()
     {
@@ -97,6 +109,6 @@ public class AuthorizedTwinViewFloorDevicesTest
         var (view, db, _) = Build();
 
         Assert.Empty(await view.ListFloorDevicesAsync(AdminAuth(), "not an iri>", default));
-        db.Verify(d => d.ListFloorDevices(It.IsAny<string>()), Times.Never());
+        db.Verify(d => d.ListFloorDevices(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never());
     }
 }
