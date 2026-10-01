@@ -56,7 +56,7 @@ SBCO / Brick / REC との対応は [`standard-mapping.md`](standard-mapping.md) 
 | twin | `specification` | `type` |
 |---|---|---|
 | `fixtures/demo/twin.ttl`（1,198 点） | Measurement 1,001 / Setpoint 81 / Status 57 / Command 51、未設定 8 | 14 種 |
-| `fixtures/e2e/twin.ttl` | 未設定（すべて） | Occupancy / Lighting / Chiller など |
+| `fixtures/e2e/twin.ttl`（8 点） | 未設定（すべて） | Temperature / Humidity / CO2 / Power / FanSpeed / Occupancy / Lighting / Setpoint（各 1） |
 
 ## 2. `writable` と制御
 
