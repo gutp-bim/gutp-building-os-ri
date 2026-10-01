@@ -268,6 +268,47 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.True(string.IsNullOrEmpty(detail.Space?.Name));
     }
 
+    // #547 review: equipment placed in a Room of one building AND directly on a Level of another.
+    // The detail reports the Room placement (ORDER BY prefers it), so the building must be the one
+    // that Room's Level belongs to — derived from the same ?floor, not sampled independently. Both
+    // role assignments are run because SAMPLE picks whichever binding the store yields first.
+    [Theory]
+    [InlineData("A", "B")]
+    [InlineData("B", "A")]
+    public async Task GetPointDetailByPointId_BuildingFollowsTheReportedPlacement(string roomSide, string levelSide)
+    {
+        var ttl = $$"""
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bA> a sbco:Building ; sbco:id "BA" ; sbco:name "Building A" ;
+              sbco:hasPart <urn:test:lA> .
+            <urn:test:lA> a sbco:Level ; sbco:id "LA" ; sbco:name "A-1F" ;
+              sbco:hasPart <urn:test:rA> .
+            <urn:test:rA> a sbco:Room ; sbco:id "RA" ; sbco:name "A-101" .
+            <urn:test:bB> a sbco:Building ; sbco:id "BB" ; sbco:name "Building B" ;
+              sbco:hasPart <urn:test:lB> .
+            <urn:test:lB> a sbco:Level ; sbco:id "LB" ; sbco:name "B-1F" ;
+              sbco:hasPart <urn:test:rB> .
+            <urn:test:rB> a sbco:Room ; sbco:id "RB" ; sbco:name "B-101" .
+            <urn:test:dev> a sbco:EquipmentExt ; sbco:id "DEV-X" ; sbco:name "Shared" ;
+              sbco:locatedIn <urn:test:r{{roomSide}}> , <urn:test:l{{levelSide}}> ;
+              sbco:hasPoint <urn:test:pt> .
+            <urn:test:pt> a sbco:PointExt ; sbco:id "PT-X" ; sbco:name "X" ; sbco:writable "false" .
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+        var detail = await db.GetPointDetailByPointId("PT-X");
+
+        Assert.NotNull(detail);
+        Assert.Equal($"R{roomSide}", detail!.Space?.Id);
+        Assert.Equal($"L{roomSide}", detail.Floor?.Id);
+        Assert.Equal($"urn:test:b{roomSide}", detail.Building?.DtId);
+        Assert.Equal($"B{roomSide}", detail.Building?.Id);
+        Assert.Equal($"Building {roomSide}", detail.Building?.Name);
+        Assert.Equal($"Building {roomSide}", detail.Device?.BuildingName);
+    }
+
     [Fact]
     public async Task ListPointDetails_ReportsTheBuildingItWasQueriedFor()
     {

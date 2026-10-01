@@ -298,8 +298,9 @@ SELECT {PointVars} ?identKey ?identVal ?tagKey ?tagBoolVal WHERE {{
 
         var pointUri = point.DtId;
         // The building is resolved through the Room or direct Level path — topology only, matching the
-        // orphan-reachability definition in #291 (the sbco:floor literal places nothing). SAMPLE
-        // because a device satisfying both paths would otherwise duplicate rows.
+        // orphan-reachability definition in #291 (the sbco:floor literal places nothing) — and from the
+        // row's own ?floor, so it always agrees with the floor/space reported. The aggregates are
+        // per (floor, space, device) group, in which a Level has exactly one Building.
         var sparql = $@"{Prefixes}
 SELECT ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
        (SAMPLE(?gwRaw) AS ?devGw) (SAMPLE(?bldgNameRaw) AS ?devBuilding)
@@ -321,21 +322,14 @@ WHERE {{
       ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId ; <{Prop_Name}> ?floorName .
     }}
     BIND(?floor AS ?floorDt)
-  }}
-  OPTIONAL {{
-    {{
-      ?dev <{Prop_LocatedIn}> ?bSpace .
-      ?bFloor <{Prop_HasPart}> ?bSpace .
-      ?bFloor a <{Cls_Level}> .
-      ?bldg <{Prop_HasPart}> ?bFloor .
+    # The building is the one THIS row's Level belongs to (#547). Resolving it through a separate
+    # traversal of the device would cross-join every placement's building with every row, so a
+    # device placed in two buildings could report a floor from one and a building from the other.
+    OPTIONAL {{
+      ?bldg <{Prop_HasPart}> ?floor .
       ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
-    }} UNION {{
-      ?dev <{Prop_LocatedIn}> ?bFloorDirect .
-      ?bFloorDirect a <{Cls_Level}> .
-      ?bldg <{Prop_HasPart}> ?bFloorDirect .
-      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
+      OPTIONAL {{ ?bldg <{Prop_Id}> ?bldgIdRaw . }}
     }}
-    OPTIONAL {{ ?bldg <{Prop_Id}> ?bldgIdRaw . }}
   }}
 }}
 GROUP BY ?floorDt ?floorId ?floorName ?spaceDt ?spaceId ?spaceName ?devDt ?devId ?devName
@@ -350,8 +344,8 @@ ORDER BY DESC(BOUND(?spaceId)) ?floorId ?spaceId ?devId";
         return new PointDetail
         {
             Point = point,
-            // ?bldgDt / ?bldgId / ?devBuilding are SAMPLEd separately; they agree because a device is
-            // placed in one building (a Level belongs to one Building via sbco:hasPart).
+            // ?bldgDt / ?bldgId / ?devBuilding are SAMPLEd within one (floor, space, device) group and
+            // derive from that group's ?floor, so they describe the same Building as Floor/Space.
             Building = string.IsNullOrEmpty(buildingDt)
                 ? null
                 : new Building
