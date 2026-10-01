@@ -66,28 +66,24 @@ public class OxiGraphHierarchyResolver : IResourceHierarchyResolver
         var type = resourceType.ToLowerInvariant();
         foreach (var chunk in resourceIds.Distinct(StringComparer.Ordinal).Chunk(AncestorUnionChunkSize))
         {
-            var values = string.Join(" ", chunk.Select(id => $"\"{EscapeLiteral(id)}\""));
             var (sparql, columns) = type switch
             {
                 "point" => ($@"{Prefixes}
 SELECT DISTINCT ?buildingId ?floorId ?spaceId ?devId
 WHERE {{
-  VALUES ?inId {{ {values} }}
-  ?pt a <{Cls_Point}> ; <{Prop_Id}> ?inId .
+{Input("pt", Cls_Point, chunk)}
   ?dev <{Prop_HasPoint}> ?pt .
   ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?devId .{DevicePlacement}
 }}", new[] { ("buildingId", "building"), ("floorId", "floor"), ("spaceId", "space"), ("devId", "device") }),
                 "device" => ($@"{Prefixes}
 SELECT DISTINCT ?buildingId ?floorId ?spaceId
 WHERE {{
-  VALUES ?inId {{ {values} }}
-  ?dev a <{Cls_Equipment}> ; <{Prop_Id}> ?inId .{DevicePlacement}
+{Input("dev", Cls_Equipment, chunk)}{DevicePlacement}
 }}", new[] { ("buildingId", "building"), ("floorId", "floor"), ("spaceId", "space") }),
                 "space" => ($@"{Prefixes}
 SELECT DISTINCT ?buildingId ?floorId
 WHERE {{
-  VALUES ?inId {{ {values} }}
-  ?space a <{Cls_Space}> ; <{Prop_Id}> ?inId .
+{Input("space", Cls_Space, chunk)}
   ?floor <{Prop_HasPart}> ?space .
   ?floor a <{Cls_Level}> ; <{Prop_Id}> ?floorId .
   ?building <{Prop_HasPart}> ?floor .
@@ -96,8 +92,7 @@ WHERE {{
                 "floor" => ($@"{Prefixes}
 SELECT DISTINCT ?buildingId
 WHERE {{
-  VALUES ?inId {{ {values} }}
-  ?floor a <{Cls_Level}> ; <{Prop_Id}> ?inId .
+{Input("floor", Cls_Level, chunk)}
   ?building <{Prop_HasPart}> ?floor .
   ?building a <{Cls_Building}> ; <{Prop_Id}> ?buildingId .
 }}", new[] { ("buildingId", "building") }),
@@ -109,6 +104,22 @@ WHERE {{
             foreach (var ancestor in Union(rows, columns)) union.Add(ancestor);
         }
         return union;
+    }
+
+    /// <summary>
+    /// Binds <c>?{var}</c> to the nodes of <paramref name="cls"/> the ids name: by business id
+    /// (<c>sbco:id</c>), and — for an id that is a well-formed absolute IRI — as the node itself, so a
+    /// legacy grant recorded against a dtId (#504 migration) still finds its ancestors. Only validated
+    /// IRIs are written as <c>&lt;…&gt;</c>, which has no escape mechanism (#446).
+    /// </summary>
+    private static string Input(string var, string cls, IEnumerable<string> ids)
+    {
+        var list = ids.ToList();
+        var literals = string.Join(" ", list.Select(id => $"\"{EscapeLiteral(id)}\""));
+        var iris = string.Join(" ", list.Where(SparqlIriValidator.IsValidAbsoluteIri).Select(id => $"<{id}>"));
+        var byId = $"{{ VALUES ?inId {{ {literals} }} ?{var} <{Prop_Id}> ?inId . }}";
+        var match = iris.Length == 0 ? byId : $"{byId} UNION {{ VALUES ?{var} {{ {iris} }} }}";
+        return $"  {match}\n  ?{var} a <{cls}> .";
     }
 
     private async Task<IReadOnlyList<(string, string)>> GetPointAncestors(string pointId, CancellationToken ct)

@@ -122,4 +122,23 @@ public class AncestorResolutionTest(OxiGraphFixture oxiGraph)
         var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
         Assert.Empty(await resolver.GetAncestorUnionAsync("point", []));
     }
+
+    /// <summary>
+    /// A legacy grant recorded against a dtId (#504 migration) still authorizes its node, so its
+    /// ancestors must be found too: an input that is an absolute IRI also matches the node itself.
+    /// </summary>
+    [Theory]
+    [InlineData("space", "urn:t:r501", new[] { "building:B1", "floor:F5" })]
+    [InlineData("floor", "urn:t:f6", new[] { "building:B1" })]
+    [InlineData("device", "urn:t:dual", new[] { "building:B1", "floor:F5", "floor:F6", "space:R501" })]
+    [InlineData("point", "urn:t:p1", new[] { "building:B1", "device:DUAL", "floor:F5", "floor:F6", "space:R501" })]
+    public async Task AncestorUnion_MatchesLegacyDtIdGrants(string type, string dtId, string[] expected)
+    {
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(Ttl);
+        var resolver = new OxiGraphHierarchyResolver(oxiGraph.Client);
+
+        var union = await resolver.GetAncestorUnionAsync(type, [dtId, "R501-not-an-iri>"]);
+
+        Assert.Equal(expected, union.Select(a => $"{a.ResourceType}:{a.ResourceId}").Order());
+    }
 }
