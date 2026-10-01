@@ -35,8 +35,23 @@ vi.mock("./components/point-info", () => ({ PointInfo: () => <div /> }));
 // してしまう。ここの関心はページ側の取得配線なので、他の重い子と同様にスタブする。
 vi.mock("./components/point-health-panel", () => ({
   // children = 24h 受信状況バー（#457）はそのまま描いて、取得配線を確かめられるようにする。
-  PointHealthPanel: ({ children }: { children?: React.ReactNode }) => (
-    <div data-testid="health">{children}</div>
+  // 欠測理由と gateway（#457）は属性に写して、ページが何を渡したかだけを確かめる。
+  PointHealthPanel: ({
+    children,
+    missingReason,
+    gateway,
+  }: {
+    children?: React.ReactNode;
+    missingReason?: string | null;
+    gateway?: { id: string | null; connected: boolean | null } | null;
+  }) => (
+    <div
+      data-testid="health"
+      data-reason={missingReason ?? ""}
+      data-gateway={gateway ? `${gateway.id}:${String(gateway.connected)}` : ""}
+    >
+      {children}
+    </div>
   ),
 }));
 vi.mock("./components/point-control-modal/point-control-modal", () => ({
@@ -49,6 +64,9 @@ vi.mock("./components/cold-data-download-modal", () => ({
   ColdDataDownloadModal: () => <div />,
 }));
 vi.mock("@/lib/resources/repository", () => ({ getPointDetail: vi.fn() }));
+vi.mock("@/lib/health/repository", () => ({
+  fetchPointHealthRow: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/lib/telemetry/repository", () => ({
   latestTelemetrySample: vi.fn(),
   queryTelemetry: vi.fn(),
@@ -62,6 +80,7 @@ vi.mock("@/lib/telemetry/repository", () => ({
   }),
 }));
 
+import { fetchPointHealthRow } from "@/lib/health/repository";
 import { getPointDetail } from "@/lib/resources/repository";
 import {
   latestTelemetrySample,
@@ -221,5 +240,46 @@ describe("PointDetailPageComponent 24h coverage bar (#457)", () => {
     render(<PointDetailPageComponent pointId="p1" />);
 
     expect(await screen.findByTestId("coverage-error")).toBeInTheDocument();
+  });
+});
+
+describe("PointDetailPageComponent health row (#457)", () => {
+  it("passes the server-side missing reason and gateway state to the health panel", async () => {
+    (getPointDetail as Mock).mockResolvedValue({
+      ...detail,
+      device: { dtId: "dev-1" },
+    });
+    (latestTelemetrySample as Mock).mockResolvedValue(null);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
+    (fetchPointHealthRow as Mock).mockResolvedValue({
+      pointId: "p1",
+      missingReason: "gatewayDisconnected",
+      gatewayId: "GW-1",
+      gatewayConnected: false,
+    });
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    const health = await screen.findByTestId("health");
+    await waitFor(() =>
+      expect(health).toHaveAttribute("data-gateway", "GW-1:false"),
+    );
+    expect(health).toHaveAttribute("data-reason", "gatewayDisconnected");
+    expect(fetchPointHealthRow).toHaveBeenCalledWith("p1", "dev-1");
+  });
+
+  it("leaves the rows out (and shows no error) when the health lookup fails", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue(null);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(0));
+    (fetchPointHealthRow as Mock).mockRejectedValue(new Error("403"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    const health = await screen.findByTestId("health");
+    await waitFor(() => expect(fetchPointHealthRow).toHaveBeenCalled());
+    expect(health).toHaveAttribute("data-gateway", "");
+    expect(screen.queryByTestId("hot-error")).not.toBeInTheDocument();
   });
 });

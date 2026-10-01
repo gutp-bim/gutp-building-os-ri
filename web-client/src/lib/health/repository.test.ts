@@ -23,8 +23,33 @@ vi.mock("@/lib/infra/aspida-client", () => ({
   },
 }));
 
+import type { HealthRow } from "./mapping";
 import { DEFAULT_HEALTH_QUERY, type HealthQuery } from "./query";
-import { fetchPointHealth, fetchPointHealthSummary } from "./repository";
+import {
+  fetchPointHealth,
+  fetchPointHealthRow,
+  fetchPointHealthSummary,
+  type HealthPage,
+} from "./repository";
+
+const BASE_ROW: HealthRow = {
+  pointId: "",
+  name: "",
+  freshnessStatus: "missing",
+  alarmStatus: "suppressed",
+  healthStatus: "missing",
+  lastSeen: null,
+  ageSeconds: null,
+  expectedIntervalSeconds: 60,
+  thresholdSeconds: 180,
+  thresholdSource: "point",
+  missingReason: null,
+  value: null,
+  violated: null,
+  gatewayId: "GW-1",
+  gatewayConnected: false,
+  tags: [],
+};
 
 /** サーバが返す 1 行（3 軸はネストしていて、enum は PascalCase）。 */
 const wireItem = {
@@ -367,5 +392,46 @@ describe("fetchPointHealthSummary", () => {
     await expect(fetchPointHealthSummary(DEFAULT_HEALTH_QUERY)).rejects.toThrow(
       /データ品質.*500/,
     );
+  });
+});
+
+describe("fetchPointHealthRow (#457)", () => {
+  const page = (rows: Partial<HealthRow>[]): HealthPage => ({
+    rows: rows.map((r) => ({ ...BASE_ROW, ...r })),
+    total: rows.length,
+    limit: 50,
+    offset: 0,
+    dataComplete: true,
+    indexState: "ready",
+  });
+
+  it("searches by point id (narrowed to the device) and returns the exact-id row", async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValue(
+        page([
+          { pointId: "PT-10" },
+          { pointId: "PT-1", missingReason: "gatewayDisconnected" },
+        ]),
+      );
+
+    const row = await fetchPointHealthRow("PT-1", "dev-1", fetchPage);
+
+    expect(fetchPage).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "PT-1", deviceDtId: "dev-1" }),
+    );
+    expect(row?.pointId).toBe("PT-1");
+    expect(row?.missingReason).toBe("gatewayDisconnected");
+  });
+
+  it("returns null when no row has exactly that id (substring hits only)", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([{ pointId: "PT-10" }]));
+    expect(await fetchPointHealthRow("PT-1", undefined, fetchPage)).toBeNull();
+  });
+
+  it("omits the device filter when the device is unknown", async () => {
+    const fetchPage = vi.fn().mockResolvedValue(page([]));
+    await fetchPointHealthRow("PT-1", undefined, fetchPage);
+    expect(fetchPage.mock.calls[0][0].deviceDtId).toBeUndefined();
   });
 });

@@ -1,6 +1,8 @@
 "use client";
 
 import { InlineBanner } from "@/components/ui/inline-banner";
+import type { HealthRow } from "@/lib/health/mapping";
+import { fetchPointHealthRow } from "@/lib/health/repository";
 import { getPointDetail } from "@/lib/resources/repository";
 import type { PointDetailResource } from "@/lib/resources/types";
 import { toTelemetryCsv } from "@/lib/telemetry/csv";
@@ -84,6 +86,9 @@ export default function PointDetailPageComponent({
     kind: "loading",
   });
   const coverageRequestId = useRef(0);
+  // サーバ側分類の該当行（欠測理由と gateway 接続状態、#457）。取れなければ null のまま行を出さない。
+  const [healthRow, setHealthRow] = useState<HealthRow | null>(null);
+  const healthRequestId = useRef(0);
   const [telemetryConfig, setTelemetryConfig] =
     useState<TelemetryConfig | null>(null);
 
@@ -250,10 +255,28 @@ export default function PointDetailPageComponent({
     }
   };
 
+  // 補助情報なので失敗はバナーにしない（権限で弾かれる / 一覧 API が落ちている場合も、パネルの
+  // 手元判定はそのまま使える）。古い応答が新しい応答を上書きしないよう要求 id で捨てる。
+  const fetchHealthRow = async () => {
+    if (!pointDetail?.point.id) return;
+    const requestId = ++healthRequestId.current;
+    try {
+      const row = await fetchPointHealthRow(
+        pointDetail.point.id,
+        pointDetail.device?.dtId ?? undefined,
+      );
+      if (requestId === healthRequestId.current) setHealthRow(row);
+    } catch (e) {
+      console.warn("point health row unavailable", e);
+      if (requestId === healthRequestId.current) setHealthRow(null);
+    }
+  };
+
   useEffect(() => {
     if (pointDetail) {
       fetchHotData();
       fetchCoverage();
+      fetchHealthRow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointDetail]);
@@ -320,6 +343,7 @@ export default function PointDetailPageComponent({
             onRefresh={() => {
               fetchHotData();
               fetchCoverage();
+              fetchHealthRow();
             }}
             onDownloadClick={() => {
               setColdError(null);
@@ -333,8 +357,8 @@ export default function PointDetailPageComponent({
             staleThresholdSeconds={telemetryConfig?.staleThresholdSeconds}
             staleIntervalMultiplier={telemetryConfig?.staleIntervalMultiplier}
           />
-          {/* 鮮度バッジの「なぜ」を出す健全性パネル（#457）。追加の API 呼び出しはせず、
-              すでに取得済みの pointDetail と telemetryConfig だけで組み立てる。
+          {/* 鮮度バッジの「なぜ」を出す健全性パネル（#457）。判定根拠は取得済みの pointDetail と
+              telemetryConfig から組み立て、欠測理由と gateway だけサーバ側の該当行（healthRow）を使う。
               now は毎レンダー現在時刻（hotData の再取得ごとに評価し直される）。 */}
           <PointHealthPanel
             latest={hotData}
@@ -351,6 +375,15 @@ export default function PointDetailPageComponent({
               warnLow: pointDetail.point.warnLow,
             }}
             deviceName={pointDetail.device?.name}
+            missingReason={healthRow?.missingReason}
+            gateway={
+              healthRow
+                ? {
+                    id: healthRow.gatewayId,
+                    connected: healthRow.gatewayConnected,
+                  }
+                : null
+            }
           >
             <TelemetryCoverageBar state={coverage} />
           </PointHealthPanel>

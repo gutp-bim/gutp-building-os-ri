@@ -65,6 +65,11 @@ test("capture: demo walkthrough", async ({ page }) => {
   // 3. Point 詳細 — gateway 断で欠測の Point
   await page.goto("/points/DEMO-RF-WS01-OAT");
   await page.getByTestId("point-health-panel").waitFor({ timeout: 30_000 });
+  // 欠測理由と gateway はサーバ側の行を別に引くので、その到着を待つ（#457）。
+  await expect(page.getByTestId("health-missing-reason")).toHaveText(
+    "ゲートウェイ切断",
+    { timeout: 30_000 },
+  );
   await shot(page, "3-point-missing", true);
 
   // 4. Point 詳細 — stale の Point（interval × multiplier の判定根拠）

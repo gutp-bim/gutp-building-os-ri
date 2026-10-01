@@ -11,10 +11,17 @@
  * しない。`now` は注入させて描画を決定的に保つ。
  *
  * 24h 受信状況バー（{@link TelemetryCoverageBar}）は取得を伴うので、ページ側が `children` として差し込む。
+ *
+ * 欠測理由と gateway 接続状態（ADR-0004）は手元の材料からは出せない — どちらもサーバ側の分類器
+ * （`/api/v1/telemetry/health` の該当行）が正本なので、ページが引いた値を props で受けて表示だけする。
+ * 渡されなければ（取得失敗・行が無い）行ごと出さない。
  */
 
+import { GatewayConnectionBadge } from "@/components/health/health-status-badge";
 import { GlossaryTooltip } from "@/components/help/glossary-tooltip";
 import { FreshnessBadge } from "@/components/telemetry/freshness-badge";
+import { missingReasonLabel } from "@/lib/health/mapping";
+import type { MissingReason } from "@/lib/health/types";
 import {
   classifyPointAlarm,
   type AlarmThresholds,
@@ -84,6 +91,8 @@ export function PointHealthPanel({
   staleIntervalMultiplier,
   alarmThresholds,
   deviceName,
+  missingReason,
+  gateway,
   children,
 }: {
   /** 最新の受信サンプル。null = 一度も受信していない（欠測）。 */
@@ -102,6 +111,10 @@ export function PointHealthPanel({
   alarmThresholds?: AlarmThresholds;
   /** 所属機器名。不明なら行ごと出さない。 */
   deviceName?: string | null;
+  /** サーバ側分類の欠測理由（#452）。手元の判定でも欠測のときだけ表示する。 */
+  missingReason?: MissingReason | null;
+  /** 所属 gateway と接続状態（ADR-0004、null = 不明）。id が無ければ行ごと出さない。 */
+  gateway?: { id: string | null; connected: boolean | null } | null;
   /** 行の下に差し込む追加表示（24h 受信状況バー）。 */
   children?: React.ReactNode;
 }) {
@@ -179,9 +192,23 @@ export function PointHealthPanel({
             {alarmText}
           </Row>
         )}
+        {/* サーバの行は手元の最新値より古いことがある。手元でも欠測のときだけ理由を添える。 */}
+        {freshness.status === "missing" && missingReason && (
+          <Row label="欠測理由" testId="health-missing-reason">
+            {missingReasonLabel(missingReason)}
+          </Row>
+        )}
         {deviceName && (
           <Row label="機器" testId="health-device">
             {deviceName}
+          </Row>
+        )}
+        {gateway?.id && (
+          <Row label="ゲートウェイ" testId="health-gateway">
+            <span className="inline-flex items-center gap-2">
+              <span className="font-mono text-xs">{gateway.id}</span>
+              <GatewayConnectionBadge connected={gateway.connected} />
+            </span>
           </Row>
         )}
       </dl>
