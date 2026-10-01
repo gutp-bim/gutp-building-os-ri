@@ -309,6 +309,31 @@ public class OxiGraphImportTest(OxiGraphFixture oxiGraph)
         Assert.Equal($"Building {roomSide}", detail.Device?.BuildingName);
     }
 
+    // #547 review: a nameless Building still places the point — the dtId is what scopes reads, so the
+    // missing sbco:name must not drop the whole building (ListPointDetails keeps it too).
+    [Fact]
+    public async Task GetPointDetailByPointId_NamelessBuilding_StillReportsItsDtId()
+    {
+        const string ttl = """
+            @prefix sbco: <https://www.sbco.or.jp/ont/> .
+            <urn:test:bN> a sbco:Building ; sbco:id "BN" ; sbco:hasPart <urn:test:lN> .
+            <urn:test:lN> a sbco:Level ; sbco:id "LN" ; sbco:name "N-1F" .
+            <urn:test:devN> a sbco:EquipmentExt ; sbco:id "DEV-N" ; sbco:name "Meter" ;
+              sbco:locatedIn <urn:test:lN> ; sbco:hasPoint <urn:test:ptN> .
+            <urn:test:ptN> a sbco:PointExt ; sbco:id "PT-N" ; sbco:name "N" ; sbco:writable "false" .
+            """;
+        await oxiGraph.Client.ReplaceDefaultGraphAsync(ttl);
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(oxiGraph.Client, cache);
+        var detail = await db.GetPointDetailByPointId("PT-N");
+
+        Assert.NotNull(detail);
+        Assert.Equal("urn:test:bN", detail!.Building?.DtId);
+        Assert.Equal("BN", detail.Building?.Id);
+        Assert.Equal("", detail.Building?.Name);
+    }
+
     [Fact]
     public async Task ListPointDetails_ReportsTheBuildingItWasQueriedFor()
     {

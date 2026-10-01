@@ -325,9 +325,11 @@ WHERE {{
     # The building is the one THIS row's Level belongs to (#547). Resolving it through a separate
     # traversal of the device would cross-join every placement's building with every row, so a
     # device placed in two buildings could report a floor from one and a building from the other.
+    # Name and id are OPTIONAL: a nameless Building still places the point, as in ListPointDetails.
     OPTIONAL {{
       ?bldg <{Prop_HasPart}> ?floor .
-      ?bldg a <{Cls_Building}> ; <{Prop_Name}> ?bldgNameRaw .
+      ?bldg a <{Cls_Building}> .
+      OPTIONAL {{ ?bldg <{Prop_Name}> ?bldgNameRaw . }}
       OPTIONAL {{ ?bldg <{Prop_Id}> ?bldgIdRaw . }}
     }}
   }}
