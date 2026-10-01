@@ -164,6 +164,25 @@ public class TwinAdminControllerTest
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    /// <summary>A client disconnecting after the import is applied still leaves a success audit (#527 review).</summary>
+    [Fact]
+    public async Task ApplyImport_CancelledAfterApplying_StillAuditsSuccess()
+    {
+        using var cts = new CancellationTokenSource();
+        var (c, svc, audit) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, []));
+        svc.Setup(s => s.ApplyImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .Callback(() => cts.Cancel())
+            .Returns(Task.CompletedTask);
+        audit.Setup(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()))
+            .Returns((AdminAuditRecord _, CancellationToken t) => t.IsCancellationRequested
+                ? Task.FromCanceled(t) : Task.CompletedTask);
+
+        Assert.IsType<OkObjectResult>(await c.ApplyImport(new TwinAdminController.TwinImportRequest { Turtle = "ttl" }, cts.Token));
+        audit.Verify(a => a.RecordAsync(It.Is<AdminAuditRecord>(r => r.Result == AdminAuditResult.Success), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     /// <summary>#527: an applied import may move points between buildings, so it records a lake key change.</summary>
     [Fact]
     public async Task ApplyImport_Applied_RecordsALakeKeyChange()

@@ -189,8 +189,10 @@ public class TwinAdminController : ControllerBase
                     _logger.LogWarning(ex, "Twin import applied, but the lake partition-key change could not be recorded");
                 }
             }
+            // The import is applied: a client that disconnects now must not lose its success audit
+            // (or turn it into a "failed" one through the catch below).
             await AuditAsync(auth, "import-apply", null, AdminAuditResult.Success,
-                Meta(request.Turtle, mode.ToString(), preview, request.AllowOrphans), ct).ConfigureAwait(false);
+                Meta(request.Turtle, mode.ToString(), preview, request.AllowOrphans), CancellationToken.None).ConfigureAwait(false);
             return Ok(preview);
         }
         catch (Exception ex)
