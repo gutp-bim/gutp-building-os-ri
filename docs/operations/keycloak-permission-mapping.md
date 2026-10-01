@@ -31,11 +31,30 @@ Examples:
 | `admin` | `building-os-admin` | none needed — admin is decided by the role and bypasses permission checks |
 | `operator` | `building-os-operator` | per-resource grants, e.g. `building:<hash>:read`, `point:<hash>:read,write` |
 | `viewer` | `building-os-viewer` | per-resource grants, e.g. `building:<hash>:read`, `group:tenant-a:read` |
+| `group-manager` | — (user attribute `role` on the application's service account) | none — see below (#506) |
 
 Type and id match **exactly**. `*` is not a wildcard: an entry such as `building:*:read` or `*:*:*`
 grants nothing, and the API server logs a warning and ignores it (#505). The `operator` / `viewer`
 role only selects the UI workspace; it grants no data access by itself. The realm ships only the
 `admin` user and the `building-os-admins` group; add operators and viewers with explicit grants.
+
+**`group-manager` (#506)** is for an external application's service account that keeps Building OS
+Groups in sync (e.g. a tenant portal) without being a full admin. It may:
+
+- create, change and delete Groups and their resource items (`/api/v1/groups/**`);
+- read the twin's **structure** in full regardless of grants — the building / floor / space / device
+  lists and gets (including the unscoped lists), the point list of a device or of the whole twin, room
+  adjacency and resource search — so it can choose what a Group holds.
+
+It reads **no values** and changes nothing else: a single point (`GET /points/{id}`, which also gates
+the control history), telemetry, data health, control, twin import, user / permission management and
+Gateway management stay as for a non-admin without grants. It has no UI workspace.
+
+A client-credentials token (`idtyp=app`) is admin by default (table below). Give the application's
+service-account user the attribute `role` = `group-manager` and add the `building-os-api` client scope
+to its client, so the token carries `building_os_role=group-manager`: that exact value — and only that
+one — makes the app token a group-manager instead of an admin. Any other `building_os_role` value on an
+app token is ignored, so existing client-credentials clients keep working unchanged.
 
 Resource IDs that are not group IDs remain hashed by the API authorization
 layer. Keycloak stores permission strings as user or group attributes and emits
@@ -51,7 +70,7 @@ The `building-os-api` client scope emits two access-token claims, read directly 
 |---|---|---|
 | `building_os_role` (single) | user attr `role` | `Role` |
 | `permissions` (multivalued) | user attr `permissions` ∪ every group's `permissions` | `Permissions` |
-| `idtyp=app` (client credentials) | — | `Role=admin` (service account) |
+| `idtyp=app` (client credentials) | — | `Role=admin` (service account), or `group-manager` when the token carries `building_os_role=group-manager` (#506) |
 
 The middleware reads these **Keycloak-native** names first and falls back to the legacy
 Azure-AD optional-claim names (`extension_BuildingOS_role` / `extension_BuildingOS_permissions`,

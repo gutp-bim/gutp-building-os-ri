@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// リソースグループ管理API（admin専用）
+/// リソースグループ管理API（admin と group-manager、#506）
 /// </summary>
 [ApiController]
 [Route(ApiRoutes.V1 + "/groups")]
@@ -35,7 +35,7 @@ public class GroupsController : ControllerBase
     public async Task<ActionResult<IEnumerable<GroupResponse>>> GetAll(CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
         var groups = await _groupRepository.GetAllAsync(ct).ConfigureAwait(false);
         return Ok(groups.Select(ToResponse));
     }
@@ -49,7 +49,7 @@ public class GroupsController : ControllerBase
     public async Task<ActionResult<GroupDetailResponse>> GetById(string id, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         var group = await _groupRepository.GetByIdWithItemsAsync(id, ct).ConfigureAwait(false);
         if (group == null)
@@ -68,7 +68,7 @@ public class GroupsController : ControllerBase
     public async Task<ActionResult<GroupResponse>> Create([FromBody] CreateGroupRequest request, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         if (string.IsNullOrWhiteSpace(request.Id) || string.IsNullOrWhiteSpace(request.Name))
         {
@@ -101,7 +101,7 @@ public class GroupsController : ControllerBase
     public async Task<ActionResult> Update(string id, [FromBody] UpdateGroupRequest request, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         var existing = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (existing == null)
@@ -125,7 +125,7 @@ public class GroupsController : ControllerBase
     public async Task<ActionResult> Delete(string id, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         var existing = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (existing == null)
@@ -152,7 +152,7 @@ public class GroupsController : ControllerBase
         CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         var group = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (group == null)
@@ -187,7 +187,7 @@ public class GroupsController : ControllerBase
     public async Task<ActionResult> RemoveResource(string id, string itemId, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         var group = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (group == null)
@@ -211,7 +211,7 @@ public class GroupsController : ControllerBase
         CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
-        if (!authContext.IsAdmin) return Forbid();
+        if (!authContext.CanManageGroups) return Forbid();
 
         var group = await _groupRepository.GetByIdAsync(id, ct).ConfigureAwait(false);
         if (group == null)

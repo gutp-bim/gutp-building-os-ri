@@ -39,7 +39,7 @@ public class FloorController(IAuthorizedTwinView twinView) : ControllerBase
     public async Task<ActionResult<Floor[]>> List([FromQuery] string? buildingDtId, CancellationToken ct)
     {
         var auth = HttpContext.GetAuthorizationContext();
-        if (string.IsNullOrEmpty(buildingDtId) && !auth.IsAdmin) return Forbid();
+        if (string.IsNullOrEmpty(buildingDtId) && !auth.ReadsWholeTwinStructure) return Forbid();
         return await twinView.ListFloorsAsync(auth, buildingDtId, ct);
     }
 }

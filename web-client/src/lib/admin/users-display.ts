@@ -38,6 +38,8 @@ export function roleLabel(role: string | null | undefined): string {
       return "運用";
     case "viewer":
       return "閲覧";
+    case "group-manager":
+      return "Group 管理（アプリ）";
     default:
       return role || "—";
   }
@@ -51,6 +53,8 @@ export function roleBadgeClass(role: string | null | undefined): string {
       return "bg-blue-100 text-blue-800";
     case "viewer":
       return "bg-gray-100 text-gray-700";
+    case "group-manager":
+      return "bg-amber-100 text-amber-800";
     default:
       return "bg-gray-100 text-gray-600";
   }

@@ -41,7 +41,7 @@ public class PointController(
     public async Task<ActionResult<Point[]>> List([FromQuery] string? deviceDtId, CancellationToken ct)
     {
         var auth = HttpContext.GetAuthorizationContext();
-        if (string.IsNullOrEmpty(deviceDtId) && !auth.IsAdmin) return Forbid();
+        if (string.IsNullOrEmpty(deviceDtId) && !auth.ReadsWholeTwinStructure) return Forbid();
         return await twinView.ListPointsAsync(auth, deviceDtId, ct);
     }
 

@@ -63,7 +63,7 @@ public class SpaceController(IAuthorizedTwinView twinView) : ControllerBase
     public async Task<ActionResult<Space[]>> List([FromQuery] string? floorDtId, CancellationToken ct)
     {
         var auth = HttpContext.GetAuthorizationContext();
-        if (string.IsNullOrEmpty(floorDtId) && !auth.IsAdmin) return Forbid();
+        if (string.IsNullOrEmpty(floorDtId) && !auth.ReadsWholeTwinStructure) return Forbid();
         return await twinView.ListSpacesAsync(auth, floorDtId, ct);
     }
 }

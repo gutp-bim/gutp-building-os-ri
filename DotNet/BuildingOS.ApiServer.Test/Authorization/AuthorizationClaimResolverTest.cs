@@ -28,6 +28,41 @@ public class AuthorizationClaimResolverTest
         Assert.Equal("admin", ctx.Role);
     }
 
+    /// <summary>
+    /// #506: an application's client-credentials service account is given the group-manager role
+    /// through the same building_os_role claim users get — the one opt-out from "app token = admin".
+    /// </summary>
+    [Fact]
+    public void AppToken_CarryingGroupManager_IsAGroupManagerNotAnAdmin()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+            [new Claim("idtyp", "app"), Sub("svc-portal"), new Claim("building_os_role", "group-manager")]);
+
+        Assert.NotNull(ctx);
+        Assert.Equal("group-manager", ctx!.Role);
+        Assert.False(ctx.IsAdmin);
+        Assert.True(ctx.CanManageGroups);
+        Assert.Equal("svc-portal", ctx.UserId);
+        Assert.Empty(ctx.Permissions);
+    }
+
+    /// <summary>
+    /// Any other role claim on an app token changes nothing: existing client-credentials clients stay
+    /// admin exactly as before, whatever attribute their service account happens to carry.
+    /// </summary>
+    [Theory]
+    [InlineData("viewer")]
+    [InlineData("operator")]
+    [InlineData("admin")]
+    [InlineData("Group-Manager")]
+    public void AppToken_WithAnyOtherRoleClaim_StaysAdmin(string role)
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+            [new Claim("idtyp", "app"), Sub("svc1"), new Claim("building_os_role", role)]);
+
+        Assert.True(ctx!.IsAdmin);
+    }
+
     [Fact]
     public void KeycloakNativeClaims_AreResolved()
     {

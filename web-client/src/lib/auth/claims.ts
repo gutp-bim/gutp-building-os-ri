@@ -2,14 +2,14 @@
  * Building OS role, as carried by the Keycloak `building_os_role` access-token claim.
  * (See oss-stack/keycloak/realm.json — the building-os-role protocol mapper.)
  */
-export type BuildingOsRole = "admin" | "operator" | "viewer";
+export type BuildingOsRole = "admin" | "operator" | "viewer" | "group-manager";
 
 export type AuthClaims = {
   role: BuildingOsRole | null;
   permissions: string[];
 };
 
-const KNOWN_ROLES: readonly BuildingOsRole[] = ["admin", "operator", "viewer"];
+const KNOWN_ROLES: readonly BuildingOsRole[] = ["admin", "operator", "viewer", "group-manager"];
 
 function base64UrlDecode(input: string): string {
   const padLength = input.length % 4 === 0 ? 0 : 4 - (input.length % 4);

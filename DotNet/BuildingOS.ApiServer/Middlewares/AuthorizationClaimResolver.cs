@@ -1,11 +1,12 @@
 using System.Security.Claims;
 using BuildingOS.Shared.Domain.Authorization;
+using BuildingOS.Shared.Domain.UserManagement;
 
 namespace BuildingOs.ApiServer.Middlewares;
 
 /// <summary>
 /// Pure resolution of an <see cref="AuthorizationContext"/> from JWT claims alone (no I/O). Covers the
-/// two token-only paths: client-credential (<c>idtyp=app</c>) → admin, and a user token that already
+/// two token-only paths: client-credential (<c>idtyp=app</c>) → admin (or group-manager, #506), and a user token that already
 /// carries the Building OS role/permission claims. Returns <c>null</c> when neither applies, so the
 /// caller falls back to the Keycloak Admin API lookup.
 ///
@@ -26,21 +27,26 @@ public static class AuthorizationClaimResolver
     {
         var userId = GetUserId(claims);
 
-        // Client-credential (app) token → admin, even without a user id.
+        var role = claims.FirstOrDefault(c => c.Type == RoleClaim)?.Value
+                ?? claims.FirstOrDefault(c => c.Type == LegacyRoleClaim)?.Value;
+
+        // Client-credential (app) token → admin, even without a user id. The one exception is an
+        // application's service account given the group-manager role (#506) through the same
+        // building_os_role claim users get: it keeps Groups in sync without full admin. Only that
+        // exact value opts out — any other claim leaves an existing app client admin as before, so no
+        // deployment changes behaviour by accident.
         var idtyp = claims.FirstOrDefault(c => c.Type == "idtyp")?.Value;
         if (idtyp == "app")
         {
             return new AuthorizationContext
             {
                 UserId = userId ?? "app",
-                Role = "admin",
+                Role = role == RoleCatalog.GroupManager ? RoleCatalog.GroupManager : "admin",
                 Permissions = Array.Empty<string>(),
             };
         }
 
         // User token carrying the Building OS authz claims (Keycloak-native, Azure-AD fallback).
-        var role = claims.FirstOrDefault(c => c.Type == RoleClaim)?.Value
-                ?? claims.FirstOrDefault(c => c.Type == LegacyRoleClaim)?.Value;
         if (role is null)
         {
             return null; // no token-only context — caller falls back to the Admin API.

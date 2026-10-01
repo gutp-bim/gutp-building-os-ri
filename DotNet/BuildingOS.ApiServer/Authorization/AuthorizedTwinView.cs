@@ -37,7 +37,7 @@ public sealed class AuthorizedTwinView(
     private Task<IReadOnlySet<(string ResourceType, string ResourceId)>> NavigableAsync(
         AuthorizationContext auth, CancellationToken ct)
     {
-        if (navigable is null || auth.IsAdmin) return Task.FromResult(NoAncestors);
+        if (navigable is null || auth.ReadsWholeTwinStructure) return Task.FromResult(NoAncestors);
         if (_navigable is null || !ReferenceEquals(_navigableFor, auth))
         {
             _navigableFor = auth;
@@ -106,7 +106,7 @@ public sealed class AuthorizedTwinView(
     {
         if (!IsUsableDtId(dtId)) return new TwinGetResult<T>.NotFound();
         var resource = await load().ConfigureAwait(false);
-        if (!auth.IsAdmin
+        if (!auth.ReadsWholeTwinStructure
             && (resource is null
                 || !await CanReadNodeAsync(auth, resourceType, dtId, businessId(resource), ct).ConfigureAwait(false)))
             return new TwinGetResult<T>.Forbidden();
@@ -118,7 +118,7 @@ public sealed class AuthorizedTwinView(
     public async Task<Building[]> ListBuildingsAsync(AuthorizationContext auth, CancellationToken ct)
     {
         var all = await db.ListBuildings();
-        if (auth.IsAdmin) return all;
+        if (auth.ReadsWholeTwinStructure) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "building", "read", ct).ConfigureAwait(false);
         var ancestors = await NavigableAsync(auth, ct).ConfigureAwait(false);
         return all
@@ -135,11 +135,11 @@ public sealed class AuthorizedTwinView(
     public async Task<Floor[]> ListFloorsAsync(AuthorizationContext auth, string? buildingDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(buildingDtId))
-            return auth.IsAdmin ? await db.ListFloors("") : [];
+            return auth.ReadsWholeTwinStructure ? await db.ListFloors("") : [];
         if (IsUnusableScopeId(buildingDtId)) return [];
 
         var all = await db.ListFloors(buildingDtId);
-        if (auth.IsAdmin) return all;
+        if (auth.ReadsWholeTwinStructure) return all;
         var parent = await db.GetBuilding(buildingDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "building", buildingDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "floor", "read", ct).ConfigureAwait(false);
@@ -158,11 +158,11 @@ public sealed class AuthorizedTwinView(
     public async Task<Space[]> ListSpacesAsync(AuthorizationContext auth, string? floorDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(floorDtId))
-            return auth.IsAdmin ? await db.ListSpaces("") : [];
+            return auth.ReadsWholeTwinStructure ? await db.ListSpaces("") : [];
         if (IsUnusableScopeId(floorDtId)) return [];
 
         var all = await db.ListSpaces(floorDtId);
-        if (auth.IsAdmin) return all;
+        if (auth.ReadsWholeTwinStructure) return all;
         var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "space", "read", ct).ConfigureAwait(false);
@@ -188,14 +188,14 @@ public sealed class AuthorizedTwinView(
         // existence is established separately — and first, since its business id is what authorizes
         // it (#504). As in GetNodeAsync, a non-admin gets Forbidden for an absent room too.
         var subject = await db.GetSpace(spaceDtId).ConfigureAwait(false);
-        if (!auth.IsAdmin
+        if (!auth.ReadsWholeTwinStructure
             && (subject is null
                 || !await CanReadNodeAsync(auth, "space", spaceDtId, subject.Id, ct).ConfigureAwait(false)))
             return new TwinGetResult<Space[]>.Forbidden();
         if (subject is null) return new TwinGetResult<Space[]>.NotFound();
 
         var neighbours = await db.ListAdjacentSpaces(spaceDtId).ConfigureAwait(false);
-        if (auth.IsAdmin) return new TwinGetResult<Space[]>.Ok(neighbours);
+        if (auth.ReadsWholeTwinStructure) return new TwinGetResult<Space[]>.Ok(neighbours);
 
         // One CanAccessAsync per neighbour rather than a hash match against
         // GetAccessibleResourceIdsAsync("space"): CanAccessAsync already resolves the ancestor chain
@@ -216,11 +216,11 @@ public sealed class AuthorizedTwinView(
     public async Task<Device[]> ListDevicesAsync(AuthorizationContext auth, string? spaceDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(spaceDtId))
-            return auth.IsAdmin ? await db.ListDevices("") : [];
+            return auth.ReadsWholeTwinStructure ? await db.ListDevices("") : [];
         if (IsUnusableScopeId(spaceDtId)) return [];
 
         var all = await db.ListDevices(spaceDtId);
-        if (auth.IsAdmin) return all;
+        if (auth.ReadsWholeTwinStructure) return all;
         var parent = await db.GetSpace(spaceDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "space", spaceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
@@ -236,7 +236,7 @@ public sealed class AuthorizedTwinView(
         if (!IsUsableDtId(floorDtId)) return [];
 
         var all = await db.ListFloorDevices(floorDtId, ct).ConfigureAwait(false);
-        if (auth.IsAdmin) return all;
+        if (auth.ReadsWholeTwinStructure) return all;
         var parent = await db.GetFloor(floorDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "floor", floorDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         var ids = await authService.GetAccessibleResourceIdsAsync(auth, "device", "read", ct).ConfigureAwait(false);
@@ -255,14 +255,14 @@ public sealed class AuthorizedTwinView(
     public async Task<Point[]> ListPointsAsync(AuthorizationContext auth, string? deviceDtId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(deviceDtId))
-            return auth.IsAdmin ? await db.ListPoints("") : [];
+            return auth.ReadsWholeTwinStructure ? await db.ListPoints("") : [];
         // The device scope reaches SPARQL as VALUES ?dev { <deviceDtId> } (BuildPointSelect) rather
         // than as a triple pattern, which is why it reads as an exception at a glance — it is not:
         // that is an IRI reference like every other dtId here.
         if (IsUnusableScopeId(deviceDtId)) return [];
 
         var all = await db.ListPoints(deviceDtId);
-        if (auth.IsAdmin) return all;
+        if (auth.ReadsWholeTwinStructure) return all;
         var parent = await db.GetDevice(deviceDtId).ConfigureAwait(false);
         if (await CanReadNodeAsync(auth, "device", deviceDtId, parent?.Id, ct).ConfigureAwait(false)) return all;
         // Point は DtId ではなくビジネス ID（Point.Id）で権限照合する
@@ -270,6 +270,9 @@ public sealed class AuthorizedTwinView(
         return all.Where(p => ids.Contains(PermissionHelper.HashResourceId(p.Id))).ToArray();
     }
 
+    // A single point stays on grants for a group-manager (#506): GET /points/{id}/control-audit
+    // authorizes the control history — a value, not structure — on this read. The group-manager still
+    // sees every point through ListPointsAsync and SearchAsync.
     public async Task<TwinGetResult<Point>> GetPointAsync(AuthorizationContext auth, string pointId, CancellationToken ct)
     {
         if (!auth.IsAdmin)
@@ -307,6 +310,8 @@ public sealed class AuthorizedTwinView(
         HashSet<string> floorIds = [];
         // Only the building node (one small read) is loaded ahead of the check, for its business id —
         // the ledger itself is still not touched until the caller is known to read something.
+        // IsAdmin, not ReadsWholeTwinStructure: this ledger backs GET /telemetry/health (freshness),
+        // which is value-derived, so a group-manager (#506) gets it only through grants.
         var readsWholeBuilding = auth.IsAdmin
             || await CanReadNodeAsync(auth, "building", buildingDtId,
                 (await db.GetBuilding(buildingDtId).ConfigureAwait(false))?.Id, ct).ConfigureAwait(false);
@@ -377,7 +382,7 @@ public sealed class AuthorizedTwinView(
         if (IsUnusableScopeId(buildingDtId)) return [];
 
         var hits = await db.SearchResources(q, type, buildingDtId, tags, limit, offset).ConfigureAwait(false);
-        if (auth.IsAdmin) return hits;
+        if (auth.ReadsWholeTwinStructure) return hits;
 
         // Resolve accessible-id sets lazily, one ACL call per distinct resource type encountered.
         var accessibleByType = new Dictionary<string, IReadOnlyList<string>>();

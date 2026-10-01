@@ -31,6 +31,7 @@ describe("statusLabel / roleLabel / permissionCount", () => {
     expect(roleLabel("admin")).toBe("管理者");
     expect(roleLabel("operator")).toBe("運用");
     expect(roleLabel("viewer")).toBe("閲覧");
+    expect(roleLabel("group-manager")).toBe("Group 管理（アプリ）");
     expect(roleLabel(null)).toBe("—");
   });
   it("counts permissions defensively", () => {

@@ -95,7 +95,7 @@ public class UsersControllerTest
         var result = controller.GetRoles();
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var roles = Assert.IsAssignableFrom<IReadOnlyList<RoleCatalogEntry>>(ok.Value);
-        Assert.Equal(3, roles.Count);
+        Assert.Equal(4, roles.Count); // admin, operator, viewer, group-manager (#506)
     }
 
     // ── Lockout guard ──────────────────────────────────────────────────────────
