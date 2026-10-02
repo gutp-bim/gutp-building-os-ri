@@ -358,6 +358,8 @@ public class TelemetryControllerTest
     /// </summary>
     private sealed class NonReentrantGroupRepository : IGroupRepository
     {
+        public Task<IReadOnlyList<ResourceGroup>> GetByCreatorAsync(string createdBy, CancellationToken ct = default) => throw new NotSupportedException();
+
         private int _active;
         private readonly object _gate = new();
         public int MaxConcurrency { get; private set; }

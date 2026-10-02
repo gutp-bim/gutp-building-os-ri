@@ -286,6 +286,12 @@ public class TelemetryHealthController : ControllerBase
     private async Task<IReadOnlyList<(string DtId, string? Name)>> ResolveBuildingsAsync(
         AuthorizationContext auth, string? buildingDtId, CancellationToken ct)
     {
+        // #506: data health is value-derived, and a group-manager reads no values. Answer empty up front
+        // rather than walking every building — its structural bypass lists them all — only for each
+        // ledger read to come back empty.
+        if (auth.IsStructureOnly)
+            return [];
+
         if (!string.IsNullOrWhiteSpace(buildingDtId))
             return [(buildingDtId, null)];
 

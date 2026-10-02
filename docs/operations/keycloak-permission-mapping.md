@@ -31,11 +31,59 @@ Examples:
 | `admin` | `building-os-admin` | none needed — admin is decided by the role and bypasses permission checks |
 | `operator` | `building-os-operator` | per-resource grants, e.g. `building:<hash>:read`, `point:<hash>:read,write` |
 | `viewer` | `building-os-viewer` | per-resource grants, e.g. `building:<hash>:read`, `group:tenant-a:read` |
+| `group-manager` | — (user attribute `role` on the application's service account) | none — see below (#506) |
 
 Type and id match **exactly**. `*` is not a wildcard: an entry such as `building:*:read` or `*:*:*`
 grants nothing, and the API server logs a warning and ignores it (#505). The `operator` / `viewer`
 role only selects the UI workspace; it grants no data access by itself. The realm ships only the
 `admin` user and the `building-os-admins` group; add operators and viewers with explicit grants.
+
+**`group-manager` (#506)** is for an external application's service account that keeps Building OS
+Groups in sync (e.g. a tenant portal) without being a full admin. It is a **client-credentials role
+only**: it is not offered by the admin UI's role picker, and a user token (or Admin-API lookup) that
+resolves to `group-manager` grants nothing — neither the role nor any permission strings.
+
+It may:
+
+- create Groups — **ids are placed under `gm-<12 hex of SHA-256(subject)>-`** (an id sent without the
+  prefix gets it; the response carries the actual id), so it can never claim an id that existing user
+  grants (`group:<id>`) already name — and list, change and delete **only the Groups it created itself** (`/api/v1/groups/**`;
+  someone else's Group answers 404). A Group's items are grants to every user holding
+  `group:<id>:<actions>`, so a group-manager must never edit an admin's Group that users hold `write` on.
+  Groups created before this release carry no creator and stay admin-only. Every Group change is
+  recorded in the admin audit (`subjectType=group`);
+- read the twin's **structure** in full regardless of grants — the building / floor / space / device
+  lists and gets (including the unscoped lists), the point list of a device or of the whole twin, room
+  adjacency and resource search — as **names and ids only** (no native/BACnet addressing, gateways,
+  owners or thresholds), so it can choose what a Group holds.
+
+Admins cannot create ids starting with `gm-` (reserved), so a Group under a group-manager's prefix only
+ever belongs to it. Group ids must not contain `:` or `,` (the separators of a `group:<id>:<actions>` grant) and may be at
+most 100 characters including the prefix.
+
+**Ownership follows the service account's `sub`.** Recreating the Keycloak client (or its
+service-account user) gives it a new `sub`: its old Groups are then visible and editable only by an
+admin (their `createdBy` still names the old subject), and Groups it creates again land under a new
+prefix, so users' existing `group:<old id>` grants do not carry over. Keep the client, or have an admin
+migrate the Groups.
+
+A group-manager context never carries permission strings, even if its token has some. The Groups API
+shows each Group's `createdBy`, so an admin can see which Groups an application controls before granting
+users `group:<id>` on them. Identifier/tag metadata, a tag-filtered search, control history and data
+health are refused to it.
+
+It reads **no values** and changes nothing else: a single point (`GET /points/{id}`, which also gates
+the control history), telemetry, data health, control, twin import, user / permission management and
+Gateway management stay as for a non-admin without grants. It has no UI workspace.
+
+**Setting it up in Keycloak.** Enable *Service accounts* on the application's client, give its
+service-account user the attribute `role` = `group-manager`, and add the `building-os-api` client scope
+(and `basic`, so the token carries `sub`) to the client. A Keycloak service-account token is recognised by
+the `client_id` claim that the default `service_account` scope adds (`clientId` before Keycloak 24); with
+`building_os_role=group-manager` (exact) and a `sub` it is a group-manager. Without a `sub` it gets no access
+(Group ownership is keyed on it). An Azure AD client-credentials token (`idtyp=app`, table below) is admin
+by default and becomes a group-manager only with exactly that claim; any other `building_os_role` value on
+it is ignored with a one-time warning, so existing clients keep working unchanged.
 
 Resource IDs that are not group IDs remain hashed by the API authorization
 layer. Keycloak stores permission strings as user or group attributes and emits
@@ -51,7 +99,7 @@ The `building-os-api` client scope emits two access-token claims, read directly 
 |---|---|---|
 | `building_os_role` (single) | user attr `role` | `Role` |
 | `permissions` (multivalued) | user attr `permissions` ∪ every group's `permissions` | `Permissions` |
-| `idtyp=app` (client credentials) | — | `Role=admin` (service account) |
+| `idtyp=app` (client credentials) | — | `Role=admin` (service account), or `group-manager` when the token carries `building_os_role=group-manager` (#506) |
 
 The middleware reads these **Keycloak-native** names first and falls back to the legacy
 Azure-AD optional-claim names (`extension_BuildingOS_role` / `extension_BuildingOS_permissions`,

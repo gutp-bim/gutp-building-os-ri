@@ -36,9 +36,11 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.Id).HasMaxLength(100);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.CreatedBy).HasMaxLength(200);
             entity.Property(e => e.CreatedAt).IsRequired();
             entity.Property(e => e.UpdatedAt).IsRequired();
             entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.CreatedBy);
         });
 
         modelBuilder.Entity<GroupResourceItem>(entity =>

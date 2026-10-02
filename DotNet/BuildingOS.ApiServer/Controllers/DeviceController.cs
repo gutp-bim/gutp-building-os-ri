@@ -51,7 +51,7 @@ public class DeviceController(IAuthorizedTwinView twinView) : ControllerBase
             if (!string.IsNullOrEmpty(spaceDtId)) return BadRequest("spaceDtId と floorDtId は同時に指定できません");
             return await twinView.ListFloorDevicesAsync(auth, floorDtId, ct);
         }
-        if (string.IsNullOrEmpty(spaceDtId) && !auth.IsAdmin) return Forbid();
+        if (string.IsNullOrEmpty(spaceDtId) && !auth.ReadsWholeTwinStructure) return Forbid();
         return await twinView.ListDevicesAsync(auth, spaceDtId, ct);
     }
 }

@@ -45,6 +45,10 @@ describe("parseAuthClaims", () => {
     expect(parseAuthClaims(makeJwt({})).role).toBeNull();
   });
 
+  it("recognizes the group-manager service-account role (#506)", () => {
+    expect(parseAuthClaims(makeJwt({ building_os_role: "group-manager" })).role).toBe("group-manager");
+  });
+
   it("wraps a single permission string into an array", () => {
     expect(parseAuthClaims(makeJwt({ permissions: "building:*:read" })).permissions).toEqual([
       "building:*:read",

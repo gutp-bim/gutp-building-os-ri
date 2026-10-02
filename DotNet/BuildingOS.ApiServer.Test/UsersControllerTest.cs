@@ -95,7 +95,7 @@ public class UsersControllerTest
         var result = controller.GetRoles();
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var roles = Assert.IsAssignableFrom<IReadOnlyList<RoleCatalogEntry>>(ok.Value);
-        Assert.Equal(3, roles.Count);
+        Assert.Equal(3, roles.Count); // group-manager (#506) is a client-credentials role, not assignable
     }
 
     // ── Lockout guard ──────────────────────────────────────────────────────────

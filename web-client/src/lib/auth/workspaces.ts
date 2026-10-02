@@ -33,6 +33,8 @@ const ROLE_WORKSPACES: Record<BuildingOsRole, Workspace[]> = {
   viewer: ["operator"],
   operator: ["operator"],
   admin: ["operator", "admin", "platform"],
+  // #506: an application's service account that keeps Groups in sync — API only, no workspace.
+  "group-manager": [],
 };
 
 /** Workspaces visible to the given role, in display order. Empty when role is unknown. */

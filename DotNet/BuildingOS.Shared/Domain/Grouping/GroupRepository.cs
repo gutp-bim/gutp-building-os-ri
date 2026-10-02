@@ -46,6 +46,16 @@ public class GroupRepository : IGroupRepository
             .ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<ResourceGroup>> GetByCreatorAsync(string createdBy, CancellationToken ct = default)
+    {
+        return await _context.ResourceGroups
+            .AsNoTracking()
+            .Where(g => g.CreatedBy == createdBy)
+            .OrderBy(g => g.Name)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+    }
+
     public async Task<ResourceGroup> CreateAsync(ResourceGroup group, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
@@ -113,7 +123,18 @@ public class GroupRepository : IGroupRepository
         };
 
         _context.GroupResourceItems.Add(item);
-        await _context.SaveChangesAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _context.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Do not leave the rejected item tracked as Added: the request-scoped context is shared
+            // (with later items of a bulk add, and with the admin audit), and every later SaveChanges
+            // would try to insert it again and fail the same way (#506).
+            _context.Entry(item).State = EntityState.Detached;
+            throw;
+        }
 
         _logger.LogInformation(
             "Added resource item {ResourceType}:{ResourceId} to group {GroupId}",

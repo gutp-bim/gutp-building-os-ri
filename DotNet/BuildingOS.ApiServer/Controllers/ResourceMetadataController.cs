@@ -28,10 +28,19 @@ public class ResourceMetadataController(
 {
     // ── GET ──────────────────────────────────────────────────────────────────
 
+    // #506: a group-manager reads twin nodes through the structural bypass, names and ids only.
+    // Identifiers and tags are not structure, so it is refused here rather than answered an empty 200.
+    private bool IsStructureOnly()
+    {
+        var auth = HttpContext.GetAuthorizationContext();
+        return auth.IsStructureOnly;
+    }
+
     [HttpGet(ApiRoutes.V1 + "/buildings/{buildingDtId}/metadata")]
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetBuilding(string buildingDtId, CancellationToken ct)
     {
+        if (IsStructureOnly()) return Forbid();
         var r = await twinView.GetBuildingAsync(HttpContext.GetAuthorizationContext(), Uri.UnescapeDataString(buildingDtId), ct).ConfigureAwait(false);
         return r switch
         {
@@ -45,6 +54,7 @@ public class ResourceMetadataController(
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetFloor(string floorDtId, CancellationToken ct)
     {
+        if (IsStructureOnly()) return Forbid();
         var r = await twinView.GetFloorAsync(HttpContext.GetAuthorizationContext(), Uri.UnescapeDataString(floorDtId), ct).ConfigureAwait(false);
         return r switch
         {
@@ -58,6 +68,7 @@ public class ResourceMetadataController(
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetSpace(string spaceDtId, CancellationToken ct)
     {
+        if (IsStructureOnly()) return Forbid();
         var r = await twinView.GetSpaceAsync(HttpContext.GetAuthorizationContext(), Uri.UnescapeDataString(spaceDtId), ct).ConfigureAwait(false);
         return r switch
         {
@@ -71,6 +82,7 @@ public class ResourceMetadataController(
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetDevice(string deviceDtId, CancellationToken ct)
     {
+        if (IsStructureOnly()) return Forbid();
         var r = await twinView.GetDeviceAsync(HttpContext.GetAuthorizationContext(), Uri.UnescapeDataString(deviceDtId), ct).ConfigureAwait(false);
         return r switch
         {
@@ -84,6 +96,7 @@ public class ResourceMetadataController(
     [ProducesResponseType(typeof(ResourceMetadataResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ResourceMetadataResponse>> GetPointMetadata(string pointId, CancellationToken ct)
     {
+        if (IsStructureOnly()) return Forbid();
         var r = await twinView.GetPointAsync(HttpContext.GetAuthorizationContext(), Uri.UnescapeDataString(pointId), ct).ConfigureAwait(false);
         return r switch
         {

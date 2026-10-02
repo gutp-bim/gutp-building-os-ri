@@ -16,6 +16,16 @@ public class AuthorizationContextMiddleware
     public const string HttpContextKey = "AuthorizationContext";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> WarnedAppRoles = new();
+
+    // Claim values come from the token; strip control characters so they cannot forge log lines.
+    private static readonly System.Text.RegularExpressions.Regex ControlChars =
+        new(@"\p{C}", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static string ForLog(string value) => ControlChars.Replace(value, "_");
+
+    private static bool IsAppToken(IEnumerable<System.Security.Claims.Claim> claims)
+        => claims.Any(c => c.Type == "idtyp" && c.Value == "app");
+
     private readonly RequestDelegate _next;
     private readonly ILogger<AuthorizationContextMiddleware> _logger;
 
@@ -30,6 +40,10 @@ public class AuthorizationContextMiddleware
         if (context.User.Identity?.IsAuthenticated == true)
         {
             var authContext = await ResolveAuthorizationContextAsync(context, cache).ConfigureAwait(false);
+            // #506: group-manager is a client-credentials role. A user resolved to it (e.g. through the
+            // Admin-API fallback) gets nothing, exactly as a user token carrying it does.
+            if (authContext.IsGroupManager && !AuthorizationClaimResolver.IsServiceAccountToken(context.User.Claims.ToList()))
+                authContext = authContext with { Role = AuthorizationClaimResolver.NoRole, Permissions = Array.Empty<string>() };
             context.Items[HttpContextKey] = authContext;
         }
 
@@ -50,6 +64,27 @@ public class AuthorizationContextMiddleware
         var fromClaims = AuthorizationClaimResolver.TryResolve(claims);
         if (fromClaims != null)
         {
+            // #506: an app token is downgraded only by exactly building_os_role=group-manager. Any other
+            // role claim on it is ignored and the client stays admin — almost certainly a misconfigured
+            // group-manager (wrong case, stray space), so say so instead of failing open silently.
+            // Once per client and value: app tokens resolve on every request, uncached.
+            var appRole = claims.FirstOrDefault(c => c.Type == AuthorizationClaimResolver.RoleClaim)?.Value
+                          ?? claims.FirstOrDefault(c => c.Type == AuthorizationClaimResolver.LegacyRoleClaim)?.Value;
+            if (fromClaims.IsAdmin && IsAppToken(claims)
+                && !string.IsNullOrEmpty(appRole) && appRole != "admin"
+                && WarnedAppRoles.TryAdd($"{fromClaims.UserId}\n{appRole}", 0))
+            {
+                _logger.LogWarning(
+                    "Client-credentials token for {UserId} carries building_os_role {Role}, which only " +
+                    "'group-manager' (exact) changes; the client is treated as admin", ForLog(fromClaims.UserId), ForLog(appRole));
+            }
+            if (!fromClaims.IsAdmin && !fromClaims.IsGroupManager && IsAppToken(claims) && userId is null
+                && WarnedAppRoles.TryAdd("\nno-subject", 0))
+            {
+                _logger.LogWarning(
+                    "A client-credentials token carries building_os_role group-manager but no subject (sub); " +
+                    "Group ownership needs one, so the client gets no access. Add the 'basic' client scope");
+            }
             return fromClaims;
         }
 

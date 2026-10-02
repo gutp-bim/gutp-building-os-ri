@@ -41,7 +41,7 @@ public class PointController(
     public async Task<ActionResult<Point[]>> List([FromQuery] string? deviceDtId, CancellationToken ct)
     {
         var auth = HttpContext.GetAuthorizationContext();
-        if (string.IsNullOrEmpty(deviceDtId) && !auth.IsAdmin) return Forbid();
+        if (string.IsNullOrEmpty(deviceDtId) && !auth.ReadsWholeTwinStructure) return Forbid();
         return await twinView.ListPointsAsync(auth, deviceDtId, ct);
     }
 
@@ -229,6 +229,11 @@ public class PointController(
 
         var auth = HttpContext.GetAuthorizationContext();
         var decodedPointId = Uri.UnescapeDataString(pointId);
+
+        // A group-manager reads twin structure, never values, and control history is a value (#506).
+        // Refused here explicitly rather than left to whatever GetPointAsync decides for that role.
+        if (auth.IsStructureOnly)
+            return Forbid();
 
         // Read-authorization: the history reveals control activity on the point, so gate it on read
         // access to the point itself — the same check as GET /api/v1/points/{id} (admin bypasses via twinView).

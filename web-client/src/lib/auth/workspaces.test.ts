@@ -37,4 +37,8 @@ describe("canAccessWorkspace", () => {
     expect(canAccessWorkspace("viewer", "platform")).toBe(false);
     expect(canAccessWorkspace("operator", "admin")).toBe(false);
   });
+  it("gives the group-manager service-account role (#506) no workspace", () => {
+    expect(workspacesForRole("group-manager")).toEqual([]);
+    expect(defaultWorkspace("group-manager")).toBeNull();
+  });
 });
