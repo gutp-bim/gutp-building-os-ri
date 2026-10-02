@@ -20,6 +20,13 @@ export const GLOSSARY: GlossaryTerm[] = [
     category: "ontology",
   },
   {
+    term: "カスタムタグ",
+    reading: "かすたむたぐ",
+    definition:
+      "リソースに運用者が付ける横断的なラベル（sbco:customTags）。重要設備・テナント・省エネ対象など運用上の切り口に使い、検索ではタグを複数指定すると AND で絞り込みます。フロア・機器種別・単位・Gateway のように Twin が構造として持つ情報はタグに入れません（二重管理になり食い違うため）。名前は小文字・ハイフン区切りで、1 タグ 1 概念にします。",
+    category: "ontology",
+  },
+  {
     term: "メッセージレート",
     definition:
       "コネクターが直近1分間に処理したテレメトリ件数の合計（毎秒）。データ取り込みの活性度を表します。",
