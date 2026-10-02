@@ -13,7 +13,7 @@ test.skip(
   "captures from a live make demo stack; set E2E_CAPTURE_WALKTHROUGH=1",
 );
 test.use({ viewport: { width: 1280, height: 860 } });
-test.setTimeout(120_000);
+test.setTimeout(420_000); // a fresh stack needs ~3 min before the evaluator raises its first events
 
 const SHOTS = "../docs/screenshots";
 
