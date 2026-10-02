@@ -139,6 +139,11 @@ export type EffectiveConfig = {
   entries?: ConfigEntry[] | undefined;
 }
 
+export type FacetValueCount = {
+  value: string;
+  count?: number | undefined;
+}
+
 export type Floor = {
   dtId: string;
   id: string;
@@ -565,6 +570,16 @@ export type ProblemDetails = {
   status?: number | null | undefined;
   detail?: string | null | undefined;
   instance?: string | null | undefined;
+}
+
+export type ResourceFacets = {
+  total?: number | undefined;
+  truncated?: boolean | undefined;
+  types: FacetValueCount[];
+  deviceTypes: FacetValueCount[];
+  pointTypes: FacetValueCount[];
+  units: FacetValueCount[];
+  gateways: FacetValueCount[];
 }
 
 export type ResourceMetadataPatchRequest = {

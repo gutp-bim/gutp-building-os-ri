@@ -1922,6 +1922,34 @@ paths:
             type: integer
             format: int32
             default: 0
+        - name: deviceType
+          in: query
+          description: sbco:deviceType で絞り込み（機器、または機器に属するポイント）。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: pointType
+          in: query
+          description: sbco:pointType で絞り込み（ポイント）。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: unit
+          in: query
+          description: sbco:unit で絞り込み（ポイント）。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: gatewayId
+          in: query
+          description: sbco:gatewayId で絞り込み（ポイント）。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
       responses:
         '401':
           description: Unauthorized
@@ -1949,6 +1977,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/resources/facets:
+    get:
+      tags:
+        - ResourceSearch
+      summary: "検索結果に対する facet 集計（種別 / 機器種別 / 計測種別 / 単位 / Gateway ごとの件数）。\n`search` と同じ絞り込み条件を受け取り、呼び出し元が閲覧できるリソースだけを数える。\n件数は「現在の結果」に対するもの（選択済みの facet を含む）。group-manager には空。"
+      parameters:
+        - name: q
+          in: query
+          description: 検索語（名前・ID の部分一致）
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: リソース種別で絞り込み
+          schema:
+            type: string
+        - name: buildingId
+          in: query
+          description: 建物 dtId でスコープ
+          schema:
+            type: string
+        - name: tag
+          in: query
+          description: customTags のキー。複数指定は AND
+          schema:
+            type: array
+            items:
+              type: string
+        - name: deviceType
+          in: query
+          description: sbco:deviceType。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: pointType
+          in: query
+          description: sbco:pointType。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: unit
+          in: query
+          description: sbco:unit。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: gatewayId
+          in: query
+          description: sbco:gatewayId。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceFacets'
   /api/v1/resources/tags:
     get:
       tags:
@@ -3984,6 +4087,18 @@ components:
           items:
             $ref: '#/components/schemas/ConfigEntry'
       additionalProperties: false
+    FacetValueCount:
+      required:
+        - value
+      type: object
+      properties:
+        value:
+          minLength: 1
+          type: string
+        count:
+          type: integer
+          format: int32
+      additionalProperties: false
     Floor:
       required:
         - dtId
@@ -4774,6 +4889,41 @@ components:
           type: string
           nullable: true
       additionalProperties: { }
+    ResourceFacets:
+      required:
+        - deviceTypes
+        - gateways
+        - pointTypes
+        - types
+        - units
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int32
+        truncated:
+          type: boolean
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValueCount'
+        deviceTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValueCount'
+        pointTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValueCount'
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValueCount'
+        gateways:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValueCount'
+      additionalProperties: false
     ResourceMetadataPatchRequest:
       type: object
       properties:

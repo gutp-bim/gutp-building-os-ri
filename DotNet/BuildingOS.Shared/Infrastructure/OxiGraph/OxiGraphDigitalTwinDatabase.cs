@@ -631,6 +631,44 @@ ORDER BY ?gw";
         }).ToArray();
     }
 
+    public async Task<ResourceSearchHit[]> SearchResourcesFiltered(
+        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
+        ResourceAttributeFilter attrs, int limit, int offset, CancellationToken ct = default)
+    {
+        if (!string.IsNullOrEmpty(buildingDtId) && !IsUsableDtId(buildingDtId)) return [];
+
+        var sparql = ResourceSearchQueryBuilder.Build(q, type, buildingDtId, tags, limit, offset, attrs);
+        var rows = await _client.QueryAsync(sparql, ct).ConfigureAwait(false);
+        return rows.Select(r => new ResourceSearchHit
+        {
+            Type = r.GetValueOrDefault("type", ""),
+            DtId = r.GetValueOrDefault("dt", ""),
+            Id = r.GetValueOrDefault("id", ""),
+            Name = r.GetValueOrDefault("name", ""),
+            BuildingDtId = string.IsNullOrEmpty(buildingDtId) ? null : buildingDtId,
+        }).ToArray();
+    }
+
+    public async Task<ResourceFacetRow[]> ListFacetRows(
+        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
+        ResourceAttributeFilter attrs, int rowCap, CancellationToken ct = default)
+    {
+        if (!string.IsNullOrEmpty(buildingDtId) && !IsUsableDtId(buildingDtId)) return [];
+
+        var sparql = ResourceSearchQueryBuilder.BuildFacetRows(q, type, buildingDtId, tags, attrs, rowCap);
+        var rows = await _client.QueryAsync(sparql, ct).ConfigureAwait(false);
+        return rows.Select(r => new ResourceFacetRow
+        {
+            Type = r.GetValueOrDefault("type", ""),
+            DtId = r.GetValueOrDefault("dt", ""),
+            Id = r.GetValueOrDefault("id", ""),
+            DeviceType = r.GetValueOrDefault("deviceType"),
+            PointType = r.GetValueOrDefault("pointType"),
+            Unit = r.GetValueOrDefault("unit"),
+            GatewayId = r.GetValueOrDefault("gatewayId"),
+        }).ToArray();
+    }
+
     public async Task<ResourceTagUsage[]> ListTagUsage(string? prefix, CancellationToken ct = default)
     {
         var rows = await _client.QueryAsync(ResourceSearchQueryBuilder.BuildTagUsage(prefix), ct).ConfigureAwait(false);

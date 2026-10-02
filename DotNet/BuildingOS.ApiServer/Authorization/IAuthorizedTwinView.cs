@@ -75,6 +75,22 @@ public interface IAuthorizedTwinView
         IReadOnlyList<string> tags, int limit, int offset, CancellationToken ct);
 
     /// <summary>
+    /// <see cref="SearchAsync"/> narrowed by structured attributes (deviceType / pointType / unit / gatewayId).
+    /// Empty for a group-manager: attributes are not navigation, and a filter on them would be an oracle.
+    /// </summary>
+    Task<ResourceSearchHit[]> SearchFilteredAsync(
+        AuthorizationContext auth, string? q, string? type, string? buildingDtId,
+        IReadOnlyList<string> tags, ResourceAttributeFilter attrs, int limit, int offset, CancellationToken ct);
+
+    /// <summary>
+    /// Facet counts (type / deviceType / pointType / unit / gateway) over the resources the same search matches,
+    /// counting only what the caller can read. Empty for a group-manager.
+    /// </summary>
+    Task<ResourceFacets> GetFacetsAsync(
+        AuthorizationContext auth, string? q, string? type, string? buildingDtId,
+        IReadOnlyList<string> tags, ResourceAttributeFilter attrs, CancellationToken ct);
+
+    /// <summary>
     /// customTags keys (true-valued) that start with <paramref name="prefix"/>, each with the number of
     /// resources the caller can read that carry it. Empty for a group-manager (tags are hidden from it).
     /// </summary>

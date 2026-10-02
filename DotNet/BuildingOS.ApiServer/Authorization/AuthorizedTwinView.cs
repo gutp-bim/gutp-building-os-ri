@@ -440,6 +440,63 @@ public sealed class AuthorizedTwinView(
         return filtered.ToArray();
     }
 
+    public async Task<ResourceSearchHit[]> SearchFilteredAsync(
+        AuthorizationContext auth, string? q, string? type, string? buildingDtId,
+        IReadOnlyList<string> tags, ResourceAttributeFilter attrs, int limit, int offset, CancellationToken ct)
+    {
+        // Same guards as SearchAsync: the scope is interpolated into an IRI, and attributes are hidden
+        // from a group-manager (#506), so filtering on them must not answer for it.
+        if (IsUnusableScopeId(buildingDtId)) return [];
+        if (auth.IsStructureOnly && (tags.Count > 0 || !attrs.IsEmpty)) return [];
+
+        var hits = await db.SearchResourcesFiltered(q, type, buildingDtId, tags, attrs, limit, offset, ct).ConfigureAwait(false);
+        return await FilterReadableAsync(auth, hits, buildingDtId, h => h, ct).ConfigureAwait(false);
+    }
+
+    // ── Facets ────────────────────────────────────────────────────────────────
+
+    // Rows scanned per facet request. Counts are exact up to this; past it the answer is marked
+    // `truncated` (a lower bound) instead of silently undercounting.
+    internal const int FacetRowCap = 50_000;
+
+    public async Task<ResourceFacets> GetFacetsAsync(
+        AuthorizationContext auth, string? q, string? type, string? buildingDtId,
+        IReadOnlyList<string> tags, ResourceAttributeFilter attrs, CancellationToken ct)
+    {
+        if (IsUnusableScopeId(buildingDtId)) return new ResourceFacets();
+        // Tags and attributes are hidden from a group-manager (#506); facets would enumerate them.
+        if (auth.IsStructureOnly) return new ResourceFacets();
+
+        var rows = await db.ListFacetRows(q, type, buildingDtId, tags, attrs, FacetRowCap, ct).ConfigureAwait(false);
+        var truncated = rows.Length > FacetRowCap;
+        var readable = await FilterReadableAsync(
+            auth, rows.Take(FacetRowCap).ToArray(), buildingDtId,
+            r => new ResourceSearchHit { Type = r.Type, DtId = r.DtId, Id = r.Id, Name = r.Id }, ct).ConfigureAwait(false);
+
+        // A resource can repeat when the twin joins fan out (several owners, several units): count it once.
+        var distinct = readable.GroupBy(r => r.DtId, StringComparer.Ordinal).Select(g => g.First()).ToArray();
+
+        FacetValueCount[] Count(Func<ResourceFacetRow, string?> pick) => readable
+            .Select(r => (Value: pick(r), r.DtId))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+            .Distinct()
+            .GroupBy(x => x.Value!, StringComparer.Ordinal)
+            .Select(g => new FacetValueCount { Value = g.Key, Count = g.Count() })
+            .OrderByDescending(v => v.Count).ThenBy(v => v.Value, StringComparer.Ordinal)
+            .ToArray();
+
+        return new ResourceFacets
+        {
+            Total = distinct.Length,
+            Truncated = truncated,
+            Types = Count(r => r.Type),
+            DeviceTypes = Count(r => r.DeviceType),
+            PointTypes = Count(r => r.PointType),
+            Units = Count(r => r.Unit),
+            Gateways = Count(r => r.GatewayId),
+        };
+    }
+
     // ── Tag suggestions ───────────────────────────────────────────────────────
 
     public async Task<ResourceTagCount[]> ListTagsAsync(

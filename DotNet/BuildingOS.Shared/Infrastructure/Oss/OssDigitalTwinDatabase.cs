@@ -103,6 +103,22 @@ public class OssDigitalTwinDatabase(ILogger<OssDigitalTwinDatabase> logger) : ID
         return Task.FromResult(Array.Empty<ResourceSearchHit>());
     }
 
+    public Task<ResourceSearchHit[]> SearchResourcesFiltered(
+        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
+        ResourceAttributeFilter attrs, int limit, int offset, CancellationToken ct = default)
+    {
+        logger.LogWarning("[OSS] OssDigitalTwinDatabase.SearchResourcesFiltered — no-op placeholder");
+        return Task.FromResult(Array.Empty<ResourceSearchHit>());
+    }
+
+    public Task<ResourceFacetRow[]> ListFacetRows(
+        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
+        ResourceAttributeFilter attrs, int rowCap, CancellationToken ct = default)
+    {
+        logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListFacetRows — no-op placeholder");
+        return Task.FromResult(Array.Empty<ResourceFacetRow>());
+    }
+
     public Task<ResourceTagUsage[]> ListTagUsage(string? prefix, CancellationToken ct = default)
     {
         logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListTagUsage — no-op placeholder");
