@@ -71,7 +71,9 @@ describe("fetchFacetsWithHealth (#454)", () => {
     const f = await fetchFacetsWithHealth({ type: "point", freshness: ["stale"] }, d);
 
     expect(d.fetchResourceFacets).not.toHaveBeenCalled();
-    expect(f.types).toEqual([{ value: "point", count: 10 }]);
+    // the Point count is the filtered total (the list's `total`), not the unfiltered summary's 10
+    expect(f.types).toEqual([{ value: "point", count: 1 }]);
+    expect(f.total).toBe(1);
     expect(f.deviceTypes).toEqual([]);
     expect(f.health?.freshness).toHaveLength(3);
   });

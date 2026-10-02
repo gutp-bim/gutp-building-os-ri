@@ -108,11 +108,16 @@ export async function fetchFacetsWithHealth(
     deps.fetchPointHealthSummary({ ...DEFAULT_HEALTH_QUERY, tags: params.tags ?? [], q: params.q });
 
   if (isHealthSearch(params)) {
-    const s = await summary();
+    // The summary is scoped by q/tags only (so the health counts stay disjunctive); the Point total has to
+    // honour the selected health conditions, which only the list's own total does.
+    const [s, page] = await Promise.all([
+      summary(),
+      deps.fetchPointHealth({ ...healthQuery(params), limit: 1 }),
+    ]);
     return {
       ...NO_FACETS,
-      total: s.totalPoints,
-      types: [{ value: "point", count: s.totalPoints }],
+      total: page.total,
+      types: [{ value: "point", count: page.total }],
       health: healthFacets(s),
     };
   }
