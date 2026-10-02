@@ -149,4 +149,13 @@ describe("ResourceFacetPanel health groups (#454)", () => {
     });
     expect(screen.getByLabelText("重大（1）")).toBeChecked();
   });
+
+  it("shows no counts for an axis while the other health axis is selected (they cannot be ANDed)", () => {
+    setup({ facets: withHealth, filters: { ...points, alarm: ["critical"] } });
+    // alarm keeps its own counts (its own selection is excluded from them)
+    expect(screen.getByLabelText("重大（1）")).toBeInTheDocument();
+    // freshness counts ignore the alarm selection, so they would over-promise: hidden
+    expect(screen.getByLabelText("鮮度切れ")).toBeInTheDocument();
+    expect(screen.queryByLabelText("鮮度切れ（2）")).not.toBeInTheDocument();
+  });
 });

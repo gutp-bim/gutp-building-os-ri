@@ -26,7 +26,7 @@ import type {
 } from "@/lib/resources/types";
 import Cookies from "js-cookie";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Resource explorer: left = incremental search + lazy-expand tree, right = selected-node detail.
@@ -89,8 +89,12 @@ export default function ResourcesPageComponent() {
     };
   }, [selected]);
 
+  // Bumped by every selection so a slow health-hit lookup cannot overwrite a newer choice.
+  const selectionSeq = useRef(0);
+
   const select = useCallback(
     (ref: ResourceRef) => {
+      selectionSeq.current += 1;
       setSelected(ref);
       const params = new URLSearchParams(searchParams.toString());
       params.set("sel", refKey(ref));
@@ -115,8 +119,9 @@ export default function ResourcesPageComponent() {
       // A health-routed hit has no digital-twin id (the health row does not carry one): resolve the real
       // node rather than showing the business id as if it were the twin's.
       if (!hit.dtId) {
+        const seq = ++selectionSeq.current;
         resolveRef(hit.type, hit.id).then((ref) => {
-          if (ref) select(ref);
+          if (ref && seq === selectionSeq.current) select(ref);
         });
         return;
       }

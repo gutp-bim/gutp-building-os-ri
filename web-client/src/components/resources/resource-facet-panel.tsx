@@ -144,8 +144,11 @@ function HealthGroups({
   filters: SearchFilters;
   onToggle: (group: FacetGroup, value: string) => void;
 }) {
-  // While the last-seen index is warming a "missing" count would be a guess, not a fact.
-  const shown = (n: number) => (health.dataComplete ? n : null);
+  // While the last-seen index is warming a "missing" count would be a guess, not a fact. And the
+  // summary behind the counts cannot be narrowed by the *other* health axis, so with one selected a
+  // count would promise rows the AND of the two axes does not return — show none rather than that.
+  const shown = (n: number, otherAxisSelected: boolean) =>
+    health.dataComplete && !otherAxisSelected ? n : null;
   return (
     <>
       <fieldset data-testid="facet-health-freshness">
@@ -155,7 +158,7 @@ function HealthGroups({
             <FacetRow
               key={v.value}
               label={FRESHNESS_LABEL[v.value] ?? v.value}
-              count={shown(v.count)}
+              count={shown(v.count, filters.alarm.length > 0)}
               checked={filters.freshness.some((f) => f === v.value)}
               onChange={() => onToggle("freshness", v.value)}
               testId={`facet-freshness-${v.value}`}
@@ -170,7 +173,7 @@ function HealthGroups({
             <FacetRow
               key={v.value}
               label={ALARM_LABEL[v.value] ?? v.value}
-              count={shown(v.count)}
+              count={shown(v.count, filters.freshness.length > 0)}
               checked={filters.alarm.some((a) => a === v.value)}
               onChange={() => onToggle("alarm", v.value)}
               testId={`facet-alarm-${v.value}`}

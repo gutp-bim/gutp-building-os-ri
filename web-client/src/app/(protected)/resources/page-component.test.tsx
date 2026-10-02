@@ -105,4 +105,22 @@ describe("ResourcesPageComponent picking a health-routed hit (#454)", () => {
     expect(resolveRef).not.toHaveBeenCalled();
     expect(replace.mock.calls.at(-1)?.[0]).toContain("sel=device%3Aurn%3Ad1");
   });
+
+  it("a slow lookup does not overwrite a newer selection", async () => {
+    currentSearch = "";
+    replace.mockClear();
+    let finishSlow: (r: unknown) => void = () => {};
+    resolveRef.mockReturnValueOnce(new Promise((res) => (finishSlow = res)));
+    render(<ResourcesPageComponent />);
+
+    boxProps?.onPick({ type: "point", dtId: "", id: "SLOW", name: "slow", buildingDtId: null });
+    boxProps?.onPick({ type: "device", dtId: "urn:d1", id: "D1", name: "AHU", buildingDtId: null });
+    finishSlow({ type: "point", dtId: "urn:slow", id: "SLOW", name: "slow" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const urls = replace.mock.calls.map((c) => c[0] as string);
+    expect(urls.some((u) => u.includes("SLOW"))).toBe(false);
+    expect(urls.at(-1)).toContain("sel=device");
+  });
 });
