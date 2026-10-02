@@ -71,9 +71,9 @@ describe("fetchFacetsWithHealth (#454)", () => {
     const f = await fetchFacetsWithHealth({ type: "point", freshness: ["stale"] }, d);
 
     expect(d.fetchResourceFacets).not.toHaveBeenCalled();
-    // the Point count is the filtered total (the list's `total`), not the unfiltered summary's 10
-    expect(f.types).toEqual([{ value: "point", count: 1 }]);
-    expect(f.total).toBe(1);
+    // no Point total: the summary cannot honour the selected health conditions (the panel hides the count)
+    expect(f.types).toEqual([{ value: "point", count: 0 }]);
+    expect(d.fetchPointHealth).not.toHaveBeenCalled(); // one ledger scan, not three
     expect(f.deviceTypes).toEqual([]);
     expect(f.health?.freshness).toHaveLength(3);
   });

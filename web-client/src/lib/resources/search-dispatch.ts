@@ -108,16 +108,13 @@ export async function fetchFacetsWithHealth(
     deps.fetchPointHealthSummary({ ...DEFAULT_HEALTH_QUERY, tags: params.tags ?? [], q: params.q });
 
   if (isHealthSearch(params)) {
-    // The summary is scoped by q/tags only (so the health counts stay disjunctive); the Point total has to
-    // honour the selected health conditions, which only the list's own total does.
-    const [s, page] = await Promise.all([
-      summary(),
-      deps.fetchPointHealth({ ...healthQuery(params), limit: 1 }),
-    ]);
+    // One summary call (each health endpoint classifies the whole authorized ledger). It is scoped by
+    // q/tags only, so it cannot give a Point total that honours the selected health conditions — the
+    // panel shows the Point row without a count in this mode instead of a wrong one.
+    const s = await summary();
     return {
       ...NO_FACETS,
-      total: page.total,
-      types: [{ value: "point", count: page.total }],
+      types: [{ value: "point", count: 0 }],
       health: healthFacets(s),
     };
   }

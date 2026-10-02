@@ -158,4 +158,13 @@ describe("ResourceFacetPanel health groups (#454)", () => {
     expect(screen.getByLabelText("鮮度切れ")).toBeInTheDocument();
     expect(screen.queryByLabelText("鮮度切れ（2）")).not.toBeInTheDocument();
   });
+
+  it("shows the Point row without a count while a health condition is selected", () => {
+    setup({
+      facets: { ...withHealth, types: [{ value: "point", count: 0 }] },
+      filters: { ...points, freshness: ["stale"] },
+    });
+    expect(screen.getByLabelText("ポイント")).toBeChecked();
+    expect(screen.queryByLabelText("ポイント（0）")).not.toBeInTheDocument();
+  });
 });

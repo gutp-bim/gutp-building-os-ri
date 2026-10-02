@@ -1,6 +1,6 @@
 "use client";
 
-import type { FacetGroup, SearchFilters } from "@/lib/resources/search-filters";
+import { usesHealth, type FacetGroup, type SearchFilters } from "@/lib/resources/search-filters";
 import type {
   FacetValue,
   HealthFacets,
@@ -84,6 +84,9 @@ export function ResourceFacetPanel({
   if (!facets) return null;
 
   const types = withSelected(facets.types, filters.type ? [filters.type] : []);
+  // In health mode the Point count would be the unfiltered total (the health summary cannot be narrowed
+  // by the selected conditions) — show the row without one rather than a number the list does not match.
+  const typeCount = (n: number) => (usesHealth(filters) ? null : n);
 
   return (
     <div className="mt-2 space-y-2 rounded border border-gray-200 p-2" data-testid="facet-panel">
@@ -95,7 +98,7 @@ export function ResourceFacetPanel({
               <FacetRow
                 key={t.value}
                 label={TYPE_LABEL[t.value as ResourceType] ?? t.value}
-                count={t.count}
+                count={typeCount(t.count)}
                 checked={filters.type === t.value}
                 onChange={() => onSelectType(filters.type === t.value ? "" : (t.value as ResourceType))}
                 testId={`facet-type-${t.value}`}
