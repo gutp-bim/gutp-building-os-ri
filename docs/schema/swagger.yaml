@@ -886,6 +886,122 @@ paths:
             text/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/health/events:
+    get:
+      tags:
+        - HealthEvents
+      summary: ヘルスイベントの一覧（新しい順）。
+      parameters:
+        - name: lifecycle
+          in: query
+          description: open（未解消）| cleared（解消済み）。省略時は両方
+          schema:
+            type: string
+        - name: ack
+          in: query
+          description: acked（確認済み）| unacked（未確認）。省略時は両方。lifecycle とは独立
+          schema:
+            type: string
+        - name: kind
+          in: query
+          description: stale | missing | alarm | gateway_offline。複数指定は OR
+          schema:
+            type: array
+            items:
+              type: string
+        - name: subjectType
+          in: query
+          description: point | gateway
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          description: pointId / gatewayId（完全一致）
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: この時刻（ISO-8601）以降に発生したものだけ
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: 最大件数（1..500、既定 100）
+          schema:
+            type: integer
+            format: int32
+            default: 100
+        - name: offset
+          in: query
+          description: オフセット（既定 0）
+          schema:
+            type: integer
+            format: int32
+            default: 0
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthEventListResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  '/api/v1/health/events/{id}/ack':
+    post:
+      tags:
+        - HealthEvents
+      summary: "イベントを確認済みにする（冪等）。**最初に確認した人が記録に残り**、2 回目以降は現状をそのまま返す。\n解消済みのイベントにも確認応答できる（「見た」の記録）。viewer は不可。"
+      parameters:
+        - name: id
+          in: path
+          description: イベント ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthEventResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   /api/v1/my-resources/accessible:
     get:
       tags:
@@ -4317,6 +4433,76 @@ components:
           type: string
           nullable: true
       additionalProperties: false
+    HealthEventListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthEventResponse'
+        total:
+          type: integer
+          format: int32
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+      additionalProperties: false
+      description: ヘルスイベント一覧の応答。`Total` はページング前の該当件数。
+    HealthEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: イベント ID
+          format: uuid
+        subjectType:
+          type: string
+          description: point | gateway
+        subjectId:
+          type: string
+          description: pointId または gatewayId
+        subjectName:
+          type: string
+          description: Point の名前（Gateway は ID と同じ。台帳から引けなければ null）
+          nullable: true
+        buildingName:
+          type: string
+          description: 所属建物の名前（引けなければ null）
+          nullable: true
+        kind:
+          type: string
+          description: stale | missing | alarm | gateway_offline
+        severity:
+          type: string
+          description: warn | critical
+        raisedAt:
+          type: string
+          description: 発生時刻（UTC）
+          format: date-time
+        clearedAt:
+          type: string
+          description: 解消時刻（UTC）。null の間は open
+          format: date-time
+          nullable: true
+        isOpen:
+          type: boolean
+          description: 未解消か
+        acknowledgedAt:
+          type: string
+          description: 確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる
+          format: date-time
+          nullable: true
+        acknowledgedBy:
+          type: string
+          description: 確認した人の表示名（無ければ sub）
+          nullable: true
+        detail:
+          description: 発生時のスナップショット（閾値・値・欠測理由・経過秒など）
+      additionalProperties: false
+      description: ヘルスイベント 1 件（#455）。lifecycle（`ClearedAt`）と確認応答（`AcknowledgedAt`）は独立した軸。
     HealthStatus:
       enum:
         - Critical
@@ -5434,6 +5620,7 @@ tags:
   - name: GatewayProvisioning
   - name: Gateways
   - name: Groups
+  - name: HealthEvents
   - name: MyResources
   - name: OidcClients
   - name: Operations

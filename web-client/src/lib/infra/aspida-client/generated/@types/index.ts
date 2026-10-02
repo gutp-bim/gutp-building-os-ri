@@ -268,6 +268,42 @@ export type GroupsControllerUpdateGroupRequest = {
   description?: string | null | undefined;
 }
 
+/** ヘルスイベント一覧の応答。`Total` はページング前の該当件数。 */
+export type HealthEventListResponse = {
+  items?: HealthEventResponse[] | undefined;
+  total?: number | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+/** ヘルスイベント 1 件（#455）。lifecycle（`ClearedAt`）と確認応答（`AcknowledgedAt`）は独立した軸。 */
+export type HealthEventResponse = {
+  /** イベント ID */
+  id?: string | undefined;
+  /** point | gateway */
+  subjectType?: string | undefined;
+  /** pointId または gatewayId */
+  subjectId?: string | undefined;
+  /** Point の名前（Gateway は ID と同じ。台帳から引けなければ null） */
+  subjectName?: string | null | undefined;
+  /** 所属建物の名前（引けなければ null） */
+  buildingName?: string | null | undefined;
+  /** stale | missing | alarm | gateway_offline */
+  kind?: string | undefined;
+  /** warn | critical */
+  severity?: string | undefined;
+  /** 発生時刻（UTC） */
+  raisedAt?: string | undefined;
+  /** 解消時刻（UTC）。null の間は open */
+  clearedAt?: string | null | undefined;
+  /** 未解消か */
+  isOpen?: boolean | undefined;
+  /** 確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる */
+  acknowledgedAt?: string | null | undefined;
+  /** 確認した人の表示名（無ければ sub） */
+  acknowledgedBy?: string | null | undefined;
+}
+
 export type HealthStatus = 'Critical' | 'Warn' | 'Missing' | 'Stale' | 'Unknown' | 'Fresh'
 
 export type IngressRejectionCount = {
