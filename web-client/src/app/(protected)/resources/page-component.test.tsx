@@ -123,4 +123,23 @@ describe("ResourcesPageComponent picking a health-routed hit (#454)", () => {
     expect(urls.some((u) => u.includes("SLOW"))).toBe(false);
     expect(urls.at(-1)).toContain("sel=device");
   });
+
+  it("an external change of sel (Back/Forward) supersedes a lookup in flight", async () => {
+    currentSearch = "";
+    replace.mockClear();
+    let finishSlow: (r: unknown) => void = () => {};
+    resolveRef
+      .mockReturnValueOnce(new Promise((res) => (finishSlow = res)))
+      .mockResolvedValue(null);
+    const { rerender } = render(<ResourcesPageComponent />);
+
+    boxProps?.onPick({ type: "point", dtId: "", id: "SLOW", name: "slow", buildingDtId: null });
+    currentSearch = "sel=device%3Aurn%3Ad1"; // the URL moved on without us
+    rerender(<ResourcesPageComponent />);
+    finishSlow({ type: "point", dtId: "urn:slow", id: "SLOW", name: "slow" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(replace.mock.calls.map((c) => c[0] as string).some((u) => u.includes("SLOW"))).toBe(false);
+  });
 });

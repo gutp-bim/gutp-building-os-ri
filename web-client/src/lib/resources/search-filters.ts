@@ -123,8 +123,8 @@ export function filtersFromParams(params: URLSearchParams): SearchFilters {
     pointTypes: list(PARAM.pointTypes),
     units: list(PARAM.units),
     gatewayIds: list(PARAM.gatewayIds),
-    freshness: known(list(PARAM.freshness), HEALTH_FRESHNESS_VALUES),
-    alarm: known(list(PARAM.alarm), HEALTH_ALARM_VALUES),
+    freshness: known(commaList(params, PARAM.freshness), HEALTH_FRESHNESS_VALUES),
+    alarm: known(commaList(params, PARAM.alarm), HEALTH_ALARM_VALUES),
   };
   return usesHealth(filters) ? healthOnly(filters) : filters;
 }
@@ -136,6 +136,13 @@ export function filtersFromParams(params: URLSearchParams): SearchFilters {
  */
 function healthOnly(f: SearchFilters): SearchFilters {
   return { ...f, type: "point", deviceTypes: [], pointTypes: [], units: [], gatewayIds: [] };
+}
+
+// The /health screen writes a multi-select as `freshness=stale,missing`; accept that as well as the
+// repeated form this screen writes, so a filtered view can be moved between the two. (Health values
+// never contain a comma, unlike tags.)
+function commaList(params: URLSearchParams, key: string): string[] {
+  return params.getAll(key).flatMap((v) => v.split(","));
 }
 
 // Health values are matched case-insensitively (a hand-written `?freshness=Stale` still works) and an

@@ -130,4 +130,10 @@ describe("health vs attribute routing (#454)", () => {
       type: "point", freshness: ["stale"], deviceTypes: [], units: [], tags: ["hvac"], q: "x",
     });
   });
+
+  it("reads the comma-separated form the /health screen writes", () => {
+    const f = filtersFromParams(new URLSearchParams("freshness=stale,missing&alarm=warn%2Ccritical"));
+    expect(f.freshness).toEqual(["stale", "missing"]);
+    expect(f.alarm).toEqual(["warn", "critical"]);
+  });
 });

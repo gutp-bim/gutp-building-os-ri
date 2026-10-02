@@ -49,8 +49,13 @@ export default function ResourcesPageComponent() {
   const isAdmin =
     parseAuthClaims(Cookies.get(OIDC_TOKEN_COOKIE) ?? null).role === "admin";
 
+  // Bumped by every selection so a slow health-hit lookup cannot overwrite a newer choice.
+  const selectionSeq = useRef(0);
+
   // Hydrate the right pane from the URL on first load / when sel changes externally.
   useEffect(() => {
+    // An external change of `sel` (Back/Forward, a link) supersedes any health-hit lookup in flight.
+    selectionSeq.current += 1;
     if (!sel) {
       setSelected(null);
       setMetadata(undefined);
@@ -88,9 +93,6 @@ export default function ResourcesPageComponent() {
       active = false;
     };
   }, [selected]);
-
-  // Bumped by every selection so a slow health-hit lookup cannot overwrite a newer choice.
-  const selectionSeq = useRef(0);
 
   const select = useCallback(
     (ref: ResourceRef) => {
