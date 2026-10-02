@@ -221,7 +221,7 @@ public class ResourceSearchQueryBuilderTest
     [Fact]
     public void BuildTagUsage_SelectsTrueTagsOfEveryType_FilteredByCaseInsensitivePrefix()
     {
-        var sparql = ResourceSearchQueryBuilder.BuildTagUsage("Tem", 1000);
+        var sparql = ResourceSearchQueryBuilder.BuildTagUsage("Tem");
 
         foreach (var cls in new[] { Building, Level, Room, Equipment, Point })
             Assert.Contains($"<{cls}>", sparql);
@@ -229,20 +229,20 @@ public class ResourceSearchQueryBuilderTest
         Assert.Contains($"<{Key}> ?tagKey", sparql);
         Assert.Contains("\"true\"^^xsd:boolean", sparql);
         Assert.Contains("STRSTARTS(LCASE(?tagKey), LCASE(\"Tem\"))", sparql);
-        Assert.Contains("LIMIT 1000", sparql);
+        Assert.DoesNotContain("LIMIT", sparql); // authorization runs after the query; a cap would understate counts
     }
 
     [Fact]
     public void BuildTagUsage_BlankPrefix_HasNoPrefixFilter()
     {
-        Assert.DoesNotContain("STRSTARTS", ResourceSearchQueryBuilder.BuildTagUsage("  ", 10));
-        Assert.DoesNotContain("STRSTARTS", ResourceSearchQueryBuilder.BuildTagUsage(null, 10));
+        Assert.DoesNotContain("STRSTARTS", ResourceSearchQueryBuilder.BuildTagUsage("  "));
+        Assert.DoesNotContain("STRSTARTS", ResourceSearchQueryBuilder.BuildTagUsage(null));
     }
 
     [Fact]
     public void BuildTagUsage_EscapesPrefix_SoItCannotBreakOutOfTheLiteral()
     {
-        var sparql = ResourceSearchQueryBuilder.BuildTagUsage("a\"b\\c\nd", 10);
+        var sparql = ResourceSearchQueryBuilder.BuildTagUsage("a\"b\\c\nd");
 
         Assert.Contains("a\\\"b\\\\c\\nd", sparql);
         Assert.DoesNotContain("c\nd", sparql);

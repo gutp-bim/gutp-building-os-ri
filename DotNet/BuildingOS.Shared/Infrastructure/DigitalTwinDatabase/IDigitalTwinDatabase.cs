@@ -45,7 +45,7 @@ public interface IDigitalTwinDatabase
     /// <paramref name="prefix"/> (case-insensitive; null/blank = no prefix filter). Unauthorized: the
     /// caller filters by read access before counting, so a count never reveals a resource it cannot read.
     /// </summary>
-    public Task<ResourceTagUsage[]> ListTagUsage(string? prefix);
+    public Task<ResourceTagUsage[]> ListTagUsage(string? prefix, CancellationToken ct = default);
 
     /// <summary>
     /// All points owned by a gateway (sbco:gatewayId), with native addressing / unit / writability /

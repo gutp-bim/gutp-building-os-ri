@@ -19,7 +19,7 @@ public class AuthorizedTwinViewTagsTest
         params ResourceTagUsage[] usage)
     {
         var db = new Mock<IDigitalTwinDatabase>();
-        db.Setup(d => d.ListTagUsage(It.IsAny<string?>())).ReturnsAsync(usage);
+        db.Setup(d => d.ListTagUsage(It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(usage);
         var authSvc = new Mock<IAuthorizationService>();
         authSvc.Setup(s => s.GetAccessibleResourceIdsAsync(
                 It.IsAny<AuthorizationContext>(), It.IsAny<string>(), "read", It.IsAny<CancellationToken>()))
@@ -74,7 +74,7 @@ public class AuthorizedTwinViewTagsTest
         var tags = await view.ListTagsAsync(GroupManager(), "", 20, default);
 
         Assert.Empty(tags);
-        db.Verify(d => d.ListTagUsage(It.IsAny<string?>()), Times.Never);
+        db.Verify(d => d.ListTagUsage(It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

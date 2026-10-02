@@ -448,7 +448,7 @@ public sealed class AuthorizedTwinView(
         // #506: tags are hidden from a group-manager, so they must not be enumerable here either.
         if (auth.IsStructureOnly) return [];
 
-        var usage = await db.ListTagUsage(prefix).ConfigureAwait(false);
+        var usage = await db.ListTagUsage(prefix, ct).ConfigureAwait(false);
         var readable = await FilterReadableAsync(
             auth, usage, null,
             u => new ResourceSearchHit { Type = u.Type, DtId = u.DtId, Id = u.Id, Name = u.Id }, ct).ConfigureAwait(false);

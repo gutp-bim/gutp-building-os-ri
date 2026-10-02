@@ -631,13 +631,9 @@ ORDER BY ?gw";
         }).ToArray();
     }
 
-    // Upper bound on (resource, tag) rows scanned per suggestion request, so a twin with a very large
-    // tagged inventory cannot turn an autocomplete keystroke into an unbounded query.
-    private const int TagUsageRowCap = 100_000;
-
-    public async Task<ResourceTagUsage[]> ListTagUsage(string? prefix)
+    public async Task<ResourceTagUsage[]> ListTagUsage(string? prefix, CancellationToken ct = default)
     {
-        var rows = await _client.QueryAsync(ResourceSearchQueryBuilder.BuildTagUsage(prefix, TagUsageRowCap));
+        var rows = await _client.QueryAsync(ResourceSearchQueryBuilder.BuildTagUsage(prefix), ct).ConfigureAwait(false);
         return rows.Select(r => new ResourceTagUsage
         {
             Type = r.GetValueOrDefault("type", ""),

@@ -74,9 +74,11 @@ internal static class ResourceSearchQueryBuilder
     /// <summary>
     /// (resource, tag) pairs for the tag suggestion endpoint: every resource type's customTags entries
     /// whose value is true, optionally narrowed to keys starting with <paramref name="prefix"/>. Rows are
-    /// unauthorized and may repeat a pair (the caller de-duplicates); <paramref name="rowCap"/> bounds the scan.
+    /// unauthorized and may repeat a pair (the caller de-duplicates). Deliberately not row-capped: authorization
+    /// runs per resource after this query, so truncating here would drop arbitrary pairs and understate counts
+    /// (the result is bounded by the tagged inventory, and a prefix narrows it further).
     /// </summary>
-    internal static string BuildTagUsage(string? prefix, int rowCap)
+    internal static string BuildTagUsage(string? prefix)
     {
         var sb = new StringBuilder();
         sb.Append(Prefixes);
@@ -89,8 +91,7 @@ internal static class ResourceSearchQueryBuilder
             $"            <{Prop_Value}> \"true\"^^xsd:boolean .\n");
         if (!string.IsNullOrWhiteSpace(prefix))
             sb.Append($"  FILTER(STRSTARTS(LCASE(?tagKey), LCASE(\"{EscapeStringLiteral(prefix!)}\")))\n");
-        sb.Append("}\n");
-        sb.Append($"LIMIT {rowCap}");
+        sb.Append('}');
         return sb.ToString();
     }
 

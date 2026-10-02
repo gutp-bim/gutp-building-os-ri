@@ -103,7 +103,7 @@ public class OssDigitalTwinDatabase(ILogger<OssDigitalTwinDatabase> logger) : ID
         return Task.FromResult(Array.Empty<ResourceSearchHit>());
     }
 
-    public Task<ResourceTagUsage[]> ListTagUsage(string? prefix)
+    public Task<ResourceTagUsage[]> ListTagUsage(string? prefix, CancellationToken ct = default)
     {
         logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListTagUsage — no-op placeholder");
         return Task.FromResult(Array.Empty<ResourceTagUsage>());
