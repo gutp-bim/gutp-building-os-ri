@@ -20,8 +20,8 @@ public class AuthorizedTwinViewFacetsTest
     {
         var db = new Mock<IDigitalTwinDatabase>();
         db.Setup(d => d.ListFacetRows(
-                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<ResourceAttributeFilter>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<int>(), It.IsAny<CancellationToken>()))
           .ReturnsAsync(rows);
         var authSvc = new Mock<IAuthorizationService>();
         authSvc.Setup(s => s.GetAccessibleResourceIdsAsync(
@@ -91,8 +91,8 @@ public class AuthorizedTwinViewFacetsTest
 
         Assert.Equal(0, f.Total);
         Assert.Empty(f.DeviceTypes);
-        db.Verify(d => d.ListFacetRows(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>>(), It.IsAny<ResourceAttributeFilter>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        db.Verify(d => d.ListFacetRows(It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -115,8 +115,53 @@ public class AuthorizedTwinViewFacetsTest
         var f = await view.GetFacetsAsync(AdminAuth(), null, null, "not an iri", [], ResourceAttributeFilter.None, default);
 
         Assert.Equal(0, f.Total);
-        db.Verify(d => d.ListFacetRows(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>>(), It.IsAny<ResourceAttributeFilter>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        db.Verify(d => d.ListFacetRows(It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Facets_AGroupsCounts_IgnoreItsOwnSelection_SoAlternativesStayVisible()
+    {
+        var (view, _, _) = Build(
+            Row("point", "P1", "AHU", "Temperature", "degC"),
+            Row("point", "P2", "AHU", "CO2", "ppm"),
+            Row("point", "P3", "VAV", "Temperature", "degC"));
+
+        var f = await view.GetFacetsAsync(
+            AdminAuth(), null, null, null, [], new ResourceAttributeFilter(["AHU"], [], [], []), default);
+
+        // deviceType counts ignore the deviceType selection: VAV is still offered next to the chosen AHU.
+        Assert.Equal([("AHU", 2), ("VAV", 1)], f.DeviceTypes.Select(v => (v.Value, v.Count)));
+        // Every other group (and the total) is narrowed by it: P3 (VAV) no longer counts.
+        Assert.Equal([("CO2", 1), ("Temperature", 1)], f.PointTypes.Select(v => (v.Value, v.Count)));
+        Assert.Equal(2, f.Total);
+    }
+
+    [Fact]
+    public async Task Facets_OtherGroupsSelections_NarrowAGroupsCounts_ANDAcrossGroups()
+    {
+        var (view, _, _) = Build(
+            Row("point", "P1", "AHU", "Temperature", "degC"),
+            Row("point", "P2", "AHU", "CO2", "ppm"),
+            Row("point", "P3", "VAV", "Temperature", "degC"));
+
+        var f = await view.GetFacetsAsync(
+            AdminAuth(), null, null, null, [], new ResourceAttributeFilter([], ["Temperature"], [], []), default);
+
+        Assert.Equal([("AHU", 1), ("VAV", 1)], f.DeviceTypes.Select(v => (v.Value, v.Count))); // CO2 point is out
+        Assert.Equal([("CO2", 1), ("Temperature", 2)], f.PointTypes.Select(v => (v.Value, v.Count)).OrderBy(v => v.Item1));
+    }
+
+    [Fact]
+    public async Task Facets_TypeFilter_IsAppliedHere_AndTheTypeGroupIgnoresItsOwnSelection()
+    {
+        var (view, _, _) = Build(Row("point", "P1", "AHU"), Row("device", "D1", "AHU"), Row("floor", "F1"));
+
+        var f = await view.GetFacetsAsync(AdminAuth(), null, "point", null, [], ResourceAttributeFilter.None, default);
+
+        Assert.Equal(1, f.Total);
+        Assert.Equal(["device", "floor", "point"], f.Types.Select(v => v.Value).Order()); // other types stay selectable
+        Assert.Equal([("AHU", 1)], f.DeviceTypes.Select(v => (v.Value, v.Count)));         // the device row is out
     }
 
     [Fact]

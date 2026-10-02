@@ -304,13 +304,24 @@ public class ResourceSearchQueryBuilderTest
     [Fact]
     public void BuildFacetRows_SelectsEveryFacetAttribute_WithoutPaging_ButWithARowCap()
     {
-        var sparql = ResourceSearchQueryBuilder.BuildFacetRows("vav", "point", null, new[] { "hvac" }, Attrs(units: ["degC"]), 5000);
+        var sparql = ResourceSearchQueryBuilder.BuildFacetRows("vav", null, new[] { "hvac" }, 5000);
 
         foreach (var v in new[] { "?deviceType", "?pointType", "?unit", "?gatewayId" })
             Assert.Contains(v, sparql);
         Assert.Contains("CONTAINS(LCASE(?name)", sparql);   // same q filter as the search
-        Assert.Contains("FILTER EXISTS", sparql);           // tag + attribute constraints are shared
+        Assert.Contains("FILTER EXISTS", sparql);           // the tag constraint is shared
         Assert.DoesNotContain("OFFSET", sparql);
         Assert.Contains("LIMIT 5001", sparql); // rowCap + 1: the extra row marks truncation
+    }
+
+    [Fact]
+    public void BuildFacetRows_AppliesNeitherTypeNorAttributeConstraints_SoEveryGroupCanExcludeItsOwn()
+    {
+        var sparql = ResourceSearchQueryBuilder.BuildFacetRows(null, null, NoTags, 100);
+
+        foreach (var cls in new[] { Building, Level, Room, Equipment, Point })
+            Assert.Contains($"<{cls}>", sparql);                     // all five type branches
+        Assert.DoesNotContain("IN (", sparql);                       // no attribute constraint
+        Assert.DoesNotContain("FILTER EXISTS", sparql);
     }
 }

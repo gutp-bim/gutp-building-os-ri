@@ -456,8 +456,12 @@ public sealed class AuthorizedTwinView(
     // ── Facets ────────────────────────────────────────────────────────────────
 
     // Rows scanned per facet request. Counts are exact up to this; past it the answer is marked
-    // `truncated` (a lower bound) instead of silently undercounting.
+    // `truncated` (the scan was cut, so counts are a lower bound) instead of silently undercounting.
+    // The cap bounds the *scan*, which runs before authorization (the twin cannot filter by grant): for a
+    // restricted caller `truncated` therefore says "the scan was cut", not "your own count is cut".
     internal const int FacetRowCap = 50_000;
+
+    private enum FacetGroupKey { Type, DeviceType, PointType, Unit, Gateway }
 
     public async Task<ResourceFacets> GetFacetsAsync(
         AuthorizationContext auth, string? q, string? type, string? buildingDtId,
@@ -467,19 +471,27 @@ public sealed class AuthorizedTwinView(
         // Tags and attributes are hidden from a group-manager (#506); facets would enumerate them.
         if (auth.IsStructureOnly) return new ResourceFacets();
 
-        var rows = await db.ListFacetRows(q, type, buildingDtId, tags, attrs, FacetRowCap, ct).ConfigureAwait(false);
+        var rows = await db.ListFacetRows(q, buildingDtId, tags, FacetRowCap, ct).ConfigureAwait(false);
         var truncated = rows.Length > FacetRowCap;
         var readable = await FilterReadableAsync(
             auth, rows.Take(FacetRowCap).ToArray(), buildingDtId,
             r => new ResourceSearchHit { Type = r.Type, DtId = r.DtId, Id = r.Id, Name = r.Id }, ct).ConfigureAwait(false);
 
-        // A resource can repeat when the twin joins fan out (several owners, several units): count it once.
-        var distinct = readable.GroupBy(r => r.DtId, StringComparer.Ordinal).Select(g => g.First()).ToArray();
+        // Faceted counting: a group's counts are taken over the rows that pass every filter *except that
+        // group's own*, so choosing "AHU" still lists "VAV" (OR within a group needs the alternatives to
+        // stay visible). Within a group values are ORed, across groups ANDed — the same rule the search applies.
+        bool Passes(ResourceFacetRow r, FacetGroupKey? skip) =>
+            (skip == FacetGroupKey.Type || string.IsNullOrEmpty(type) || r.Type == type)
+            && (skip == FacetGroupKey.DeviceType || Matches(attrs.DeviceTypes, r.DeviceType))
+            && (skip == FacetGroupKey.PointType || Matches(attrs.PointTypes, r.PointType))
+            && (skip == FacetGroupKey.Unit || Matches(attrs.Units, r.Unit))
+            && (skip == FacetGroupKey.Gateway || Matches(attrs.GatewayIds, r.GatewayId));
 
-        FacetValueCount[] Count(Func<ResourceFacetRow, string?> pick) => readable
+        FacetValueCount[] Count(FacetGroupKey group, Func<ResourceFacetRow, string?> pick) => readable
+            .Where(r => Passes(r, group))
             .Select(r => (Value: pick(r), r.DtId))
             .Where(x => !string.IsNullOrWhiteSpace(x.Value))
-            .Distinct()
+            .Distinct() // a resource can repeat when the twin joins fan out: count it once per value
             .GroupBy(x => x.Value!, StringComparer.Ordinal)
             .Select(g => new FacetValueCount { Value = g.Key, Count = g.Count() })
             .OrderByDescending(v => v.Count).ThenBy(v => v.Value, StringComparer.Ordinal)
@@ -487,15 +499,19 @@ public sealed class AuthorizedTwinView(
 
         return new ResourceFacets
         {
-            Total = distinct.Length,
+            Total = readable.Where(r => Passes(r, null)).Select(r => r.DtId).Distinct(StringComparer.Ordinal).Count(),
             Truncated = truncated,
-            Types = Count(r => r.Type),
-            DeviceTypes = Count(r => r.DeviceType),
-            PointTypes = Count(r => r.PointType),
-            Units = Count(r => r.Unit),
-            Gateways = Count(r => r.GatewayId),
+            Types = Count(FacetGroupKey.Type, r => r.Type),
+            DeviceTypes = Count(FacetGroupKey.DeviceType, r => r.DeviceType),
+            PointTypes = Count(FacetGroupKey.PointType, r => r.PointType),
+            Units = Count(FacetGroupKey.Unit, r => r.Unit),
+            Gateways = Count(FacetGroupKey.Gateway, r => r.GatewayId),
         };
     }
+
+    // No selection = no constraint; otherwise the row's value must be one of the selected ones.
+    private static bool Matches(IReadOnlyList<string> selected, string? value) =>
+        selected.Count == 0 || (value is not null && selected.Contains(value, StringComparer.Ordinal));
 
     // ── Tag suggestions ───────────────────────────────────────────────────────
 

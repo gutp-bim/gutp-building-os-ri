@@ -1981,7 +1981,7 @@ paths:
     get:
       tags:
         - ResourceSearch
-      summary: "検索結果に対する facet 集計（種別 / 機器種別 / 計測種別 / 単位 / Gateway ごとの件数）。\n`search` と同じ絞り込み条件を受け取り、呼び出し元が閲覧できるリソースだけを数える。\n件数は「現在の結果」に対するもの（選択済みの facet を含む）。group-manager には空。"
+      summary: "検索結果に対する facet 集計（種別 / 機器種別 / 計測種別 / 単位 / Gateway ごとの件数）。\n`search` と同じ絞り込み条件を受け取り、呼び出し元が閲覧できるリソースだけを数える。\n各 facet グループの件数は「そのグループ自身の選択を除いた」条件での件数（選択中の AHU の隣に VAV も\n件数付きで残り、OR で選び足せる）。`total` は全条件を満たす件数。group-manager には空。"
       parameters:
         - name: q
           in: query

@@ -43,7 +43,8 @@ public class FacetValueCount
 
 /// <summary>
 /// Facet counts over the resources a search matches (<c>GET /resources/facets</c>), restricted to what
-/// the caller can read. Counts describe the *current* result — including any facet already selected.
+/// the caller can read. A group's counts ignore that group's own selection (so the alternatives stay
+/// visible and can be ORed in) and honour every other filter; <see cref="Total"/> honours all of them.
 /// </summary>
 public class ResourceFacets
 {

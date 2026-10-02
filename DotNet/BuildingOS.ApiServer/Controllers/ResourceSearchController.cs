@@ -66,7 +66,8 @@ public class ResourceSearchController(IAuthorizedTwinView twinView) : Controller
     /// <summary>
     /// 検索結果に対する facet 集計（種別 / 機器種別 / 計測種別 / 単位 / Gateway ごとの件数）。
     /// <c>search</c> と同じ絞り込み条件を受け取り、呼び出し元が閲覧できるリソースだけを数える。
-    /// 件数は「現在の結果」に対するもの（選択済みの facet を含む）。group-manager には空。
+    /// 各 facet グループの件数は「そのグループ自身の選択を除いた」条件での件数（選択中の AHU の隣に VAV も
+    /// 件数付きで残り、OR で選び足せる）。<c>total</c> は全条件を満たす件数。group-manager には空。
     /// </summary>
     /// <param name="q">検索語（名前・ID の部分一致）</param>
     /// <param name="type">リソース種別で絞り込み</param>

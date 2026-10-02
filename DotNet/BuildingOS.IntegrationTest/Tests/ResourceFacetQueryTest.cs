@@ -81,24 +81,31 @@ public class ResourceFacetQueryTest(OxiGraphFixture oxiGraph)
     }
 
     [Fact]
-    public async Task FacetRows_CarryEveryAttribute_AndMatchTheSameSetAsTheSearch()
+    public async Task FacetRows_CarryEveryAttribute_OfEveryType_WithNoTypeOrAttributeConstraint()
     {
-        var rows = await Db().ListFacetRows(null, "point", null, None, Attrs(), 1000);
+        var rows = await Db().ListFacetRows(null, null, None, 1000);
 
-        Assert.Equal(["P-CO2", "P-LOOSE", "P-SAT"], rows.Select(r => r.Id).Distinct().Order());
+        Assert.Equal(["AHU1", "P-CO2", "P-LOOSE", "P-SAT"], rows.Select(r => r.Id).Distinct().Order());
         var sat = rows.Single(r => r.Id == "P-SAT");
         Assert.Equal(("AHU", "Temperature", "degC", "GW-1"), (sat.DeviceType, sat.PointType, sat.Unit, sat.GatewayId));
         var loose = rows.Single(r => r.Id == "P-LOOSE");
         Assert.Equal("VAV", loose.DeviceType);   // own type, no owning device
+    }
 
-        var filtered = await Db().ListFacetRows(null, "point", null, None, Attrs(units: ["ppm"]), 1000);
-        Assert.Equal(["P-CO2"], filtered.Select(r => r.Id).Distinct());
+    [Fact]
+    public async Task FacetRows_AreNarrowedByQAndTags_ButNotByAttributes()
+    {
+        var byTag = await Db().ListFacetRows(null, null, ["critical"], 1000);
+        var byQ = await Db().ListFacetRows("co2", null, None, 1000);
+
+        Assert.Equal(["P-CO2", "P-SAT"], byTag.Select(r => r.Id).Distinct().Order());
+        Assert.Equal(["P-CO2"], byQ.Select(r => r.Id).Distinct());
     }
 
     [Fact]
     public async Task FacetRows_KeepADeviceThatHasNoPointAttributes()
     {
-        var rows = await Db().ListFacetRows(null, "device", null, None, Attrs(), 1000);
+        var rows = await Db().ListFacetRows("AHU One", null, None, 1000);
 
         var ahu = Assert.Single(rows);
         Assert.Equal("AHU", ahu.DeviceType);

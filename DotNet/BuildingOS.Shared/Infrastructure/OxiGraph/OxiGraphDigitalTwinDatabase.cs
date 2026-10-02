@@ -650,12 +650,11 @@ ORDER BY ?gw";
     }
 
     public async Task<ResourceFacetRow[]> ListFacetRows(
-        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
-        ResourceAttributeFilter attrs, int rowCap, CancellationToken ct = default)
+        string? q, string? buildingDtId, IReadOnlyList<string> tags, int rowCap, CancellationToken ct = default)
     {
         if (!string.IsNullOrEmpty(buildingDtId) && !IsUsableDtId(buildingDtId)) return [];
 
-        var sparql = ResourceSearchQueryBuilder.BuildFacetRows(q, type, buildingDtId, tags, attrs, rowCap);
+        var sparql = ResourceSearchQueryBuilder.BuildFacetRows(q, buildingDtId, tags, rowCap);
         var rows = await _client.QueryAsync(sparql, ct).ConfigureAwait(false);
         return rows.Select(r => new ResourceFacetRow
         {

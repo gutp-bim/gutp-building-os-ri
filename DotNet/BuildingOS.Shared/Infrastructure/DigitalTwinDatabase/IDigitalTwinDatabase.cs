@@ -49,13 +49,14 @@ public interface IDigitalTwinDatabase
         ResourceAttributeFilter attrs, int limit, int offset, CancellationToken ct = default);
 
     /// <summary>
-    /// The resources a search matches, unpaged, with the attributes facet counts are built from. Returns at
-    /// most <paramref name="rowCap"/>+1 rows (the extra one marks truncation). Unauthorized: the caller
-    /// filters by read access before counting.
+    /// The resources matching q / building / tags — of every type and with <b>no</b> attribute constraint —
+    /// with the attributes facet counts are built from. The type and attribute filters are deliberately left
+    /// to the caller: a facet group's counts must exclude that group's own selection, so one superset query
+    /// serves every group. Returns at most <paramref name="rowCap"/>+1 rows (the extra one marks truncation).
+    /// Unauthorized: the caller filters by read access before counting.
     /// </summary>
     public Task<ResourceFacetRow[]> ListFacetRows(
-        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
-        ResourceAttributeFilter attrs, int rowCap, CancellationToken ct = default);
+        string? q, string? buildingDtId, IReadOnlyList<string> tags, int rowCap, CancellationToken ct = default);
 
     /// <summary>
     /// Every (resource, customTag) pair whose tag is set to true and whose key starts with

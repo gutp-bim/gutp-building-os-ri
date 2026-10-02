@@ -112,8 +112,7 @@ public class OssDigitalTwinDatabase(ILogger<OssDigitalTwinDatabase> logger) : ID
     }
 
     public Task<ResourceFacetRow[]> ListFacetRows(
-        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
-        ResourceAttributeFilter attrs, int rowCap, CancellationToken ct = default)
+        string? q, string? buildingDtId, IReadOnlyList<string> tags, int rowCap, CancellationToken ct = default)
     {
         logger.LogWarning("[OSS] OssDigitalTwinDatabase.ListFacetRows — no-op placeholder");
         return Task.FromResult(Array.Empty<ResourceFacetRow>());

@@ -43,19 +43,19 @@ internal static class ResourceSearchQueryBuilder
     }
 
     /// <summary>
-    /// The rows facet counts are built from: the same match as <see cref="Build"/> (q / type / building /
-    /// tags / attributes), unpaged, with each resource's deviceType / pointType / unit / gatewayId.
+    /// The rows facet counts are built from: every resource matching q / building / tags — all types, and
+    /// deliberately <b>no</b> type or attribute constraint — with its deviceType / pointType / unit / gatewayId.
+    /// A facet group's counts must exclude that group's own selection (otherwise picking "AHU" hides "VAV"
+    /// and OR-ing is impossible), so the caller applies type/attribute filters per group over this superset.
     /// Unauthorized — the caller authorizes each row before counting. <paramref name="rowCap"/> bounds the scan
     /// (one extra row is requested so the caller can tell the result was cut).
     /// </summary>
-    internal static string BuildFacetRows(
-        string? q, string? typeFilter, string? buildingDtId, IReadOnlyList<string> tags,
-        ResourceAttributeFilter? attrs, int rowCap)
+    internal static string BuildFacetRows(string? q, string? buildingDtId, IReadOnlyList<string> tags, int rowCap)
     {
         var sb = new StringBuilder();
         sb.Append(Prefixes);
         sb.Append("SELECT DISTINCT ?type ?dt ?id ?deviceType ?pointType ?unit ?gatewayId WHERE {\n");
-        AppendMatchBody(sb, q, typeFilter, buildingDtId, tags, attrs);
+        AppendMatchBody(sb, q, null, buildingDtId, tags, null);
         // A device carries its own type; a point takes the type of the device owning it, or — for
         // CSV-derived twins that repeat it on every point row — its own.
         sb.Append(
