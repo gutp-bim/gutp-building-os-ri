@@ -115,7 +115,7 @@ export function toSearchParams(f: SearchFilters): SearchParams {
 export function filtersFromParams(params: URLSearchParams): SearchFilters {
   const list = (key: string) => normalizeTags(params.getAll(key));
   const type = params.get(PARAM.type) ?? "";
-  return {
+  const filters: SearchFilters = {
     q: params.get(PARAM.q) ?? "",
     type: (TYPES as readonly string[]).includes(type) ? (type as ResourceType) : "",
     tags: list(PARAM.tags),
@@ -126,6 +126,16 @@ export function filtersFromParams(params: URLSearchParams): SearchFilters {
     freshness: known(list(PARAM.freshness), HEALTH_FRESHNESS_VALUES),
     alarm: known(list(PARAM.alarm), HEALTH_ALARM_VALUES),
   };
+  return usesHealth(filters) ? healthOnly(filters) : filters;
+}
+
+/**
+ * A hand-written or stale URL can carry a health condition next to another type or an asset attribute.
+ * Health is a Point-only notion answered by its own API, so it wins: the type becomes Point and the
+ * attributes are dropped — the same state the form itself produces when a health value is chosen.
+ */
+function healthOnly(f: SearchFilters): SearchFilters {
+  return { ...f, type: "point", deviceTypes: [], pointTypes: [], units: [], gatewayIds: [] };
 }
 
 // Health values are matched case-insensitively (a hand-written `?freshness=Stale` still works) and an

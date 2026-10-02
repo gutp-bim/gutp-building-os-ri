@@ -112,6 +112,14 @@ export default function ResourcesPageComponent() {
 
   const pickFromSearch = useCallback(
     (hit: SearchHit) => {
+      // A health-routed hit has no digital-twin id (the health row does not carry one): resolve the real
+      // node rather than showing the business id as if it were the twin's.
+      if (!hit.dtId) {
+        resolveRef(hit.type, hit.id).then((ref) => {
+          if (ref) select(ref);
+        });
+        return;
+      }
       select({ type: hit.type, dtId: hit.dtId, id: hit.id, name: hit.name });
       // Reveal the hit's building in the tree when known (best-effort jump).
       if (hit.buildingDtId) setAutoExpandBuildingDtId(hit.buildingDtId);

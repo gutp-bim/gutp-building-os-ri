@@ -53,8 +53,8 @@ function healthQuery(p: SearchParams): HealthQuery {
 /**
  * The search box's search. A data-health condition goes to the health API (one call — the asset
  * search and the health classifier are never joined in the UI, #454); everything else is the
- * resource search. A health hit has no dtId of its own in the row, so it carries the pointId — which
- * is what a point is addressed by in the explorer URL anyway.
+ * resource search. A health row carries no digital-twin id, so the hit's `dtId` is **empty** (not a
+ * stand-in): whoever selects it resolves the real node by pointId (`resolveRef`).
  */
 export async function searchResourcesOrHealth(
   params: SearchParams,
@@ -64,7 +64,7 @@ export async function searchResourcesOrHealth(
   const page = await deps.fetchPointHealth(healthQuery(params));
   return page.rows.map((r) => ({
     type: "point",
-    dtId: r.pointId,
+    dtId: "",
     id: r.pointId,
     name: r.name,
     buildingDtId: null,

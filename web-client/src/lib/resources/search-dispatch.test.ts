@@ -41,7 +41,7 @@ describe("searchResourcesOrHealth (#454)", () => {
     expect(d.fetchPointHealth).toHaveBeenCalledWith(
       expect.objectContaining({ q: "sat", tags: ["hvac"], freshness: ["stale"], alarm: ["critical"], limit: 50 }),
     );
-    expect(hits).toEqual([{ type: "point", dtId: "P9", id: "P9", name: "Stale one", buildingDtId: null }]);
+    expect(hits).toEqual([{ type: "point", dtId: "", id: "P9", name: "Stale one", buildingDtId: null }]);
   });
 });
 

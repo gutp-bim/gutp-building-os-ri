@@ -63,13 +63,24 @@ describe("URL round trip (#454)", () => {
     pointTypes: ["Temperature"],
     units: ["degC"],
     gatewayIds: ["GW-1"],
+    freshness: [] as ("stale" | "missing")[],
+    alarm: [] as "critical"[],
+  };
+  // Health and the asset attributes are never set together (the form clears one when the other is chosen).
+  const health = {
+    ...EMPTY_FILTERS,
+    q: "sat",
+    type: "point" as const,
+    tags: ["hvac"],
     freshness: ["stale" as const, "missing" as const],
     alarm: ["critical" as const],
   };
 
   it("survives writing to and reading from the URL", () => {
-    const params = filtersToParams(full, new URLSearchParams());
-    expect(filtersFromParams(new URLSearchParams(params.toString()))).toEqual(full);
+    for (const f of [full, health]) {
+      const params = filtersToParams(f, new URLSearchParams());
+      expect(filtersFromParams(new URLSearchParams(params.toString()))).toEqual(f);
+    }
   });
 
   it("uses repeated params for lists, matching the API query", () => {
@@ -111,5 +122,12 @@ describe("health vs attribute routing (#454)", () => {
     const f = filtersFromParams(new URLSearchParams("freshness=Stale&freshness=bogus&freshness=stale&alarm=CRITICAL&alarm=normal"));
     expect(f.freshness).toEqual(["stale"]);
     expect(f.alarm).toEqual(["critical"]);
+  });
+
+  it("normalizes a URL that mixes health with another type or an asset attribute", () => {
+    const f = filtersFromParams(new URLSearchParams("freshness=stale&type=device&deviceType=AHU&unit=ppm&tag=hvac&q=x"));
+    expect(f).toMatchObject({
+      type: "point", freshness: ["stale"], deviceTypes: [], units: [], tags: ["hvac"], q: "x",
+    });
   });
 });
