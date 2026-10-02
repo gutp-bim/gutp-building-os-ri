@@ -85,6 +85,7 @@ public class HealthEventsController(
 {
     private const int DefaultLimit = 100;
     private const int MaxLimit = 500;
+    private static readonly TimeSpan AuditTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>ヘルスイベントの一覧（新しい順）。</summary>
     /// <param name="lifecycle">open（未解消）| cleared（解消済み）。省略時は両方</param>
@@ -251,18 +252,21 @@ public class HealthEventsController(
         return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
     }
 
-    // Written after the acknowledgement has committed, so not on the request token; a failed audit write is
+    // Written after the acknowledgement has committed; a failed audit write is
     // logged, not turned into an error (the acknowledgement it describes is already on the event row).
     private async Task AuditAsync(AuthorizationContext auth, string? actorName, HealthEventEntry e)
     {
         if (audit is null) return;
+        // Not the request token (a client that disconnects now must not lose the record), but bounded — an
+        // unbounded write would hold the request scope and its database context through a stall or a shutdown.
+        using var bounded = new CancellationTokenSource(AuditTimeout);
         try
         {
             await audit.RecordAsync(
                 AdminAuditRecord.Create(AdminAuditSubjects.HealthEvent, "acknowledge", e.Id.ToString(), auth.UserId, actorName,
                     AdminAuditResult.Success,
                     JsonSerializer.Serialize(new { e.SubjectType, e.SubjectId, e.Kind, e.Severity })),
-                CancellationToken.None).ConfigureAwait(false);
+                bounded.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
