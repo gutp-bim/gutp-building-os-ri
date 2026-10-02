@@ -320,4 +320,20 @@ public class HealthEventsControllerTest
 
         Assert.Null(body.SubjectName);
     }
+
+    [Fact]
+    public async Task List_ForAnAdmin_StillAnswers_WhenTheNameLookupFails()
+    {
+        var h = Build("admin");
+        h.Store.Setup(s => s.QueryAsync(It.IsAny<HealthEventQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthEventPage([Event("point", "P1")], 1));
+        h.View.Setup(v => v.ListBuildingsAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("twin down"));
+
+        var body = (HealthEventListResponse)((OkObjectResult)(await h.Controller.List(null, null, null, null, null, null)).Result!).Value!;
+
+        var item = Assert.Single(body.Items);
+        Assert.Null(item.SubjectName);
+        Assert.Equal("P1", item.SubjectId);
+    }
 }

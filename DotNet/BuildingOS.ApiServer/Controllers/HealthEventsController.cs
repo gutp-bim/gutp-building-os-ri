@@ -142,9 +142,7 @@ public class HealthEventsController(
 
         // Names come from the ledger: admins read the whole twin anyway; for a page with no point event there
         // is nothing to name, so skip building it.
-        var names = visibility.Names ?? (page.Items.Any(e => e.SubjectType == HealthEventSubjects.Point)
-            ? (await LedgerAsync(auth, ct).ConfigureAwait(false)).Names
-            : Names.Empty);
+        var names = await NamesForAsync(page.Items.Any(e => e.SubjectType == HealthEventSubjects.Point), visibility, auth, ct).ConfigureAwait(false);
 
         return Ok(new HealthEventListResponse(page.Items.Select(e => ToResponse(e, names)).ToArray(), page.Total, limit, offset));
     }
@@ -179,22 +177,23 @@ public class HealthEventsController(
         // not an idempotent repeat.
         if (result.Applied) await AuditAsync(auth, name, updated).ConfigureAwait(false);
 
-        return Ok(ToResponse(updated, await NamesForAsync(updated, visibility, auth, ct).ConfigureAwait(false)));
+        return Ok(ToResponse(updated, await NamesForAsync(updated.SubjectType == HealthEventSubjects.Point, visibility, auth, ct).ConfigureAwait(false)));
     }
 
     // Names are cosmetic. Only a point event has one to look up (a gateway is named by its id), and by now the
-    // acknowledgement is committed — so a ledger that cannot be built must not turn a success into an error.
-    private async Task<Names> NamesForAsync(HealthEventEntry e, Visibility visibility, AuthorizationContext auth, CancellationToken ct)
+    // query / acknowledgement has already succeeded — so a ledger that cannot be built (twin, settings or gateway
+    // state down) must not turn available event history, or a committed acknowledgement, into an error.
+    private async Task<Names> NamesForAsync(bool anyPoint, Visibility visibility, AuthorizationContext auth, CancellationToken ct)
     {
         if (visibility.Names is { } known) return known;
-        if (e.SubjectType != HealthEventSubjects.Point) return Names.Empty;
+        if (!anyPoint) return Names.Empty;
         try
         {
             return (await LedgerAsync(auth, ct).ConfigureAwait(false)).Names;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Could not resolve names for health event {EventId}; returning it unnamed", e.Id);
+            logger.LogWarning(ex, "Could not resolve point names for health events; returning them unnamed");
             return Names.Empty;
         }
     }
