@@ -32,6 +32,17 @@ async function shot(page: Page, name: string, fullPage = false): Promise<void> {
   });
 }
 
+// The app shell scrolls inside its own container, so Playwright's `fullPage` cannot see below the
+// viewport. For the screens that are taller than one viewport, grow the viewport instead, wait for the
+// late-arriving panels (the 24 h coverage bar), and put it back.
+async function tallShot(page: Page, name: string): Promise<void> {
+  const original = page.viewportSize() ?? { width: 1280, height: 860 };
+  await page.setViewportSize({ width: original.width, height: 1500 });
+  await page.waitForTimeout(2_000);
+  await shot(page, name);
+  await page.setViewportSize(original);
+}
+
 test("capture: demo walkthrough", async ({ page }) => {
   await loginWithKeycloak(page);
 
@@ -70,7 +81,7 @@ test("capture: demo walkthrough", async ({ page }) => {
     "ゲートウェイ切断",
     { timeout: 30_000 },
   );
-  await shot(page, "3-point-missing", true);
+  await tallShot(page, "3-point-missing");
 
   // 4. Point 詳細 — stale の Point（interval × multiplier の判定根拠）
   await page.goto("/health?freshness=stale");
@@ -78,7 +89,7 @@ test("capture: demo walkthrough", async ({ page }) => {
   await shot(page, "4-health-stale");
   await page.getByTestId("health-table").locator("tbody a").first().click();
   await page.getByTestId("point-health-panel").waitFor({ timeout: 30_000 });
-  await shot(page, "5-point-stale", true);
+  await tallShot(page, "5-point-stale");
 
   // 5. /resources — タグ検索（critical）
   await page.goto("/resources");
@@ -88,8 +99,46 @@ test("capture: demo walkthrough", async ({ page }) => {
   await page.waitForTimeout(1_500);
   await shot(page, "6-resources-tag");
 
+  // 6b. /resources — Point の facet（機器・計測・単位・Gateway と、鮮度・アラーム）(#454)
+  await page.goto("/resources");
+  await page.getByLabel("種別で絞り込み").selectOption("point");
+  await expect(page.getByTestId("facet-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("facet-health-freshness")).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.getByTestId("facet-freshness-stale").check();
+  await expect(
+    page.getByTestId("resource-search-box").locator("ul li button").first(),
+  ).toBeVisible({ timeout: 60_000 });
+  await page.waitForTimeout(1_500);
+  await shot(page, "10-resources-facets");
+
+  // 6c. /health?view=events — 永続ヘルスイベント（#455）。評価器が連続スキャンで条件を確認してから
+  // 発生させるので、最初の行が出るまで待つ。
+  await page.goto("/health?view=events");
+  await expect(page.getByTestId("events-table")).toBeVisible({ timeout: 240_000 });
+  // gateway 切断は配下の欠測を 1 件に集約したイベントになる。1 件確認応答して「確認済み」の行も写す。
+  const gatewayRow = page
+    .locator("tr", { has: page.getByTestId("event-kind").filter({ hasText: "Gateway 切断" }) })
+    .first();
+  await expect(gatewayRow).toBeVisible({ timeout: 60_000 });
+  // Re-runs find it already acknowledged (the first acknowledger stays), which is the state we want to show.
+  const ackButton = gatewayRow.getByTestId("event-ack-button");
+  if (await ackButton.count()) await ackButton.click();
+  await expect(gatewayRow.getByTestId("event-ack")).not.toHaveText("確認する");
+  await page.waitForTimeout(500);
+  await tallShot(page, "8-health-events");
+
+  // 6d. 値異常のイベントがある Point の詳細 — 「この Point の直近イベント」
+  await page.goto("/health?view=events&kind=alarm");
+  await page.getByTestId("events-table").waitFor({ timeout: 60_000 });
+  await page.getByTestId("events-table").locator("tbody a").first().click();
+  await page.getByTestId("point-health-events").waitFor({ timeout: 30_000 });
+  await expect(page.getByTestId("point-health-events")).toContainText("値異常");
+  await tallShot(page, "9-point-events");
+
   // 6. /platform/status — 流量
   await page.goto("/platform/status");
   await page.waitForLoadState("networkidle");
-  await shot(page, "7-platform-status", true);
+  await tallShot(page, "7-platform-status");
 });
