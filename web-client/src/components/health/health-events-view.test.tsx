@@ -60,6 +60,19 @@ describe("HealthEventsView (#455)", () => {
     expect(screen.queryByTestId("event-ack-button")).toBeNull();
   });
 
+  it("under 未確認, an acknowledged row leaves the list and the count drops", async () => {
+    const acknowledge = vi.fn().mockResolvedValue({ ...base, acknowledgedAt: "2026-10-02T12:10:00Z", acknowledgedBy: "鈴木" });
+    setup([base, { ...base, id: "e2" }], { acknowledge }, { query: { ...DEFAULT_EVENTS_QUERY, ack: "unacked" } });
+    await screen.findByTestId("event-row-e1");
+    expect(screen.getByTestId("events-total")).toHaveTextContent("2 件");
+
+    fireEvent.click(within(screen.getByTestId("event-row-e1")).getByTestId("event-ack-button"));
+
+    await waitFor(() => expect(screen.queryByTestId("event-row-e1")).toBeNull());
+    expect(screen.getByTestId("event-row-e2")).toBeInTheDocument();
+    expect(screen.getByTestId("events-total")).toHaveTextContent("1 件");
+  });
+
   it("a failed acknowledgement keeps the button and says so", async () => {
     setup([base], { acknowledge: vi.fn().mockRejectedValue(new Error("403")) });
 

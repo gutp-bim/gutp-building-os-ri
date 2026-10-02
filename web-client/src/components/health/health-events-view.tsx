@@ -148,7 +148,15 @@ export function HealthEventsView({
     try {
       const updated = await loaders.acknowledge(id);
       // 返ってきた行で置き換える（最初に確認した人が残るので、自分の操作でなくてもそのまま描画できる）。
-      setPage((p) => (p ? { ...p, items: p.items.map((e) => (e.id === id ? updated : e)) } : p));
+      // Under 「未確認」 an acknowledged row no longer matches the filter, so it leaves the list (and the count)
+      // instead of sitting under the wrong heading until the next fetch.
+      setPage((p) => {
+        if (!p) return p;
+        if (queryRef.current.ack === "unacked" && updated.acknowledgedAt) {
+          return { ...p, items: p.items.filter((e) => e.id !== id), total: Math.max(0, p.total - 1) };
+        }
+        return { ...p, items: p.items.map((e) => (e.id === id ? updated : e)) };
+      });
     } catch (e) {
       setAckError(e instanceof Error ? e.message : "確認応答に失敗しました");
     } finally {
