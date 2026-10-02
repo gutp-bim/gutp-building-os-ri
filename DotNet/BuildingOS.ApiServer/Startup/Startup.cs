@@ -96,6 +96,26 @@ namespace BuildingOs.ApiServer
             services.AddSingleton<PointLastSeenIndexStore>();
             services.AddSingleton<IPointLastSeenIndex>(sp => sp.GetRequiredService<PointLastSeenIndexStore>());
             services.AddHostedService<NatsKvPointLastSeenIndexWorker>();
+            services.AddScoped<BuildingOs.ApiServer.Health.PointHealthLedger>(); // scoped: it reads the per-request authorized twin view and settings
+            // Health events (#455): persistence + the resident evaluator. The evaluator runs here (not in the
+            // ConnectorWorker) because the classifier's inputs all live in this process; N replicas converge via
+            // the partial unique index, so no lock. HEALTH_EVALUATOR_ENABLED=false turns it off.
+            services.AddScoped<BuildingOS.Shared.Infrastructure.HealthEvents.IHealthEventStore,
+                BuildingOS.Shared.Infrastructure.HealthEvents.EfHealthEventStore>();
+            if (_envModule.HealthEvaluatorEnabled)
+            {
+                services.AddSingleton(new BuildingOs.ApiServer.Health.HealthEvaluatorOptions(
+                    _envModule.HealthEvaluatorIntervalSeconds,
+                    _envModule.HealthEvaluatorRaiseAfterScans,
+                    _envModule.HealthEvaluatorClearAfterScans));
+                services.AddSingleton(sp =>
+                {
+                    var o = sp.GetRequiredService<BuildingOs.ApiServer.Health.HealthEvaluatorOptions>();
+                    return new BuildingOs.ApiServer.Health.HealthEvaluationCycle(new BuildingOS.Shared.Domain.Health.HealthEventReconciler(
+                        new BuildingOS.Shared.Domain.Health.HealthEventHysteresis(o.RaiseAfterScans, o.ClearAfterScans)));
+                });
+                services.AddHostedService<BuildingOs.ApiServer.Health.HealthEvaluatorHostedService>();
+            }
             // Short-TTL cache of the per-building point ledger. Caches PRE-authorization twin data only;
             // AuthorizedTwinView re-applies the read filter on every request.
             services.AddSingleton(sp => new BuildingOs.ApiServer.Authorization.PointDetailInventoryCache(

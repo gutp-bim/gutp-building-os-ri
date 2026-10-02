@@ -1,5 +1,6 @@
 using BuildingOs.ApiServer.Authorization;
 using BuildingOs.ApiServer.Controllers;
+using BuildingOs.ApiServer.Health;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
@@ -97,8 +98,8 @@ public class TelemetryHealthControllerTest
 
         var index = new FakeIndex { State = indexState };
 
-        var controller = new TelemetryHealthController(
-            view.Object, index, settings.Object, gateways.Object, new FixedClock(Now))
+        var controller = new TelemetryHealthController(new PointHealthLedger(
+            view.Object, index, settings.Object, gateways.Object, new FixedClock(Now)))
         {
             ControllerContext = new ControllerContext
             {

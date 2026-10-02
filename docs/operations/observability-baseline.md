@@ -42,6 +42,8 @@ bounded number of series, unlike an identifier. The ingest signals below use onl
 | `building_os.ingress.messages` | `gateway` | gateway id, `source=gateway-grpc` only — bounded by the number of gateways, not points |
 | `building_os.ingress.event_lag` | `source` | `connector`, `gateway-grpc` |
 | `building_os.ingestion.lag` | `subject` | the `building-os.raw.*` subject the consumer reads |
+| `building_os.health_events` (#455) | `action` | `raised`, `updated`, `cleared` |
+| `building_os.health_events` (#455) | `kind` | `stale`, `missing`, `alarm`, `gateway_offline` |
 
 `building_os.ingress.event_lag` deliberately carries **no** point or gateway tag: it is recorded per
 telemetry entity, so either would reintroduce exactly the per-point series this section forbids.
