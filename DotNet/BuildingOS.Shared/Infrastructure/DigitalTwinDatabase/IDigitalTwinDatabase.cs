@@ -41,6 +41,24 @@ public interface IDigitalTwinDatabase
     public Task<ResourceSearchHit[]> SearchResources(string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags, int limit, int offset);
 
     /// <summary>
+    /// <see cref="SearchResources"/> narrowed by structured attributes (deviceType / pointType / unit /
+    /// gatewayId, #454). Separate from it so the unfiltered search keeps its established contract.
+    /// </summary>
+    public Task<ResourceSearchHit[]> SearchResourcesFiltered(
+        string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags,
+        ResourceAttributeFilter attrs, int limit, int offset, CancellationToken ct = default);
+
+    /// <summary>
+    /// The resources matching q / building / tags — of every type and with <b>no</b> attribute constraint —
+    /// with the attributes facet counts are built from. The type and attribute filters are deliberately left
+    /// to the caller: a facet group's counts must exclude that group's own selection, so one superset query
+    /// serves every group. Returns at most <paramref name="rowCap"/>+1 rows (the extra one marks truncation).
+    /// Unauthorized: the caller filters by read access before counting.
+    /// </summary>
+    public Task<ResourceFacetRow[]> ListFacetRows(
+        string? q, string? buildingDtId, IReadOnlyList<string> tags, int rowCap, CancellationToken ct = default);
+
+    /// <summary>
     /// Every (resource, customTag) pair whose tag is set to true and whose key starts with
     /// <paramref name="prefix"/> (case-insensitive; null/blank = no prefix filter). Unauthorized: the
     /// caller filters by read access before counting, so a count never reveals a resource it cannot read.

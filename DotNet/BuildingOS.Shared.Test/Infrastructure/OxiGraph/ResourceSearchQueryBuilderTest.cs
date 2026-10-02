@@ -247,4 +247,81 @@ public class ResourceSearchQueryBuilderTest
         Assert.Contains("a\\\"b\\\\c\\nd", sparql);
         Assert.DoesNotContain("c\nd", sparql);
     }
+
+    private static ResourceAttributeFilter Attrs(
+        string[]? deviceTypes = null, string[]? pointTypes = null, string[]? units = null, string[]? gateways = null) =>
+        new(deviceTypes ?? [], pointTypes ?? [], units ?? [], gateways ?? []);
+
+    private const string DeviceType = "https://www.sbco.or.jp/ont/deviceType";
+    private const string PointType = "https://www.sbco.or.jp/ont/pointType";
+    private const string UnitPred = "https://www.sbco.or.jp/ont/unit";
+    private const string GatewayId = "https://www.sbco.or.jp/ont/gatewayId";
+    private const string HasPoint = "https://www.sbco.or.jp/ont/hasPoint";
+
+    [Fact]
+    public void Build_NoAttributes_IsUnchanged()
+    {
+        Assert.Equal(
+            ResourceSearchQueryBuilder.Build("x", "point", null, NoTags, 50, 0),
+            ResourceSearchQueryBuilder.Build("x", "point", null, NoTags, 50, 0, ResourceAttributeFilter.None));
+    }
+
+    [Fact]
+    public void Build_DeviceTypeFilter_MatchesTheResourceOrTheDeviceOwningIt_ORedWithinTheGroup()
+    {
+        var sparql = ResourceSearchQueryBuilder.Build(null, "point", null, NoTags, 50, 0, Attrs(deviceTypes: ["AHU", "VAV"]));
+
+        Assert.Contains($"<{DeviceType}>", sparql);
+        Assert.Contains($"<{HasPoint}>", sparql);
+        Assert.Contains("IN (\"AHU\", \"VAV\")", sparql);
+    }
+
+    [Fact]
+    public void Build_EachAttributeGroup_IsItsOwnConstraint_ANDedTogether()
+    {
+        var sparql = ResourceSearchQueryBuilder.Build(
+            null, "point", null, NoTags, 50, 0,
+            Attrs(pointTypes: ["temperature"], units: ["degC"], gateways: ["GW-1"]));
+
+        Assert.Contains($"<{PointType}>", sparql);
+        Assert.Contains("IN (\"temperature\")", sparql);
+        Assert.Contains($"<{UnitPred}>", sparql);
+        Assert.Contains("IN (\"degC\")", sparql);
+        Assert.Contains($"<{GatewayId}>", sparql);
+        Assert.Contains("IN (\"GW-1\")", sparql);
+        Assert.Equal(3, Count(sparql, "FILTER EXISTS"));
+    }
+
+    [Fact]
+    public void Build_AttributeValues_AreEscapedAndBlanksDropped()
+    {
+        var sparql = ResourceSearchQueryBuilder.Build(
+            null, null, null, NoTags, 50, 0, Attrs(units: ["a\"b", "  "]));
+
+        Assert.Contains("IN (\"a\\\"b\")", sparql);
+    }
+
+    [Fact]
+    public void BuildFacetRows_SelectsEveryFacetAttribute_WithoutPaging_ButWithARowCap()
+    {
+        var sparql = ResourceSearchQueryBuilder.BuildFacetRows("vav", null, new[] { "hvac" }, 5000);
+
+        foreach (var v in new[] { "?deviceType", "?pointType", "?unit", "?gatewayId" })
+            Assert.Contains(v, sparql);
+        Assert.Contains("CONTAINS(LCASE(?name)", sparql);   // same q filter as the search
+        Assert.Contains("FILTER EXISTS", sparql);           // the tag constraint is shared
+        Assert.DoesNotContain("OFFSET", sparql);
+        Assert.Contains("LIMIT 5001", sparql); // rowCap + 1: the extra row marks truncation
+    }
+
+    [Fact]
+    public void BuildFacetRows_AppliesNeitherTypeNorAttributeConstraints_SoEveryGroupCanExcludeItsOwn()
+    {
+        var sparql = ResourceSearchQueryBuilder.BuildFacetRows(null, null, NoTags, 100);
+
+        foreach (var cls in new[] { Building, Level, Room, Equipment, Point })
+            Assert.Contains($"<{cls}>", sparql);                     // all five type branches
+        Assert.DoesNotContain("IN (", sparql);                       // no attribute constraint
+        Assert.DoesNotContain("FILTER EXISTS", sparql);
+    }
 }

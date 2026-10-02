@@ -17,6 +17,14 @@ export type Methods = DefineMethods<{
       limit?: number | undefined;
       /** オフセット（既定 0） */
       offset?: number | undefined;
+      /** sbco:deviceType で絞り込み（機器、または機器に属するポイント）。複数指定は OR */
+      deviceType?: string[] | undefined;
+      /** sbco:pointType で絞り込み（ポイント）。複数指定は OR */
+      pointType?: string[] | undefined;
+      /** sbco:unit で絞り込み（ポイント）。複数指定は OR */
+      unit?: string[] | undefined;
+      /** sbco:gatewayId で絞り込み（ポイント）。複数指定は OR */
+      gatewayId?: string[] | undefined;
     } | undefined;
 
     status: 200;

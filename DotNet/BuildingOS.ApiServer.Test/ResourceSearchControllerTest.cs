@@ -75,4 +75,44 @@ public class ResourceSearchControllerTest
 
         view.Verify(v => v.ListTagsAsync(It.IsAny<AuthorizationContext>(), "tem", 100, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task Search_WithAttributeFilters_UsesTheFilteredPath()
+    {
+        var (c, view) = Build();
+        view.Setup(v => v.SearchFilteredAsync(
+                It.IsAny<AuthorizationContext>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<IReadOnlyList<string>>(), It.IsAny<ResourceAttributeFilter>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ResourceSearchHit>());
+
+        await c.Search(q: null, type: "point", buildingId: null, tag: null, limit: 50, offset: 0,
+            deviceType: ["AHU", " "], pointType: null, unit: ["degC"], gatewayId: null, ct: default);
+
+        view.Verify(v => v.SearchFilteredAsync(
+            It.IsAny<AuthorizationContext>(), null, "point", null, It.IsAny<IReadOnlyList<string>>(),
+            It.Is<ResourceAttributeFilter>(a => a.DeviceTypes.SequenceEqual(new[] { "AHU" }) && a.Units.SequenceEqual(new[] { "degC" })),
+            50, 0, It.IsAny<CancellationToken>()), Times.Once);
+        view.Verify(v => v.SearchAsync(
+            It.IsAny<AuthorizationContext>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Facets_ForwardsTheSameFiltersAsSearch()
+    {
+        var (c, view) = Build();
+        view.Setup(v => v.GetFacetsAsync(
+                It.IsAny<AuthorizationContext>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<IReadOnlyList<string>>(), It.IsAny<ResourceAttributeFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResourceFacets());
+
+        await c.Facets(q: "x", type: "point", buildingId: "urn:b", tag: ["hvac", ""], deviceType: ["VAV"],
+            pointType: null, unit: null, gatewayId: ["GW-1"], ct: default);
+
+        view.Verify(v => v.GetFacetsAsync(
+            It.IsAny<AuthorizationContext>(), "x", "point", "urn:b",
+            It.Is<IReadOnlyList<string>>(t => t.SequenceEqual(new[] { "hvac" })),
+            It.Is<ResourceAttributeFilter>(a => a.DeviceTypes.SequenceEqual(new[] { "VAV" }) && a.GatewayIds.SequenceEqual(new[] { "GW-1" })),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

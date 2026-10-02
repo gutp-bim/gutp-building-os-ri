@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSearchParams, normalizeTags } from "./search";
+import { normalizeFacetQuery, normalizeSearchParams, normalizeTags } from "./search";
 
 describe("normalizeSearchParams", () => {
   it("trims q and drops it when blank", () => {
@@ -45,5 +45,26 @@ describe("normalizeTags", () => {
   it("trims, drops blanks, de-duplicates preserving order", () => {
     expect(normalizeTags(undefined)).toEqual([]);
     expect(normalizeTags([" a ", "b", "a", "  ", "b"])).toEqual(["a", "b"]);
+  });
+});
+
+describe("attribute facets (#454)", () => {
+  it("trims, de-duplicates and omits empty facet lists", () => {
+    const q = normalizeSearchParams({
+      deviceTypes: [" AHU ", "AHU", ""],
+      units: [],
+      gatewayIds: ["GW-1"],
+    });
+    expect(q.deviceType).toEqual(["AHU"]);
+    expect(q.unit).toBeUndefined();
+    expect(q.pointType).toBeUndefined();
+    expect(q.gatewayId).toEqual(["GW-1"]);
+  });
+
+  it("the facet query carries the same filters but no paging", () => {
+    const q = normalizeFacetQuery({ q: "x", type: "point", pointTypes: ["CO2"], limit: 10, offset: 5 });
+    expect(q).toMatchObject({ q: "x", type: "point", pointType: ["CO2"] });
+    expect(q).not.toHaveProperty("limit");
+    expect(q).not.toHaveProperty("offset");
   });
 });

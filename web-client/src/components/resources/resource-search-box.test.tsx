@@ -1,4 +1,6 @@
 import type { SearchHit } from "@/lib/resources/types";
+import { EMPTY_FILTERS } from "@/lib/resources/search-filters";
+import type { ResourceFacetsResult } from "@/lib/resources/types";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ResourceSearchBox } from "./resource-search-box";
@@ -84,5 +86,93 @@ describe("ResourceSearchBox tag suggestions (#454)", () => {
     await waitFor(() =>
       expect(document.querySelector("datalist option")?.getAttribute("value")).toBe("temperature"),
     );
+  });
+});
+
+describe("ResourceSearchBox facets (#454)", () => {
+  const facets: ResourceFacetsResult = {
+    total: 3,
+    truncated: false,
+    types: [{ value: "point", count: 3 }],
+    deviceTypes: [{ value: "AHU", count: 2 }],
+    pointTypes: [],
+    units: [],
+    gateways: [],
+  };
+
+  it("checking a facet re-searches with it and reports the filters", async () => {
+    const search = vi.fn().mockResolvedValue([hit]);
+    const loadFacets = vi.fn().mockResolvedValue(facets);
+    const onFiltersChange = vi.fn();
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={search}
+        loadFacets={loadFacets}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("リソース検索"), { target: { value: "air" } });
+    fireEvent.click(await screen.findByLabelText("AHU（2）"));
+
+    await waitFor(() => expect(lastCall(search)).toMatchObject({ q: "air", deviceTypes: ["AHU"] }));
+    await waitFor(() => expect(lastCall(loadFacets)).toMatchObject({ q: "air", deviceTypes: ["AHU"] }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith(expect.objectContaining({ deviceTypes: ["AHU"] }));
+  });
+
+  it("starts from the filters it is given (a URL) and searches immediately", async () => {
+    const search = vi.fn().mockResolvedValue([hit]);
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={search}
+        loadFacets={vi.fn().mockResolvedValue(facets)}
+        initialFilters={{ ...EMPTY_FILTERS, units: ["degC"] }}
+      />,
+    );
+
+    await waitFor(() => expect(lastCall(search)).toMatchObject({ units: ["degC"] }));
+    expect(await screen.findByText("室温")).toBeInTheDocument();
+  });
+
+  it("a facet-only search (no text, no tag) is a search", async () => {
+    const search = vi.fn().mockResolvedValue([hit]);
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={search}
+        loadFacets={vi.fn().mockResolvedValue(facets)}
+        initialFilters={{ ...EMPTY_FILTERS, deviceTypes: ["AHU"] }}
+      />,
+    );
+    await waitFor(() => expect(search).toHaveBeenCalled());
+  });
+
+  it("the facet toggle opens the panel on an empty form without searching", async () => {
+    const search = vi.fn();
+    const loadFacets = vi.fn().mockResolvedValue(facets);
+    render(<ResourceSearchBox onPick={vi.fn()} search={search} loadFacets={loadFacets} />);
+
+    expect(screen.queryByTestId("facet-panel")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("facet-toggle"));
+
+    expect(await screen.findByTestId("facet-panel")).toBeInTheDocument();
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("a failed facet lookup hides the panel but the search still works", async () => {
+    const search = vi.fn().mockResolvedValue([hit]);
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={search}
+        loadFacets={vi.fn().mockRejectedValue(new Error("boom"))}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("リソース検索"), { target: { value: "air" } });
+
+    expect(await screen.findByText("室温")).toBeInTheDocument();
+    expect(screen.queryByTestId("facet-panel")).not.toBeInTheDocument();
   });
 });

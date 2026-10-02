@@ -9,9 +9,37 @@ export type NormalizedSearchQuery = {
   type?: ResourceType;
   buildingId?: string;
   tag?: string[];
+  deviceType?: string[];
+  pointType?: string[];
+  unit?: string[];
+  gatewayId?: string[];
   limit: number;
   offset: number;
 };
+
+type AttrQuery = Pick<NormalizedSearchQuery, "deviceType" | "pointType" | "unit" | "gatewayId">;
+
+/** Trim/dedupe each facet list and omit the empty ones, so the wire query only carries real constraints. */
+function normalizeAttributes(input: SearchParams): AttrQuery {
+  const pick = (v: readonly string[] | undefined) => {
+    const out = normalizeTags(v);
+    return out.length > 0 ? out : undefined;
+  };
+  return {
+    deviceType: pick(input.deviceTypes),
+    pointType: pick(input.pointTypes),
+    unit: pick(input.units),
+    gatewayId: pick(input.gatewayIds),
+  };
+}
+
+/** The query of `resources/facets`: the search filters without paging. */
+export function normalizeFacetQuery(
+  input: SearchParams,
+): Omit<NormalizedSearchQuery, "limit" | "offset"> {
+  const { limit: _limit, offset: _offset, ...rest } = normalizeSearchParams(input);
+  return rest;
+}
 
 /**
  * Pure normalization of user-supplied search params: trim/blank-drop strings, clamp limit to
@@ -33,6 +61,7 @@ export function normalizeSearchParams(
     type: input.type ?? undefined,
     buildingId: buildingId ? buildingId : undefined,
     tag: tag.length > 0 ? tag : undefined,
+    ...normalizeAttributes(input),
     limit,
     offset,
   };

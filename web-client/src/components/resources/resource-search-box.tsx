@@ -1,10 +1,28 @@
 "use client";
 
 import { resourceTypeColor } from "@/lib/admin/permissions-display";
-import { searchResources, type TagSuggestion } from "@/lib/resources/repository";
+import {
+  fetchResourceFacets,
+  searchResources,
+  type TagSuggestion,
+} from "@/lib/resources/repository";
 import { normalizeTags } from "@/lib/resources/search";
-import type { ResourceType, SearchHit } from "@/lib/resources/types";
+import {
+  EMPTY_FILTERS,
+  hasCriteria,
+  toggleValue,
+  toSearchParams,
+  type FacetGroup,
+  type SearchFilters,
+} from "@/lib/resources/search-filters";
+import type {
+  ResourceFacetsResult,
+  ResourceType,
+  SearchHit,
+  SearchParams,
+} from "@/lib/resources/types";
 import { useEffect, useRef, useState } from "react";
+import { ResourceFacetPanel } from "./resource-facet-panel";
 import { TagSuggestInput } from "./tag-suggest-input";
 
 const TYPE_OPTIONS: { value: "" | ResourceType; label: string }[] = [
@@ -19,30 +37,33 @@ const TYPE_OPTIONS: { value: "" | ResourceType; label: string }[] = [
 const DEBOUNCE_MS = 300;
 
 /**
- * Incremental cross-resource search. Debounced query + a type filter + SBCO customTags chips (#332);
- * multiple tags are ANDed (`customTags[key] == true`). A search runs when there is a query term OR at
- * least one tag. Results are clickable and call `onPick(hit)`. The search function is injectable for
- * tests; it defaults to the repository façade.
+ * Incremental cross-resource search. Debounced query + a type filter + SBCO customTags chips (#332;
+ * multiple tags are ANDed) + structured-attribute facets (#454: equipment / measurement / unit /
+ * gateway, ORed within a group). A search runs when any criterion is set. The filters can start from
+ * (`initialFilters`) and be mirrored to (`onFiltersChange`) the URL. Results are clickable and call
+ * `onPick(hit)`. The data functions are injectable for tests; they default to the repository façade.
  */
 export function ResourceSearchBox({
   onPick,
   search = searchResources,
+  loadFacets = fetchResourceFacets,
   suggestTags,
+  initialFilters = EMPTY_FILTERS,
+  onFiltersChange,
 }: {
   onPick: (hit: SearchHit) => void;
+  search?: (params: SearchParams) => Promise<SearchHit[]>;
+  loadFacets?: (params: SearchParams) => Promise<ResourceFacetsResult>;
   /** Tag candidates for the tag input; defaults to the repository façade. */
   suggestTags?: (prefix: string) => Promise<TagSuggestion[]>;
-  search?: (params: {
-    q?: string;
-    type?: ResourceType;
-    tags?: string[];
-  }) => Promise<SearchHit[]>;
+  initialFilters?: SearchFilters;
+  onFiltersChange?: (filters: SearchFilters) => void;
 }) {
-  const [q, setQ] = useState("");
-  const [type, setType] = useState<"" | ResourceType>("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [tagDraft, setTagDraft] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [facets, setFacets] = useState<ResourceFacetsResult | null>(null);
+  const [showFacets, setShowFacets] = useState(hasCriteria(initialFilters));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -54,18 +75,29 @@ export function ResourceSearchBox({
     };
   }, []);
 
+  const update = (patch: Partial<SearchFilters>) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    onFiltersChange?.(next);
+  };
+
+  const { q, type, tags } = filters;
+
   const addTag = (raw: string) => {
     const [t] = normalizeTags([raw]);
     if (!t) return;
-    setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
+    if (!tags.includes(t)) update({ tags: [...tags, t] });
     setTagDraft("");
   };
-  const removeTag = (t: string) => setTags((prev) => prev.filter((x) => x !== t));
+  const removeTag = (t: string) => update({ tags: tags.filter((x) => x !== t) });
+  const toggleFacet = (group: FacetGroup, value: string) =>
+    update({ [group]: toggleValue(filters[group], value) });
+
+  const searching = hasCriteria(filters);
 
   useEffect(() => {
-    const term = q.trim();
-    // A search needs at least a query term or one tag; otherwise clear results.
-    if (!term && tags.length === 0) {
+    // A search needs at least one criterion; otherwise clear the results.
+    if (!searching) {
       setHits(null);
       setError(null);
       return;
@@ -73,7 +105,7 @@ export function ResourceSearchBox({
     const handle = setTimeout(() => {
       setLoading(true);
       setError(null);
-      search({ q: term || undefined, type: type || undefined, tags: tags.length > 0 ? tags : undefined })
+      search(toSearchParams(filters))
         .then((r) => {
           if (mounted.current) setHits(r);
         })
@@ -85,7 +117,36 @@ export function ResourceSearchBox({
         });
     }, DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [q, type, tags, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, search]);
+
+  // Starting a search opens the facet panel (once per start — hiding it afterwards sticks).
+  useEffect(() => {
+    if (searching) setShowFacets(true);
+  }, [searching]);
+
+  // Facet counts follow the same filters. A failed lookup just hides the panel — the search itself works.
+  useEffect(() => {
+    if (!showFacets) {
+      setFacets(null);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      loadFacets(toSearchParams(filters))
+        .then((f) => {
+          if (!cancelled && mounted.current) setFacets(f);
+        })
+        .catch(() => {
+          if (!cancelled && mounted.current) setFacets(null);
+        });
+    }, DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, showFacets, loadFacets]);
 
   return (
     <div data-testid="resource-search-box">
@@ -93,14 +154,14 @@ export function ResourceSearchBox({
         <input
           type="search"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => update({ q: e.target.value })}
           placeholder="名前・IDで検索"
           aria-label="リソース検索"
           className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
         />
         <select
           value={type}
-          onChange={(e) => setType(e.target.value as "" | ResourceType)}
+          onChange={(e) => update({ type: e.target.value as "" | ResourceType })}
           aria-label="種別で絞り込み"
           className="rounded border border-gray-300 px-1 py-1 text-sm"
         >
@@ -145,6 +206,26 @@ export function ResourceSearchBox({
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      <div className="mt-2">
+        <button
+          type="button"
+          onClick={() => setShowFacets((v) => !v)}
+          aria-expanded={showFacets}
+          className="text-xs text-blue-700 hover:underline"
+          data-testid="facet-toggle"
+        >
+          {showFacets ? "絞り込み項目を隠す" : "絞り込み項目を表示"}
+        </button>
+        {showFacets && (
+          <ResourceFacetPanel
+            facets={facets}
+            filters={filters}
+            onToggle={toggleFacet}
+            onSelectType={(t) => update({ type: t })}
+          />
         )}
       </div>
 
