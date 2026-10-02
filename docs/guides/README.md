@@ -6,6 +6,7 @@
 - [Getting Started](getting-started.md)
 - [E2E ゲートウェイ・オンボーディング](onboarding-e2e-gateway.md)
 - [リソース管理](resource-management.md)
+- [customTags 運用ガイドライン](custom-tags-guideline.md)
 - [Keycloak ユーザー管理](keycloak-user-management.md)
 - [API クライアント開発](api-client-guide.md)
 - [Gateway Integration](gateway-integration.md)
