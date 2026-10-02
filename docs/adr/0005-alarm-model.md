@@ -3,6 +3,7 @@
 - **Status**: Accepted — **Phase 2a 実装済み**。maintainer 判断: D1 = twin per-point（`bos:alarmHigh/Low`
   [+ `warnHigh/Low`]、opt-in、未設定は評価対象外）、D2 = **derived-on-read（完全ステートレス、通知なし）**。
   通知/履歴/ack（Phase 2b, ステートフル）と per-unit ルール編集 UI（Phase 2c）は将来。
+  **Phase 2b は #455 で実装中**（設計は末尾の「Phase 2b 設計」）。
 - **関連**: #158（オペレーターモード。Phase 1 = 鮮度/欠測は実装済み #176/#233）、#148（SettingsRegistry）、
   #183（point 別 expected interval 鮮度閾値）、#153（`bos:minValue`/`maxValue` 制御バウンド）、#230（gateway 状態）、
   #162（通知ポリシー）
@@ -116,3 +117,50 @@
 - コード: `SettingsRegistry.cs` / `SettingDefinition.cs`（スカラー限定の根拠）、`freshness.ts` / `aggregate.ts`
   （派生判定 + 要対応リストの先例）、`TelemetryController.cs`（batch-latest 現在値読み）、
   `ControlSchema.cs` / `OxiGraphOntology.cs`（既存 per-point バウンドと twin プロパティ）。
+
+## Phase 2b 設計（#455）
+
+Phase 2a（derived-on-read）が答えられない「いつ始まり、いつ終わり、誰が確認したか」を、永続イベントで持つ。
+判定そのものは増やさない — **#452 の分類器（`PointHealthClassifier`）の結果を、周期スキャンでイベントに変換する**。
+
+### データモデル
+
+`health_event`（PostgreSQL、`point_control_audit` と同じ共有 DB）。
+
+| 列 | 内容 |
+|---|---|
+| `subject_type` / `subject_id` | `point` + pointId、`gateway` + gatewayId（将来 `device` / `building`） |
+| `kind` | `stale` / `missing` / `alarm` / `gateway_offline` |
+| `severity` | `warn` / `critical` |
+| `raised_at` / `cleared_at` | **lifecycle 軸**。`cleared_at IS NULL` が open |
+| `acknowledged_at` / `acknowledged_by(_name)` | **ACK 軸**（lifecycle と独立） |
+| `detail` (jsonb) | 発生時のスナップショット（閾値・値・欠測理由・経過秒） |
+
+- **「open は subject × kind に 1 件」**は部分 unique index `(subject_type, subject_id, kind) WHERE cleared_at IS NULL`。
+  `point_id` / `gateway_id` の nullable 2 列にしない — PostgreSQL の unique は NULL 同士を一致とみなさず、
+  gateway イベントが多重に open できてしまうため。
+- **lifecycle と ACK は直交**: open/cleared × acked/unacked の 4 状態が全て成立する（解消後の ACK =「見た」の記録）。
+  API でも三値 state に潰さず、`lifecycle` と `ack` を別クエリにする。
+- 保持は `SettingsRegistry` の `health.eventRetentionDays`（既定 90）。**解消済みだけ**を消し、open は消さない。
+
+### 評価器
+
+- **配置: API Server 内の `BackgroundService`**（Issue 案の ConnectorWorker ではない）。分類器の入力 —
+  最終受信インデックス（NATS KV watch）、鮮度閾値（SettingsRegistry）、twin 台帳（キャッシュ付き）、
+  gateway 接続状態、リレーショナル DB — が**すべて API Server に既にある**。ConnectorWorker に置くと
+  これらを全て二重に持つことになる。`HEALTH_EVALUATOR_ENABLED=false` で止められる。
+- **多重起動**: 排他ロックは置かない（#447 の compaction と同じ考え方）。N replica が同じ条件を raise しても
+  partial unique index が 1 件に収束させ、2 本目は `AlreadyOpen` として吸収される。clear / ACK / 更新も
+  条件付き UPDATE で冪等。冗長な走査が増えるだけで、壊れない。
+- **入力**: 周期スキャン（stale / missing は「来ない」ことの検知なので push だけでは足りない）。
+  **最終受信インデックスが Ready でない間はスキャンを丸ごと飛ばす** — Warming の欠測は欠測の証拠ではなく、
+  判定不能（Unknown）を「条件が消えた」と読んで既存イベントを clear してしまうため。
+- **hysteresis**: 連続 N 回のスキャンで条件が成立して初めて raise、連続 M 回で不成立になって初めて clear
+  （既定 N=2, M=3）。ADR-0005 D3 が Phase 2b に予約していた deadband を、閾値の幅ではなく「連続回数」で実現する。
+  カウンタはプロセス内（再起動で 0 に戻るだけ）。
+- **storm 制御**: gateway が切れると配下の全 Point が一斉に stale → missing になる。**gateway が切断中の Point には
+  stale / missing を raise せず、`gateway_offline` 1 件に集約する**。配下の既存イベントは gateway が切れている間は
+  clear しない（復旧してから、通常の hysteresis で解消する）。
+- **severity**: `gateway_offline` と値 alarm の critical は critical、それ以外は warn。alarm の severity が変わったら
+  新しいイベントではなく open の行を更新する（raise 時刻と ACK は保つ）。
+- 通知（メール / Webhook）は #162 の範囲。ここは「イベントが生まれ・消え・ACK できる」まで。

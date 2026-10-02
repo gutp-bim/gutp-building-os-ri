@@ -4,6 +4,7 @@ using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Configuration;
 using BuildingOS.Shared.Domain.GatewayPointListCache;
+using BuildingOS.Shared.Domain.Health;
 using BuildingOS.Shared.Domain.Grouping.Entities;
 using BuildingOS.Shared.Domain.PointControl;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public class RelationalDbContext : DbContext
     public DbSet<PointControlAuditEntry> PointControlAudits => Set<PointControlAuditEntry>();
     public DbSet<AdminAuditEntry> AdminAudits => Set<AdminAuditEntry>();
     public DbSet<GatewayPointListCacheEntry> GatewayPointListCacheEntries => Set<GatewayPointListCacheEntry>();
+    public DbSet<HealthEventEntry> HealthEvents => Set<HealthEventEntry>();
 
     public RelationalDbContext(DbContextOptions<RelationalDbContext> options)
         : base(options)
@@ -105,6 +107,37 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.ActorSub).HasColumnName("actor_sub").IsRequired().HasMaxLength(200);
             entity.Property(e => e.ActorName).HasColumnName("actor_name").HasMaxLength(200);
             entity.HasIndex(e => new { e.PointId, e.CreatedAt }).HasDatabaseName("IX_point_control_audit_point_id_created_at");
+        });
+
+        modelBuilder.Entity<HealthEventEntry>(entity =>
+        {
+            entity.ToTable("health_event");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.SubjectType).HasColumnName("subject_type").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.SubjectId).HasColumnName("subject_id").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.Kind).HasColumnName("kind").IsRequired().HasMaxLength(30);
+            entity.Property(e => e.Severity).HasColumnName("severity").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.RaisedAt).HasColumnName("raised_at").IsRequired();
+            entity.Property(e => e.ClearedAt).HasColumnName("cleared_at");
+            entity.Property(e => e.AcknowledgedAt).HasColumnName("acknowledged_at");
+            entity.Property(e => e.AcknowledgedBy).HasColumnName("acknowledged_by").HasMaxLength(200);
+            entity.Property(e => e.AcknowledgedByName).HasColumnName("acknowledged_by_name").HasMaxLength(200);
+            entity.Property(e => e.Detail).HasColumnName("detail").HasColumnType("jsonb").IsRequired();
+            entity.Ignore(e => e.IsOpen);
+
+            // "Open once per subject × kind" (#455). subject_type + subject_id rather than a nullable
+            // point_id / gateway_id pair: PostgreSQL treats NULLs as distinct in a unique index, so a
+            // nullable pair would let a gateway event be opened many times.
+            entity.HasIndex(e => new { e.SubjectType, e.SubjectId, e.Kind })
+                  .IsUnique()
+                  .HasFilter("cleared_at IS NULL")
+                  .HasDatabaseName("UX_health_event_open_subject_kind");
+            // History / list queries: newest first, and per subject.
+            entity.HasIndex(e => e.RaisedAt).HasDatabaseName("IX_health_event_raised_at");
+            entity.HasIndex(e => new { e.SubjectType, e.SubjectId, e.RaisedAt })
+                  .HasDatabaseName("IX_health_event_subject_raised_at");
+            entity.HasIndex(e => e.ClearedAt).HasDatabaseName("IX_health_event_cleared_at");
         });
 
         modelBuilder.Entity<AdminAuditEntry>(entity =>
