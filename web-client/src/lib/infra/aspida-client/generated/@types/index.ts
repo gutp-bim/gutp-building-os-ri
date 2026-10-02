@@ -302,6 +302,10 @@ export type HealthEventResponse = {
   acknowledgedAt?: string | null | undefined;
   /** 確認した人の表示名（無ければ sub） */
   acknowledgedBy?: string | null | undefined;
+
+  /** 発生時のスナップショット（閾値・値・欠測理由・経過秒など）のキーと値 */
+  detail?: {
+  } | undefined;
 }
 
 export type HealthStatus = 'Critical' | 'Warn' | 'Missing' | 'Stale' | 'Unknown' | 'Fresh'

@@ -141,9 +141,11 @@ public class HealthEventStoreTest(PostgresFixture postgres) : IntegrationTestBas
         var first = await store.AcknowledgeAsync(id, "sub-1", "Yamada", T0.AddMinutes(5));
         var second = await store.AcknowledgeAsync(id, "sub-2", "Suzuki", T0.AddMinutes(9));
 
-        Assert.Equal("sub-1", first!.AcknowledgedBy);
-        Assert.Equal("Yamada", second!.AcknowledgedByName);
-        Assert.Equal(T0.AddMinutes(5), second.AcknowledgedAt);
+        Assert.True(first!.Applied);
+        Assert.Equal("sub-1", first.Event.AcknowledgedBy);
+        Assert.False(second!.Applied);                       // the repeat did not acknowledge anything
+        Assert.Equal("Yamada", second.Event.AcknowledgedByName);
+        Assert.Equal(T0.AddMinutes(5), second.Event.AcknowledgedAt);
         Assert.Null(await store.AcknowledgeAsync(Guid.NewGuid(), "sub-1", null, T0));
     }
 
@@ -226,5 +228,22 @@ public class HealthEventStoreTest(PostgresFixture postgres) : IntegrationTestBas
         Assert.True(page.Total >= 5);
         Assert.Equal(2, page.Items.Count);
         Assert.True(page.Items[0].RaisedAt >= page.Items[1].RaisedAt);
+    }
+
+    [Fact]
+    public async Task Acknowledge_RacingCallers_ExactlyOneIsApplied()
+    {
+        var (a, dbA) = await NewStoreAsync();
+        var (b, dbB) = await NewStoreAsync();
+        await using var _a = dbA; await using var _b = dbB;
+        var p = Id("P");
+        await a.RaiseAsync(Cand("point", p, "stale"), T0);
+        var id = (await a.ListOpenAsync()).Single(e => e.SubjectId == p).Id;
+
+        var results = await Task.WhenAll(
+            a.AcknowledgeAsync(id, "same-user", "S", T0.AddMinutes(1)),
+            b.AcknowledgeAsync(id, "same-user", "S", T0.AddMinutes(1)));
+
+        Assert.Single(results, r => r!.Applied);
     }
 }

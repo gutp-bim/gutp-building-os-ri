@@ -95,18 +95,20 @@ public sealed class EfHealthEventStore(RelationalDbContext context) : IHealthEve
     public Task<HealthEventEntry?> GetAsync(Guid id, CancellationToken ct = default) =>
         context.HealthEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct);
 
-    public async Task<HealthEventEntry?> AcknowledgeAsync(
+    public async Task<HealthEventAckResult?> AcknowledgeAsync(
         Guid id, string actorSub, string? actorName, DateTime now, CancellationToken ct = default)
     {
         // Conditional on "not yet acknowledged", so two operators racing leave the first one on record
         // and the call stays idempotent.
-        await context.HealthEvents
+        var applied = await context.HealthEvents
             .Where(e => e.Id == id && e.AcknowledgedAt == null)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(e => e.AcknowledgedAt, now)
                 .SetProperty(e => e.AcknowledgedBy, actorSub)
-                .SetProperty(e => e.AcknowledgedByName, actorName), ct).ConfigureAwait(false);
-        return await GetAsync(id, ct).ConfigureAwait(false);
+                .SetProperty(e => e.AcknowledgedByName, actorName), ct).ConfigureAwait(false) > 0;
+        var current = await GetAsync(id, ct).ConfigureAwait(false);
+        // `Applied` is the rows-affected of the conditional update — true for exactly one of any set of racing callers.
+        return current is null ? null : new HealthEventAckResult(current, applied);
     }
 
     public Task<int> PruneClearedAsync(DateTime clearedBefore, CancellationToken ct = default) =>

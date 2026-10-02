@@ -24,7 +24,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// <param name="IsOpen">未解消か</param>
 /// <param name="AcknowledgedAt">確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる</param>
 /// <param name="AcknowledgedBy">確認した人の表示名（無ければ sub）</param>
-/// <param name="Detail">発生時のスナップショット（閾値・値・欠測理由・経過秒など）</param>
+/// <param name="Detail">発生時のスナップショット（閾値・値・欠測理由・経過秒など）のキーと値</param>
 public sealed record HealthEventResponse(
     Guid Id,
     string SubjectType,
@@ -38,7 +38,7 @@ public sealed record HealthEventResponse(
     bool IsOpen,
     DateTime? AcknowledgedAt,
     string? AcknowledgedBy,
-    JsonElement Detail);
+    IReadOnlyDictionary<string, JsonElement> Detail);
 
 /// <summary>ヘルスイベント一覧の応答。<c>Total</c> はページング前の該当件数。</summary>
 public sealed record HealthEventListResponse(IReadOnlyList<HealthEventResponse> Items, int Total, int Limit, int Offset);
@@ -151,13 +151,13 @@ public class HealthEventsController(
         if (visibility.Scope is { } scope && !InScope(existing, scope)) return NotFound();
 
         var name = ActorName();
-        var before = existing.AcknowledgedAt;
-        var updated = await store.AcknowledgeAsync(id, auth.UserId, name, clock.GetUtcNow().UtcDateTime, ct).ConfigureAwait(false);
-        if (updated is null) return NotFound(); // deleted between the read and the write (retention)
+        var result = await store.AcknowledgeAsync(id, auth.UserId, name, clock.GetUtcNow().UtcDateTime, ct).ConfigureAwait(false);
+        if (result is null) return NotFound(); // deleted between the read and the write (retention)
+        var updated = result.Event;
 
-        // Audit only the acknowledgement that actually happened, not an idempotent repeat.
-        if (before is null && updated.AcknowledgedBy == auth.UserId)
-            await AuditAsync(auth, name, updated).ConfigureAwait(false);
+        // Audit only the acknowledgement this call actually made — the store says which racing caller won —
+        // not an idempotent repeat.
+        if (result.Applied) await AuditAsync(auth, name, updated).ConfigureAwait(false);
 
         var names = visibility.Names ?? (await LedgerAsync(auth, ct).ConfigureAwait(false)).Names;
         return Ok(ToResponse(updated, names));
@@ -264,9 +264,15 @@ public class HealthEventsController(
     private static DateTime Utc(DateTime t) => DateTime.SpecifyKind(t, DateTimeKind.Utc);
     private static DateTime? Utc(DateTime? t) => t is { } v ? Utc(v) : null;
 
-    private static JsonElement ParseDetail(string json)
+    private static IReadOnlyDictionary<string, JsonElement> ParseDetail(string json)
     {
-        try { return JsonDocument.Parse(json).RootElement.Clone(); }
-        catch (JsonException) { return JsonDocument.Parse("{}").RootElement.Clone(); }
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, JsonElement>();
+        }
     }
 }

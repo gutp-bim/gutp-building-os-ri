@@ -4500,7 +4500,9 @@ components:
           description: 確認した人の表示名（無ければ sub）
           nullable: true
         detail:
-          description: 発生時のスナップショット（閾値・値・欠測理由・経過秒など）
+          type: object
+          additionalProperties: { }
+          description: 発生時のスナップショット（閾値・値・欠測理由・経過秒など）のキーと値
       additionalProperties: false
       description: ヘルスイベント 1 件（#455）。lifecycle（`ClearedAt`）と確認応答（`AcknowledgedAt`）は独立した軸。
     HealthStatus:

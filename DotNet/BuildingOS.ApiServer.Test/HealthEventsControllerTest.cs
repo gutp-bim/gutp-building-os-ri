@@ -179,7 +179,7 @@ public class HealthEventsControllerTest
         Assert.Null(body.Items[0].AcknowledgedAt);
         Assert.False(body.Items[1].IsOpen);
         Assert.NotNull(body.Items[1].AcknowledgedAt);       // cleared AND acknowledged
-        Assert.Equal(900, body.Items[0].Detail.GetProperty("ageSeconds").GetInt32());
+        Assert.Equal(900, body.Items[0].Detail["ageSeconds"].GetInt32());
         Assert.Equal(DateTimeKind.Utc, body.Items[0].RaisedAt.Kind);
     }
 
@@ -192,11 +192,11 @@ public class HealthEventsControllerTest
         var e = Event("point", "P1");
         h.Store.Setup(s => s.GetAsync(e.Id, It.IsAny<CancellationToken>())).ReturnsAsync(e);
         h.Store.Setup(s => s.AcknowledgeAsync(e.Id, "op-9", It.IsAny<string?>(), Now.UtcDateTime, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new HealthEventEntry
+            .ReturnsAsync(new HealthEventAckResult(new HealthEventEntry
             {
                 Id = e.Id, SubjectType = "point", SubjectId = "P1", Kind = "stale", Severity = "warn", RaisedAt = e.RaisedAt,
                 AcknowledgedAt = Now.UtcDateTime, AcknowledgedBy = "op-9", Detail = "{}",
-            });
+            }, Applied: true));
 
         var result = await h.Controller.Acknowledge(e.Id);
 
@@ -214,7 +214,7 @@ public class HealthEventsControllerTest
         var already = Event("point", "P1", acked: Now.UtcDateTime.AddMinutes(-5)); // acknowledged by sub-1
         h.Store.Setup(s => s.GetAsync(already.Id, It.IsAny<CancellationToken>())).ReturnsAsync(already);
         h.Store.Setup(s => s.AcknowledgeAsync(already.Id, "admin-2", It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(already); // the store keeps the first acknowledger
+            .ReturnsAsync(new HealthEventAckResult(already, Applied: false)); // the store keeps the first acknowledger
 
         var result = await h.Controller.Acknowledge(already.Id);
 
@@ -265,8 +265,29 @@ public class HealthEventsControllerTest
         var gw = Event("gateway", "GW-1", "gateway_offline");
         h.Store.Setup(s => s.GetAsync(gw.Id, It.IsAny<CancellationToken>())).ReturnsAsync(gw);
         h.Store.Setup(s => s.AcknowledgeAsync(gw.Id, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(gw);
+            .ReturnsAsync(new HealthEventAckResult(gw, Applied: true));
 
         Assert.IsType<OkObjectResult>((await h.Controller.Acknowledge(gw.Id)).Result);
+    }
+
+    [Fact]
+    public async Task Ack_WhenAnotherCallerWonTheRace_IsNotAuditedAgain_EvenIfTheStoredAckerIsTheSameUser()
+    {
+        // Two requests from the same operator both read the event unacknowledged; the store's conditional
+        // update applied only one. The loser's row says "acknowledged by me" too — it must still not audit.
+        var h = Build("operator", [("P1", "GW-1")], sub: "op-9");
+        var e = Event("point", "P1");
+        h.Store.Setup(s => s.GetAsync(e.Id, It.IsAny<CancellationToken>())).ReturnsAsync(e);
+        var acked = new HealthEventEntry
+        {
+            Id = e.Id, SubjectType = "point", SubjectId = "P1", Kind = "stale", Severity = "warn", RaisedAt = e.RaisedAt,
+            AcknowledgedAt = Now.UtcDateTime, AcknowledgedBy = "op-9", Detail = "{}",
+        };
+        h.Store.Setup(s => s.AcknowledgeAsync(e.Id, "op-9", It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthEventAckResult(acked, Applied: false));
+
+        await h.Controller.Acknowledge(e.Id);
+
+        h.Audit.Verify(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
