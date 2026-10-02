@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_FILTERS,
+  usesAttributes,
+  usesHealth,
   filtersFromParams,
   filtersToParams,
   hasCriteria,
@@ -22,6 +24,8 @@ describe("hasCriteria", () => {
     ["pointTypes", { pointTypes: ["CO2"] }],
     ["units", { units: ["ppm"] }],
     ["gatewayIds", { gatewayIds: ["GW-1"] }],
+    ["freshness", { freshness: ["stale" as const] }],
+    ["alarm", { alarm: ["critical" as const] }],
   ])("is true when %s is set", (_name, patch) => {
     expect(hasCriteria({ ...EMPTY_FILTERS, ...patch })).toBe(true);
   });
@@ -44,6 +48,8 @@ describe("toSearchParams", () => {
       pointTypes: undefined,
       units: ["ppm"],
       gatewayIds: undefined,
+      freshness: undefined,
+      alarm: undefined,
     });
   });
 });
@@ -57,6 +63,8 @@ describe("URL round trip (#454)", () => {
     pointTypes: ["Temperature"],
     units: ["degC"],
     gatewayIds: ["GW-1"],
+    freshness: ["stale" as const, "missing" as const],
+    alarm: ["critical" as const],
   };
 
   it("survives writing to and reading from the URL", () => {
@@ -87,5 +95,21 @@ describe("URL round trip (#454)", () => {
     expect(f.type).toBe("");
     expect(f.tags).toEqual([]);
     expect(f.units).toEqual(["ppm"]);
+  });
+});
+
+describe("health vs attribute routing (#454)", () => {
+  it("tells which API a form needs", () => {
+    expect(usesHealth({ ...EMPTY_FILTERS, freshness: ["stale"] })).toBe(true);
+    expect(usesHealth({ ...EMPTY_FILTERS, alarm: ["warn"] })).toBe(true);
+    expect(usesHealth({ ...EMPTY_FILTERS, units: ["ppm"] })).toBe(false);
+    expect(usesAttributes({ ...EMPTY_FILTERS, units: ["ppm"] })).toBe(true);
+    expect(usesAttributes({ ...EMPTY_FILTERS, freshness: ["stale"] })).toBe(false);
+  });
+
+  it("reads health values case-insensitively and drops unknown ones", () => {
+    const f = filtersFromParams(new URLSearchParams("freshness=Stale&freshness=bogus&freshness=stale&alarm=CRITICAL&alarm=normal"));
+    expect(f.freshness).toEqual(["stale"]);
+    expect(f.alarm).toEqual(["critical"]);
   });
 });

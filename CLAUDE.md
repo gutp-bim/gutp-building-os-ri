@@ -335,6 +335,17 @@ Aspida client is auto-generated from Swagger. After API changes, run `./sync-typ
 > (`/buildings/[id]`, `/floors/[id]`, …) are unchanged. Cross-resource search is `GET /api/v1/resources/search`
 > (OxiGraph SPARQL via `ResourceSearchQueryBuilder`, authorized by `AuthorizedTwinView.SearchAsync`).
 
+> **`/resources` facets (#454):** the explorer's search box filters by q / type / customTags and by
+> structured attributes — `deviceType` / `pointType` / `unit` / `gatewayId` (values within a group are
+> ORed, groups ANDed) — through `GET /api/v1/resources/search` (attribute params take
+> `AuthorizedTwinView.SearchFilteredAsync`; without them the original path is untouched). Counts come from
+> `GET /api/v1/resources/facets` (a group's counts exclude its own selection so the alternatives stay
+> visible; authorization is applied per row before counting; empty for group-manager) and tag
+> autocomplete from `GET /api/v1/resources/tags`. **Data health (Freshness / Alarm, Points only) is
+> answered by `GET /api/v1/telemetry/health`, not by these** — `lib/resources/search-dispatch.ts` routes a
+> health condition to the health API alone (the two are never joined in the UI), so choosing health clears
+> the asset attributes and vice versa. The whole form is mirrored to the URL (`search-filters.ts`).
+
 ### Help content (content-as-code, #149)
 
 In-app help is **content-as-code** in `web-client/src/lib/help/` (typed TS, i18n = ja): `content.ts`

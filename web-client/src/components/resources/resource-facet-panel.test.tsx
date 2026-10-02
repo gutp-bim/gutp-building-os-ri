@@ -91,3 +91,62 @@ describe("ResourceFacetPanel (#454)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("ResourceFacetPanel health groups (#454)", () => {
+  const withHealth: ResourceFacetsResult = {
+    ...facets,
+    health: {
+      freshness: [
+        { value: "fresh", count: 7 },
+        { value: "stale", count: 2 },
+        { value: "missing", count: 1 },
+      ],
+      alarm: [
+        { value: "warn", count: 3 },
+        { value: "critical", count: 1 },
+      ],
+      dataComplete: true,
+    },
+  };
+  const points = { ...EMPTY_FILTERS, type: "point" as const };
+
+  it("offers Freshness and Alarm only while the subject is Points", () => {
+    setup({ facets: withHealth, filters: points });
+    expect(screen.getByLabelText("鮮度切れ（2）")).toBeInTheDocument();
+    expect(screen.getByLabelText("欠測（1）")).toBeInTheDocument();
+    expect(screen.getByLabelText("重大（1）")).toBeInTheDocument();
+  });
+
+  it("hides them for any other type", () => {
+    setup({ facets: withHealth, filters: { ...EMPTY_FILTERS, type: "device" } });
+    expect(screen.queryByTestId("facet-health-freshness")).not.toBeInTheDocument();
+    setup({ facets: withHealth, filters: EMPTY_FILTERS });
+    expect(screen.queryByTestId("facet-health-alarm")).not.toBeInTheDocument();
+  });
+
+  it("reports a toggled health value with its group", () => {
+    const { onToggle } = setup({ facets: withHealth, filters: points });
+    fireEvent.click(screen.getByLabelText("鮮度切れ（2）"));
+    expect(onToggle).toHaveBeenCalledWith("freshness", "stale");
+    fireEvent.click(screen.getByLabelText("警告（3）"));
+    expect(onToggle).toHaveBeenCalledWith("alarm", "warn");
+  });
+
+  it("does not show counts while the last-seen index is still warming", () => {
+    setup({
+      facets: { ...withHealth, health: { ...withHealth.health!, dataComplete: false } },
+      filters: points,
+    });
+    expect(screen.getByLabelText("欠測")).toBeInTheDocument(); // no "（1）": it would be a guess
+    expect(screen.queryByLabelText("欠測（1）")).not.toBeInTheDocument();
+    expect(screen.getByText(/走査中/)).toBeInTheDocument();
+  });
+
+  it("keeps a selected health value that currently matches nothing", () => {
+    setup({
+      facets: withHealth,
+      filters: { ...points, alarm: ["critical"] },
+    });
+    expect(screen.getByLabelText("重大（1）")).toBeChecked();
+  });
+});

@@ -61,13 +61,14 @@ describe("ResourcesPageComponent search filters in the URL (#454)", () => {
     render(<ResourcesPageComponent />);
 
     boxProps?.onFiltersChange({
-      q: "new", type: "", tags: [], deviceTypes: ["AHU"], pointTypes: [], units: [], gatewayIds: [],
+      q: "new", type: "", tags: [], deviceTypes: ["AHU"], pointTypes: [], units: [], gatewayIds: [], freshness: ["stale"], alarm: [],
     });
 
     const url = replace.mock.calls.at(-1)?.[0] as string;
     expect(url).toContain("sel=point%3AP1");
     expect(url).toContain("q=new");
     expect(url).toContain("deviceType=AHU");
+    expect(url).toContain("freshness=stale");
     expect(url).not.toContain("q=old");
   });
 });

@@ -176,3 +176,78 @@ describe("ResourceSearchBox facets (#454)", () => {
     expect(screen.queryByTestId("facet-panel")).not.toBeInTheDocument();
   });
 });
+
+describe("ResourceSearchBox health facets (#454)", () => {
+  const health: ResourceFacetsResult = {
+    total: 3, truncated: false,
+    types: [{ value: "point", count: 3 }],
+    deviceTypes: [{ value: "AHU", count: 3 }], pointTypes: [], units: [], gateways: [],
+    health: {
+      freshness: [{ value: "stale", count: 2 }],
+      alarm: [{ value: "critical", count: 1 }],
+      dataComplete: true,
+    },
+  };
+
+  it("a health facet sets the type to Point and clears the asset attributes", async () => {
+    const search = vi.fn().mockResolvedValue([hit]);
+    const onFiltersChange = vi.fn();
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={search}
+        loadFacets={vi.fn().mockResolvedValue(health)}
+        initialFilters={{ ...EMPTY_FILTERS, type: "point", deviceTypes: ["AHU"] }}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("鮮度切れ（2）"));
+
+    await waitFor(() =>
+      expect(lastCall(search)).toMatchObject({ type: "point", freshness: ["stale"] }),
+    );
+    expect(lastCall(search)).not.toHaveProperty("deviceTypes", ["AHU"]);
+    expect(onFiltersChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceTypes: [], freshness: ["stale"] }),
+    );
+  });
+
+  it("an asset facet clears the health conditions", async () => {
+    const onFiltersChange = vi.fn();
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        loadFacets={vi.fn().mockResolvedValue({ ...health, deviceTypes: [{ value: "AHU", count: 3 }] })}
+        initialFilters={{ ...EMPTY_FILTERS, type: "point", freshness: ["stale"] }}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("AHU（3）"));
+
+    expect(onFiltersChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceTypes: ["AHU"], freshness: [], alarm: [] }),
+    );
+  });
+
+  it("leaving Points drops the health conditions", async () => {
+    const onFiltersChange = vi.fn();
+    render(
+      <ResourceSearchBox
+        onPick={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        loadFacets={vi.fn().mockResolvedValue(health)}
+        initialFilters={{ ...EMPTY_FILTERS, type: "point", alarm: ["critical"] }}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("種別で絞り込み"), { target: { value: "device" } });
+
+    expect(onFiltersChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "device", alarm: [], freshness: [] }),
+    );
+  });
+});

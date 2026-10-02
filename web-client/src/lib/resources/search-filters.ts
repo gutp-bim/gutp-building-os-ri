@@ -13,7 +13,17 @@ export type SearchFilters = {
   pointTypes: string[];
   units: string[];
   gatewayIds: string[];
+  /** Data-health conditions (Point only); see {@link SearchParams.freshness}. */
+  freshness: HealthFreshness[];
+  alarm: HealthAlarm[];
 };
+
+export type HealthFreshness = "fresh" | "stale" | "missing";
+export type HealthAlarm = "warn" | "critical";
+
+/** Selectable data-health values, in display order (the health API also knows `unknown`/`normal`). */
+export const HEALTH_FRESHNESS_VALUES: readonly HealthFreshness[] = ["fresh", "stale", "missing"];
+export const HEALTH_ALARM_VALUES: readonly HealthAlarm[] = ["warn", "critical"];
 
 export const EMPTY_FILTERS: SearchFilters = {
   q: "",
@@ -23,10 +33,21 @@ export const EMPTY_FILTERS: SearchFilters = {
   pointTypes: [],
   units: [],
   gatewayIds: [],
+  freshness: [],
+  alarm: [],
 };
 
 /** The facet groups that hold a list of selected values (everything but q / type / tags). */
-export type FacetGroup = "deviceTypes" | "pointTypes" | "units" | "gatewayIds";
+export type FacetGroup =
+  | "deviceTypes"
+  | "pointTypes"
+  | "units"
+  | "gatewayIds"
+  | "freshness"
+  | "alarm";
+
+/** The asset-attribute groups, served by `resources/search` + `resources/facets`. */
+export const ATTRIBUTE_GROUPS = ["deviceTypes", "pointTypes", "units", "gatewayIds"] as const;
 
 // URL parameter per field. `sel` (the selected tree node) is owned by the page and never touched here.
 const PARAM = {
@@ -37,6 +58,9 @@ const PARAM = {
   pointTypes: "pointType",
   units: "unit",
   gatewayIds: "gatewayId",
+  // Same names as the /health screen's URL, so a filtered view reads the same in both places.
+  freshness: "freshness",
+  alarm: "alarm",
 } as const;
 
 const TYPES: readonly ResourceType[] = ["building", "floor", "space", "device", "point"];
@@ -50,8 +74,20 @@ export function hasCriteria(f: SearchFilters): boolean {
     f.deviceTypes.length > 0 ||
     f.pointTypes.length > 0 ||
     f.units.length > 0 ||
-    f.gatewayIds.length > 0
+    f.gatewayIds.length > 0 ||
+    f.freshness.length > 0 ||
+    f.alarm.length > 0
   );
+}
+
+/** True when a data-health condition is set — the search then goes to the health API. */
+export function usesHealth(f: SearchFilters): boolean {
+  return f.freshness.length > 0 || f.alarm.length > 0;
+}
+
+/** True when an asset-attribute facet is set — the search then goes to `resources/search`. */
+export function usesAttributes(f: SearchFilters): boolean {
+  return ATTRIBUTE_GROUPS.some((g) => f[g].length > 0);
 }
 
 /** Adds the value when absent, removes it when present. Order of the remaining values is kept. */
@@ -70,6 +106,8 @@ export function toSearchParams(f: SearchFilters): SearchParams {
     pointTypes: f.pointTypes.length > 0 ? f.pointTypes : undefined,
     units: f.units.length > 0 ? f.units : undefined,
     gatewayIds: f.gatewayIds.length > 0 ? f.gatewayIds : undefined,
+    freshness: f.freshness.length > 0 ? f.freshness : undefined,
+    alarm: f.alarm.length > 0 ? f.alarm : undefined,
   };
 }
 
@@ -85,7 +123,20 @@ export function filtersFromParams(params: URLSearchParams): SearchFilters {
     pointTypes: list(PARAM.pointTypes),
     units: list(PARAM.units),
     gatewayIds: list(PARAM.gatewayIds),
+    freshness: known(list(PARAM.freshness), HEALTH_FRESHNESS_VALUES),
+    alarm: known(list(PARAM.alarm), HEALTH_ALARM_VALUES),
   };
+}
+
+// Health values are matched case-insensitively (a hand-written `?freshness=Stale` still works) and an
+// unknown one is dropped rather than sent: the health API ignores it, which would widen the search.
+function known<T extends string>(values: string[], allowed: readonly T[]): T[] {
+  const out: T[] = [];
+  for (const v of values) {
+    const hit = allowed.find((a) => a === v.toLowerCase());
+    if (hit && !out.includes(hit)) out.push(hit);
+  }
+  return out;
 }
 
 /**
@@ -102,5 +153,7 @@ export function filtersToParams(f: SearchFilters, base: URLSearchParams): URLSea
   for (const v of f.pointTypes) next.append(PARAM.pointTypes, v);
   for (const v of f.units) next.append(PARAM.units, v);
   for (const v of f.gatewayIds) next.append(PARAM.gatewayIds, v);
+  for (const v of f.freshness) next.append(PARAM.freshness, v);
+  for (const v of f.alarm) next.append(PARAM.alarm, v);
   return next;
 }
