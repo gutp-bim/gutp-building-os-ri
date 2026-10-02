@@ -187,8 +187,14 @@ export function HealthEventsView({
   const lastPage = Math.max(1, Math.ceil(total / query.limit));
 
   return (
-    <div data-testid="health-events-view">
-      <div className="mb-3 space-y-2" data-testid="events-filters">
+    <div data-testid="health-events-view" className="space-y-4 p-6">
+      <header>
+        <h1 className="text-xl font-semibold text-gray-800">イベント</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Point や Gateway の異常が、いつ始まり、いつ終わり、誰が確認したかの記録です。
+        </p>
+      </header>
+      <div className="space-y-2" data-testid="events-filters">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-gray-700">状態</span>
           {LIFECYCLES.map((l) => (

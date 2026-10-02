@@ -41,8 +41,10 @@ public sealed class HealthEvaluatorHostedService(
             "Health evaluator started: every {Interval}s, raise after {Raise} / clear after {Clear} consecutive scans",
             options.IntervalSeconds, options.RaiseAfterScans, options.ClearAfterScans);
 
+        // Wait one interval before the first scan: at startup the API Server is still applying its database
+        // migrations and the last-seen index is still warming, so an immediate scan would only fail (or skip).
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(options.IntervalSeconds), clock);
-        do
+        while (await WaitAsync(timer, stoppingToken).ConfigureAwait(false))
         {
             try
             {
@@ -59,7 +61,6 @@ public sealed class HealthEvaluatorHostedService(
                 logger.LogWarning(ex, "Health evaluation scan failed; will retry next interval");
             }
         }
-        while (await WaitAsync(timer, stoppingToken).ConfigureAwait(false));
     }
 
     private static async Task<bool> WaitAsync(PeriodicTimer timer, CancellationToken ct)
