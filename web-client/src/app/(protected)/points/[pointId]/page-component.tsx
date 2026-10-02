@@ -37,6 +37,7 @@ import { ColdDataDownloadModal } from "./components/cold-data-download-modal";
 import { CONTROL_AUDIT_ANCHOR_ID } from "./components/control-audit-anchor";
 import { ControlAuditHistory } from "./components/control-audit-history";
 import { PointControlModal } from "./components/point-control-modal/point-control-modal";
+import { PointHealthEvents } from "./components/point-health-events";
 import { PointHealthPanel } from "./components/point-health-panel";
 import { PointInfo } from "./components/point-info";
 import {
@@ -388,6 +389,7 @@ export default function PointDetailPageComponent({
           >
             <TelemetryCoverageBar state={coverage} />
           </PointHealthPanel>
+          <PointHealthEvents pointId={pointDetail.point.id} />
         </div>
       </div>
 
