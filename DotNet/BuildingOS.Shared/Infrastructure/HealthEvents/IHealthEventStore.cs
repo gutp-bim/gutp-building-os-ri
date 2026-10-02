@@ -49,6 +49,12 @@ public sealed class HealthEventQuery
 public sealed record HealthEventPage(IReadOnlyList<HealthEventEntry> Items, int Total);
 
 /// <summary>
+/// The event after an acknowledgement attempt, and whether <b>this call</b> is the one that acknowledged it
+/// (false: someone else already had, and their acknowledgement is what <see cref="Event"/> shows).
+/// </summary>
+public sealed record HealthEventAckResult(HealthEventEntry Event, bool Applied);
+
+/// <summary>
 /// Persistence of health events (#455). Every write is idempotent, so N evaluator replicas (or a retried
 /// scan) converge on the same rows instead of needing a lock.
 /// </summary>
@@ -73,9 +79,9 @@ public interface IHealthEventStore
 
     /// <summary>
     /// Acknowledges the event, once: a second acknowledgement returns the existing one unchanged (the first
-    /// acknowledger stays on record). Null when no such event exists.
+    /// acknowledger stays on record) with <c>Applied = false</c>. Null when no such event exists.
     /// </summary>
-    Task<HealthEventEntry?> AcknowledgeAsync(
+    Task<HealthEventAckResult?> AcknowledgeAsync(
         Guid id, string actorSub, string? actorName, DateTime now, CancellationToken ct = default);
 
     /// <summary>Deletes cleared events cleared before <paramref name="clearedBefore"/>. Open events are never deleted.</summary>

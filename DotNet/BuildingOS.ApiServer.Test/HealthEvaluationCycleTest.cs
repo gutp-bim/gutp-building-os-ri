@@ -48,7 +48,7 @@ public class HealthEvaluationCycleTest
 
         public Task<HealthEventPage> QueryAsync(HealthEventQuery q, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<HealthEventEntry?> GetAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<HealthEventEntry?> AcknowledgeAsync(Guid id, string s, string? n, DateTime now, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<HealthEventAckResult?> AcknowledgeAsync(Guid id, string s, string? n, DateTime now, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> PruneClearedAsync(DateTime before, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
@@ -119,7 +119,7 @@ public class HealthEvaluationCycleTest
         public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, CancellationToken ct = default) => Task.FromResult(0);
         public Task<HealthEventPage> QueryAsync(HealthEventQuery q, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<HealthEventEntry?> GetAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<HealthEventEntry?> AcknowledgeAsync(Guid id, string s, string? n, DateTime now, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<HealthEventAckResult?> AcknowledgeAsync(Guid id, string s, string? n, DateTime now, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> PruneClearedAsync(DateTime before, CancellationToken ct = default) => throw new NotSupportedException();
     }
 

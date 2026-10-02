@@ -60,6 +60,8 @@ public static class AdminAuditSubjects
     public const string User = "user";
     /// <summary>#506: resource Group CRUD — now also reachable by the group-manager service role.</summary>
     public const string Group = "group";
+    /// <summary>#455: acknowledging a health event.</summary>
+    public const string HealthEvent = "health-event";
 }
 
 /// <summary>Filter for listing audit records (most-recent first, capped by <see cref="Limit"/>).</summary>

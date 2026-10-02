@@ -268,6 +268,64 @@ export type GroupsControllerUpdateGroupRequest = {
   description?: string | null | undefined;
 }
 
+/**
+ * 発生時のスナップショット。どの欄が入るかは種別による（stale: 経過秒・閾値・最終受信 / missing: 理由・閾値 /
+ * alarm: 値・破られた境界 / gateway_offline: 配下の Point 数）。該当しない欄は null。
+ */
+export type HealthEventDetail = {
+  /** stale: 最終受信からの経過秒 */
+  ageSeconds?: number | null | undefined;
+  /** stale / missing: 鮮度切れの判定閾値（秒） */
+  thresholdSeconds?: number | null | undefined;
+  /** stale: 最終受信の時刻 */
+  lastSeen?: string | null | undefined;
+  /** missing: 欠測の理由（NeverReceived / GatewayDisconnected / Unknown） */
+  reason?: string | null | undefined;
+  /** alarm: 発生時の値（工学単位） */
+  value?: number | null | undefined;
+  /** alarm: 破られた境界（AlarmHigh / AlarmLow / WarnHigh / WarnLow） */
+  violated?: string | null | undefined;
+  /** gateway_offline: 配下の Point 数 */
+  pointCount?: number | null | undefined;
+}
+
+/** ヘルスイベント一覧の応答。`Total` はページング前の該当件数。 */
+export type HealthEventListResponse = {
+  items?: HealthEventResponse[] | undefined;
+  total?: number | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+/** ヘルスイベント 1 件（#455）。lifecycle（`ClearedAt`）と確認応答（`AcknowledgedAt`）は独立した軸。 */
+export type HealthEventResponse = {
+  /** イベント ID */
+  id?: string | undefined;
+  /** point | gateway */
+  subjectType?: string | undefined;
+  /** pointId または gatewayId */
+  subjectId?: string | undefined;
+  /** Point の名前（Gateway は ID と同じ。台帳から引けなければ null） */
+  subjectName?: string | null | undefined;
+  /** 所属建物の名前（引けなければ null） */
+  buildingName?: string | null | undefined;
+  /** stale | missing | alarm | gateway_offline */
+  kind?: string | undefined;
+  /** warn | critical */
+  severity?: string | undefined;
+  /** 発生時刻（UTC） */
+  raisedAt?: string | undefined;
+  /** 解消時刻（UTC）。null の間は open */
+  clearedAt?: string | null | undefined;
+  /** 未解消か */
+  isOpen?: boolean | undefined;
+  /** 確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる */
+  acknowledgedAt?: string | null | undefined;
+  /** 確認した人の表示名（無ければ sub） */
+  acknowledgedBy?: string | null | undefined;
+  detail?: HealthEventDetail | undefined;
+}
+
 export type HealthStatus = 'Critical' | 'Warn' | 'Missing' | 'Stale' | 'Unknown' | 'Fresh'
 
 export type IngressRejectionCount = {
