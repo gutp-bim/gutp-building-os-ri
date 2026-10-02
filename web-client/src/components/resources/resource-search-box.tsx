@@ -1,10 +1,11 @@
 "use client";
 
 import { resourceTypeColor } from "@/lib/admin/permissions-display";
-import { searchResources } from "@/lib/resources/repository";
+import { searchResources, type TagSuggestion } from "@/lib/resources/repository";
 import { normalizeTags } from "@/lib/resources/search";
 import type { ResourceType, SearchHit } from "@/lib/resources/types";
 import { useEffect, useRef, useState } from "react";
+import { TagSuggestInput } from "./tag-suggest-input";
 
 const TYPE_OPTIONS: { value: "" | ResourceType; label: string }[] = [
   { value: "", label: "すべて" },
@@ -26,8 +27,11 @@ const DEBOUNCE_MS = 300;
 export function ResourceSearchBox({
   onPick,
   search = searchResources,
+  suggestTags,
 }: {
   onPick: (hit: SearchHit) => void;
+  /** Tag candidates for the tag input; defaults to the repository façade. */
+  suggestTags?: (prefix: string) => Promise<TagSuggestion[]>;
   search?: (params: {
     q?: string;
     type?: ResourceType;
@@ -110,10 +114,9 @@ export function ResourceSearchBox({
 
       {/* customTags chips (AND). Add on Enter, remove with ×. */}
       <div className="mt-2">
-        <input
-          type="text"
+        <TagSuggestInput
           value={tagDraft}
-          onChange={(e) => setTagDraft(e.target.value)}
+          onChange={setTagDraft}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -121,9 +124,10 @@ export function ResourceSearchBox({
             }
           }}
           placeholder="タグを追加（Enter、複数=AND）"
-          aria-label="タグで絞り込み"
+          ariaLabel="タグで絞り込み"
           className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
           data-testid="tag-input"
+          suggest={suggestTags}
         />
         {tags.length > 0 && (
           <ul className="mt-1 flex flex-wrap gap-1" data-testid="tag-chips">

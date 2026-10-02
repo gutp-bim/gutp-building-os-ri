@@ -595,6 +595,11 @@ export type ResourceSearchHit = {
   buildingDtId?: string | null | undefined;
 }
 
+export type ResourceTagCount = {
+  tag: string;
+  count?: number | undefined;
+}
+
 export type RoleCatalogEntry = {
   role?: string | undefined;
   isAdmin?: boolean | undefined;

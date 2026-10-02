@@ -41,6 +41,13 @@ public interface IDigitalTwinDatabase
     public Task<ResourceSearchHit[]> SearchResources(string? q, string? type, string? buildingDtId, IReadOnlyList<string> tags, int limit, int offset);
 
     /// <summary>
+    /// Every (resource, customTag) pair whose tag is set to true and whose key starts with
+    /// <paramref name="prefix"/> (case-insensitive; null/blank = no prefix filter). Unauthorized: the
+    /// caller filters by read access before counting, so a count never reveals a resource it cannot read.
+    /// </summary>
+    public Task<ResourceTagUsage[]> ListTagUsage(string? prefix);
+
+    /// <summary>
     /// All points owned by a gateway (sbco:gatewayId), with native addressing / unit / writability /
     /// control schema / device grouping for the gateway point-list export (#224). Points with no native
     /// addressing still appear (null fields). Empty when the gateway owns no points.

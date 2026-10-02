@@ -217,4 +217,34 @@ public class ResourceSearchQueryBuilderTest
         Assert.DoesNotContain($"<{Building}>", sparql);
         Assert.Contains("FILTER EXISTS", sparql);
     }
+
+    [Fact]
+    public void BuildTagUsage_SelectsTrueTagsOfEveryType_FilteredByCaseInsensitivePrefix()
+    {
+        var sparql = ResourceSearchQueryBuilder.BuildTagUsage("Tem", 1000);
+
+        foreach (var cls in new[] { Building, Level, Room, Equipment, Point })
+            Assert.Contains($"<{cls}>", sparql);
+        Assert.Contains($"<{CustomTags}>", sparql);
+        Assert.Contains($"<{Key}> ?tagKey", sparql);
+        Assert.Contains("\"true\"^^xsd:boolean", sparql);
+        Assert.Contains("STRSTARTS(LCASE(?tagKey), LCASE(\"Tem\"))", sparql);
+        Assert.Contains("LIMIT 1000", sparql);
+    }
+
+    [Fact]
+    public void BuildTagUsage_BlankPrefix_HasNoPrefixFilter()
+    {
+        Assert.DoesNotContain("STRSTARTS", ResourceSearchQueryBuilder.BuildTagUsage("  ", 10));
+        Assert.DoesNotContain("STRSTARTS", ResourceSearchQueryBuilder.BuildTagUsage(null, 10));
+    }
+
+    [Fact]
+    public void BuildTagUsage_EscapesPrefix_SoItCannotBreakOutOfTheLiteral()
+    {
+        var sparql = ResourceSearchQueryBuilder.BuildTagUsage("a\"b\\c\nd", 10);
+
+        Assert.Contains("a\\\"b\\\\c\\nd", sparql);
+        Assert.DoesNotContain("c\nd", sparql);
+    }
 }

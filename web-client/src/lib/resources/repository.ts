@@ -217,6 +217,20 @@ export async function searchResources(
   return res.map(toSearchHit);
 }
 
+/** A customTags key and how many readable resources carry it. */
+export type TagSuggestion = { tag: string; count: number };
+
+/** Tag candidates for autocomplete: keys starting with `prefix`, most-used first (readable resources only). */
+export async function listTagSuggestions(
+  prefix: string,
+  token?: string,
+): Promise<TagSuggestion[]> {
+  const res = await apiClient(token).api.v1.resources.tags.$get({
+    query: { prefix: prefix.trim() || undefined },
+  });
+  return res.map((t) => ({ tag: t.tag, count: t.count ?? 0 }));
+}
+
 // ── Metadata (identifiers / customTags) ─────────────────────────────────────
 
 function metadataPath(type: ResourceType, id: string): string {

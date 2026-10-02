@@ -631,6 +631,22 @@ ORDER BY ?gw";
         }).ToArray();
     }
 
+    // Upper bound on (resource, tag) rows scanned per suggestion request, so a twin with a very large
+    // tagged inventory cannot turn an autocomplete keystroke into an unbounded query.
+    private const int TagUsageRowCap = 100_000;
+
+    public async Task<ResourceTagUsage[]> ListTagUsage(string? prefix)
+    {
+        var rows = await _client.QueryAsync(ResourceSearchQueryBuilder.BuildTagUsage(prefix, TagUsageRowCap));
+        return rows.Select(r => new ResourceTagUsage
+        {
+            Type = r.GetValueOrDefault("type", ""),
+            DtId = r.GetValueOrDefault("dt", ""),
+            Id = r.GetValueOrDefault("id", ""),
+            Tag = r.GetValueOrDefault("tagKey", ""),
+        }).ToArray();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private async Task<T[]> QueryEntitiesAsync<T>(string sparql, Func<IReadOnlyDictionary<string, string>, T> map)

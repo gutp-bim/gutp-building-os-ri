@@ -72,3 +72,17 @@ describe("ResourceSearchBox tag filter (#332)", () => {
     await waitFor(() => expect(screen.queryByText("室温")).not.toBeInTheDocument());
   });
 });
+
+describe("ResourceSearchBox tag suggestions (#454)", () => {
+  it("offers existing tags as completions for the tag input", async () => {
+    const suggest = vi.fn().mockResolvedValue([{ tag: "temperature", count: 3 }]);
+    render(<ResourceSearchBox onPick={vi.fn()} search={vi.fn()} suggestTags={suggest} />);
+
+    fireEvent.change(screen.getByTestId("tag-input"), { target: { value: "tem" } });
+
+    await waitFor(() => expect(suggest).toHaveBeenCalledWith("tem"));
+    await waitFor(() =>
+      expect(document.querySelector("datalist option")?.getAttribute("value")).toBe("temperature"),
+    );
+  });
+});
