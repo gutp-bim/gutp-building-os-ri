@@ -73,6 +73,19 @@ describe("HealthEventsView (#455)", () => {
     expect(screen.getByTestId("events-total")).toHaveTextContent("1 件");
   });
 
+  it("acknowledging away the last row of a later page steps back a page instead of stranding the user", async () => {
+    const loadEvents = vi
+      .fn()
+      .mockResolvedValueOnce(page([base], 51))                       // page 2 holds the 51st and last row
+      .mockResolvedValue({ items: [], total: 50, limit: 50, offset: 50 }); // after the ack: page 2 is gone
+    const acknowledge = vi.fn().mockResolvedValue({ ...base, acknowledgedAt: "2026-10-02T12:10:00Z", acknowledgedBy: "鈴木" });
+    const { onQueryChange } = setup([base], { loadEvents, acknowledge }, { query: { ...DEFAULT_EVENTS_QUERY, ack: "unacked", offset: 50 } });
+
+    fireEvent.click(await screen.findByTestId("event-ack-button"));
+
+    await waitFor(() => expect(onQueryChange).toHaveBeenCalledWith(expect.objectContaining({ offset: 0 })));
+  });
+
   it("a failed acknowledgement keeps the button and says so", async () => {
     setup([base], { acknowledge: vi.fn().mockRejectedValue(new Error("403")) });
 

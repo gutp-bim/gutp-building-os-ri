@@ -112,11 +112,14 @@ export function HealthEventsView({
   const [error, setError] = useState<string | null>(null);
   const [ackError, setAckError] = useState<string | null>(null);
   const [acking, setAcking] = useState<Set<string>>(new Set());
+  const [reloadKey, setReloadKey] = useState(0);
 
   // 条件は URL 文字列に畳んで比較する（親が同じ内容の別オブジェクトを渡しても取得が走り続けないように）。
   const queryKey = useMemo(() => serializeEventsQuery(query).toString(), [query]);
   const queryRef = useRef(query);
   queryRef.current = query;
+  const onQueryChangeRef = useRef(onQueryChange);
+  onQueryChangeRef.current = onQueryChange;
 
   useEffect(() => {
     let active = true;
@@ -124,7 +127,17 @@ export function HealthEventsView({
     setError(null);
     loaders
       .loadEvents(queryRef.current)
-      .then((p) => active && setPage(p))
+      .then((p) => {
+        if (!active) return;
+        // A page past the end (the last row of page N was just acknowledged away, or a stale URL) is empty
+        // while earlier pages are not: step back instead of leaving the user on a page with no controls.
+        const q = queryRef.current;
+        if (p.items.length === 0 && q.offset > 0 && p.total > 0) {
+          onQueryChangeRef.current?.({ ...q, offset: Math.max(0, q.offset - q.limit) });
+          return;
+        }
+        setPage(p);
+      })
       .catch((e) => {
         if (!active) return;
         setPage(null);
@@ -134,7 +147,7 @@ export function HealthEventsView({
     return () => {
       active = false;
     };
-  }, [loaders, queryKey]);
+  }, [loaders, queryKey, reloadKey]);
 
   const change = (patch: Partial<EventsQuery>) =>
     // 条件を変えたら 1 頁目に戻す（頁位置は旧条件の件数が前提なので）。
@@ -148,6 +161,7 @@ export function HealthEventsView({
     try {
       const updated = await loaders.acknowledge(id);
       // 返ってきた行で置き換える（最初に確認した人が残るので、自分の操作でなくてもそのまま描画できる）。
+      if (queryRef.current.ack === "unacked") setReloadKey((k) => k + 1); // re-page: the next rows move up
       // Under 「未確認」 an acknowledged row no longer matches the filter, so it leaves the list (and the count)
       // instead of sitting under the wrong heading until the next fetch.
       setPage((p) => {
