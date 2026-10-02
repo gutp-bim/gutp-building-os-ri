@@ -3,7 +3,8 @@
 - **Status**: Accepted — **Phase 2a 実装済み**。maintainer 判断: D1 = twin per-point（`bos:alarmHigh/Low`
   [+ `warnHigh/Low`]、opt-in、未設定は評価対象外）、D2 = **derived-on-read（完全ステートレス、通知なし）**。
   通知/履歴/ack（Phase 2b, ステートフル）と per-unit ルール編集 UI（Phase 2c）は将来。
-  **Phase 2b は #455 で実装中**（設計は末尾の「Phase 2b 設計」）。
+  **Phase 2b（永続イベント: raise / clear / ACK / 履歴）は #455 で実装済み**（設計は末尾の「Phase 2b 設計」）。
+  通知の配送（メール / Webhook）は #162 の範囲で未実装。
 - **関連**: #158（オペレーターモード。Phase 1 = 鮮度/欠測は実装済み #176/#233）、#148（SettingsRegistry）、
   #183（point 別 expected interval 鮮度閾値）、#153（`bos:minValue`/`maxValue` 制御バウンド）、#230（gateway 状態）、
   #162（通知ポリシー）

@@ -27,6 +27,20 @@ export const GLOSSARY: GlossaryTerm[] = [
     category: "ontology",
   },
   {
+    term: "ヘルスイベント",
+    reading: "へるすいべんと",
+    definition:
+      "Point や Gateway の異常（鮮度切れ・欠測・値異常・Gateway 切断）が「いつ始まり、いつ終わったか」の記録です。評価器が一定間隔で判定し、条件が連続して成立したときに発生、連続して解消したときに解消として残ります。Gateway が切れたときは配下の Point ごとには出さず、Gateway 切断の 1 件にまとめます。「データ品質」画面のイベントタブで見られます。",
+    category: "concept",
+  },
+  {
+    term: "確認応答",
+    reading: "かくにんおうとう",
+    definition:
+      "ヘルスイベントを誰かが見たことの記録（ACK）。イベントが解消したかどうか（状態）とは独立しており、解消後に確認応答することもできます。最初に確認した人が残り、2 回目以降は何も変えません。operator と admin が行えます。",
+    category: "concept",
+  },
+  {
     term: "メッセージレート",
     definition:
       "コネクターが直近1分間に処理したテレメトリ件数の合計（毎秒）。データ取り込みの活性度を表します。",

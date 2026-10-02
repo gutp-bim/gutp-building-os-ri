@@ -44,6 +44,27 @@ vi.mock("@/components/health/data-health-view", () => ({
   ),
 }));
 
+vi.mock("js-cookie", () => ({ default: { get: () => undefined } }));
+vi.mock("@/components/health/health-events-view", () => ({
+  HealthEventsView: ({
+    query,
+    canAcknowledge,
+    onQueryChange,
+  }: {
+    query: { lifecycle: string; ack: string };
+    canAcknowledge: boolean;
+    onQueryChange: (q: unknown) => void;
+  }) => (
+    <div data-testid="events-stub">
+      <span data-testid="lifecycle">{query.lifecycle}</span>
+      <span data-testid="can-ack">{String(canAcknowledge)}</span>
+      <button data-testid="pick-cleared" onClick={() => onQueryChange({ ...query, lifecycle: "cleared", ack: "", kinds: [], limit: 50, offset: 0 })}>
+        cleared
+      </button>
+    </div>
+  ),
+}));
+
 import HealthPageComponent from "./page-component";
 
 afterEach(() => {
@@ -78,5 +99,38 @@ describe("HealthPageComponent", () => {
     await userEvent.click(screen.getByTestId("clear"));
 
     expect(replace).toHaveBeenCalledWith("/health");
+  });
+});
+
+describe("HealthPageComponent events tab (#455)", () => {
+  it("shows the state view by default, with both tabs", () => {
+    render(<HealthPageComponent />);
+    expect(screen.getByTestId("freshness")).toBeInTheDocument();
+    expect(screen.queryByTestId("events-stub")).toBeNull();
+    expect(screen.getByTestId("health-tab-state")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("health-tab-events")).toHaveAttribute("href", "/health?view=events");
+  });
+
+  it("view=events shows the events, reading their filters from the URL", () => {
+    searchParams.value = new URLSearchParams("view=events&lifecycle=cleared");
+    render(<HealthPageComponent />);
+    expect(screen.getByTestId("lifecycle")).toHaveTextContent("cleared");
+    expect(screen.queryByTestId("freshness")).toBeNull();
+    expect(screen.getByTestId("health-tab-events")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("writes event filters back to the URL, keeping view=events", async () => {
+    searchParams.value = new URLSearchParams("view=events");
+    render(<HealthPageComponent />);
+    await userEvent.click(screen.getByTestId("pick-cleared"));
+    const url = replace.mock.calls.at(-1)?.[0] as string;
+    expect(url).toContain("view=events");
+    expect(url).toContain("lifecycle=cleared");
+  });
+
+  it("hides the acknowledge action without an acknowledging role", () => {
+    searchParams.value = new URLSearchParams("view=events");
+    render(<HealthPageComponent />);
+    expect(screen.getByTestId("can-ack")).toHaveTextContent("false");
   });
 });
