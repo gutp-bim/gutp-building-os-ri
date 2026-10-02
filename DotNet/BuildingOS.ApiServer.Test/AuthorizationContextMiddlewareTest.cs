@@ -13,14 +13,16 @@ namespace BuildingOS.ApiServer.Test;
 /// <summary>The Admin-API fallback (a token without Building OS claims), #532.</summary>
 public class AuthorizationContextMiddlewareTest
 {
-    private static async Task<AuthorizationContext> ResolveAsync(Mock<IUserManagementService> svc, IMemoryCache cache)
+    private static async Task<AuthorizationContext> ResolveAsync(
+        Mock<IUserManagementService> svc, IMemoryCache cache, params Claim[] extraClaims)
     {
         var services = new ServiceCollection().AddSingleton(svc.Object).BuildServiceProvider();
         var http = new DefaultHttpContext
         {
             RequestServices = services,
             // A token with a subject but no building_os_role / permissions claims.
-            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "u1")], "Bearer")),
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, "u1"), .. extraClaims], "Bearer")),
         };
         var middleware = new AuthorizationContextMiddleware(
             _ => Task.CompletedTask, NullLogger<AuthorizationContextMiddleware>.Instance);
@@ -49,6 +51,21 @@ public class AuthorizationContextMiddlewareTest
         var ctx = await ResolveAsync(svc, new MemoryCache(new MemoryCacheOptions()));
 
         Assert.False(ctx.IsGroupManager);
+        Assert.Empty(ctx.Permissions);
+    }
+
+    /// <summary>
+    /// A Keycloak service-account token without the role claim resolves through the Admin API; when its
+    /// service-account user carries group-manager, it stays a group-manager (#506).
+    /// </summary>
+    [Fact]
+    public async Task ResolvedServiceAccount_WithGroupManager_StaysAGroupManager()
+    {
+        var svc = Service(new EntraUser { Id = "u1", DisplayName = "service-account-portal", Role = "group-manager" });
+
+        var ctx = await ResolveAsync(svc, new MemoryCache(new MemoryCacheOptions()), new Claim("client_id", "portal"));
+
+        Assert.True(ctx.IsGroupManager);
         Assert.Empty(ctx.Permissions);
     }
 

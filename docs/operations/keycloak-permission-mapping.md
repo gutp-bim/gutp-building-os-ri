@@ -75,13 +75,14 @@ It reads **no values** and changes nothing else: a single point (`GET /points/{i
 the control history), telemetry, data health, control, twin import, user / permission management and
 Gateway management stay as for a non-admin without grants. It has no UI workspace.
 
-A client-credentials token (`idtyp=app`) is admin by default (table below). Give the application's
-service-account user the attribute `role` = `group-manager` and add the `building-os-api` client scope
-(and `basic`, so the token carries `sub`) to its client, so the token carries
-`building_os_role=group-manager`: that exact value — and only that one — makes the app token a
-group-manager instead of an admin. Without a `sub` it gets no access (Group ownership is keyed on it).
-Any other `building_os_role` value on an app token is ignored with a one-time warning, so existing
-client-credentials clients keep working unchanged.
+**Setting it up in Keycloak.** Enable *Service accounts* on the application's client, give its
+service-account user the attribute `role` = `group-manager`, and add the `building-os-api` client scope
+(and `basic`, so the token carries `sub`) to the client. A Keycloak service-account token is recognised by
+the `client_id` claim that the default `service_account` scope adds (`clientId` before Keycloak 24); with
+`building_os_role=group-manager` (exact) and a `sub` it is a group-manager. Without a `sub` it gets no access
+(Group ownership is keyed on it). An Azure AD client-credentials token (`idtyp=app`, table below) is admin
+by default and becomes a group-manager only with exactly that claim; any other `building_os_role` value on
+it is ignored with a one-time warning, so existing clients keep working unchanged.
 
 Resource IDs that are not group IDs remain hashed by the API authorization
 layer. Keycloak stores permission strings as user or group attributes and emits

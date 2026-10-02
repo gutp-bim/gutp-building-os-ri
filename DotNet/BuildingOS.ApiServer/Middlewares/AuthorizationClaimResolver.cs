@@ -74,12 +74,24 @@ public static class AuthorizationClaimResolver
         return new AuthorizationContext
         {
             UserId = userId ?? "unknown",
-            // group-manager is a client-credentials role (#506). On a user token — where Keycloak's
-            // single-valued mapper may emit it in place of the user's own viewer/operator — it grants nothing.
-            Role = role == RoleCatalog.GroupManager ? NoRole : role,
+            // group-manager is a client-credentials role (#506): honoured on a Keycloak service-account
+            // token with a subject; on a user token — where Keycloak's single-valued mapper may emit it in
+            // place of the user's own viewer/operator — it grants nothing. Never with permission strings.
+            Role = role != RoleCatalog.GroupManager ? role
+                : IsServiceAccountToken(claims) && userId is not null ? RoleCatalog.GroupManager
+                : NoRole,
             Permissions = role == RoleCatalog.GroupManager ? Array.Empty<string>() : permissions,
         };
     }
+
+    /// <summary>
+    /// Whether the token was issued by the client-credentials grant: Azure AD's <c>idtyp=app</c>, or the
+    /// client-id claim Keycloak's default <c>service_account</c> scope puts only on service-account tokens
+    /// (<c>client_id</c> since Keycloak 24, <c>clientId</c> before). Only <c>idtyp=app</c> also means admin.
+    /// </summary>
+    public static bool IsServiceAccountToken(IReadOnlyCollection<Claim> claims)
+        => claims.Any(c => (c.Type == "idtyp" && c.Value == "app")
+                           || ((c.Type == "client_id" || c.Type == "clientId") && !string.IsNullOrEmpty(c.Value)));
 
     public static string? GetUserId(IReadOnlyCollection<Claim> claims) =>
         claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value

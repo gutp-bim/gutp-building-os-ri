@@ -61,6 +61,33 @@ public class AuthorizationClaimResolverTest
     }
 
     /// <summary>
+    /// Keycloak (24+) marks a service-account token with <c>client_id</c> (the default service_account
+    /// scope), not with Azure AD's <c>idtyp=app</c>. Such a token carrying group-manager is a group-manager.
+    /// </summary>
+    [Theory]
+    [InlineData("client_id")]
+    [InlineData("clientId")]   // Keycloak before 24
+    public void KeycloakServiceAccountToken_CarryingGroupManager_IsAGroupManager(string clientIdClaim)
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+            [Sub("svc-portal"), new Claim(clientIdClaim, "tenant-portal"), new Claim("building_os_role", "group-manager")]);
+
+        Assert.True(ctx!.IsGroupManager);
+        Assert.False(ctx.IsAdmin);
+        Assert.Equal("svc-portal", ctx.UserId);
+    }
+
+    /// <summary>A Keycloak service-account token is not made an admin by being one (unlike idtyp=app).</summary>
+    [Fact]
+    public void KeycloakServiceAccountToken_KeepsItsOwnRole()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+            [Sub("svc-x"), new Claim("client_id", "x"), new Claim("building_os_role", "viewer")]);
+
+        Assert.Equal("viewer", ctx!.Role);
+    }
+
+    /// <summary>
     /// group-manager is a client-credentials role only. On a user token — where Keycloak's single-valued
     /// mapper may pick it over the user's viewer/operator role — it grants nothing.
     /// </summary>
