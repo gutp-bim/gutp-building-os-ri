@@ -139,6 +139,13 @@ export type SearchParams = {
   pointTypes?: string[];
   units?: string[];
   gatewayIds?: string[];
+  /**
+   * Data-health conditions (#454, Point only): freshness `fresh|stale|missing`, alarm `warn|critical`.
+   * Values within one list are ORed. Setting either routes the search to the health API, which cannot
+   * be combined with the asset attributes above.
+   */
+  freshness?: string[];
+  alarm?: string[];
   limit?: number;
   offset?: number;
 };
@@ -156,6 +163,16 @@ export type ResourceFacetsResult = {
   pointTypes: FacetValue[];
   units: FacetValue[];
   gateways: FacetValue[];
+  /** Freshness / alarm counts over Points (#454). Present only while the Point facets are offered. */
+  health?: HealthFacets;
+};
+
+/** Data-health facet counts. Counts are provisional while the last-seen index is still warming. */
+export type HealthFacets = {
+  freshness: FacetValue[];
+  alarm: FacetValue[];
+  /** False while the last-seen index is warming/degraded: the counts must not be read as final. */
+  dataComplete: boolean;
 };
 
 /** sbco:identifiers (map<string, string>) and sbco:customTags (map<string, boolean>). */

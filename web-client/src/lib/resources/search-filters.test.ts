@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_FILTERS,
+  usesAttributes,
+  usesHealth,
   filtersFromParams,
   filtersToParams,
   hasCriteria,
@@ -22,6 +24,8 @@ describe("hasCriteria", () => {
     ["pointTypes", { pointTypes: ["CO2"] }],
     ["units", { units: ["ppm"] }],
     ["gatewayIds", { gatewayIds: ["GW-1"] }],
+    ["freshness", { freshness: ["stale" as const] }],
+    ["alarm", { alarm: ["critical" as const] }],
   ])("is true when %s is set", (_name, patch) => {
     expect(hasCriteria({ ...EMPTY_FILTERS, ...patch })).toBe(true);
   });
@@ -44,6 +48,8 @@ describe("toSearchParams", () => {
       pointTypes: undefined,
       units: ["ppm"],
       gatewayIds: undefined,
+      freshness: undefined,
+      alarm: undefined,
     });
   });
 });
@@ -57,11 +63,24 @@ describe("URL round trip (#454)", () => {
     pointTypes: ["Temperature"],
     units: ["degC"],
     gatewayIds: ["GW-1"],
+    freshness: [] as ("stale" | "missing")[],
+    alarm: [] as "critical"[],
+  };
+  // Health and the asset attributes are never set together (the form clears one when the other is chosen).
+  const health = {
+    ...EMPTY_FILTERS,
+    q: "sat",
+    type: "point" as const,
+    tags: ["hvac"],
+    freshness: ["stale" as const, "missing" as const],
+    alarm: ["critical" as const],
   };
 
   it("survives writing to and reading from the URL", () => {
-    const params = filtersToParams(full, new URLSearchParams());
-    expect(filtersFromParams(new URLSearchParams(params.toString()))).toEqual(full);
+    for (const f of [full, health]) {
+      const params = filtersToParams(f, new URLSearchParams());
+      expect(filtersFromParams(new URLSearchParams(params.toString()))).toEqual(f);
+    }
   });
 
   it("uses repeated params for lists, matching the API query", () => {
@@ -87,5 +106,34 @@ describe("URL round trip (#454)", () => {
     expect(f.type).toBe("");
     expect(f.tags).toEqual([]);
     expect(f.units).toEqual(["ppm"]);
+  });
+});
+
+describe("health vs attribute routing (#454)", () => {
+  it("tells which API a form needs", () => {
+    expect(usesHealth({ ...EMPTY_FILTERS, freshness: ["stale"] })).toBe(true);
+    expect(usesHealth({ ...EMPTY_FILTERS, alarm: ["warn"] })).toBe(true);
+    expect(usesHealth({ ...EMPTY_FILTERS, units: ["ppm"] })).toBe(false);
+    expect(usesAttributes({ ...EMPTY_FILTERS, units: ["ppm"] })).toBe(true);
+    expect(usesAttributes({ ...EMPTY_FILTERS, freshness: ["stale"] })).toBe(false);
+  });
+
+  it("reads health values case-insensitively and drops unknown ones", () => {
+    const f = filtersFromParams(new URLSearchParams("freshness=Stale&freshness=bogus&freshness=stale&alarm=CRITICAL&alarm=normal"));
+    expect(f.freshness).toEqual(["stale"]);
+    expect(f.alarm).toEqual(["critical"]);
+  });
+
+  it("normalizes a URL that mixes health with another type or an asset attribute", () => {
+    const f = filtersFromParams(new URLSearchParams("freshness=stale&type=device&deviceType=AHU&unit=ppm&tag=hvac&q=x"));
+    expect(f).toMatchObject({
+      type: "point", freshness: ["stale"], deviceTypes: [], units: [], tags: ["hvac"], q: "x",
+    });
+  });
+
+  it("reads the comma-separated form the /health screen writes", () => {
+    const f = filtersFromParams(new URLSearchParams("freshness=stale,missing&alarm=warn%2Ccritical"));
+    expect(f.freshness).toEqual(["stale", "missing"]);
+    expect(f.alarm).toEqual(["warn", "critical"]);
   });
 });

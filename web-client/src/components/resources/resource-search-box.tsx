@@ -1,14 +1,12 @@
 "use client";
 
 import { resourceTypeColor } from "@/lib/admin/permissions-display";
-import {
-  fetchResourceFacets,
-  searchResources,
-  type TagSuggestion,
-} from "@/lib/resources/repository";
+import type { TagSuggestion } from "@/lib/resources/repository";
+import { fetchFacetsWithHealth, searchResourcesOrHealth } from "@/lib/resources/search-dispatch";
 import { normalizeTags } from "@/lib/resources/search";
 import {
   EMPTY_FILTERS,
+  ATTRIBUTE_GROUPS,
   hasCriteria,
   toggleValue,
   toSearchParams,
@@ -45,8 +43,8 @@ const DEBOUNCE_MS = 300;
  */
 export function ResourceSearchBox({
   onPick,
-  search = searchResources,
-  loadFacets = fetchResourceFacets,
+  search = searchResourcesOrHealth,
+  loadFacets = fetchFacetsWithHealth,
   suggestTags,
   initialFilters = EMPTY_FILTERS,
   onFiltersChange,
@@ -90,8 +88,22 @@ export function ResourceSearchBox({
     setTagDraft("");
   };
   const removeTag = (t: string) => update({ tags: tags.filter((x) => x !== t) });
-  const toggleFacet = (group: FacetGroup, value: string) =>
-    update({ [group]: toggleValue(filters[group], value) });
+  // Data health (Freshness / Alarm, Points only) and the asset attributes are answered by different
+  // APIs and are not combined: choosing one clears the other, so what is checked is always what ran.
+  const toggleFacet = (group: FacetGroup, value: string) => {
+    const next = { ...filters, [group]: toggleValue(filters[group], value) } as SearchFilters;
+    if (group === "freshness" || group === "alarm") {
+      next.type = "point";
+      for (const g of ATTRIBUTE_GROUPS) next[g] = [];
+    } else {
+      next.freshness = [];
+      next.alarm = [];
+    }
+    update(next);
+  };
+  // Health is a Point-only notion; leaving Points drops it.
+  const selectType = (t: "" | ResourceType) =>
+    update(t === "point" ? { type: t } : { type: t, freshness: [], alarm: [] });
 
   const searching = hasCriteria(filters);
 
@@ -161,7 +173,7 @@ export function ResourceSearchBox({
         />
         <select
           value={type}
-          onChange={(e) => update({ type: e.target.value as "" | ResourceType })}
+          onChange={(e) => selectType(e.target.value as "" | ResourceType)}
           aria-label="種別で絞り込み"
           className="rounded border border-gray-300 px-1 py-1 text-sm"
         >
@@ -224,7 +236,7 @@ export function ResourceSearchBox({
             facets={facets}
             filters={filters}
             onToggle={toggleFacet}
-            onSelectType={(t) => update({ type: t })}
+            onSelectType={selectType}
           />
         )}
       </div>

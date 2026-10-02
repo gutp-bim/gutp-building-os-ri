@@ -26,7 +26,7 @@ import type {
 } from "@/lib/resources/types";
 import Cookies from "js-cookie";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Resource explorer: left = incremental search + lazy-expand tree, right = selected-node detail.
@@ -49,8 +49,13 @@ export default function ResourcesPageComponent() {
   const isAdmin =
     parseAuthClaims(Cookies.get(OIDC_TOKEN_COOKIE) ?? null).role === "admin";
 
+  // Bumped by every selection so a slow health-hit lookup cannot overwrite a newer choice.
+  const selectionSeq = useRef(0);
+
   // Hydrate the right pane from the URL on first load / when sel changes externally.
   useEffect(() => {
+    // An external change of `sel` (Back/Forward, a link) supersedes any health-hit lookup in flight.
+    selectionSeq.current += 1;
     if (!sel) {
       setSelected(null);
       setMetadata(undefined);
@@ -91,12 +96,15 @@ export default function ResourcesPageComponent() {
 
   const select = useCallback(
     (ref: ResourceRef) => {
+      selectionSeq.current += 1;
       setSelected(ref);
-      const params = new URLSearchParams(searchParams.toString());
+      // The live query string, not the hook's snapshot: a selection finishing after the user kept
+      // typing (a slow health-hit lookup) must not roll the search filters back.
+      const params = new URLSearchParams(window.location.search);
       params.set("sel", refKey(ref));
       router.replace(`/resources?${params.toString()}`);
     },
-    [router, searchParams],
+    [router],
   );
 
   // Mirror the search form to the URL. Reads the live query string rather than the hook's value so a
@@ -112,6 +120,15 @@ export default function ResourcesPageComponent() {
 
   const pickFromSearch = useCallback(
     (hit: SearchHit) => {
+      // A health-routed hit has no digital-twin id (the health row does not carry one): resolve the real
+      // node rather than showing the business id as if it were the twin's.
+      if (!hit.dtId) {
+        const seq = ++selectionSeq.current;
+        resolveRef(hit.type, hit.id).then((ref) => {
+          if (ref && seq === selectionSeq.current) select(ref);
+        });
+        return;
+      }
       select({ type: hit.type, dtId: hit.dtId, id: hit.id, name: hit.name });
       // Reveal the hit's building in the tree when known (best-effort jump).
       if (hit.buildingDtId) setAutoExpandBuildingDtId(hit.buildingDtId);
