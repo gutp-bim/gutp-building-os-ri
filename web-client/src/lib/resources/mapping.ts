@@ -3,13 +3,16 @@ import type {
   Device,
   Point,
   PointDetail,
+  ResourceFacets,
   ResourceSearchHit,
 } from "@/lib/infra/aspida-client/generated/@types";
 import type {
   ControlSchemaResource,
   DeviceResource,
+  FacetValue,
   PointDetailResource,
   PointResource,
+  ResourceFacetsResult,
   ResourceRef,
   ResourceType,
   SearchHit,
@@ -46,6 +49,24 @@ export function toPointResource(p: Point): PointResource {
     minPresValue: p.minPresValue ?? null,
     maxPresValue: p.maxPresValue ?? null,
     targetArea: p.targetArea ?? null,
+  };
+}
+
+function toFacetValues(
+  values: { value: string; count?: number | undefined }[] | undefined,
+): FacetValue[] {
+  return (values ?? []).map((v) => ({ value: v.value, count: v.count ?? 0 }));
+}
+
+export function toFacets(f: ResourceFacets): ResourceFacetsResult {
+  return {
+    total: f.total ?? 0,
+    truncated: f.truncated ?? false,
+    types: toFacetValues(f.types),
+    deviceTypes: toFacetValues(f.deviceTypes),
+    pointTypes: toFacetValues(f.pointTypes),
+    units: toFacetValues(f.units),
+    gateways: toFacetValues(f.gateways),
   };
 }
 

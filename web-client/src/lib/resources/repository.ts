@@ -2,16 +2,18 @@ import { API_BASE_URL, authHeaders, mutationError } from "@/lib/admin/http";
 import { apiClient } from "@/lib/infra/aspida-client";
 import {
   toDeviceResource,
+  toFacets,
   toPointDetail,
   toPointResource,
   toRef,
   toSearchHit,
 } from "./mapping";
-import { normalizeSearchParams } from "./search";
+import { normalizeFacetQuery, normalizeSearchParams } from "./search";
 import type {
   DeviceResource,
   PointDetailResource,
   PointResource,
+  ResourceFacetsResult,
   ResourceMetadata,
   ResourceMetadataPatch,
   ResourceRef,
@@ -215,6 +217,16 @@ export async function searchResources(
   const query = normalizeSearchParams(params);
   const res = await apiClient(token).api.v1.resources.search.$get({ query });
   return res.map(toSearchHit);
+}
+
+/** Facet counts (type / deviceType / pointType / unit / gateway) for the same filters as {@link searchResources}. */
+export async function fetchResourceFacets(
+  params: SearchParams,
+  token?: string,
+): Promise<ResourceFacetsResult> {
+  const query = normalizeFacetQuery(params);
+  const res = await apiClient(token).api.v1.resources.facets.$get({ query });
+  return toFacets(res);
 }
 
 /** A customTags key and how many readable resources carry it. */

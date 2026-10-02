@@ -134,8 +134,28 @@ export type SearchParams = {
   buildingId?: string;
   /** SBCO customTags keys; matches customTags[key] == true. Multiple = AND (#332). */
   tags?: string[];
+  /** Structured-attribute facets (#454). Values within one list are ORed; the lists are ANDed. */
+  deviceTypes?: string[];
+  pointTypes?: string[];
+  units?: string[];
+  gatewayIds?: string[];
   limit?: number;
   offset?: number;
+};
+
+/** A facet value and how many readable resources in the current result carry it. */
+export type FacetValue = { value: string; count: number };
+
+/** Facet counts over the resources a search matches (#454). */
+export type ResourceFacetsResult = {
+  total: number;
+  /** True when the twin held more matches than the scan cap, so counts are a lower bound. */
+  truncated: boolean;
+  types: FacetValue[];
+  deviceTypes: FacetValue[];
+  pointTypes: FacetValue[];
+  units: FacetValue[];
+  gateways: FacetValue[];
 };
 
 /** sbco:identifiers (map<string, string>) and sbco:customTags (map<string, boolean>). */

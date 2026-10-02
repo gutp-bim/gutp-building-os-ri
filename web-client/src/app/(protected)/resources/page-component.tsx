@@ -12,6 +12,11 @@ import {
   resolveRef,
   updateResourceMetadata,
 } from "@/lib/resources/repository";
+import {
+  filtersFromParams,
+  filtersToParams,
+  type SearchFilters,
+} from "@/lib/resources/search-filters";
 import { defaultTreeLoaders } from "@/lib/resources/tree-loaders";
 import type {
   ResourceMetadata,
@@ -31,6 +36,8 @@ export default function ResourcesPageComponent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sel = searchParams.get("sel");
+  // The search form starts from the URL (a shared / reloaded filtered view) and writes back to it.
+  const [initialFilters] = useState(() => filtersFromParams(searchParams));
 
   const [selected, setSelected] = useState<ResourceRef | null>(null);
   const [autoExpandBuildingDtId, setAutoExpandBuildingDtId] = useState<
@@ -92,6 +99,17 @@ export default function ResourcesPageComponent() {
     [router, searchParams],
   );
 
+  // Mirror the search form to the URL. Reads the live query string rather than the hook's value so a
+  // keystroke right after a selection cannot overwrite `sel` with a stale copy.
+  const syncFilters = useCallback(
+    (filters: SearchFilters) => {
+      const next = filtersToParams(filters, new URLSearchParams(window.location.search));
+      const qs = next.toString();
+      router.replace(qs ? `/resources?${qs}` : "/resources", { scroll: false });
+    },
+    [router],
+  );
+
   const pickFromSearch = useCallback(
     (hit: SearchHit) => {
       select({ type: hit.type, dtId: hit.dtId, id: hit.id, name: hit.name });
@@ -125,7 +143,11 @@ export default function ResourcesPageComponent() {
           first width where the sidebar-reduced content is wide enough for a readable detail pane. */}
       <div data-testid="resource-two-pane" className="flex flex-col gap-4 lg:flex-row">
         <aside className="w-full rounded-lg border border-gray-200 bg-white p-3 lg:w-1/3 lg:min-w-[18rem]">
-          <ResourceSearchBox onPick={pickFromSearch} />
+          <ResourceSearchBox
+            onPick={pickFromSearch}
+            initialFilters={initialFilters}
+            onFiltersChange={syncFilters}
+          />
           <div className="mt-3 max-h-[70vh] overflow-auto border-t border-gray-100 pt-3">
             <ResourceTreeView
               loaders={defaultTreeLoaders}
