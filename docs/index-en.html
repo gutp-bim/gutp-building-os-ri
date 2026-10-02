@@ -72,6 +72,9 @@
           <code>GET /api/v1/telemetries/query</code> endpoint picks the right tier automatically.</li>
         <li><strong>Point-level control</strong> — per-gateway routing, immediate 503 fast-fail for
           offline gateways, and a complete audit trail in PostgreSQL.</li>
+        <li><strong>Finding, tracing and acknowledging problems</strong> — freshness, missing data, out-of-range
+          values and gateway outages are judged per point and kept as events: when each started, when it ended,
+          and who acknowledged it. A gateway outage that silences hundreds of points shows up as one event, not hundreds.</li>
         <li><strong>Enterprise auth &amp; observability</strong> — Keycloak (OIDC / JWT) for users,
           mTLS machine auth for gateways, and an opt-in OpenTelemetry → Prometheus / Grafana /
           Loki / Tempo stack.</li>

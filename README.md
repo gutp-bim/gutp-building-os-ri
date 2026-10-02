@@ -43,8 +43,18 @@ MinIO 上の Parquet レイク（+ 最新値は NATS KV）にストア、REST + 
 
 ![ポイント詳細 — 最新値・鮮度バッジ・テレメトリ履歴グラフ（期間/粒度セレクタ付き）](docs/screenshots/point-detail.png)
 
-> 上記は route-mock した実 UI をブラウザ（Playwright）で撮影したものです（サンプルツイン相当のデータ、
-> `web-client/e2e/capture-readme-screenshots.spec.ts` で再生成可能）。実データでの動作は `make demo`
+異常を**見つけて、追跡して、確認する**流れ（`make demo` の実画面）— データ品質の「イベント」タブには、
+鮮度切れ・欠測・値異常・Gateway 切断が「いつ始まり、いつ終わり、誰が確認したか」まで残ります。
+Gateway が切れたときは配下の Point ごとではなく 1 件に集約され、確認応答は operator / admin が行えます:
+
+![データ品質 — イベント: 未解消の異常一覧と確認応答（Gateway 切断は確認済み）](docs/screenshots/demo-walkthrough-8-health-events.png)
+
+![Point 詳細 — 値異常のイベントと直近イベント](docs/screenshots/demo-walkthrough-9-point-events.png)
+
+> 最初の 3 枚は route-mock した実 UI をブラウザ（Playwright）で撮影したものです（サンプルツイン相当のデータ、
+> `web-client/e2e/capture-readme-screenshots.spec.ts` で再生成可能）。異常の追跡の 2 枚は `make demo`
+> （東京デモビル、`DEMO_SCENARIO=degraded`）の実スタックから撮影しています
+> （`web-client/e2e/capture-demo-walkthrough.spec.ts`、手順は [5 分デモ台本](docs/guides/demo-walkthrough.md)）。実データでの動作は `make demo`
 > 後にブラウザで確認できます。
 
 **5分で動かす（最短・1コマンド）:**
