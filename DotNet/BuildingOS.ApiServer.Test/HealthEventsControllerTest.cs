@@ -179,7 +179,7 @@ public class HealthEventsControllerTest
         Assert.Null(body.Items[0].AcknowledgedAt);
         Assert.False(body.Items[1].IsOpen);
         Assert.NotNull(body.Items[1].AcknowledgedAt);       // cleared AND acknowledged
-        Assert.Equal(900, body.Items[0].Detail["ageSeconds"].GetInt32());
+        Assert.Equal(900L, body.Items[0].Detail.AgeSeconds);
         Assert.Equal(DateTimeKind.Utc, body.Items[0].RaisedAt.Kind);
     }
 
@@ -289,5 +289,35 @@ public class HealthEventsControllerTest
         await h.Controller.Acknowledge(e.Id);
 
         h.Audit.Verify(a => a.RecordAsync(It.IsAny<AdminAuditRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Ack_AGatewayEvent_DoesNotRebuildTheLedgerForAnAdmin()
+    {
+        var h = Build("admin");
+        var gw = Event("gateway", "GW-1", "gateway_offline");
+        h.Store.Setup(s => s.GetAsync(gw.Id, It.IsAny<CancellationToken>())).ReturnsAsync(gw);
+        h.Store.Setup(s => s.AcknowledgeAsync(gw.Id, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthEventAckResult(gw, Applied: true));
+
+        Assert.IsType<OkObjectResult>((await h.Controller.Acknowledge(gw.Id)).Result);
+
+        h.View.Verify(v => v.ListBuildingsAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Ack_ALedgerFailureAfterTheCommit_StillReturnsTheEvent_Unnamed()
+    {
+        var h = Build("admin");
+        var e = Event("point", "P1");
+        h.Store.Setup(s => s.GetAsync(e.Id, It.IsAny<CancellationToken>())).ReturnsAsync(e);
+        h.Store.Setup(s => s.AcknowledgeAsync(e.Id, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthEventAckResult(e, Applied: true));
+        h.View.Setup(v => v.ListBuildingsAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("twin down"));
+
+        var body = (HealthEventResponse)((OkObjectResult)(await h.Controller.Acknowledge(e.Id)).Result!).Value!;
+
+        Assert.Null(body.SubjectName);
     }
 }

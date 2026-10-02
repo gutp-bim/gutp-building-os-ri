@@ -24,7 +24,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// <param name="IsOpen">未解消か</param>
 /// <param name="AcknowledgedAt">確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる</param>
 /// <param name="AcknowledgedBy">確認した人の表示名（無ければ sub）</param>
-/// <param name="Detail">発生時のスナップショット（閾値・値・欠測理由・経過秒など）のキーと値</param>
+/// <param name="Detail">発生時のスナップショット。種別ごとに埋まる欄が違う</param>
 public sealed record HealthEventResponse(
     Guid Id,
     string SubjectType,
@@ -38,7 +38,27 @@ public sealed record HealthEventResponse(
     bool IsOpen,
     DateTime? AcknowledgedAt,
     string? AcknowledgedBy,
-    IReadOnlyDictionary<string, JsonElement> Detail);
+    HealthEventDetail Detail);
+
+/// <summary>
+/// 発生時のスナップショット。どの欄が入るかは種別による（stale: 経過秒・閾値・最終受信 / missing: 理由・閾値 /
+/// alarm: 値・破られた境界 / gateway_offline: 配下の Point 数）。該当しない欄は null。
+/// </summary>
+/// <param name="AgeSeconds">stale: 最終受信からの経過秒</param>
+/// <param name="ThresholdSeconds">stale / missing: 鮮度切れの判定閾値（秒）</param>
+/// <param name="LastSeen">stale: 最終受信の時刻</param>
+/// <param name="Reason">missing: 欠測の理由（NeverReceived / GatewayDisconnected / Unknown）</param>
+/// <param name="Value">alarm: 発生時の値（工学単位）</param>
+/// <param name="Violated">alarm: 破られた境界（AlarmHigh / AlarmLow / WarnHigh / WarnLow）</param>
+/// <param name="PointCount">gateway_offline: 配下の Point 数</param>
+public sealed record HealthEventDetail(
+    long? AgeSeconds = null,
+    double? ThresholdSeconds = null,
+    DateTimeOffset? LastSeen = null,
+    string? Reason = null,
+    double? Value = null,
+    string? Violated = null,
+    int? PointCount = null);
 
 /// <summary>ヘルスイベント一覧の応答。<c>Total</c> はページング前の該当件数。</summary>
 public sealed record HealthEventListResponse(IReadOnlyList<HealthEventResponse> Items, int Total, int Limit, int Offset);
@@ -159,8 +179,24 @@ public class HealthEventsController(
         // not an idempotent repeat.
         if (result.Applied) await AuditAsync(auth, name, updated).ConfigureAwait(false);
 
-        var names = visibility.Names ?? (await LedgerAsync(auth, ct).ConfigureAwait(false)).Names;
-        return Ok(ToResponse(updated, names));
+        return Ok(ToResponse(updated, await NamesForAsync(updated, visibility, auth, ct).ConfigureAwait(false)));
+    }
+
+    // Names are cosmetic. Only a point event has one to look up (a gateway is named by its id), and by now the
+    // acknowledgement is committed — so a ledger that cannot be built must not turn a success into an error.
+    private async Task<Names> NamesForAsync(HealthEventEntry e, Visibility visibility, AuthorizationContext auth, CancellationToken ct)
+    {
+        if (visibility.Names is { } known) return known;
+        if (e.SubjectType != HealthEventSubjects.Point) return Names.Empty;
+        try
+        {
+            return (await LedgerAsync(auth, ct).ConfigureAwait(false)).Names;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not resolve names for health event {EventId}; returning it unnamed", e.Id);
+            return Names.Empty;
+        }
     }
 
     // ── authorization ────────────────────────────────────────────────────────
@@ -264,15 +300,17 @@ public class HealthEventsController(
     private static DateTime Utc(DateTime t) => DateTime.SpecifyKind(t, DateTimeKind.Utc);
     private static DateTime? Utc(DateTime? t) => t is { } v ? Utc(v) : null;
 
-    private static IReadOnlyDictionary<string, JsonElement> ParseDetail(string json)
+    private static readonly JsonSerializerOptions DetailOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private static HealthEventDetail ParseDetail(string json)
     {
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json) ?? [];
+            return JsonSerializer.Deserialize<HealthEventDetail>(json, DetailOptions) ?? new HealthEventDetail();
         }
         catch (JsonException)
         {
-            return new Dictionary<string, JsonElement>();
+            return new HealthEventDetail();
         }
     }
 }
