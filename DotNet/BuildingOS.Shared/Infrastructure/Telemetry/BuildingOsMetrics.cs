@@ -52,6 +52,17 @@ public static class BuildingOsMetrics
             unit: "{point}",
             description: "Points found under more than one lake building partition by a read.");
 
+    /// <summary>
+    /// Health-event lifecycle transitions made by the evaluator (#455). Tags: action (raised|updated|cleared),
+    /// kind (stale|missing|alarm|gateway_offline) — a closed vocabulary. Never a point or gateway id (ADR-0007):
+    /// which subject is affected lives in the health_event table, not in a metric.
+    /// </summary>
+    public static readonly Counter<long> HealthEvents =
+        Meter.CreateCounter<long>(
+            "building_os.health_events",
+            unit: "{event}",
+            description: "Health events raised, re-graded or cleared by the evaluator, by action and kind.");
+
     /// <summary>Messages received by an ingress transport worker. Tag: source (mqtt|amqp).</summary>
     public static readonly Counter<long> IngressMessages =
         Meter.CreateCounter<long>(

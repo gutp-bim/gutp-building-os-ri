@@ -51,6 +51,24 @@ public class EnvModule
     public readonly int HealthInventoryTtlSeconds =
         int.TryParse(Environment.GetEnvironmentVariable("HEALTH_INVENTORY_TTL_SEC"), out var ttl) && ttl > 0 ? ttl : 60;
 
+    /// <summary>
+    /// Health-event evaluator (#455). <c>HEALTH_EVALUATOR_ENABLED</c> (default true; only the literal
+    /// false/0/no/off turns it off), <c>HEALTH_EVALUATOR_INTERVAL_SEC</c> (default 60),
+    /// <c>HEALTH_EVALUATOR_RAISE_AFTER_SCANS</c> (default 2) and <c>HEALTH_EVALUATOR_CLEAR_AFTER_SCANS</c>
+    /// (default 3) — the consecutive scans a condition must hold / be gone before it is raised / cleared.
+    /// Non-numeric or non-positive → default.
+    /// </summary>
+    public readonly bool HealthEvaluatorEnabled = !IsFalsy(Environment.GetEnvironmentVariable("HEALTH_EVALUATOR_ENABLED"));
+    public readonly int HealthEvaluatorIntervalSeconds = PositiveInt("HEALTH_EVALUATOR_INTERVAL_SEC", 60);
+    public readonly int HealthEvaluatorRaiseAfterScans = PositiveInt("HEALTH_EVALUATOR_RAISE_AFTER_SCANS", 2);
+    public readonly int HealthEvaluatorClearAfterScans = PositiveInt("HEALTH_EVALUATOR_CLEAR_AFTER_SCANS", 3);
+
+    private static bool IsFalsy(string? v) =>
+        v is not null && v.Trim().ToLowerInvariant() is "false" or "0" or "no" or "off";
+
+    private static int PositiveInt(string name, int fallback) =>
+        int.TryParse(Environment.GetEnvironmentVariable(name), out var n) && n > 0 ? n : fallback;
+
     // Optional: Prometheus base URL for the built-in simple-monitoring endpoint
     // (GET /api/system/status). Unset → KPIs degrade to null (service up/down still works via
     // the /health fan-out below, so the endpoint is usable without Prometheus/Grafana).
