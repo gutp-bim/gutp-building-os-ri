@@ -69,7 +69,17 @@ public static class SettingsRegistry
             DefaultValue: "1000",
             Description: "NATS JetStream consumer の未配信件数（num_pending, 全 consumer 合計）がこの値を超えたら警告色にする。正常時はほぼ 0。目安は「取込レート（msg/s）× 許容する滞留秒数」— 既定 1000 は基準レート約 6.2 msg/s（1,865 点 / 300 秒）で約 160 秒分の滞留（#456）",
             Category: "platform"),
+
+        new SettingDefinition(
+            Key: HealthEventRetentionDaysKey,
+            Type: SettingType.Number,
+            DefaultValue: "90",
+            Description: "解消済みのヘルスイベント（#455）を保持する日数。これより古い解消済みイベントは評価器が削除する。未解消（open）のイベントは消さない。0 以下は削除しない（無期限保持）",
+            Category: "health"),
     };
+
+    /// <summary>How long cleared health events are kept (#455).</summary>
+    public const string HealthEventRetentionDaysKey = "health.eventRetentionDays";
 
     /// <summary>The telemetry stale-threshold setting keys, exposed all-role via /api/telemetry/config.</summary>
     public const string StaleThresholdSecondsKey = "telemetry.staleThresholdSeconds";
