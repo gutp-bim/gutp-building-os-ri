@@ -98,11 +98,13 @@ export default function ResourcesPageComponent() {
     (ref: ResourceRef) => {
       selectionSeq.current += 1;
       setSelected(ref);
-      const params = new URLSearchParams(searchParams.toString());
+      // The live query string, not the hook's snapshot: a selection finishing after the user kept
+      // typing (a slow health-hit lookup) must not roll the search filters back.
+      const params = new URLSearchParams(window.location.search);
       params.set("sel", refKey(ref));
       router.replace(`/resources?${params.toString()}`);
     },
-    [router, searchParams],
+    [router],
   );
 
   // Mirror the search form to the URL. Reads the live query string rather than the hook's value so a

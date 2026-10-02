@@ -142,4 +142,18 @@ describe("ResourcesPageComponent picking a health-routed hit (#454)", () => {
 
     expect(replace.mock.calls.map((c) => c[0] as string).some((u) => u.includes("SLOW"))).toBe(false);
   });
+
+  it("a selection keeps the filters currently in the URL, not the ones at click time", async () => {
+    currentSearch = "";
+    replace.mockClear();
+    window.history.replaceState({}, "", "/resources?q=newer&unit=ppm");
+    render(<ResourcesPageComponent />);
+
+    boxProps?.onPick({ type: "device", dtId: "urn:d1", id: "D1", name: "AHU", buildingDtId: null });
+
+    const url = replace.mock.calls.at(-1)?.[0] as string;
+    expect(url).toContain("q=newer");
+    expect(url).toContain("unit=ppm");
+    expect(url).toContain("sel=device");
+  });
 });
