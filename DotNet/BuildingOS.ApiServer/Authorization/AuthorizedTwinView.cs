@@ -448,6 +448,9 @@ public sealed class AuthorizedTwinView(
         // #506: tags are hidden from a group-manager, so they must not be enumerable here either.
         if (auth.IsStructureOnly) return [];
 
+        // Same rule as a *global* search (see SearchAsync): a resource counts when the caller holds a
+        // read grant on it directly. Ancestor grants (a building grant covering its descendants) are not
+        // expanded here, so such a caller sees fewer candidates — never more. Fail-safe by construction.
         var usage = await db.ListTagUsage(prefix, ct).ConfigureAwait(false);
         var readable = await FilterReadableAsync(
             auth, usage, null,
