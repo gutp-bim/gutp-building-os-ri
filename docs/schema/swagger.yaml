@@ -1949,6 +1949,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/resources/tags:
+    get:
+      tags:
+        - ResourceSearch
+      summary: "customTags 候補（autocomplete 用）。キー（true のもの）を prefix 前方一致（大文字小文字無視）で集計し、\n呼び出し元が閲覧できるリソースの件数付きで多い順に返す。group-manager には空（タグは非公開）。"
+      parameters:
+        - name: prefix
+          in: query
+          description: キーの前方一致。省略時は全キー
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: 最大件数（1..100、既定 20）
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResourceTagCount'
   '/api/v1/spaces/{spaceDtId}':
     get:
       tags:
@@ -4786,6 +4825,18 @@ components:
         buildingDtId:
           type: string
           nullable: true
+      additionalProperties: false
+    ResourceTagCount:
+      required:
+        - tag
+      type: object
+      properties:
+        tag:
+          minLength: 1
+          type: string
+        count:
+          type: integer
+          format: int32
       additionalProperties: false
     RoleCatalogEntry:
       type: object

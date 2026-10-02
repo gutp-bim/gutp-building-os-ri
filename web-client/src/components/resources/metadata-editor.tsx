@@ -2,6 +2,7 @@
 
 import type { ResourceMetadata, ResourceMetadataPatch } from "@/lib/resources/types";
 import { useState } from "react";
+import { TagSuggestInput } from "./tag-suggest-input";
 
 type IdentEntry = { key: string; value: string; deleted: boolean };
 type TagEntry = { key: string; value: boolean; deleted: boolean };
@@ -154,14 +155,13 @@ export function MetadataEditor({
           {tags.map((e, i) =>
             e.deleted ? null : (
               <div key={i} className="flex items-center gap-1">
-                <input
+                <TagSuggestInput
                   className="w-1/3 rounded border px-1 py-0.5 text-xs"
                   placeholder="key"
+                  ariaLabel="タグ名"
                   value={e.key}
-                  onChange={(ev) =>
-                    setTags((prev) =>
-                      prev.map((x, j) => (j === i ? { ...x, key: ev.target.value } : x)),
-                    )
+                  onChange={(key) =>
+                    setTags((prev) => prev.map((x, j) => (j === i ? { ...x, key } : x)))
                   }
                 />
                 <input

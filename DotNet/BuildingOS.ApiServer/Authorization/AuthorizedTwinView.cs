@@ -393,7 +393,16 @@ public sealed class AuthorizedTwinView(
         if (auth.IsStructureOnly && tags.Count > 0) return [];
 
         var hits = await db.SearchResources(q, type, buildingDtId, tags, limit, offset).ConfigureAwait(false);
-        if (auth.ReadsWholeTwinStructure) return hits;
+        return await FilterReadableAsync(auth, hits, buildingDtId, h => h, ct).ConfigureAwait(false);
+    }
+
+    // Read authorization shared by search and tag suggestions: a row survives when the caller can read
+    // the resource it names. Generic over the row so the tag counts cannot drift from the search rule.
+    private async Task<T[]> FilterReadableAsync<T>(
+        AuthorizationContext auth, IReadOnlyList<T> rows, string? buildingDtId,
+        Func<T, ResourceSearchHit> asHit, CancellationToken ct)
+    {
+        if (auth.ReadsWholeTwinStructure) return rows.ToArray();
 
         // Resolve accessible-id sets lazily, one ACL call per distinct resource type encountered.
         var accessibleByType = new Dictionary<string, IReadOnlyList<string>>();
@@ -414,19 +423,45 @@ public sealed class AuthorizedTwinView(
         if (!string.IsNullOrEmpty(buildingDtId)
             && await CanReadNodeAsync(auth, "building", buildingDtId,
                 (await db.GetBuilding(buildingDtId).ConfigureAwait(false))?.Id, ct).ConfigureAwait(false))
-            return hits;
+            return rows.ToArray();
 
-        var filtered = new List<ResourceSearchHit>();
-        foreach (var h in hits)
+        var filtered = new List<T>();
+        foreach (var row in rows)
         {
+            var h = asHit(row);
             var ownIds = await AccessibleAsync(h.Type).ConfigureAwait(false);
             // Every type authorizes by its business id (#504). A legacy dtId grant still matches for
             // the node types; points were only ever granted by business id, so none exists to honour.
             var selfAllowed = h.Type == "point"
                 ? ownIds.Contains(PermissionHelper.HashResourceId(h.Id))
                 : Grants(ownIds, h.Id, h.DtId);
-            if (selfAllowed) filtered.Add(h);
+            if (selfAllowed) filtered.Add(row);
         }
         return filtered.ToArray();
+    }
+
+    // ── Tag suggestions ───────────────────────────────────────────────────────
+
+    public async Task<ResourceTagCount[]> ListTagsAsync(
+        AuthorizationContext auth, string? prefix, int limit, CancellationToken ct)
+    {
+        // #506: tags are hidden from a group-manager, so they must not be enumerable here either.
+        if (auth.IsStructureOnly) return [];
+
+        // Same rule as a *global* search (see SearchAsync): a resource counts when the caller holds a
+        // read grant on it directly. Ancestor grants (a building grant covering its descendants) are not
+        // expanded here, so such a caller sees fewer candidates — never more. Fail-safe by construction.
+        var usage = await db.ListTagUsage(prefix, ct).ConfigureAwait(false);
+        var readable = await FilterReadableAsync(
+            auth, usage, null,
+            u => new ResourceSearchHit { Type = u.Type, DtId = u.DtId, Id = u.Id, Name = u.Id }, ct).ConfigureAwait(false);
+
+        // Count distinct resources per tag: a (resource, tag) pair can repeat when the twin joins fan out.
+        return readable
+            .GroupBy(u => u.Tag, StringComparer.Ordinal)
+            .Select(g => new ResourceTagCount { Tag = g.Key, Count = g.Select(u => u.DtId).Distinct().Count() })
+            .OrderByDescending(t => t.Count).ThenBy(t => t.Tag, StringComparer.Ordinal)
+            .Take(limit)
+            .ToArray();
     }
 }

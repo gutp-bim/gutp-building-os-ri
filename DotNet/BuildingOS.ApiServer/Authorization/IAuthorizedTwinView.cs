@@ -75,6 +75,12 @@ public interface IAuthorizedTwinView
         IReadOnlyList<string> tags, int limit, int offset, CancellationToken ct);
 
     /// <summary>
+    /// customTags keys (true-valued) that start with <paramref name="prefix"/>, each with the number of
+    /// resources the caller can read that carry it. Empty for a group-manager (tags are hidden from it).
+    /// </summary>
+    Task<ResourceTagCount[]> ListTagsAsync(AuthorizationContext auth, string? prefix, int limit, CancellationToken ct);
+
+    /// <summary>
     /// Returns true when the caller has write access to any resource type.
     /// Admins always have write access.
     /// </summary>

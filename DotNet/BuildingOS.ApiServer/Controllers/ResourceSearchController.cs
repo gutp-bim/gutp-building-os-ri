@@ -18,6 +18,8 @@ public class ResourceSearchController(IAuthorizedTwinView twinView) : Controller
 {
     private const int DefaultLimit = 50;
     private const int MaxLimit = 200;
+    private const int DefaultTagLimit = 20;
+    private const int MaxTagLimit = 100;
 
     /// <summary>
     /// リソース横断検索（building / floor / space / device / point を名前・IDで検索）。
@@ -50,5 +52,22 @@ public class ResourceSearchController(IAuthorizedTwinView twinView) : Controller
         var hits = await twinView.SearchAsync(
             HttpContext.GetAuthorizationContext(), q, type, buildingId, tags, limit, offset, ct);
         return Ok(hits);
+    }
+
+    /// <summary>
+    /// customTags 候補（autocomplete 用）。キー（true のもの）を prefix 前方一致（大文字小文字無視）で集計し、
+    /// 呼び出し元が閲覧できるリソースの件数付きで多い順に返す。group-manager には空（タグは非公開）。
+    /// </summary>
+    /// <param name="prefix">キーの前方一致。省略時は全キー</param>
+    /// <param name="limit">最大件数（1..100、既定 20）</param>
+    [HttpGet("tags")]
+    public async Task<ActionResult<ResourceTagCount[]>> Tags(
+        [FromQuery] string? prefix,
+        [FromQuery] int limit = DefaultTagLimit,
+        CancellationToken ct = default)
+    {
+        limit = Math.Clamp(limit, 1, MaxTagLimit);
+        var tags = await twinView.ListTagsAsync(HttpContext.GetAuthorizationContext(), prefix?.Trim(), limit, ct);
+        return Ok(tags);
     }
 }

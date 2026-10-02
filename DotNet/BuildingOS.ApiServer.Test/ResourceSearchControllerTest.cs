@@ -63,4 +63,16 @@ public class ResourceSearchControllerTest
         var result = await c.Search(q: null, type: null, buildingId: null, tag: null, limit: 50, offset: -1, ct: default);
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
+
+    [Fact]
+    public async Task Tags_ForwardsPrefixAndClampsLimit()
+    {
+        var (c, view) = Build();
+        view.Setup(v => v.ListTagsAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ResourceTagCount>());
+
+        await c.Tags(prefix: " tem ", limit: 9999, ct: default);
+
+        view.Verify(v => v.ListTagsAsync(It.IsAny<AuthorizationContext>(), "tem", 100, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

@@ -631,6 +631,18 @@ ORDER BY ?gw";
         }).ToArray();
     }
 
+    public async Task<ResourceTagUsage[]> ListTagUsage(string? prefix, CancellationToken ct = default)
+    {
+        var rows = await _client.QueryAsync(ResourceSearchQueryBuilder.BuildTagUsage(prefix), ct).ConfigureAwait(false);
+        return rows.Select(r => new ResourceTagUsage
+        {
+            Type = r.GetValueOrDefault("type", ""),
+            DtId = r.GetValueOrDefault("dt", ""),
+            Id = r.GetValueOrDefault("id", ""),
+            Tag = r.GetValueOrDefault("tagKey", ""),
+        }).ToArray();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private async Task<T[]> QueryEntitiesAsync<T>(string sparql, Func<IReadOnlyDictionary<string, string>, T> map)
