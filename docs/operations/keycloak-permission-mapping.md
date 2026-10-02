@@ -57,7 +57,8 @@ It may:
   adjacency and resource search — as **names and ids only** (no native/BACnet addressing, gateways,
   owners or thresholds), so it can choose what a Group holds.
 
-Group ids must not contain `:` or `,` (the separators of a `group:<id>:<actions>` grant) and may be at
+Admins cannot create ids starting with `gm-` (reserved), so a Group under a group-manager's prefix only
+ever belongs to it. Group ids must not contain `:` or `,` (the separators of a `group:<id>:<actions>` grant) and may be at
 most 100 characters including the prefix.
 
 **Ownership follows the service account's `sub`.** Recreating the Keycloak client (or its

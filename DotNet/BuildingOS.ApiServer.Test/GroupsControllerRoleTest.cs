@@ -90,6 +90,22 @@ public class GroupsControllerRoleTest
         repo.Verify(r => r.CreateAsync(It.Is<ResourceGroup>(g => g.Id == "tenant-a"), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    /// <summary>
+    /// The gm- prefix is reserved for group-managers: no one else can create a Group under it, so a Group
+    /// under a group-manager's prefix only ever belongs to that group-manager — even if it is deleted
+    /// and recreated between the ownership check and a change (Codex on #506).
+    /// </summary>
+    [Fact]
+    public async Task Admin_CannotCreateUnderTheReservedPrefix()
+    {
+        var repo = Repo();
+        var result = await Build("admin", repo).Create(
+            new GroupsController.CreateGroupRequest { Id = GroupsController.GroupIdPrefixFor("svc-portal") + "x", Name = "X" }, default);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        repo.Verify(r => r.CreateAsync(It.IsAny<ResourceGroup>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task Admin_GroupIds_AreTakenAsGiven()
     {

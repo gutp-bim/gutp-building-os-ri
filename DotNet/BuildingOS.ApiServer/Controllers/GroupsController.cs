@@ -85,8 +85,11 @@ public class GroupsController : ControllerBase
     public static string GroupIdPrefixFor(string subject)
     {
         var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(subject));
-        return "gm-" + Convert.ToHexString(hash)[..12].ToLowerInvariant() + "-";
+        return GroupManagerIdPrefix + Convert.ToHexString(hash)[..12].ToLowerInvariant() + "-";
     }
+
+    /// <summary>The namespace of every group-manager's Group ids; admins cannot create ids under it.</summary>
+    public const string GroupManagerIdPrefix = "gm-";
 
     // === Group CRUD ===
 
@@ -147,6 +150,13 @@ public class GroupsController : ControllerBase
         {
             var prefix = GroupIdPrefixFor(authContext.UserId);
             if (!id.StartsWith(prefix, StringComparison.Ordinal)) id = prefix + id;
+        }
+        else if (id.StartsWith(GroupManagerIdPrefix, StringComparison.Ordinal))
+        {
+            // Reserved for group-managers: a Group under one's prefix is then only ever created by that
+            // group-manager, so ownership cannot change underneath a check (delete + recreate by an admin
+            // between Manages() and the write).
+            return BadRequest($"Ids starting with '{GroupManagerIdPrefix}' are reserved for group-manager applications");
         }
 
         // ':' and ',' are the separators of a group:<id>:<actions> grant — an id carrying one could never
