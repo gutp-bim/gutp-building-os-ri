@@ -165,8 +165,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The Playwright container runs as "${UID:-1000}:${GID:-1000}" (docker-compose.demo-e2e.yaml) so
+      # `yarn install` can write into the bind-mounted checkout. `UID` is a shell variable, not an
+      # exported one, so compose never sees it and falls back to 1000 — but the runner user is 1001,
+      # which made `mkdir node_modules` fail with EACCES. Pass the real ids through `env`.
       - name: Run demo full-stack E2E
-        run: make demo-e2e
+        run: env UID="$(id -u)" GID="$(id -g)" make demo-e2e
 
       - name: Collect demo logs
         if: failure()

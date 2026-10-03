@@ -202,7 +202,12 @@ export function OperatorHome({
               // points/health-summary effect below (keyed on buildingDtId + floorDtId) never
               // observes the new building paired with the previous building's stale floor
               // selection — React batches these into a single render (#497 review).
-              setBuildingDtId(e.target.value || null);
+              const next = e.target.value || null;
+              // Picking the building that is already selected is not a change: the floors effect
+              // (keyed on buildingDtId) would not re-run, so clearing here would strand the
+              // operator on "フロアなし" until they switch buildings and back.
+              if (next === buildingDtId) return;
+              setBuildingDtId(next);
               setFloorDtId(null);
               setFloors([]);
             }}

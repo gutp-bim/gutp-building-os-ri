@@ -256,6 +256,39 @@ describe("OperatorHome", () => {
     expect(loadHealthSummary).toHaveBeenCalledWith("b1", undefined);
   });
 
+  it("keeps the floors when the already-selected building is picked again", async () => {
+    // Selecting the current building fires onChange without changing buildingDtId, so the effect that
+    // loads floors does not re-run — clearing the floors on that event would leave "フロアなし" for good.
+    const loadFloors = vi.fn().mockResolvedValue([floor]);
+    render(
+      <OperatorHome
+        loaders={makeLoaders({ loadFloors })}
+        isAdmin={false}
+        fetchGateways={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("home-floor-select")).getByText("1F"),
+      ).toBeInTheDocument(),
+    );
+
+    await userEvent.selectOptions(
+      screen.getByTestId("home-building-select"),
+      "b1",
+    );
+
+    expect(
+      within(screen.getByTestId("home-floor-select")).getByText("1F"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("home-floor-select")).queryByText(
+        "（フロアなし）",
+      ),
+    ).not.toBeInTheDocument();
+    expect(loadFloors).toHaveBeenCalledTimes(1);
+  });
+
   it("never queries the new building with the previous building's stale floor id (#497 review)", async () => {
     const building2: ResourceRef = {
       type: "building",

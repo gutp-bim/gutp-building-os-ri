@@ -61,8 +61,18 @@ export async function mockPoints(
   page: Page,
   points: { dtId: string; id: string; name: string }[],
 ): Promise<void> {
+  registeredPointCount.set(page, points.length);
   await page.route("**/points*", (route) => fulfillJson(route, points));
 }
+
+/**
+ * How many Points the page's twin mock registers — the denominator the health summary reports.
+ * Set by {@link mockPoints}; {@link mockLatestTelemetry} reads it so the two stay consistent.
+ */
+const registeredPointCount = new WeakMap<Page, number>();
+
+/** Stale threshold the mocked telemetry config advertises (`staleThresholdSeconds`). */
+const STALE_THRESHOLD_SECONDS = 300;
 
 /**
  * Stub the freshness batch endpoint `POST /telemetries/query/batch-latest` (#182). `latestByPoint`
@@ -75,6 +85,7 @@ export async function mockLatestTelemetry(
   latestByPoint: Record<string, string>,
 ): Promise<void> {
   await mockTelemetryConfig(page);
+  await mockHealthEndpoints(page, latestByPoint);
   await page.route("**/telemetries/query/batch-latest", (route) => {
     const { pointIds = [] } = (route.request().postDataJSON() ?? {}) as {
       pointIds?: string[];
@@ -96,6 +107,7 @@ export async function mockLatestTelemetryFailure(
   status = 503,
 ): Promise<void> {
   await mockTelemetryConfig(page);
+  await mockHealthEndpoints(page, {});
   await page.route("**/telemetries/query/batch-latest", (route) =>
     fulfillJson(route, { error: "unavailable" }, status),
   );
@@ -110,6 +122,49 @@ async function mockTelemetryConfig(page: Page): Promise<void> {
     fulfillJson(route, {
       staleThresholdSeconds: 300,
       staleIntervalMultiplier: 3,
+    }),
+  );
+}
+
+/**
+ * Stub the server-side data-health endpoints the operator home and Point detail read (#451 / #452):
+ * `GET /api/v1/telemetry/health/summary` (the 最新 / 停滞 / 欠測 counts) and
+ * `GET /api/v1/telemetry/health` (the per-point list, empty here). The summary is derived from the
+ * same `latestByPoint` fixture as the batch-latest mock, so one fixture drives both and they cannot
+ * disagree: a sample newer than the stale threshold is fresh, an older one stale, and every
+ * registered Point without a sample is missing.
+ */
+async function mockHealthEndpoints(
+  page: Page,
+  latestByPoint: Record<string, string>,
+): Promise<void> {
+  await page.route("**/api/v1/telemetry/health/summary*", (route) => {
+    const ages = Object.values(latestByPoint).map(
+      (iso) => (Date.now() - Date.parse(iso)) / 1000,
+    );
+    const fresh = ages.filter((a) => a <= STALE_THRESHOLD_SECONDS).length;
+    const stale = ages.length - fresh;
+    const total = registeredPointCount.get(page) ?? ages.length;
+    return fulfillJson(route, {
+      totalPoints: total,
+      fresh,
+      stale,
+      missing: Math.max(total - ages.length, 0),
+      unknown: 0,
+      alarmWarn: 0,
+      alarmCritical: 0,
+      dataComplete: true,
+      indexState: "ready",
+    });
+  });
+  await page.route(/\/api\/v1\/telemetry\/health(\?.*)?$/, (route) =>
+    fulfillJson(route, {
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+      dataComplete: true,
+      indexState: "ready",
     }),
   );
 }

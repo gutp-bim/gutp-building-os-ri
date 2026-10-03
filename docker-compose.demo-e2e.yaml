@@ -13,7 +13,9 @@ services:
         NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: web-client
 
   building-os.demo-e2e:
-    image: mcr.microsoft.com/playwright:v1.61.1-noble
+    # Must match the @playwright/test version in web-client/yarn.lock: Playwright refuses to launch
+    # browsers from a different image ("Please update docker image as well"). Bump both together.
+    image: mcr.microsoft.com/playwright:v1.63.0-noble
     container_name: building-os.demo-e2e
     profiles: ["demo-e2e"]
     working_dir: /work/web-client

@@ -373,7 +373,10 @@ public class KeycloakUserManagementServiceTest
     {
         // Group lookups run concurrently (bounded); the result must still follow Keycloak's user order,
         // and concurrent users of one parent group must share one fetch.
-        var realm = new FakeRealm { Delay = TimeSpan.FromMilliseconds(5) };
+        // The delay has to be long enough that the bounded lookups overlap even on a loaded 2-core CI
+        // runner: with 5 ms the requests sometimes finished one by one (MaxConcurrentRequests == 1)
+        // and the InRange(2, 8) assertion below failed without any product change.
+        var realm = new FakeRealm { Delay = TimeSpan.FromMilliseconds(50) };
         realm.AddGroup("g2", "/ops", role: "admin");
         realm.AddGroup("g3", "/ops/tokyo", parentId: "g2");
         realm.AddGroup("gv", "/viewers", role: "viewer");
