@@ -33,7 +33,8 @@ Also worth knowing when coming from rc.2:
 - **REST paths moved to `/api/v1/…`** (ADR-0008). The old paths keep working — the API rewrites them and
   answers with `Deprecation` / `Link: rel="successor-version"` — so existing clients are not broken, but
   `make openapi-breaking` against the rc.2 spec reports the 68 relocated operations as removed paths.
-  Move clients to `/api/v1` within the 6-month window.
+  No `Sunset` date is set yet (ADR-0008 §4: it is chosen once legacy traffic stays at zero, and the old paths
+  are removed at least 6 months after that), so move clients to `/api/v1` before a sunset is announced.
 - **The local object store is RustFS, not MinIO.** rc.2's `minio/minio` image is no longer pullable and the
   on-disk formats differ: migrate existing data with `scripts/migrate-minio-to-rustfs.sh` before bringing the
   new stack up, and take a backup first. A rollback restores the application images only, not MinIO.
