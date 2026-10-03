@@ -353,11 +353,19 @@ k6 run -e BASE_URL=http://localhost:5000 -e DURATION=3m k6/s5_api_read.js
 
 ### 参照アーキテクチャ E2E 定量評価（E1–E8 + KPI ゲート）
 
-評価軸 E1–E8 を `e2e/runner/run-all.sh` で実行し、`gate.py` が [`e2e/kpi-thresholds.yaml`](e2e/kpi-thresholds.yaml) と
+評価軸 E1–E12 のうち E1–E9 は `e2e/runner/run-all.sh` で一括実行し（E10–E12 は数時間〜数分かかるため `e2e/runner/run-axis.sh` で個別実行）、`gate.py` が [`e2e/kpi-thresholds.yaml`](e2e/kpi-thresholds.yaml) と
 突合して pass/fail とヘッドライン指標を出力します。
 
-**最新の実測レポート:** [`e2e/evaluation-report.md`](e2e/evaluation-report.md)（gate **PASS**:
-ingest E2E p95 2.7ms / latest p95 51ms / warm 24h p95 101ms / point resolution 1.000）。
+**最新の実測結果**（詳細は [`docs/reference/evaluation-summary.md`](docs/reference/evaluation-summary.md)）:
+
+- E1–E8 ゲート（2026-06）: ingest E2E p95 2.9ms / latest p95 6.9ms / warm 24h p95 54.7ms / point resolution 1.000 / stale-replay 0 —
+  [`e2e/evaluation-report.md`](e2e/evaluation-report.md)
+- スケール（#261, 10 Building・20 Gateway）: 50,000 Point まで ingress 全件受理・Lake 損失 0%、100 Gateway 集中再接続は 2.7s で収束 —
+  [`performance-evaluation-report.md`](docs/reference/performance-evaluation-report.md)
+- 長時間ソーク（E10, 73h・163 万 frame）: 損失・重複・再起動・OOM すべて 0、24h retention 後にメモリ定常化 —
+  [E10 scenario](e2e/scenarios/E10-endurance-soak.md)。実ゲートウェイ mTLS 接続（約 73.6h）は
+  [`gateway-mtls-endurance-soak-report.md`](docs/reference/gateway-mtls-endurance-soak-report.md)
+
 計画・各軸の手順は [`e2e/`](e2e/) を参照。
 
 ---
@@ -574,9 +582,10 @@ make test-oss-stack                         # スタック疎通テスト
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [`docs/reference/evaluation-summary.md`](docs/reference/evaluation-summary.md) | 📊 E2E 評価結果とアーキテクチャ/性能の妥当性 |
-| [`docs/reference/performance-evaluation-report.md`](docs/reference/performance-evaluation-report.md) | 📈 E1〜E8・Point List・2k〜50k多棟スケールの総合性能レポート |
-| [`e2e/evaluation-report.md`](e2e/evaluation-report.md) | E2E 実測レポート（生値、E1–E8 gate） |
+| [`docs/reference/evaluation-summary.md`](docs/reference/evaluation-summary.md) | 📊 E2E 評価結果（E1–E8・スケール・73h ソーク）とアーキテクチャ/性能の妥当性 |
+| [`docs/reference/performance-evaluation-report.md`](docs/reference/performance-evaluation-report.md) | 📈 E1〜E8・Point List・2k〜50k多棟スケール・Gateway 再接続の総合性能レポート |
+| [`docs/reference/gateway-mtls-endurance-soak-report.md`](docs/reference/gateway-mtls-endurance-soak-report.md) | 🔐 実ゲートウェイ mTLS 接続・約73.6h 長時間稼働評価 |
+| [`e2e/evaluation-report.md`](e2e/evaluation-report.md) | E2E 実測レポート（生値、E1–E8 gate + E10 ソーク） |
 | [`docs/architecture/system-architecture.md`](docs/architecture/system-architecture.md) | システム全体のアーキテクチャ詳細 |
 | [`docs/architecture/telemetry-specification.md`](docs/architecture/telemetry-specification.md) | テレメトリメッセージスキーマ仕様 |
 | [`docs/architecture/oss-nats-design.md`](docs/architecture/oss-nats-design.md) | NATS JetStream subject / stream 設計 |
