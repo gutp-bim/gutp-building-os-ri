@@ -43,12 +43,12 @@ test("emit E9 operator-usability metrics", async ({ page, context }) => {
   // Warm the route first so the measurement reflects render + data fetch (the operator's real
   // experience on a built app), not Next dev-mode's one-time turbopack compile of /points.
   await page.goto("/points/SOS-PT-001");
-  await expect(page.getByTestId("freshness-fresh")).toBeVisible();
+  await expect(page.getByTestId("freshness-fresh").first()).toBeVisible();
   await page.goto("/resources");
 
   const started = Date.now();
   await page.goto("/points/SOS-PT-001");
-  await expect(page.getByTestId("freshness-fresh")).toBeVisible();
+  await expect(page.getByTestId("freshness-fresh").first()).toBeVisible();
   const timeToSampleSeconds = Number(((Date.now() - started) / 1000).toFixed(2));
 
   // login_to_point_clicks: login is injected (0), then the operator opens the point — the
