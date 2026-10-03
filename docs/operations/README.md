@@ -7,6 +7,8 @@
 - [Observability baseline](observability-baseline.md)
 - [バックアップ・リストア](oss-backup-restore-runbook.md)
 - [アップグレード](oss-upgrade-runbook.md)
+- [Parquet レイクの保持運用（RustFS / #492）](oss-lake-retention-runbook.md)
+- [リリースチェックリスト](release-checklist.md)
 - [障害対応](oss-incident-runbook.md)
 - [ゲートウェイ・セキュリティ運用](oss-gateway-security-ops.md)
 - [Argo CD GitOps](argocd-gitops-guide.md)

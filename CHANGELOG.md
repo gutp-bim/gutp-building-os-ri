@@ -10,7 +10,45 @@ publishes images for (`v*.*.*`).
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-10-03
+
+Third release candidate. Adds persisted health events (#455) and the `/api/v1` REST versioning
+(ADR-0008), switches the local object store to RustFS, and gathers the breaking changes made since rc.2
+so they can settle before 1.0.0. Per SemVer these are acceptable only because 1.0.0 is not yet released;
+after 1.0.0 they would need a new major API version.
+
+### Upgrading from rc.2
+
+Three changes since rc.2 are breaking (details under "Changed" below):
+
+- **Twin traversal is topology only.** Equipment placed only by the `sbco:floor` literal is no longer in
+  any Level/Building. Re-import so it carries `sbco:locatedIn`; the import reports it as `floor_literal_only`.
+- **Telemetry read responses carry one union-typed `value`** (`number | string | boolean | null`).
+- **`valueText` / `valueBool` are removed** from the telemetry read responses (#359). Read `value`.
+
+Upgrade order and rollback: [`oss-upgrade-runbook.md`](./docs/operations/oss-upgrade-runbook.md) (API
+server before the web client — the web client calls only `/api/v1`).
+
+### Known limitations
+
+- **Parquet lake retention is off by default (#492).** `building-os.minio` is RustFS 1.0.0, which breaks
+  `PutObject` / `GetObject` / `HeadObject` once a bucket has any lifecycle (ILM) rule, so
+  `LAKE_RETENTION_DAYS` now defaults to `0` (unlimited) in the compose files. Ingestion, compaction and
+  queries are unaffected, but **lake objects never expire and disk use grows with ingest** — monitor
+  capacity and delete old data by hand: [`oss-lake-retention-runbook.md`](./docs/operations/oss-lake-retention-runbook.md).
+  Do not set `LAKE_RETENTION_DAYS` above 0 on RustFS until a stable release containing the upstream fix
+  (rustfs/rustfs#8057) is available. Production IaC (`opentofu/modules/minio`) is not affected.
+- No `buf breaking` gate for `proto/` yet (REST is covered by `make openapi-breaking`).
+- Health-event load at the 12k-point scale has not been measured.
+
 ### Added
+
+- Persisted health events (#455): `HealthEvaluatorHostedService` scans the same `PointHealthLedger` as
+  `GET /api/v1/telemetry/health` and raises / clears stale / missing / alarm / gateway_offline events in
+  the `health_event` table (deadband via `HEALTH_EVALUATOR_RAISE_AFTER_SCANS` / `…_CLEAR_AFTER_SCANS`,
+  switch with `HEALTH_EVALUATOR_ENABLED`). `GET /api/v1/health/events` lists them (lifecycle
+  `open|cleared` and ack `acked|unacked` are separate filters) and `POST …/{id}/ack` acknowledges one
+  (admin / operator, idempotent, audited). UI: the `/health` events tab and "この Point の直近イベント".
 
 - The twin import preview reports `sbco:id` values shared by two or more nodes of one resource type
   (`idCollisionCount` / `idCollisions`), and apply refuses such an import even with `allowOrphans` (#517):
@@ -60,6 +98,11 @@ publishes images for (`v*.*.*`).
   the effective policy is logged at startup. Under `deny` an OxiGraph outage also refuses control.
 
 ### Changed
+
+- `building-os.minio` in `docker-compose.oss.yaml` is now RustFS instead of MinIO (#489 / #490), since
+  `minio/minio` is no longer published. Service name, ports and `MINIO_*` variables are unchanged; the
+  on-disk formats are not interchangeable — see `scripts/migrate-minio-to-rustfs.sh` to keep existing data.
+  This is what makes the retention limitation below (#492) apply.
 
 - **BREAKING: the twin is traversed by topology only.** Every read path — authorization ancestors,
   building/floor-scoped reads (`/point-details`, `/device-details`, health), search scope, the #291
