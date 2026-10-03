@@ -353,7 +353,7 @@ k6 run -e BASE_URL=http://localhost:5000 -e DURATION=3m k6/s5_api_read.js
 
 ### 参照アーキテクチャ E2E 定量評価（E1–E8 + KPI ゲート）
 
-評価軸 E1–E12（E1–E8 は `run-all.sh` のゲート、E10–E12 は個別実行）を `e2e/runner/run-all.sh` で実行し、`gate.py` が [`e2e/kpi-thresholds.yaml`](e2e/kpi-thresholds.yaml) と
+評価軸 E1–E12 のうち E1–E9 は `e2e/runner/run-all.sh` で一括実行し（E10–E12 は数時間〜数分かかるため `e2e/runner/run-axis.sh` で個別実行）、`gate.py` が [`e2e/kpi-thresholds.yaml`](e2e/kpi-thresholds.yaml) と
 突合して pass/fail とヘッドライン指標を出力します。
 
 **最新の実測結果**（詳細は [`docs/reference/evaluation-summary.md`](docs/reference/evaluation-summary.md)）:
