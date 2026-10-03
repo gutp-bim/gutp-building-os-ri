@@ -71,6 +71,14 @@ key:    building_id={building}/year={YYYY}/month={MM}/day={DD}/hour={HH}/
   あるが、reader 側が **±1 時間のグレース幅**で列挙して両方式を吸収する。
 - **Parquet スキーマは既存 8 カラムを変更しない**: `point_id` / `building` / `device_id` / `name`
   (string), `value` (double?), `time` (timestamp), `data` (string=JSON), `id` (string)。Zstd 圧縮。
+- **`id` 列の付与経路と意味（#479）**: `id` は列としては nullable だが、**現行の取込経路はすべて付与する**。
+  gRPC GatewayIngress・プロトコルコネクタ（BACnet / Environmental / Behavior ほか共通の
+  `ProtocolConnectorBase`）はいずれも `id = "{pointId}.{受信時刻の Unix 秒}"` を作る。
+  - **機器の打刻ではなく、取込側の受信時刻（秒）から作る**。`datetime`（機器の時刻、無ければ受信時刻に
+    fallback, #418）とは別の時刻で、`ingest_time` 列は無い（要望 #479 は見送り）。
+  - 読み出し・compaction の dedup キーなので、**同じ Point が同じ秒に 2 回届くと 1 行に畳まれる**
+    （後勝ち）。1 秒未満の周期で送る Point があるとその分は落ちる。
+  - `id` が空の行（旧データ・外部が lake に直接書いた行）は dedup されず**すべて残る**。
 - **決定的命名**: 新 writer は JetStream stream sequence で `part-{firstSeq}-{lastSeq}.parquet` と
   命名する。ack 前クラッシュ→再配信時に**同一オブジェクトへの上書き = 冪等**。
 - **小ファイル対策**: 確定した過去 hour パーティションを CompactionWorker（#217）が
