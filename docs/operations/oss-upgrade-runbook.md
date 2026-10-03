@@ -3,9 +3,11 @@
 Building OS OSS を**バージョン間でアップグレード**する手順。スキーマ（EF Core / Parquet レイク /
 proto）互換の考え方、無停止アップグレードの順序、ロールバックを1ページに集約する。
 
-> ⚠️ **この Runbook は実装（マイグレーション適用箇所・ストリーム/ack 契約・ArgoCD 配信）に基づいて
-> 記述していますが、実バージョン跨ぎのアップグレードを実機で通した検証は未実施です。本番採用前に
-> ステージングで一度ドライラン（旧→新→ロールバック）してください。**
+> **検証状況**: 1.0.0-rc.3 の準備で、Docker Compose の OSS スタックを使い **rc.2 ↔ rc.3 のアップグレード /
+> ロールバックを実機で通しました**（2026-10-03、結果は [§3.5](#35-docker-compose-rc2--rc3-のドリル結果)）。
+> 範囲は**アプリ層（API / worker / bridge / web と EF マイグレーション）**です。**未検証**: オブジェクト
+> ストア（MinIO → RustFS）の巻き戻し、本番規模のデータ量、Kubernetes / ArgoCD での実施。本番採用前に
+> ステージングで一度ドライラン（旧→新→ロールバック）してください。
 
 関連: [oss-backup-restore-runbook.md](oss-backup-restore-runbook.md)（前段のバックアップ）,
 [oss-production-deployment.md](oss-production-deployment.md), [argocd-gitops-guide.md](argocd-gitops-guide.md),
@@ -128,6 +130,46 @@ docker compose -f docker-compose.oss.yaml logs -f building-os.api   # マイグ�
 
 ---
 
+## 3.5 Docker Compose: rc.2 → rc.3 のドリル結果
+
+2026-10-03、同じボリューム（PostgreSQL / OxiGraph / オブジェクトストア）の上で、アプリのイメージだけを
+入れ替えて実施した（rc.2 は `v1.0.0-rc.2` のソースからビルド、rc.3 は候補 `main`）。インフラ（NATS /
+PostgreSQL / OxiGraph / Keycloak / オブジェクトストア）は**全段階で rc.3 の compose**（オブジェクトストアは RustFS）で、
+rc.2 の MinIO は使っていない（下記）。各段階で、API の
+`/health`、web の応答、`buildings` 一覧、テレメトリの最新値、点制御（`POST …/points/{id}/control` → worker が
+`completed: Success`）を確認した。
+
+| 段階 | 構成 | 結果 |
+|---|---|---|
+| 1 | rc.2（api / worker / bridge / web） | 全項目 OK。EF マイグレーション 4 件 |
+| 2 | **バックエンドだけ rc.3**（web は rc.2 のまま） | 全項目 OK。**EF マイグレーション 8 件に自動適用**。旧 web が呼ぶ旧パスは `Deprecation` ヘッダ付きで応答 |
+| 3 | web も rc.3（フル rc.3） | 全項目 OK |
+| 4 | **rc.2 へロールバック**（rc.3 のスキーマに対して rc.2 のアプリ） | 全項目 OK（expand のみなので旧アプリは新スキーマで動く） |
+| 5 | 再び rc.3 | 全項目 OK |
+
+分かったこと:
+
+- **API を先、web を後**（段階 2 → 3）でアップグレードしても途切れない。逆順（API のロールバックを先にしない）は
+  [§4](#4-ロールバック)のとおり。
+- rc.3 の API は旧パス（`/buildings`、`/api/Groups` など）を `/api/v1` に書き換えて受け付ける。8 本の代表パス
+  （`/buildings`、`/floors`、`/points/{id}`、`/telemetries/query`、`/resources/search`、`/api/Groups`、
+  `/api/system/status`、`/api/MyResources`）がすべて 200 + `Deprecation` ヘッダだった。
+- 旧バージョンが書いた Parquet は新バージョンから読め、**rc.3 の compaction が rc.2 の worker の part も
+  まとめられた**（`hour=02` の 25 part → `compact-*.parquet`、compaction 後の query も整合。
+  [リリースチェックリスト](release-checklist.md)の実施記録）。
+
+**rc.2 の compose はもう丸ごとは再現できない**: rc.2 の `docker-compose.oss.yaml` が使う
+`minio/minio:RELEASE.2025-09-07…` は Docker Hub から削除済みで、`quay.io/minio/minio` でも取得できない。
+rc.3 のオブジェクトストアは RustFS で、**ディスク上の形式は MinIO と互換がない**。したがって:
+
+- rc.2 の MinIO データを残したまま上げるなら、先に `scripts/migrate-minio-to-rustfs.sh` で移行する
+  （CLAUDE.md の「Local Development Services」参照）。`minio_data` をそのまま RustFS に載せ替えても読めない。
+- 移行後に rc.2 の compose へ戻すことはできない。戻すのは**アプリのイメージだけ**（上の段階 4）で、
+  オブジェクトストアは RustFS のまま。**移行前に必ずバックアップ**（[oss-backup-restore-runbook.md](oss-backup-restore-runbook.md)）。
+- RustFS では `LAKE_RETENTION_DAYS` を 0 に保つ（[oss-lake-retention-runbook.md](oss-lake-retention-runbook.md)）。
+
+---
+
 ## 4. ロールバック
 
 - **REST API の版（ADR-0008）**: ロールバックは**デプロイと逆順**。web-client を先に戻し、その後で
@@ -159,9 +201,10 @@ docker compose -f docker-compose.oss.yaml logs -f building-os.api   # マイグ�
 
 ## 6. 既知の制約 / 未検証
 
-- 実バージョン跨ぎのアップグレード・ロールバックを実機で通した検証は未実施（本ドキュメント作成環境に
-  Docker デーモンなし）。手順はマイグレーション適用点（`Startup.cs`）・ストリーム契約・ArgoCD 配信
-  （`argocd/values`）に基づく。**本番採用前にステージングでドライラン**してください。
+- 実機ドリルは **Compose のアプリ層（rc.2 ↔ rc.3）まで**（[§3.5](#35-docker-compose-rc2--rc3-のドリル結果)）。
+  オブジェクトストア（MinIO → RustFS）の巻き戻し、本番規模のデータ、Kubernetes / ArgoCD での実施は未検証。
+  手順はマイグレーション適用点（`Startup.cs`）・ストリーム契約・ArgoCD 配信（`argocd/values`）に基づく。
+  **本番採用前にステージングでドライラン**してください。
 - proto の破壊的変更検出（`buf breaking`）ゲートは BOS 未導入（nexus-gateway に先行例）。導入までは
   proto 互換はレビューで担保。#163 のフォロー項目。
 - 大規模データでのマイグレーション所要時間（長時間ロック等）は本 Runbook の対象外（大規模評価 #163）。
