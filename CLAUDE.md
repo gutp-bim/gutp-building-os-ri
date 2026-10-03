@@ -530,7 +530,7 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 | `LAKE_COMPACTION_INTERVAL` | parquet mode: `CompactionWorker` scan cadence in **minutes** (default `15`). Merges per-flush `part-*.parquet` into one `compact-*.parquet` per settled building-hour. |
 | `LAKE_COMPACTION_SETTLE_MINUTES` | parquet mode: grace after an hour ends before it is compacted (default `30`). |
 | `LAKE_COMPACTION_MIN_PARTS` | parquet mode: minimum parts in a settled hour before compaction (default `2`, min `2`). |
-| `LAKE_RETENTION_DAYS` | parquet mode: applies an S3/MinIO ILM rule expiring lake objects after N days (the `drop_chunks` replacement). Unset/`0` → unlimited. |
+| `LAKE_RETENTION_DAYS` | parquet mode: applies an S3/MinIO ILM rule expiring lake objects after N days (the `drop_chunks` replacement). Unset/`0` → unlimited. **Compose defaults to `0` and must stay `0` on RustFS (#492):** RustFS 1.0.0 breaks Put/Get/Head once any ILM rule exists, so lake objects never auto-expire — monitor capacity and prune by hand per `docs/operations/oss-lake-retention-runbook.md`. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint (traces+metrics+logs → otel-collector). No-op when unset. |
 | `OTEL_SERVICE_NAME` | OTLP `service.name` → Prometheus `job` label (default: `building-os-connector-worker`) |
 | `Logging__LogLevel__Default` | Min log level; per-category override via `Logging__LogLevel__<Category>` (default: `Information`) |
