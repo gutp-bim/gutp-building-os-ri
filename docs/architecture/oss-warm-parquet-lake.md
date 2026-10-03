@@ -73,13 +73,14 @@ key:    building_id={building}/year={YYYY}/month={MM}/day={DD}/hour={HH}/
   (string), `value` (double?), `time` (timestamp), `data` (string=JSON), `id` (string)。Zstd 圧縮。
 - **`id` 列の付与経路と意味（#479）**: `id` は列としては nullable で、**付くかどうかは経路による**。
   - **付く**: gRPC GatewayIngress と、取込側が正規化するプロトコルコネクタ（BACnet / Environmental /
-    Behavior ほか共通の `ProtocolConnectorBase`）。いずれも `id = "{pointId}.{受信時刻の Unix 秒}"` を作る。
+    Behavior ほか共通の `ProtocolConnectorBase`）。いずれも `id = "{pointId}.{受信時刻の Unix ミリ秒}"` を作る。
   - **付かないことがある**: MQTT / Hono で、デバイスが**検証済み形式（`ValidMessage`）で直接送ってきた**
     パススルーのメッセージ。スキーマ上 `id` は必須ではなく、取込側は書き換えずにそのまま通す。
-  - **付与される `id` は、機器の打刻ではなく取込側の受信時刻（秒）から作る**。`datetime`（機器の時刻、無ければ受信時刻に
+  - **付与される `id` は、機器の打刻ではなく取込側の受信時刻（ミリ秒）から作る**。`datetime`（機器の時刻、無ければ受信時刻に
     fallback, #418）とは別の時刻で、`ingest_time` 列は無い（要望 #479 は見送り）。
-  - 読み出し・compaction の dedup キーなので、**同じ Point が同じ秒に 2 回届くと 1 行に畳まれる**
-    （後勝ち）。1 秒未満の周期で送る Point があるとその分は落ちる。
+  - 読み出し・compaction の dedup キーなので、**同じ Point の行は、受信時刻が同じミリ秒のものだけが 1 行に
+    畳まれる**（後勝ち）。通常の周期（秒〜分）では実質的に落ちない。再配信で同じ読み取りが重複したときに
+    1 行へ収束させるための鍵で、「同じ値の別の読み取り」を畳むものではない。
   - `id` が空の行（上のパススルー、旧データ、外部が lake に直接書いた行）は dedup されず**すべて残る**。
 - **決定的命名**: 新 writer は JetStream stream sequence で `part-{firstSeq}-{lastSeq}.parquet` と
   命名する。ack 前クラッシュ→再配信時に**同一オブジェクトへの上書き = 冪等**。
