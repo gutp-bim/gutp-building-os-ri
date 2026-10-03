@@ -28,8 +28,20 @@ Three changes since rc.2 are breaking (details under "Changed" below):
   raw reading from `value`, and the non-numeric reading from the new `state` field — in a mixed aggregate
   bucket `value` is the numeric average and only `state` carries the last string/boolean reading.
 
+Also worth knowing when coming from rc.2:
+
+- **REST paths moved to `/api/v1/…`** (ADR-0008). The old paths keep working — the API rewrites them and
+  answers with `Deprecation` / `Link: rel="successor-version"` — so existing clients are not broken, but
+  `make openapi-breaking` against the rc.2 spec reports the 68 relocated operations as removed paths.
+  No `Sunset` date is set yet (ADR-0008 §4: it is chosen once legacy traffic stays at zero, and the old paths
+  are removed at least 6 months after that), so move clients to `/api/v1` before a sunset is announced.
+- **The local object store is RustFS, not MinIO.** rc.2's `minio/minio` image is no longer pullable and the
+  on-disk formats differ: migrate existing data with `scripts/migrate-minio-to-rustfs.sh` before bringing the
+  new stack up, and take a backup first. A rollback restores the application images only, not MinIO.
+
 Upgrade order and rollback: [`oss-upgrade-runbook.md`](./docs/operations/oss-upgrade-runbook.md) (API
-server before the web client — the web client calls only `/api/v1`).
+server before the web client — the web client calls only `/api/v1`). The rc.2 ↔ rc.3 upgrade and rollback
+of the application layer was exercised end to end on the Compose stack (§3.5 there).
 
 ### Known limitations
 
@@ -152,6 +164,8 @@ server before the web client — the web client calls only `/api/v1`).
 
 ### Fixed
 
+- Picking the building that is already selected on the operator home no longer empties the floor list
+  (it left "フロアなし" until the building was switched and back).
 - User management no longer reports a write Keycloak already accepted as failed, nor fails on one user's
   unreadable groups (#532). When the PUT succeeds but the verifying re-read fails (5xx, timeout,
   cancellation), `PATCH /api/v1/users/{id}/attributes` and `POST` / `DELETE …/permissions` answer 200 with
