@@ -25,7 +25,8 @@ ILM ルールを適用するため、**ConnectorWorker 起動直後からレイ�
 ## 容量の監視
 
 ```bash
-mc alias set bos-oss http://localhost:9000 "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"   # 初回のみ
+mc alias set bos-oss http://localhost:9000 \
+  "${MINIO_ROOT_USER:-buildingos}" "${MINIO_ROOT_PASSWORD:-buildingos123}"   # 初回のみ
 mc du bos-oss/cold                      # 合計サイズ
 mc ls --recursive --summarize bos-oss/cold | tail -3   # オブジェクト数と合計
 ```

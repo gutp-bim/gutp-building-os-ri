@@ -24,7 +24,9 @@ Three changes since rc.2 are breaking (details under "Changed" below):
 - **Twin traversal is topology only.** Equipment placed only by the `sbco:floor` literal is no longer in
   any Level/Building. Re-import so it carries `sbco:locatedIn`; the import reports it as `floor_literal_only`.
 - **Telemetry read responses carry one union-typed `value`** (`number | string | boolean | null`).
-- **`valueText` / `valueBool` are removed** from the telemetry read responses (#359). Read `value`.
+- **`valueText` / `valueBool` are removed** from the telemetry read responses (#359). Read the numeric or
+  raw reading from `value`, and the non-numeric reading from the new `state` field — in a mixed aggregate
+  bucket `value` is the numeric average and only `state` carries the last string/boolean reading.
 
 Upgrade order and rollback: [`oss-upgrade-runbook.md`](./docs/operations/oss-upgrade-runbook.md) (API
 server before the web client — the web client calls only `/api/v1`).
