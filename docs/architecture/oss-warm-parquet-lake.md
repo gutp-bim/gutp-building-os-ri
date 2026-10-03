@@ -71,6 +71,20 @@ key:    building_id={building}/year={YYYY}/month={MM}/day={DD}/hour={HH}/
   あるが、reader 側が **±1 時間のグレース幅**で列挙して両方式を吸収する。
 - **Parquet スキーマは既存 8 カラムを変更しない**: `point_id` / `building` / `device_id` / `name`
   (string), `value` (double?), `time` (timestamp), `data` (string=JSON), `id` (string)。Zstd 圧縮。
+- **`id` 列の付与経路と意味（#479）**: `id` は列としては nullable で、**付くかどうかは経路による**。
+  - **付く**: gRPC GatewayIngress と、取込側が正規化するプロトコルコネクタ（BACnet / Environmental /
+    Behavior ほか共通の `ProtocolConnectorBase`）。いずれも `id = "{pointId}.{id を作った時刻の Unix ミリ秒}"` を作る。
+  - **付かないことがある**: MQTT / Hono で、デバイスが**検証済み形式（`ValidMessage`）で直接送ってきた**
+    パススルーのメッセージ。スキーマ上 `id` は必須ではなく、取込側は書き換えずにそのまま通す。
+  - **付与される `id` の時刻は、機器の打刻ではなく、取込側が正規化して `id` を作った時刻（ミリ秒）**で、転送路での受信時刻とは数ミリ秒〜処理遅延ぶんずれうる。`datetime`（機器の打刻。GatewayIngress と MQTT / Hono は無ければ
+    受信時刻に fallback, #418。BACnet ほかのプロトコルコネクタは打刻を必須とし、無いメッセージは捨てる）とは別の時刻で、`ingest_time` 列は無い（要望 #479 は見送り）。
+  - **dedup のキーは `id` の完全一致のみ**（後勝ち）。Point や時刻は見ない。ただし**適用範囲が限られる**:
+    writer のバッチと compaction は同じ building-hour の中、読み出しは Point で絞ったうえで行う。
+    組み込みの経路が作る `id` は Point + 生成ミリ秒なので、実質「同じ Point の同じミリ秒の行」だけが畳まれ、
+    通常の周期（秒〜分）では落ちない（再配信で重複した同じ読み取りを 1 行に収束させるための鍵）。
+    パススルーの**デバイスが付ける任意の `id`** は、同じ範囲（同じ building-hour、または同じ Point の読み出し）
+    で使い回すとその行が落ち、同じ読み取りでも `id` が違えば重複は除かれない。
+  - `id` が空の行（上のパススルー、旧データ、外部が lake に直接書いた行）は dedup されず**すべて残る**。
 - **決定的命名**: 新 writer は JetStream stream sequence で `part-{firstSeq}-{lastSeq}.parquet` と
   命名する。ack 前クラッシュ→再配信時に**同一オブジェクトへの上書き = 冪等**。
 - **小ファイル対策**: 確定した過去 hour パーティションを CompactionWorker（#217）が
