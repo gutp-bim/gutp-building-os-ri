@@ -16,6 +16,24 @@ Realm: `building-os`
 The local realm import lives at `oss-stack/keycloak/realm.json` and is imported
 by `docker-compose.oss.yaml` with `start-dev --import-realm`.
 
+### Required token claims: `sub` and `client_id` (#582)
+
+Keycloak 25+ emits `sub` only from the `basic` client scope's `oidc-sub-mapper`, and `client_id` (what
+`AuthorizationClaimResolver.IsServiceAccountToken` keys on) only from the `service_account` scope. A realm
+that declares `clientScopes` itself replaces Keycloak's defaults, so `realm.json` declares both and lists
+`basic` in the `web-client` / `api-server` default scopes and `service_account` in `api-server`'s. Without
+them the control audit's `actorSub` is always `"unknown"` (#461) and a `group-manager` service account is
+never recognised (#506). The same applies to any other realm Building OS runs against: make sure its user
+clients get `basic` and its service-account clients get `basic` + `service_account`.
+
+A realm imported before this fix keeps the old scopes (`--import-realm` skips an existing realm): recreate
+the dev volume (`docker compose -f docker-compose.oss.yaml down -v` drops **all** local state) or add the
+scopes with `kcadm.sh`/the admin console, then check a running Keycloak with:
+
+```bash
+KEYCLOAK_URL=http://localhost:8080 scripts/verify-keycloak-token-claims.sh
+```
+
 ## Permission Model
 
 Building OS authorization continues to use the existing permission string shape:
