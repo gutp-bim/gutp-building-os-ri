@@ -244,25 +244,25 @@
     "@bufbuild/buf-win32-arm64" "1.73.0"
     "@bufbuild/buf-win32-x64" "1.73.0"
 
-"@bufbuild/protobuf@2.15.0", "@bufbuild/protobuf@^2.15.0":
-  version "2.15.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-2.15.0.tgz#9706bf5dea2c27bc9dcaccc0c2aac24e0efa6677"
-  integrity sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==
+"@bufbuild/protobuf@2.16.0", "@bufbuild/protobuf@^2.16.0":
+  version "2.16.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-2.16.0.tgz#130eff69a232f29fb4e2b3f8ebbb0b3e0adf5a36"
+  integrity sha512-FWa0sPlqYGJgpTs6OxBRcL/AW4JT0OIO+W1ajerluoTVh8CV0B7XM1qsNCRgnkSCkRCgOICKHRQlY17jrsm0+Q==
 
-"@bufbuild/protoc-gen-es@^2.15.0":
-  version "2.15.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protoc-gen-es/-/protoc-gen-es-2.15.0.tgz#5c95654732464c8c63532efa33850d6d807d9503"
-  integrity sha512-FRhNTAZEXW6arWx2JxgtpuazhmewYctXugu5SfXGpXpLLCInDT1005fSKDzEM/70Es2oIn07PM4RvpwvDvR/fg==
+"@bufbuild/protoc-gen-es@^2.16.0":
+  version "2.16.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protoc-gen-es/-/protoc-gen-es-2.16.0.tgz#37148ff16c2d42deec6c7b0d1389ede9f62c64c8"
+  integrity sha512-LbPrEaGd7bOxKbJHllTR5439+PZjqd6fM7xyDZkDVtZ+Efzr7TMdMqShG9Qkf/nYVyiNS/SK5r9JhRaBTFkfZw==
   dependencies:
-    "@bufbuild/protobuf" "2.15.0"
-    "@bufbuild/protoplugin" "2.15.0"
+    "@bufbuild/protobuf" "2.16.0"
+    "@bufbuild/protoplugin" "2.16.0"
 
-"@bufbuild/protoplugin@2.15.0":
-  version "2.15.0"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protoplugin/-/protoplugin-2.15.0.tgz#96ae46e97ed08c82d1d4e04e41ffee42189b5da9"
-  integrity sha512-vZhRoqB/jTHATqItRvJQf1zbxdrGRRhiusGty4+lKcfEFODG0PMXky2Ezv4WHHS6oSxq+5qShITuE7K1/82SuQ==
+"@bufbuild/protoplugin@2.16.0":
+  version "2.16.0"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protoplugin/-/protoplugin-2.16.0.tgz#09311fc1da1bf0571b1898d7322d31d2700c83a4"
+  integrity sha512-3FdYJys34VhFnBQsjiV9wurBkX/DBACQAkAk+nCKdO1p8ROVNi7gmaRAcba+4qq8hQq8rYVukuutwvGCvd4kJA==
   dependencies:
-    "@bufbuild/protobuf" "2.15.0"
+    "@bufbuild/protobuf" "2.16.0"
     "@typescript/vfs" "^1.6.2"
     typescript "5.4.5"
 
@@ -3735,10 +3735,10 @@ lru-cache@^5.1.1:
   dependencies:
     yallist "^3.0.2"
 
-lucide-react@^1.48.0:
-  version "1.48.0"
-  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.48.0.tgz#3e7f847ece24375d006bb5615c1cfe5c8f38fce4"
-  integrity sha512-R0CIKY/fXiC6y9xRBADgsK+VW2p/pcTJOMhLZf1T+uG+vJUvyUR02nGOgmIIC7MPkiNK4Ox8QDnbqF8rJYWPZQ==
+lucide-react@^1.50.0:
+  version "1.50.0"
+  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.50.0.tgz#0ab49dfa86a204115e649263c1c110ae8e6b7110"
+  integrity sha512-RqHPQtKX6S9IE1xOL4oTHHsVQbcwJWTnmlxI6AdI9IpOwKiy7q+COPCQyMepI/Qu1x3h7sunpyEMvqtgFbgNiQ==
 
 lz-string@^1.5.0:
   version "1.5.0"
