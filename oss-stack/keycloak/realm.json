@@ -102,6 +102,52 @@
       "attributes": {
         "include.in.token.scope": "true"
       }
+    },
+    {
+      "name": "basic",
+      "description": "OpenID Connect scope for add all basic claims to the token. Keycloak 25+ emits sub from here, not implicitly (#582).",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "service_account",
+      "description": "Specific scope for a client enabled for service accounts. Puts client_id on client-credentials tokens, which AuthorizationClaimResolver.IsServiceAccountToken keys on (#582).",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "Client ID",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "client_id",
+            "introspection.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "client_id",
+            "jsonType.label": "String"
+          }
+        }
+      ]
     }
   ],
   "clients": [
@@ -129,6 +175,7 @@
       ],
       "defaultClientScopes": [
         "web-origins",
+        "basic",
         "profile",
         "email",
         "roles",
@@ -152,6 +199,8 @@
       "authorizationServicesEnabled": false,
       "secret": "change-me-in-production",
       "defaultClientScopes": [
+        "basic",
+        "service_account",
         "roles",
         "profile",
         "email",
