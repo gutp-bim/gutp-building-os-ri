@@ -101,6 +101,35 @@ The building → floor → space → device hierarchy is stored as RDF triples i
 | `building-os.control.request` | API → Worker | point control commands |
 | `building-os.control.result.*` | Worker → API | control execution results (gRPC streaming) |
 
+## Security and repository hygiene
+
+These rules apply to everything tracked: source, tests, fixtures, docs, scripts, generated files and configuration. Approval to implement a feature is **not** approval to disclose configuration.
+
+### Never commit, push or publish
+- Secrets: API keys, passwords, bearer tokens, connection strings with credentials, private keys, certificates paired with a private key.
+- Environment-specific infrastructure: internal IPs, private DNS names, VPN endpoints, dev/staging/production or cloud endpoints (e.g. an AWS IoT Core / IoT Hub / broker host), account or tenant ids, certificate ids.
+- Values copied from local configuration, `.env*`, `appsettings.Development.json`, logs or a deployed environment.
+- Personal filesystem paths, local usernames, machine identifiers or internal network topology.
+
+Do not treat a value as safe because it is already tracked. If you find one, report it to the user instead of silently editing it; a value that reached history stays disclosed after the commit is removed, so rotation is the user's call.
+
+**Allowed:** the documented local-development defaults shipped for the OSS stack (`docker-compose.oss.yaml`, `oss-stack/`, `*.example` files: `localhost`/loopback, `buildingos`/`buildingos123`, `change-me-in-production`, the dev realm secret). They must stay clearly local-only and be overridable by environment variable; production values never go in the repo.
+
+### Configuration
+- Deployment-specific values come from environment variables or external configuration (`EnvModule`); commit only sanitized examples (`.env.example`).
+- Use placeholders (`https://api.example.com`, `YOUR_API_KEY`) in examples and docs; `localhost` only for explicitly local examples. Do not invent real-looking hostnames.
+- Keep local overrides out of Git (`.gitignore`: `secrets/`, `.env.*`, `*.pem`, `*.key`).
+- If a required value is missing, ask the user or document the environment variable. Do not guess.
+
+### Before every commit
+1. `git status --short` and `git diff --cached --name-only` — know exactly what is staged.
+2. Review `git diff --cached`; stage only files that belong to the task by name. Avoid `git add -A` / `git add .`: the working tree often holds the user's unrelated changes and untracked files, which must not be committed without authorization.
+3. Scan the staged diff for secrets and endpoints (e.g. `git diff --cached | grep -n -i -E 'amazonaws\.com|BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|password|secret|token'`) and run any repository security check. Stop if anything matches and explain it.
+4. Never use `--no-verify` or disable a hook, scanner or CI protection to get a change through. Do not add an exception or allowlist entry without explicit authorization; when a check fails, explain why and propose a safe alternative.
+
+### Done means
+No new secret or unapproved environment-specific value in the tracked changes, examples contain placeholders only, and any unresolved disclosure risk has been reported to the user.
+
 ## Common mistakes to avoid
 
 - Do not add `BackendSelector` / `BUILDING_OS_BACKEND` env var logic — the codebase is OSS-only; the dual-backend switch has been removed.

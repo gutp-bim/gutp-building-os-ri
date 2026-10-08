@@ -35,3 +35,12 @@ terraform.tfstate.backup
 opentofu/backend.hcl
 opentofu/environments/*.secrets.tfvars
 .env
+
+# Credentials, keys and local overrides — never tracked (see "Security and repository hygiene" in AGENTS.md)
+secrets/
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
