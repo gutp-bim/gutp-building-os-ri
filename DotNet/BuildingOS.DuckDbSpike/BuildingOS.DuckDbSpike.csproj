@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../BuildingOS.Shared/BuildingOS.Shared.csproj" />
-    <PackageReference Include="DuckDB.NET.Data" Version="1.5.5" />
+    <PackageReference Include="DuckDB.NET.Data" Version="1.5.6" />
   </ItemGroup>
 
 </Project>
