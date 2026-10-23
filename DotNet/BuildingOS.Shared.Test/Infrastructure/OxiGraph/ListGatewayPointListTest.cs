@@ -280,6 +280,25 @@ public class ListGatewayPointListTest
     }
 
     [Fact]
+    public async Task ListGatewayPointList_ReleasePoint_KeepsOwnProtocol_WhenTargetHasNone()
+    {
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:u""},
+      ""ptId"": {""type"":""literal"",""value"":""TGT""} },
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:rel""},
+      ""ptId"": {""type"":""literal"",""value"":""REL""},
+      ""protocol"": {""type"":""literal"",""value"":""bacnet-sim""},
+      ""releaseOf"": {""type"":""uri"",""value"":""urn:point:u""} }
+  ]}}");
+
+        var entries = await db.ListGatewayPointList("GW001");
+
+        Assert.Equal("TGT", entries.Single(e => e.PointId == "REL").ReleaseOf);
+        Assert.Equal("bacnet-sim", entries.Single(e => e.PointId == "REL").Protocol);
+    }
+
+    [Fact]
     public async Task ListGatewayPointList_ReturnsEmpty_WhenGatewayOwnsNoPoints()
     {
         var db = BuildDb(@"{ ""results"": { ""bindings"": [] } }");

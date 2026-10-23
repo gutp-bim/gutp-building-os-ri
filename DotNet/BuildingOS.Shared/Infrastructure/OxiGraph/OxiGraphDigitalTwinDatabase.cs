@@ -577,8 +577,10 @@ ORDER BY ?ptId").ConfigureAwait(false);
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         foreach (var entry in entries)
         {
-            if (entry.ReleaseOf is { } target && entryByPointId.TryGetValue(target, out var targetEntry))
-                entry.Protocol = targetEntry.Protocol;
+            if (entry.ReleaseOf is { } target
+                && entryByPointId.TryGetValue(target, out var targetEntry)
+                && targetEntry.Protocol is { } targetProtocol)
+                entry.Protocol = targetProtocol; // a target with no protocol must not erase this point's own
         }
 
         return entries;

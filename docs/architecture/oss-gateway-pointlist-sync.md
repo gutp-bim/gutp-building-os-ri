@@ -97,7 +97,7 @@ point list では各点に `releaseOf` を追加する（**追加のみ・後方
 - release 点は BACnet アドレス（`native`）を**持たない**。書込先は対象の点の `native` を、gateway が
   `releaseOf` で引いて使う。
 - release 点の `protocol` は**対象の点から継承**する（アドレスを持たないため、そのままでは `null` に
-  なってしまう）。明示の `bos:protocol` が release 点にあっても、`releaseOf` が解決できれば対象の値が勝つ。
+  なってしまう）。明示の `bos:protocol` が release 点にあっても、`releaseOf` が解決でき、かつ対象の protocol が決まっていれば対象の値が勝つ（対象が protocol を持たないときは release 点自身の値を残す）。
 - 対象は**同じ gateway の点**でなければならない（gateway の点集合の中で解決する）。解決できない
   `releaseOf` は `null` のまま出力され、その twin は取り込み時の検査（`bos:releaseOf` 検査）で拒否される。
 - ETag: `releaseOf` は `null` のときシリアライズ自体を省略する。release 点を持たない point list の
