@@ -64,6 +64,27 @@ public class OxiGraphSeedHostedServiceControlSchemaIssueTest
     }
 
     [Fact]
+    public async Task RunAsync_BrokenReleasePoint_LogsError_AndDoesNotThrow()
+    {
+        // #600: the admin import refuses such a twin, but a twin already running must not be taken
+        // down by it at startup — an ERROR in the log, never a startup failure.
+        var handler = new SeedQueryRoutingHandler(
+            controlSchemaIssueRows: [],
+            releaseOfIssueRows: [new Dictionary<string, string> { ["pt"] = "urn:rel", ["target"] = "urn:tgt" }]);
+        var client = new OxiGraphClient(new HttpClient(handler), "http://oxigraph:7878");
+        var materializer = new OxiGraphIngestMaterializer(client, RecordingLogger<OxiGraphIngestMaterializer>.Null);
+        var logger = new RecordingLogger<OxiGraphSeedHostedService>();
+        var service = new OxiGraphSeedHostedService(client, materializer, logger);
+
+        await service.RunAsync(MissingSeedPath, templatePath: null, CancellationToken.None);
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Error
+            && e.Message.Contains("Release-point (bos:releaseOf) issues detected after seed")
+            && e.Message.Contains("target_missing=1"));
+    }
+
+    [Fact]
     public async Task RunAsync_NoControlSchemaIssues_LogsNothing()
     {
         var handler = new SeedQueryRoutingHandler(controlSchemaIssueRows: []);
@@ -99,7 +120,9 @@ public class OxiGraphSeedHostedServiceControlSchemaIssueTest
     /// OxiGraphSeedHostedServicePointListPushTest's handler). <c>controlSchemaIssueRows</c> null
     /// simulates a transport failure for that one query; an empty/non-empty list controls its result.
     /// </summary>
-    private sealed class SeedQueryRoutingHandler(IReadOnlyList<Dictionary<string, string>>? controlSchemaIssueRows)
+    private sealed class SeedQueryRoutingHandler(
+        IReadOnlyList<Dictionary<string, string>>? controlSchemaIssueRows,
+        IReadOnlyList<Dictionary<string, string>>? releaseOfIssueRows = null)
         : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -126,6 +149,14 @@ public class OxiGraphSeedHostedServiceControlSchemaIssueTest
                     "{" + string.Join(",", row.Select(kv =>
                         $@"""{kv.Key}"":{{""type"":""literal"",""value"":""{kv.Value}""}}")) + "}"));
                 return Ok($@"{{ ""results"": {{ ""bindings"": [{bindings}] }} }}");
+            }
+
+            if (sparql == OxiGraphSeedHostedService.ReleaseOfIssueQuery)
+            {
+                var releaseBindings = string.Join(",", (releaseOfIssueRows ?? []).Select(row =>
+                    "{" + string.Join(",", row.Select(kv =>
+                        $@"""{kv.Key}"":{{""type"":""literal"",""value"":""{kv.Value}""}}")) + "}"));
+                return Ok($@"{{ ""results"": {{ ""bindings"": [{releaseBindings}] }} }}");
             }
 
             throw new InvalidOperationException($"unexpected SPARQL query in test: {sparql}");

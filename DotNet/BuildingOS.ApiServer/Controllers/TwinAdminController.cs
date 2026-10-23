@@ -220,6 +220,8 @@ public class TwinAdminController : ControllerBase
         if (preview.Collisions.Count > 0) return "gateway_id 一意性違反のため適用できません";
         // #517: nodes of one type sharing an sbco:id would share every grant — never applied.
         if (preview.IdCollisionCount > 0) return "同じ種別で sbco:id が重複しているため適用できません";
+        // #600: a release point that cannot work reaches the gateway as an ordinary enum point — never applied.
+        if (preview.ReleaseOfIssueCount > 0) return "bos:releaseOf の宣言に不正があるため適用できません";
         if (preview.OrphanCount > 0 && !allowOrphans)
             return "階層に接続されていないリソースがあるため適用できません（allowOrphans で明示的に許可できます）";
         return null;
@@ -234,6 +236,7 @@ public class TwinAdminController : ControllerBase
         gatewayCount = preview.GatewayCount,
         orphanCount = preview.OrphanCount,
         idCollisionCount = preview.IdCollisionCount,
+        releaseOfIssueCount = preview.ReleaseOfIssueCount,
         allowOrphans,
         controlSchemaIssueCount = preview.ControlSchemaIssueCount,
         valid = preview.Valid,

@@ -100,6 +100,25 @@ point list では各点に `releaseOf` を追加する（**追加のみ・後方
   なってしまう）。明示の `bos:protocol` が release 点にあっても、`releaseOf` が解決でき、かつ対象の protocol が決まっていれば対象の値が勝つ（対象が protocol を持たないときは release 点自身の値を残す）。
 - 対象は**同じ gateway の点**でなければならない（gateway の点集合の中で解決する）。解決できない
   `releaseOf` は `null` のまま出力され、その twin は取り込み時の検査（`bos:releaseOf` 検査）で拒否される。
+- **取り込み時の検査**（admin import の preview / apply と起動時シードで共通）。次のどれかに当たる
+  release 点があると preview は `valid: false`・`releaseOfIssueCount > 0` になり、**apply は
+  `allowOrphans` でも通らない**（`idCollisions` と同じ扱い）。起動時シードは ERROR ログのみで
+  起動は止めない（稼働中の twin を落とさないため）。
+
+  | reason | 内容 |
+  |---|---|
+  | `multiple_targets` | `bos:releaseOf` が複数の点を指す |
+  | `self_reference` | 自分自身を指す |
+  | `target_missing` | 対象が `sbco:PointExt` として twin に無い |
+  | `target_not_writable` | 対象が `sbco:writable "true"` でない（取り消すものが無い） |
+  | `target_is_release` | 対象自身が release 点（release の release） |
+  | `release_no_gateway` | release 点に `sbco:gatewayId` が無い（どの gateway にも配られない） |
+  | `target_other_gateway` | 対象が別 gateway（gateway が解決できない） |
+  | `release_not_writable` | release 点が writable でない（`1` を送れない） |
+  | `schema_not_release_only` | ControlSchema が `enum` で許容コード `{1}` だけ、になっていない（`boolean` は `0` を受けるので不可） |
+
+  append は**取り込む release 点だけ**を判定する（既に twin にある点を取り込みの責任にしない）が、
+  対象の検索は staging と既存 twin の両方にまたがる。
 - ETag: `releaseOf` は `null` のときシリアライズ自体を省略する。release 点を持たない point list の
   正準 JSON は従来と**バイト単位で同一**なので、upgrade で ETag は変わらず、gateway の再取得も起きない。
 

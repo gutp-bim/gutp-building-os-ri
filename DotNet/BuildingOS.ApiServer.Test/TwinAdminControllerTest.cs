@@ -221,6 +221,23 @@ public class TwinAdminControllerTest
     }
 
     [Fact]
+    public async Task ApplyImport_BrokenReleasePoint_IsNotOverridableByAllowOrphans()
+    {
+        // #600: a release point that cannot work reaches the gateway as an ordinary enum point.
+        var (c, svc, _) = Build(Auth("admin"));
+        svc.Setup(s => s.PreviewImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TwinImportPreview(10, 1, [], 0, [], 0, [],
+                ReleaseOfIssueCount: 1,
+                ReleaseOfIssues: [new TwinReleaseOfIssue("urn:rel", ReleaseOfIssueReasons.TargetMissing)]));
+
+        var result = await c.ApplyImport(
+            new TwinAdminController.TwinImportRequest { Turtle = "ttl", AllowOrphans = true }, default);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        svc.Verify(s => s.ApplyImportAsync(It.IsAny<string>(), It.IsAny<TwinImportMode>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ApplyImport_Collision_IsNotOverridableByAllowOrphans()
     {
         // The override waives the hierarchy check only — a gateway_id collision stays fatal.
