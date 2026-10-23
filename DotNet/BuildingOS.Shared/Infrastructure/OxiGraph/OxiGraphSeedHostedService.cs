@@ -105,6 +105,7 @@ public sealed class OxiGraphSeedHostedService(
             // this startup seed never goes through that path — so run the same detection here too,
             // as a non-fatal warning. Never blocks startup: fail-open for control means fail-open here.
             await LogControlSchemaIssuesAsync(ct).ConfigureAwait(false);
+            await LogReleaseOfIssuesAsync(ct).ConfigureAwait(false);
 
             // The twin is traversed by topology only; equipment the builder placed only by the
             // sbco:floor literal is in no Level or Building. The admin import reports this as the
@@ -322,6 +323,32 @@ ORDER BY ?cls ?id";
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Floor-literal placement check after seed failed; continuing startup");
+        }
+    }
+
+    // #600: same query/classifier as the admin import, which refuses such a twin. The startup seed
+    // never goes through that path, and a twin already running must not be taken down by it, so this
+    // is an ERROR log and never a startup failure.
+    internal static readonly string ReleaseOfIssueQuery = ReleaseOfIssueDetection.BuildQuery(null, null);
+
+    private async Task LogReleaseOfIssuesAsync(CancellationToken ct)
+    {
+        try
+        {
+            var rows = await client.QueryAsync(ReleaseOfIssueQuery, ct).ConfigureAwait(false);
+            var (count, issues) = ReleaseOfIssueDetection.Classify(rows, cap: int.MaxValue);
+            if (count > 0)
+            {
+                var byReason = issues.GroupBy(i => i.Reason).Select(g => $"{g.Key}={g.Count()}");
+                logger.LogError(
+                    "Release-point (bos:releaseOf) issues detected after seed: {Count} point(s) ({Reasons}); " +
+                    "the gateway would receive them as ordinary enum points",
+                    count, string.Join(", ", byReason));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Release-point issue check after seed failed (non-fatal)");
         }
     }
 

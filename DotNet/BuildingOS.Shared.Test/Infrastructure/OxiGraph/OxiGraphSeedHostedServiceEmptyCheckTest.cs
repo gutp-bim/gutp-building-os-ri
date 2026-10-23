@@ -100,7 +100,8 @@ public class OxiGraphSeedHostedServiceEmptyCheckTest : IDisposable
                     : @"{ ""results"": { ""bindings"": [{ ""s"": {""type"":""uri"",""value"":""urn:existing""} }] } }";
             else if (sparql == OxiGraphSeedHostedService.GatewayUniquenessQuery)
                 body = @"{ ""results"": { ""bindings"": [] } }"; // no violations — out of scope here
-            else if (sparql == OxiGraphSeedHostedService.ControlSchemaIssueQuery)
+            else if (sparql == OxiGraphSeedHostedService.ControlSchemaIssueQuery
+                  || sparql == OxiGraphSeedHostedService.ReleaseOfIssueQuery)
                 body = @"{ ""results"": { ""bindings"": [] } }"; // no issues — out of scope here
             else if (sparql == OxiGraphSeedHostedService.DistinctGatewayQuery)
                 body = @"{ ""results"": { ""bindings"": [] } }"; // no gateways to push — out of scope here

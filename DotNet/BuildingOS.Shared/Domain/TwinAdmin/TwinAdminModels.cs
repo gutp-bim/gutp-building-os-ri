@@ -84,6 +84,47 @@ public static class ControlSchemaIssueReasons
 public sealed record TwinControlSchemaIssue(string PointId, string Reason);
 
 /// <summary>
+/// Why a <c>bos:releaseOf</c> declaration cannot work as a release point (#600). Unlike
+/// <see cref="ControlSchemaIssueReasons"/> these are not fail-open: an ill-formed release point would
+/// reach the gateway as an ordinary enum point, so an import carrying one is refused.
+/// </summary>
+public static class ReleaseOfIssueReasons
+{
+    /// <summary><c>bos:releaseOf</c> names more than one point.</summary>
+    public const string MultipleTargets = "multiple_targets";
+
+    /// <summary>The release point names itself.</summary>
+    public const string SelfReference = "self_reference";
+
+    /// <summary>The target is not a <c>sbco:PointExt</c> in the twin.</summary>
+    public const string TargetMissing = "target_missing";
+
+    /// <summary>The target is not <c>sbco:writable "true"</c>, so there is nothing to release.</summary>
+    public const string TargetNotWritable = "target_not_writable";
+
+    /// <summary>The target is itself a release point (release of a release).</summary>
+    public const string TargetIsRelease = "target_is_release";
+
+    /// <summary>The release point has no <c>sbco:gatewayId</c>, so no gateway would ever receive it.</summary>
+    public const string ReleaseNoGateway = "release_no_gateway";
+
+    /// <summary>The target belongs to a different gateway (or none); the gateway could not resolve it.</summary>
+    public const string TargetOtherGateway = "target_other_gateway";
+
+    /// <summary>The release point is not writable, so a write of 1 could never be sent.</summary>
+    public const string ReleaseNotWritable = "release_not_writable";
+
+    /// <summary>
+    /// The release point's ControlSchema is not <c>enum</c> accepting exactly the code 1, so a value
+    /// other than the release signal (notably 0) would not be rejected.
+    /// </summary>
+    public const string SchemaNotReleaseOnly = "schema_not_release_only";
+}
+
+/// <summary>A release point that cannot work (<see cref="Reason"/> is one of <see cref="ReleaseOfIssueReasons"/>).</summary>
+public sealed record TwinReleaseOfIssue(string PointId, string Reason);
+
+/// <summary>
 /// Two or more nodes of one resource type sharing a business id (#517). Authorization identifies a node
 /// by its <c>sbco:id</c> (#504), so they would share every grant. <see cref="ResourceType"/> is the API
 /// vocabulary (building / floor / space / device / point).
@@ -110,11 +151,20 @@ public sealed record TwinImportPreview(
     int ControlSchemaIssueCount,
     IReadOnlyList<TwinControlSchemaIssue> ControlSchemaIssues,
     int IdCollisionCount = 0,
-    IReadOnlyList<TwinIdCollision>? IdCollisions = null)
+    IReadOnlyList<TwinIdCollision>? IdCollisions = null,
+    int ReleaseOfIssueCount = 0,
+    IReadOnlyList<TwinReleaseOfIssue>? ReleaseOfIssues = null)
 {
     public IReadOnlyList<TwinIdCollision> IdCollisions { get; } = IdCollisions ?? [];
 
-    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0;
+    /// <summary>
+    /// #600: release points that cannot work. Like <see cref="IdCollisions"/> they make the import
+    /// invalid and always block apply — <c>allowOrphans</c> does not waive them. The list is capped,
+    /// <see cref="ReleaseOfIssueCount"/> exact.
+    /// </summary>
+    public IReadOnlyList<TwinReleaseOfIssue> ReleaseOfIssues { get; } = ReleaseOfIssues ?? [];
+
+    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0 && ReleaseOfIssueCount == 0;
 }
 
 /// <summary>Result of a read-only SPARQL query: columns + rows (capped) + timing.</summary>

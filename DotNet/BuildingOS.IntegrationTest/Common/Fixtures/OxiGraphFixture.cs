@@ -10,7 +10,9 @@ public class OxiGraphFixture : IAsyncLifetime
     private const int OxiGraphPort = 7878;
 
     private readonly IContainer _container = new ContainerBuilder()
-        .WithImage("ghcr.io/oxigraph/oxigraph:latest")
+        // Match docker-compose.oss.yaml so integration/performance results exercise the shipped
+        // version rather than changing whenever the upstream latest tag moves.
+        .WithImage("ghcr.io/oxigraph/oxigraph:0.5.0")
         .WithCommand("serve", "--location", "/data", "--bind", "0.0.0.0:7878")
         .WithPortBinding(OxiGraphPort, true)
         .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Listening for requests"))

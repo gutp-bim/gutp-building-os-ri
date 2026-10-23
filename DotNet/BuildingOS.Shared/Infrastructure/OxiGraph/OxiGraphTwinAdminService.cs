@@ -114,9 +114,16 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
                 ControlSchemaIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
             var (schemaIssueCount, schemaIssues) = ControlSchemaIssueDetection.Classify(schemaRows, MaxOrphans);
 
+            // Release points (#600): unlike the schema check above this one blocks apply — an
+            // ill-formed release point would reach the gateway as an ordinary enum point.
+            var releaseOfRows = await _client.QueryAsync(
+                ReleaseOfIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
+            var (releaseOfCount, releaseOfIssues) = ReleaseOfIssueDetection.Classify(releaseOfRows, MaxOrphans);
+
             return new TwinImportPreview(
                 triples, (int)gateways, collisions, (int)orphanTotal, orphans,
-                schemaIssueCount, schemaIssues, (int)idCollisionTotal, idCollisions);
+                schemaIssueCount, schemaIssues, (int)idCollisionTotal, idCollisions,
+                releaseOfCount, releaseOfIssues);
         }
         finally
         {

@@ -36,6 +36,13 @@ public class GatewayPointEntry
     public string? MaxValue { get; set; }
     public string? EnumLabels { get; set; }
 
+    /// <summary>
+    /// #600: the <c>sbco:id</c> of the point this point releases (bos:releaseOf), or null for an
+    /// ordinary point. Always resolved to a point id — never the twin IRI — and always a point owned
+    /// by the same gateway.
+    /// </summary>
+    public string? ReleaseOf { get; set; }
+
     // Owning device grouping.
     public string? DeviceDtId { get; set; }
     public string? DeviceId { get; set; }

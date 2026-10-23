@@ -73,6 +73,62 @@ native addressing / unit / writable / control schema / device を含む（無い
 壊さないため）で、正準値はトップレベルの `protocol` が持つ。この分離により本変更は wire 上
 **純粋な追加**になっている。
 
+### release 点と `releaseOf`（#600）
+
+BACnet の commandable object は、`WriteProperty` で書いた値が**同じ priority に Null を書く
+（release / relinquish）まで残る**。RI の制御経路（API / proto）には取り消しの種類を増やさず、
+**release を「専用の点」としてツインにモデリング**する。release 点に `1` を書くと「対象の点の書込を
+取り消す」意味になる。
+
+```turtle
+<…/fcu_oveTSup_release> a sbco:PointExt ;
+  sbco:id "fcu_oveTSup_release" ;
+  sbco:gatewayId "gw-boptest" ;
+  sbco:writable "true" ;
+  bos:dataType "enum" ;
+  bos:enumLabels "{\"1\":\"release\"}" ;   # 許容コードは 1 だけ(0 は ControlValueValidator が拒否)
+  bos:releaseOf <…/fcu_oveTSup_u> .          # 取り消す対象の点(IRI)
+```
+
+point list では各点に `releaseOf` を追加する（**追加のみ・後方互換**）。
+
+- 値は対象の **`pointId`（`sbco:id`）**。ツインの IRI ではない（gateway と共有している鍵は `pointId`）。
+  release 点でなければ `null`。
+- release 点は BACnet アドレス（`native`）を**持たない**。書込先は対象の点の `native` を、gateway が
+  `releaseOf` で引いて使う。
+- release 点の `protocol` は**対象の点から継承**する（アドレスを持たないため、そのままでは `null` に
+  なってしまう）。明示の `bos:protocol` が release 点にあっても、`releaseOf` が解決でき、かつ対象の protocol が決まっていれば対象の値が勝つ（対象が protocol を持たないときは release 点自身の値を残す）。
+- 対象は**同じ gateway の点**でなければならない（gateway の点集合の中で解決する）。解決できない
+  `releaseOf` は `null` のまま出力され、その twin は取り込み時の検査（`bos:releaseOf` 検査）で拒否される。
+- **取り込み時の検査**（admin import の preview / apply と起動時シードで共通）。次のどれかに当たる
+  release 点があると preview は `valid: false`・`releaseOfIssueCount > 0` になり、**apply は
+  `allowOrphans` でも通らない**（`idCollisions` と同じ扱い）。起動時シードは ERROR ログのみで
+  起動は止めない（稼働中の twin を落とさないため）。
+
+  | reason | 内容 |
+  |---|---|
+  | `multiple_targets` | `bos:releaseOf` が複数の点を指す |
+  | `self_reference` | 自分自身を指す |
+  | `target_missing` | 対象が `sbco:PointExt` として twin に無い |
+  | `target_not_writable` | 対象が `sbco:writable "true"` でない（取り消すものが無い） |
+  | `target_is_release` | 対象自身が release 点（release の release） |
+  | `release_no_gateway` | release 点に `sbco:gatewayId` が無い（どの gateway にも配られない） |
+  | `target_other_gateway` | 対象が別 gateway（gateway が解決できない） |
+  | `release_not_writable` | release 点が writable でない（`1` を送れない） |
+  | `schema_not_release_only` | ControlSchema が `enum` で許容コード `{1}` だけ、になっていない（`boolean` は `0` を受けるので不可） |
+
+  append は**取り込む release 点だけ**を判定する（既に twin にある点を取り込みの責任にしない）が、
+  対象の検索は staging と既存 twin の両方にまたがる。
+- **制御経路は変えない**。`POST /api/v1/points/{release点のpointId}/control` に `{ "value": 1 }` を送る
+  通常の制御で、認可・writable 確認・ControlSchema 検査・`point_control_audit`（`controlId` /
+  `actorSub` 付き）はすべて release 点自身に対して動く。`ControlCommand` も release 点の
+  `point_id` のまま gateway に届き、`releaseOf` を見て対象への Null 書込に変換するのは gateway 側。
+  `0` / `2` など `1` 以外は 400 で拒否され、publish も audit 行の作成もされない（`0` を「何もしない」
+  として受けると、誤った呼び出しを黙って成功扱いにしてしまうため）。
+  対象の点の audit に「release された」ことを見せる関連づけは、受け入れ条件では任意とされており未実装。
+- ETag: `releaseOf` は `null` のときシリアライズ自体を省略する。release 点を持たない point list の
+  正準 JSON は従来と**バイト単位で同一**なので、upgrade で ETag は変わらず、gateway の再取得も起きない。
+
 ### 版管理（ETag / 304）
 
 レスポンスは内容ハッシュ ETag（`"sha256:..."`）を返す。pointId 安定ソートで正準化してから SHA-256

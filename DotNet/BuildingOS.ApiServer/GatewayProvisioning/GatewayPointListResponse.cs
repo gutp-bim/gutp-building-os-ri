@@ -39,6 +39,13 @@ public sealed class GatewayPointDto
     public ControlSchemaDto? ControlSchema { get; set; }
     public DeviceRefDto? Device { get; set; }
 
+    /// <summary>
+    /// #600: pointId of the point this one releases (relinquishes), or null for an ordinary point.
+    /// A write of 1 to a release point withdraws the gateway's write on the target point. Additive —
+    /// clients that ignore it keep treating the point as an ordinary enum point.
+    /// </summary>
+    public string? ReleaseOf { get; set; }
+
     public static GatewayPointDto From(GatewayPointEntry e) => new()
     {
         PointId = e.PointId,
@@ -49,6 +56,7 @@ public sealed class GatewayPointDto
         Writable = e.Writable,
         ControlSchema = ControlSchemaDto.From(e),
         Device = DeviceRefDto.From(e),
+        ReleaseOf = e.ReleaseOf,
     };
 }
 

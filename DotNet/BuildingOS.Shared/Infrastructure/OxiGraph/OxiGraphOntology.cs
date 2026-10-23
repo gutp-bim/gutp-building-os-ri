@@ -72,6 +72,12 @@ internal static class OxiGraphOntology
     // reachable only via sbco:localId (MQTT/OPC-UA/Hono-style) has no other protocol signal on the wire.
     internal const string Prop_Protocol = BosNs + "protocol";
 
+    // Release (relinquish) point (#600). A release point is an ordinary writable PointExt whose
+    // ControlSchema accepts only the code 1; bos:releaseOf names the point (IRI) whose write it
+    // withdraws. The gateway turns a write of 1 to the release point into a BACnet Null write on the
+    // target's priority slot. bos: rather than sbco: — SBCO has no such vocabulary.
+    internal const string Prop_ReleaseOf = BosNs + "releaseOf";
+
     // Opt-in per-point alarm thresholds on PointExt (#158 Phase 2a, ADR-0005). Distinct from the control
     // bounds above: these are the normal-operation value range, not the valid setpoint-write range.
     // alarm* = critical (outer) limits; warn* = the earlier inner limits. All optional/independent.

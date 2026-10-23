@@ -81,7 +81,7 @@ public static class ControlValueValidator
     }
 
     // EnumLabels is a JSON object { "1": "冷房", ... } whose keys are the allowed numeric codes.
-    private static HashSet<double>? ParseAllowedCodes(string? enumLabels)
+    internal static HashSet<double>? ParseAllowedCodes(string? enumLabels)
     {
         if (string.IsNullOrWhiteSpace(enumLabels)) return null;
         try

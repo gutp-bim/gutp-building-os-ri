@@ -4308,6 +4308,10 @@ components:
           $ref: '#/components/schemas/ControlSchemaDto'
         device:
           $ref: '#/components/schemas/DeviceRefDto'
+        releaseOf:
+          type: string
+          description: "#600: pointId of the point this one releases (relinquishes), or null for an ordinary point.\nA write of 1 to a release point withdraws the gateway's write on the target point. Additive —\nclients that ignore it keep treating the point as an ordinary enum point."
+          nullable: true
       additionalProperties: false
     GatewayPointListResponse:
       type: object
@@ -5572,10 +5576,17 @@ components:
         idCollisionCount:
           type: integer
           format: int32
+        releaseOfIssueCount:
+          type: integer
+          format: int32
         idCollisions:
           type: array
           items:
             $ref: '#/components/schemas/TwinIdCollision'
+        releaseOfIssues:
+          type: array
+          items:
+            $ref: '#/components/schemas/TwinReleaseOfIssue'
         valid:
           type: boolean
           readOnly: true
@@ -5584,6 +5595,14 @@ components:
       type: object
       properties:
         resourceId:
+          type: string
+        reason:
+          type: string
+      additionalProperties: false
+    TwinReleaseOfIssue:
+      type: object
+      properties:
+        pointId:
           type: string
         reason:
           type: string

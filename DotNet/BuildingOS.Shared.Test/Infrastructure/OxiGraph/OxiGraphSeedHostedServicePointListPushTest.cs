@@ -124,7 +124,8 @@ public class OxiGraphSeedHostedServicePointListPushTest
             else if (sparql == OxiGraphSeedHostedService.DistinctGatewayQuery)
                 body = $@"{{ ""results"": {{ ""bindings"": [{string.Join(",", gatewayIds.Select(g =>
                     $@"{{ ""gatewayId"": {{""type"":""literal"",""value"":""{g}""}} }}"))}] }} }}";
-            else if (sparql == OxiGraphSeedHostedService.ControlSchemaIssueQuery)
+            else if (sparql == OxiGraphSeedHostedService.ControlSchemaIssueQuery
+                  || sparql == OxiGraphSeedHostedService.ReleaseOfIssueQuery)
                 body = @"{ ""results"": { ""bindings"": [] } }"; // #336 check: no issues — out of scope here
             else
                 throw new InvalidOperationException($"unexpected SPARQL query in test: {sparql}");
