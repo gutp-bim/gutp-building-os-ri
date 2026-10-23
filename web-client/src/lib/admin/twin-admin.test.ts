@@ -4,6 +4,7 @@ import {
   controlSchemaIssueReasonLabel,
   orphanReasonLabel,
   previewSummary,
+  releaseOfIssueReasonLabel,
   type TwinImportPreview,
 } from "./twin-admin";
 
@@ -60,6 +61,35 @@ const idCollided: TwinImportPreview = {
   idCollisions: [{ resourceType: "space", id: "501", nodeCount: 2 }],
   valid: false,
 };
+
+const releaseOfBroken: TwinImportPreview = {
+  ...valid,
+  releaseOfIssueCount: 1,
+  releaseOfIssues: [{ pointId: "urn:rel", reason: "target_missing" }],
+  valid: false,
+};
+
+describe("release-point issues (#600)", () => {
+  it("block apply, even with allowOrphans", () => {
+    expect(canApplyImport(releaseOfBroken)).toBe(false);
+    expect(canApplyImport(releaseOfBroken, true)).toBe(false);
+  });
+  it("are summarised", () => {
+    expect(previewSummary(releaseOfBroken)).toContain(
+      "release 点の不整合 1 件",
+    );
+  });
+  it("label each reason, passing an unknown one through", () => {
+    expect(releaseOfIssueReasonLabel("target_other_gateway")).toContain(
+      "別の gateway",
+    );
+    expect(releaseOfIssueReasonLabel("toString")).toBe("toString");
+    expect(releaseOfIssueReasonLabel("something_new")).toBe("something_new");
+  });
+  it("are absent from an older server's preview without breaking apply", () => {
+    expect(canApplyImport(valid)).toBe(true);
+  });
+});
 
 describe("business-id collisions (#517)", () => {
   it("block apply, even with allowOrphans", () => {
