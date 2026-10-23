@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using BuildingOS.Shared;
 
 namespace BuildingOs.ApiServer.GatewayProvisioning;
@@ -27,24 +28,20 @@ public static class GatewayPointListSerializer
     public static string CanonicalString(GatewayPointEntry e) => JsonSerializer.Serialize(Canonical(e), Options);
 
     // Explicit shape with a fixed property order so serialization is stable across runtimes.
-    private static object Canonical(GatewayPointEntry e) => new
-    {
-        pointId = e.PointId,
-        localId = e.LocalId,
-        protocol = e.Protocol,
-        bacnetDeviceId = e.BacnetDeviceId,
-        bacnetObjectType = e.BacnetObjectType,
-        bacnetInstanceNo = e.BacnetInstanceNo,
-        unit = e.Unit,
-        writable = e.Writable,
-        dataType = e.DataType,
-        minValue = e.MinValue,
-        maxValue = e.MaxValue,
-        enumLabels = e.EnumLabels,
-        deviceDtId = e.DeviceDtId,
-        deviceId = e.DeviceId,
-        deviceName = e.DeviceName,
-    };
+    private static CanonicalPoint Canonical(GatewayPointEntry e) => new(
+        e.PointId, e.LocalId, e.Protocol, e.BacnetDeviceId, e.BacnetObjectType, e.BacnetInstanceNo,
+        e.Unit, e.Writable, e.DataType, e.MinValue, e.MaxValue, e.EnumLabels,
+        e.DeviceDtId, e.DeviceId, e.DeviceName, e.ReleaseOf);
+
+    // releaseOf (#600) is the only field omitted when null, and it is last: a point list with no
+    // release point serializes byte-for-byte as before, so its ETag does not change and gateways
+    // do not refetch on upgrade.
+    private sealed record CanonicalPoint(
+        string pointId, string? localId, string? protocol,
+        string? bacnetDeviceId, string? bacnetObjectType, string? bacnetInstanceNo,
+        string? unit, bool? writable, string? dataType, string? minValue, string? maxValue,
+        string? enumLabels, string? deviceDtId, string? deviceId, string? deviceName,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? releaseOf);
 }
 
 /// <summary>

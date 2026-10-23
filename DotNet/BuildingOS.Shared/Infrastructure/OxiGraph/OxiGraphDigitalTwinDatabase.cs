@@ -527,7 +527,12 @@ ORDER BY ?ptId").ConfigureAwait(false);
             .GroupBy(row => row["pt"], StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
-        return pointRows.Select(point =>
+        // #600: bos:releaseOf is an IRI; the wire carries point ids. A target is always a point of this
+        // same gateway (checked at ingest), so the gateway's own point set is enough to resolve it.
+        var pointIdByUri = pointRows.ToDictionary(
+            row => row["pt"], row => row.GetValueOrDefault("ptId", ""), StringComparer.Ordinal);
+
+        var entries = pointRows.Select(point =>
         {
             attributesByPoint.TryGetValue(point["pt"], out var attributes);
             attributes ??= EmptyAttributes;
@@ -554,11 +559,31 @@ ORDER BY ?ptId").ConfigureAwait(false);
                 EnumLabels = attributes.GetValueOrDefault(Prop_EnumLabels),
                 Protocol = GatewayPointProtocolResolver.Resolve(
                     attributes.GetValueOrDefault(Prop_Protocol), bacnetDeviceId, bacnetObjectType, bacnetInstanceNo, localId),
+                ReleaseOf = attributes.GetValueOrDefault(Prop_ReleaseOf) is { } releaseOfUri
+                            && pointIdByUri.TryGetValue(releaseOfUri, out var releaseOfId)
+                    ? releaseOfId
+                    : null,
                 DeviceDtId = device.GetValueOrDefault("devDt"),
                 DeviceId = device.GetValueOrDefault("devId"),
                 DeviceName = device.GetValueOrDefault("devName"),
             };
         }).ToArray();
+
+        // #600: a release point has no native addressing of its own — the write lands on its target's
+        // BACnet object — so it takes the target's protocol rather than resolving to null. An
+        // unresolvable target (ReleaseOf null) is left as-is; the ingest check rejects that twin.
+        var entryByPointId = entries
+            .GroupBy(e => e.PointId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            if (entry.ReleaseOf is { } target
+                && entryByPointId.TryGetValue(target, out var targetEntry)
+                && targetEntry.Protocol is { } targetProtocol)
+                entry.Protocol = targetProtocol; // a target with no protocol must not erase this point's own
+        }
+
+        return entries;
     }
 
     private static readonly IReadOnlyDictionary<string, string> EmptyBinding =
@@ -576,7 +601,7 @@ WHERE {{
   VALUES ?prop {{
     <{Prop_LocalId}> <{Prop_DeviceIdBacnet}> <{Prop_ObjectTypeBacnet}>
     <{Prop_InstanceNoBacnet}> <{Prop_Unit}> <{Prop_Writable}> <{Prop_DataType}>
-    <{Prop_MinValue}> <{Prop_MaxValue}> <{Prop_EnumLabels}> <{Prop_Protocol}>
+    <{Prop_MinValue}> <{Prop_MaxValue}> <{Prop_EnumLabels}> <{Prop_Protocol}> <{Prop_ReleaseOf}>
   }}
   ?pt ?prop ?value .
 }}";

@@ -205,6 +205,12 @@ export type GatewayPointDto = {
   writable?: boolean | null | undefined;
   controlSchema?: ControlSchemaDto | undefined;
   device?: DeviceRefDto | undefined;
+  /**
+   * #600: pointId of the point this one releases (relinquishes), or null for an ordinary point.
+   * A write of 1 to a release point withdraws the gateway's write on the target point. Additive —
+   * clients that ignore it keep treating the point as an ordinary enum point.
+   */
+  releaseOf?: string | null | undefined;
 }
 
 /** Gateway point-list export response (#224). BuildingOs.ApiServer.GatewayProvisioning.GatewayPointListResponse.Revision equals the ETag. */

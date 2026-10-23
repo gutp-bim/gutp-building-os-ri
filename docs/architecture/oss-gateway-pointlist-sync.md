@@ -73,6 +73,36 @@ native addressing / unit / writable / control schema / device を含む（無い
 壊さないため）で、正準値はトップレベルの `protocol` が持つ。この分離により本変更は wire 上
 **純粋な追加**になっている。
 
+### release 点と `releaseOf`（#600）
+
+BACnet の commandable object は、`WriteProperty` で書いた値が**同じ priority に Null を書く
+（release / relinquish）まで残る**。RI の制御経路（API / proto）には取り消しの種類を増やさず、
+**release を「専用の点」としてツインにモデリング**する。release 点に `1` を書くと「対象の点の書込を
+取り消す」意味になる。
+
+```turtle
+<…/fcu_oveTSup_release> a sbco:PointExt ;
+  sbco:id "fcu_oveTSup_release" ;
+  sbco:gatewayId "gw-boptest" ;
+  sbco:writable "true" ;
+  bos:dataType "enum" ;
+  bos:enumLabels "{\"1\":\"release\"}" ;   # 許容コードは 1 だけ(0 は ControlValueValidator が拒否)
+  bos:releaseOf <…/fcu_oveTSup_u> .          # 取り消す対象の点(IRI)
+```
+
+point list では各点に `releaseOf` を追加する（**追加のみ・後方互換**）。
+
+- 値は対象の **`pointId`（`sbco:id`）**。ツインの IRI ではない（gateway と共有している鍵は `pointId`）。
+  release 点でなければ `null`。
+- release 点は BACnet アドレス（`native`）を**持たない**。書込先は対象の点の `native` を、gateway が
+  `releaseOf` で引いて使う。
+- release 点の `protocol` は**対象の点から継承**する（アドレスを持たないため、そのままでは `null` に
+  なってしまう）。明示の `bos:protocol` が release 点にあっても、`releaseOf` が解決でき、かつ対象の protocol が決まっていれば対象の値が勝つ（対象が protocol を持たないときは release 点自身の値を残す）。
+- 対象は**同じ gateway の点**でなければならない（gateway の点集合の中で解決する）。解決できない
+  `releaseOf` は `null` のまま出力され、その twin は取り込み時の検査（`bos:releaseOf` 検査）で拒否される。
+- ETag: `releaseOf` は `null` のときシリアライズ自体を省略する。release 点を持たない point list の
+  正準 JSON は従来と**バイト単位で同一**なので、upgrade で ETag は変わらず、gateway の再取得も起きない。
+
 ### 版管理（ETag / 304）
 
 レスポンスは内容ハッシュ ETag（`"sha256:..."`）を返す。pointId 安定ソートで正準化してから SHA-256
