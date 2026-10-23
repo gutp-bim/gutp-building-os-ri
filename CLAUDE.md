@@ -258,6 +258,17 @@ header (`IGatewayIdentityResolver`, default `X-Gateway-Id`); the endpoint requir
 oneof); the gateway revalidates via ETag (push is an optimization, ETag polling is the reliability
 backstop).
 
+> **Release (relinquish) points (#600):** a BACnet write stays in its priority slot until a Null is written
+> to the same priority. RI models release as a **point**, not an API/proto change: a release point is an
+> ordinary writable `PointExt` with `bos:dataType "enum"` + `bos:enumLabels {"1":"release"}` and
+> `bos:releaseOf <target point IRI>`. `POST …/control` with `{ "value": 1 }` to it travels the normal control
+> path (authz, ControlSchema — `0` is a 400 —, `point_control_audit`); the gateway turns it into a Null write
+> on the target. The point list carries `releaseOf` (the target's **pointId**, `null` for ordinary points;
+> the ETag is unchanged for a list with no release point) and the release point's `protocol` is inherited
+> from the target (it has no native addressing of its own). `ReleaseOfIssueDetection` checks the
+> declarations at import (preview `releaseOfIssues`; apply refuses, `allowOrphans` does not waive it) and logs
+> an ERROR at startup seed. See `docs/architecture/oss-gateway-pointlist-sync.md`.
+
 > **Onboarding a new gateway (#127):** the steps above (twin seed, control binding, ingress/egress
 > ports, point-list polling) are consolidated into one checklist:
 > `docs/guides/gateway-onboarding-checklist.md`.

@@ -119,6 +119,13 @@ point list では各点に `releaseOf` を追加する（**追加のみ・後方
 
   append は**取り込む release 点だけ**を判定する（既に twin にある点を取り込みの責任にしない）が、
   対象の検索は staging と既存 twin の両方にまたがる。
+- **制御経路は変えない**。`POST /api/v1/points/{release点のpointId}/control` に `{ "value": 1 }` を送る
+  通常の制御で、認可・writable 確認・ControlSchema 検査・`point_control_audit`（`controlId` /
+  `actorSub` 付き）はすべて release 点自身に対して動く。`ControlCommand` も release 点の
+  `point_id` のまま gateway に届き、`releaseOf` を見て対象への Null 書込に変換するのは gateway 側。
+  `0` / `2` など `1` 以外は 400 で拒否され、publish も audit 行の作成もされない（`0` を「何もしない」
+  として受けると、誤った呼び出しを黙って成功扱いにしてしまうため）。
+  対象の点の audit に「release された」ことを見せる関連づけは、受け入れ条件では任意とされており未実装。
 - ETag: `releaseOf` は `null` のときシリアライズ自体を省略する。release 点を持たない point list の
   正準 JSON は従来と**バイト単位で同一**なので、upgrade で ETag は変わらず、gateway の再取得も起きない。
 
