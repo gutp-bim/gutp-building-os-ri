@@ -35,6 +35,18 @@ public class ControlValueValidatorTest
         => Assert.False(ControlValueValidator.Validate(
             new ControlSchema { DataType = "enum", EnumLabels = """{"1":"冷房","2":"暖房"}""" }, 3).IsValid);
 
+    // #600: a release point's schema. It is what makes "0 is rejected" true — an enum with an empty or
+    // missing allowed set would be permissive (below), so the twin check requires exactly {1}.
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(0, false)]
+    [InlineData(2, false)]
+    [InlineData(-1, false)]
+    [InlineData(0.5, false)]
+    public void ReleaseOnlyEnum_AcceptsOnlyOne(double value, bool expected)
+        => Assert.Equal(expected, ControlValueValidator.Validate(
+            new ControlSchema { DataType = "enum", EnumLabels = """{"1":"release"}""" }, value).IsValid);
+
     [Fact]
     public void Enum_WithoutLabels_IsPermissive()
         // No allowed set to check against → cannot validate, so do not block.

@@ -534,6 +534,66 @@ public class PointControllerTest
         publisher.Verify(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // ── #600: a release point is an ordinary writable point whose schema accepts only 1 ───────────
+    // Nothing in the control path knows about releaseOf: the point-list consumer (the gateway) turns
+    // a write of 1 into a Null write on the target. What the API owns is that only the release signal
+    // gets through, and that the write is audited like any other.
+
+    private static Point MakeReleasePoint() => new()
+    {
+        DtId = "urn:pt:rel", Id = "fcu_oveTSup_release", Name = "Release", Writable = true
+    };
+
+    private static ControlSchema ReleaseOnlySchema() => new()
+    {
+        DataType = "enum", EnumLabels = """{"1":"release"}"""
+    };
+
+    [Fact]
+    public async Task Control_ReleasePoint_AcceptsOne_AndPublishesItByThePointsOwnId()
+    {
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(
+            Detail(MakeReleasePoint()), schema: ReleaseOnlySchema());
+        PointControlInfo? published = null;
+        PointControlInfo? audited = null;
+        auditWriter.Setup(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()))
+                   .Callback<PointControlInfo, ControlActor, CancellationToken>((info, _, _) => audited = info)
+                   .Returns(Task.CompletedTask);
+        publisher.Setup(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()))
+                 .Callback<PointControlInfo, CancellationToken>((info, _) => published = info)
+                 .ReturnsAsync(ControlDeliveryStatus.Delivered);
+
+        var result = await controller.Control(
+            "fcu_oveTSup_release", new PointController.PointControlRequest { Value = 1 }, CancellationToken.None);
+
+        Assert.IsType<AcceptedResult>(result);
+        // The command is addressed to the release point itself — the gateway resolves releaseOf.
+        Assert.Equal("fcu_oveTSup_release", published!.PointId);
+        using var doc = JsonDocument.Parse(published.Body);
+        Assert.Equal(1, doc.RootElement.GetProperty("value").GetDouble());
+        // ...and it is audited under that same point id, with the actor, like any other write.
+        Assert.Equal("fcu_oveTSup_release", audited!.PointId);
+        auditWriter.Verify(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(0)]    // "do not release" must not be accepted as a no-op that hides a mistaken call
+    [InlineData(2)]
+    [InlineData(-1)]
+    [InlineData(0.5)]
+    public async Task Control_ReleasePoint_RejectsAnythingButOne(double value)
+    {
+        var (controller, publisher, _, auditWriter) = BuildControllerWithResultBus(
+            Detail(MakeReleasePoint()), schema: ReleaseOnlySchema());
+
+        var result = await controller.Control(
+            "fcu_oveTSup_release", new PointController.PointControlRequest { Value = value }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        publisher.Verify(p => p.PublishAsync(It.IsAny<PointControlInfo>(), It.IsAny<CancellationToken>()), Times.Never);
+        auditWriter.Verify(w => w.RecordRequestAsync(It.IsAny<PointControlInfo>(), It.IsAny<ControlActor>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     public static TheoryData<ControlSchema?> UnusableSchemas() => new()
     {
         null,
