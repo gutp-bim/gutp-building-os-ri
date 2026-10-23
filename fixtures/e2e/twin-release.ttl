@@ -1,0 +1,12 @@
+@prefix sbco: <https://www.sbco.or.jp/ont/> .
+@prefix bos: <http://buildingos.gutp.jp/ontology#> .
+<urn:test:b> a sbco:Building ; sbco:id "B" ; sbco:name "Building" ; sbco:hasPart <urn:test:f> .
+<urn:test:f> a sbco:Level ; sbco:id "F" ; sbco:name "Floor" .
+<urn:test:d> a sbco:EquipmentExt ; sbco:id "device-test" ; sbco:name "Device" ; sbco:locatedIn <urn:test:f> ;
+    sbco:hasPoint <urn:test:target>, <urn:test:release> .
+<urn:test:target> a sbco:PointExt ; sbco:id "TARGET" ; sbco:name "Target" ; sbco:gatewayId "GW" ;
+    sbco:writable "true" ; sbco:deviceIdBacnet "device-test" ;
+    sbco:objectTypeBacnet "analogOutput" ; sbco:instanceNoBacnet "37" ; bos:dataType "number" .
+<urn:test:release> a sbco:PointExt ; sbco:id "RELEASE" ; sbco:name "Release" ; sbco:gatewayId "GW" ;
+    sbco:writable "true" ; bos:dataType "enum" ;
+    bos:enumLabels "{\"1\":\"release\"}" ; bos:releaseOf <urn:test:target> .
