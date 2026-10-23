@@ -42,6 +42,16 @@ export interface TwinIdCollision {
   nodeCount: number;
 }
 
+/**
+ * A `bos:releaseOf` declaration that cannot work as a release point (#600): the target is missing,
+ * not writable, on another gateway, or the release point's own schema does not accept only 1. The
+ * gateway would receive it as an ordinary enum point, so the import is never applied.
+ */
+export interface TwinReleaseOfIssue {
+  pointId: string;
+  reason: string;
+}
+
 export interface TwinImportPreview {
   tripleCount: number;
   gatewayCount: number;
@@ -62,6 +72,9 @@ export interface TwinImportPreview {
    */
   idCollisionCount?: number;
   idCollisions?: TwinIdCollision[];
+  /** Ill-formed release points (#600); `releaseOfIssues` is a capped sample. Optional like the above. */
+  releaseOfIssueCount?: number;
+  releaseOfIssues?: TwinReleaseOfIssue[];
   valid: boolean;
 }
 
@@ -103,9 +116,30 @@ export function controlSchemaIssueReasonLabel(reason: string): string {
     : reason;
 }
 
+const RELEASE_OF_ISSUE_REASON_LABELS: Record<string, string> = {
+  multiple_targets: "releaseOf が複数の点を指しています",
+  self_reference: "自分自身を指しています",
+  target_missing: "対象の点が twin に存在しません",
+  target_not_writable: "対象の点が writable ではありません",
+  target_is_release:
+    "対象の点自身が release 点です（release の release は不可）",
+  release_no_gateway: "release 点に gatewayId がありません",
+  target_other_gateway: "対象の点が別の gateway に属しています",
+  release_not_writable: "release 点が writable ではありません",
+  schema_not_release_only:
+    "release 点の制御スキーマが enum で許容コード 1 のみになっていません",
+};
+
+/** Pure: Japanese label for a release-of-issue reason; an unknown value passes through as-is. */
+export function releaseOfIssueReasonLabel(reason: string): string {
+  return Object.hasOwn(RELEASE_OF_ISSUE_REASON_LABELS, reason)
+    ? RELEASE_OF_ISSUE_REASON_LABELS[reason]
+    : reason;
+}
+
 /**
  * Pure: an import may be applied only when the preview reports no gateway_id collisions (#322), no
- * business ids shared by nodes of one type (#517), and no resources outside the building hierarchy —
+ * business ids shared by nodes of one type (#517), no ill-formed release points (#600), and no resources outside the building hierarchy —
  * only the last waivable by an explicit override (#291).
  */
 export function canApplyImport(
@@ -115,6 +149,7 @@ export function canApplyImport(
   if (preview === null) return false;
   if (preview.collisions.length > 0) return false;
   if ((preview.idCollisionCount ?? 0) > 0) return false;
+  if ((preview.releaseOfIssueCount ?? 0) > 0) return false;
   return preview.orphanCount === 0 || allowOrphans;
 }
 
@@ -126,6 +161,8 @@ export function previewSummary(preview: TwinImportPreview): string {
     issues.push(`gateway_id 重複 ${preview.collisions.length} 件`);
   if ((preview.idCollisionCount ?? 0) > 0)
     issues.push(`sbco:id 重複 ${preview.idCollisionCount} 件`);
+  if ((preview.releaseOfIssueCount ?? 0) > 0)
+    issues.push(`release 点の不整合 ${preview.releaseOfIssueCount} 件`);
   if (preview.orphanCount > 0)
     issues.push(`階層未接続 ${preview.orphanCount} 件`);
   if (preview.controlSchemaIssueCount > 0)

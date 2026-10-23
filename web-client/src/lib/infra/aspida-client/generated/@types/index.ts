@@ -893,12 +893,19 @@ export type TwinImportPreview = {
   controlSchemaIssueCount?: number | undefined;
   controlSchemaIssues?: TwinControlSchemaIssue[] | undefined;
   idCollisionCount?: number | undefined;
+  releaseOfIssueCount?: number | undefined;
   idCollisions?: TwinIdCollision[] | undefined;
+  releaseOfIssues?: TwinReleaseOfIssue[] | undefined;
   valid?: boolean | undefined;
 }
 
 export type TwinOrphanResource = {
   resourceId?: string | undefined;
+  reason?: string | undefined;
+}
+
+export type TwinReleaseOfIssue = {
+  pointId?: string | undefined;
   reason?: string | undefined;
 }
 

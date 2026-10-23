@@ -6,6 +6,7 @@ import {
   canApplyImport,
   controlSchemaIssueReasonLabel,
   orphanReasonLabel,
+  releaseOfIssueReasonLabel,
   previewSummary,
   previewTwinImport,
   runReadOnlySparql,
@@ -210,6 +211,13 @@ export function TwinAdminPageClient() {
                   <li key={`${c.resourceType}:${c.id}`}>
                     {c.resourceType} {c.id}: {c.nodeCount} ノードが同じ sbco:id を使っています（権限が共有されます）
                   </li>
+                ))}
+              </ul>
+            )}
+            {(preview.releaseOfIssues?.length ?? 0) > 0 && (
+              <ul className="mt-1 list-disc pl-5 text-red-600" data-testid="preview-release-of-issues">
+                {preview.releaseOfIssues!.map((i) => (
+                  <li key={i.pointId}>{i.pointId}: {releaseOfIssueReasonLabel(i.reason)}</li>
                 ))}
               </ul>
             )}

@@ -39,7 +39,11 @@ public class OxiGraphTwinAdminServiceTest
     // #336: the control-schema-issue candidate query is the only one selecting both ?dataType and
     // ?enumLabels together.
     private static bool IsControlSchemaIssueQuery(string sparql) =>
-        sparql.Contains("?dataType") && sparql.Contains("?enumLabels");
+        sparql.Contains("?dataType") && sparql.Contains("?enumLabels") && !IsReleaseOfIssueQuery(sparql);
+
+    // #600: the release-point check also selects ?dataType/?enumLabels (for the release point's own
+    // schema) but is the only query that mentions bos:releaseOf.
+    private static bool IsReleaseOfIssueQuery(string sparql) => sparql.Contains("releaseOf");
 
     // Runs a preview against a store that reports no triples/gateways/collisions/orphans, and hands
     // back the materialized staging graph URI plus the control-schema-issue candidate query, so a test
