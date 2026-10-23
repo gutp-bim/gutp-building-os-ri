@@ -38,6 +38,39 @@ public class GatewayPointListSerializerTest
         Assert.NotEqual(PointListEtag.Compute(baseline), PointListEtag.Compute(changed));
     }
 
+    // ── releaseOf (#600) ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void Canonical_WithoutReleaseOf_IsByteIdenticalToThePreReleaseOfShape()
+    {
+        // The exact pre-#600 canonical form: a list with no release point must not change its ETag
+        // on upgrade, or every gateway refetches once for nothing.
+        const string legacy =
+            "{\"pointId\":\"PT001\",\"localId\":null,\"protocol\":\"bacnet\",\"bacnetDeviceId\":null," +
+            "\"bacnetObjectType\":null,\"bacnetInstanceNo\":null,\"unit\":\"C\",\"writable\":true," +
+            "\"dataType\":null,\"minValue\":null,\"maxValue\":null,\"enumLabels\":null," +
+            "\"deviceDtId\":null,\"deviceId\":null,\"deviceName\":null}";
+
+        Assert.Equal(legacy, GatewayPointListSerializer.CanonicalString(P("PT001", unit: "C", writable: true, protocol: "bacnet")));
+    }
+
+    [Fact]
+    public void Etag_ChangesWhenReleaseOfChanges()
+    {
+        var baseline = new[] { P("PT001") };
+        var released = new[] { new GatewayPointEntry { PointId = "PT001", ReleaseOf = "PT000" } };
+
+        Assert.NotEqual(PointListEtag.Compute(baseline), PointListEtag.Compute(released));
+    }
+
+    [Fact]
+    public void Dto_CarriesReleaseOf()
+    {
+        var dto = GatewayPointDto.From(new GatewayPointEntry { PointId = "REL", ReleaseOf = "TGT" });
+        Assert.Equal("TGT", dto.ReleaseOf);
+        Assert.Null(GatewayPointDto.From(P("TGT")).ReleaseOf);
+    }
+
     [Fact]
     public void Etag_ChangesWhenPointAddedOrRemoved()
     {

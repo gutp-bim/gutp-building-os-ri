@@ -46,6 +46,7 @@ public class ListGatewayPointListTest
                 ["maxV"] = "http://buildingos.gutp.jp/ontology#maxValue",
                 ["enumLabels"] = "http://buildingos.gutp.jp/ontology#enumLabels",
                 ["protocol"] = "http://buildingos.gutp.jp/ontology#protocol",
+                ["releaseOf"] = "http://buildingos.gutp.jp/ontology#releaseOf",
             };
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -218,6 +219,64 @@ public class ListGatewayPointListTest
 
         var entries = await db.ListGatewayPointList("GW001");
         Assert.Equal(expectedProtocol, entries[0].Protocol);
+    }
+
+    // ── Release points (#600) ──────────────────────────────────────────────────
+
+    private const string TargetAndReleaseRows = @"{
+  ""results"": { ""bindings"": [
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:u""},
+      ""ptId"": {""type"":""literal"",""value"":""fcu_oveTSup_u""},
+      ""writable"": {""type"":""literal"",""value"":""true""},
+      ""devIdBac"": {""type"":""literal"",""value"":""1""},
+      ""objType"": {""type"":""literal"",""value"":""analogValue""},
+      ""instNo"": {""type"":""literal"",""value"":""5""},
+      ""dataType"": {""type"":""literal"",""value"":""number""} },
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:rel""},
+      ""ptId"": {""type"":""literal"",""value"":""fcu_oveTSup_release""},
+      ""writable"": {""type"":""literal"",""value"":""true""},
+      ""dataType"": {""type"":""literal"",""value"":""enum""},
+      ""enumLabels"": {""type"":""literal"",""value"":""{\""1\"":\""release\""}""},
+      ""releaseOf"": {""type"":""uri"",""value"":""urn:point:u""} }
+  ]}}";
+
+    [Fact]
+    public async Task ListGatewayPointList_ReleasePoint_ResolvesReleaseOfIriToPointId()
+    {
+        var entries = await BuildDb(TargetAndReleaseRows).ListGatewayPointList("GW001");
+
+        var release = entries.Single(e => e.PointId == "fcu_oveTSup_release");
+        var target = entries.Single(e => e.PointId == "fcu_oveTSup_u");
+        Assert.Equal("fcu_oveTSup_u", release.ReleaseOf);   // the pointId, not the twin IRI
+        Assert.Null(target.ReleaseOf);
+    }
+
+    [Fact]
+    public async Task ListGatewayPointList_ReleasePoint_InheritsProtocolFromTarget()
+    {
+        var entries = await BuildDb(TargetAndReleaseRows).ListGatewayPointList("GW001");
+
+        // The release point carries no BACnet fields of its own and would otherwise resolve to null.
+        Assert.Equal("bacnet", entries.Single(e => e.PointId == "fcu_oveTSup_release").Protocol);
+        // ...and it does not acquire the target's native addressing.
+        Assert.Null(entries.Single(e => e.PointId == "fcu_oveTSup_release").BacnetObjectType);
+    }
+
+    [Fact]
+    public async Task ListGatewayPointList_ReleaseOfPointingOutsideTheGateway_IsLeftNull()
+    {
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""pt"": {""type"":""uri"",""value"":""urn:point:rel""},
+      ""ptId"": {""type"":""literal"",""value"":""REL""},
+      ""releaseOf"": {""type"":""uri"",""value"":""urn:point:other-gateway""} }
+  ]}}");
+
+        var entries = await db.ListGatewayPointList("GW001");
+
+        // Unresolvable here; the ingest-time check (not the export) is what rejects such a twin.
+        Assert.Null(entries[0].ReleaseOf);
+        Assert.Null(entries[0].Protocol);
     }
 
     [Fact]
