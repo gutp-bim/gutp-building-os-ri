@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "builder-clocks/1-draft",
+  "clockSources": [
+    {
+      "clockId": "urn:boptest:clock:bestest-air",
+      "clockDomain": "simulation",
+      "unit": "s",
+      "readOnly": true,
+      "acquisitionMode": "poll",
+      "native": {
+        "bindingId": "urn:boptest:clock-binding:bestest-air",
+        "protocol": "bacnet",
+        "gatewayId": "GW-BOPTEST-001",
+        "connectorId": "bacnet-boptest",
+        "deviceInstance": 599,
+        "objectType": "analogValue",
+        "objectInstance": 2,
+        "property": "presentValue",
+        "unit": "seconds"
+      }
+    }
+  ],
+  "clockBindings": [
+    {
+      "equipmentId": "DEV-FCU-1",
+      "clockId": "urn:boptest:clock:bestest-air"
+    }
+  ]
+}

@@ -139,3 +139,10 @@ scenarioの期待値を検証関数から生成せず、fixtureに明記する�
 | 互換性 | ADRのold/new組合せ、旧RDF、clockなし通常BACnet、bootstrap promotion、full snapshot rollback |
 
 未決事項とownerはADR末尾。正式JSON Schemaとontology releaseへの昇格は共通合意後に行う。
+
+## Builder生成RDFとの隔離結合検証
+
+[Builder f2f313e → RI 9b64339の検証記録](builder-f2f313e/README.md)に、指定RDFを
+実import/materializerへ通した結果と、RI実装が生成したprovisioning JSONを保存した。
+検証は使い捨てOxiGraph・再build済みソースで実行し、Gateway APIはHTTP経由ではなく
+実source/DTOとcontroller actionの直接呼出しまでを確認している。

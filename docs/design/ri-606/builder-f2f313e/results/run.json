@@ -1,0 +1,30 @@
+{
+  "riBaselineSha": "9b643391d7273de4d92166d2474de1e5e0ea9f83",
+  "builderBaselineSha": "f2f313e044b85f7ef127ef95351afef81afdcbc9",
+  "dockerServerVersion": "29.1.3",
+  "build": {
+    "command": "dotnet build DotNet/BuildingOS.IntegrationTest --no-incremental --verbosity minimal",
+    "exitCode": 0,
+    "warnings": 391,
+    "errors": 0
+  },
+  "test": {
+    "command": "dotnet test DotNet/BuildingOS.IntegrationTest --no-build --no-restore --filter 'FullyQualifiedName~ClockProvisioningTest' --logger 'console;verbosity=normal' --logger 'trx;LogFileName=clock-provisioning.trx' --results-directory out/ri-606-builder-f2f313e",
+    "exitCode": 0,
+    "passed": 19,
+    "failed": 0
+  },
+  "provisioningJsonSha256": "b725e01075fbcfcf672e0a6f7021491d96ee584ce49de9bd8de12c0338d8e41e",
+  "scope": {
+    "disposableOxigraph": true,
+    "gatewayHttpApiTested": false,
+    "controllerActionDirectlyInvoked": true,
+    "realSourceAndDto": true,
+    "productionSourceChanged": false,
+    "builderRebuilt": false,
+    "otherRepositoriesChanged": false,
+    "runningStackUsed": false
+  },
+  "inputCsvStorage": "LF; restored to original CRLF bytes for hashing and CSV parsing",
+  "fixtureCsvSha256": "9e4ae5bcf32376fc2e9808a62419126f9ada00782d5cddc89acbb91a63be2310"
+}

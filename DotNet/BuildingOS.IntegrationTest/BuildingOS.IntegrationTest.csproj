@@ -37,6 +37,9 @@
 
     <ItemGroup>
         <None Include="Common\Fixtures\SeedData\*.ttl" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="../../docs/design/ri-606/builder-f2f313e/inputs/model.ttl" Link="BuilderClockFixtures/model.ttl" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="../../docs/design/ri-606/builder-f2f313e/inputs/pointlist-v2.csv" Link="BuilderClockFixtures/pointlist-v2.csv" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="../../docs/design/ri-606/builder-f2f313e/inputs/clocks.json" Link="BuilderClockFixtures/clocks.json" CopyToOutputDirectory="PreserveNewest" />
         <None Include="../../docs/design/ri-606/fixtures/model.ttl" Link="ClockFixtures/model.ttl" CopyToOutputDirectory="PreserveNewest" />
         <None Include="../../docs/design/ri-606/fixtures/provisioning.json" Link="ClockFixtures/provisioning.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
