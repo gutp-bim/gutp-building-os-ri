@@ -295,3 +295,9 @@ twin の point list 更新を、接続中の gateway に **GatewayEgress スト�
 
 - gateway 側の受信処理（別リポ `nexus-gateway`）。
 - `PointListUpdate.revision` に実 ETag を載せる（現状は空シグナル + gateway 側 ETag 再検証）。
+
+## ClockSourceの付随配布（#606）
+
+静的clock定義・設備参照を使うGatewayは、別のdraft API
+[`/gateways/{gatewayId}/provisioning/v1`](oss-gateway-clock-provisioning.md)から
+pointsとclock設定を一括取得する。本書の既存Point List API・ETag・diffは維持し、時計をpoints配列へ追加しない。

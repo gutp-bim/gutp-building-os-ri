@@ -32,6 +32,7 @@ draft:Native a sh:NodeShape ;
 draft:Equipment a sh:NodeShape ;
   sh:targetSubjectsOf bos:usesClockSource ;
   sh:class sbco:EquipmentExt ; sh:nodeKind sh:IRI ;
+  sh:property [ sh:path sbco:id ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
   sh:property [ sh:path bos:usesClockSource ; sh:maxCount 1 ; sh:nodeKind sh:IRI ; sh:class bos:ClockSource ] ;
   sh:property [ sh:path sbco:hasPoint ; sh:minCount 1 ; sh:class sbco:PointExt ] ;
   sh:sparql [

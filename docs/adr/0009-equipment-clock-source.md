@@ -1,7 +1,8 @@
 # 設備に関連付ける ClockSource と Gateway provisioning
 
-- Status: **Proposed**（2026-10-24）。本書・fixtureは合意前の案であり、実装済み契約ではない。
+- Status: **Proposed**（2026-10-24）。横断承認前のdraft。RIの部分実装状況は下記参照。
 - 関連: [RI #606](https://github.com/gutp-bim/gutp-building-os-ri/issues/606)、[Builder #44](https://github.com/smartbuilding-co-creation-organization/smartbuilding_datamodel_builder/issues/44)、[Nexus #201](https://github.com/gutp-bim/nexus-gateway/issues/201)
+- 実装状況: RIの静的設定取込み・配布はdraft契約で実装。[実装仕様](../architecture/oss-gateway-clock-provisioning.md)。run context・sim queryは後続。
 - 詳細・検証入口: [設計と契約fixture](../design/ri-606/README.md)
 
 ## Context
@@ -54,11 +55,12 @@ Ingress attributesは文字列mapとしてdataへ転記されるが、sim数値�
 ## Revision / mutation / authorization
 
 - 新snapshotのrevisionはschemaVersion、gatewayId、points、clockSources、clockBindingsの内容hash。
-  generatedAtとrevision自身は除外する。UTF-8、JSONキー再帰ordinal順、空白なし、配列は
+  generatedAtとrevision自身、nullプロパティは除外する。UTF-8、JSONキー再帰ordinal順、空白なし、配列は
   Point ID / clock IRI / equipment IRIのordinal順。初期契約の静的な数値は整数とし、非整数の既存Point属性は文字列で保持して浮動小数表現差を避ける。
   ETagは`"sha256:<hex>"`（JSON内は引用符をescape）。同内容再importは同revision。
 - clockだけの変更でも新APIのETagを変更。既存Point ListのETagは従来どおり。
-  cacheはgateway+schemaVersion+revisionで分離し、clock・binding変更も全API podのgenerationを無効化する。
+  cache導入時はgateway+schemaVersion+revisionで分離し、clock・binding変更も全API podのgenerationを無効化する。
+  初期実装の新APIはcacheを持たず、304も同一read transactionのlive queryで判定する。
   pushは再検証ヒントのみ。pushの欠落時もETag pollで収束する。
 - 初期新APIはfull snapshotとIf-None-Matchの304のみ。`since`は400（未対応）。clock deltaは導入しない。
   旧APIのpoint diffを新snapshotに合成しない。将来diffを設けるならbase revision完全一致が必須。

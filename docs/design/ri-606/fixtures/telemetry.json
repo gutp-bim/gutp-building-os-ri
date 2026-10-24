@@ -8,7 +8,7 @@
     "sim_clock_id": "https://example.com/ri-606/clock/shared-simulation",
     "sim_time_s": "120.5",
     "sim_time_quality": "bracketed",
-    "sim_config_revision": "\"sha256:a9761f0f1a4ef8b27ab10f6fce4ec2970fea61daf038d859dee5ba91f7a2c8cf\"",
+    "sim_config_revision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\"",
     "sim_context_generation": "1"
   }
 }

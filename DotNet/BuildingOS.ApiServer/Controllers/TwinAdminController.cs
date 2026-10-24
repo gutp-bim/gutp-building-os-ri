@@ -6,6 +6,7 @@ using System.Text.Json;
 using BuildingOs.ApiServer.Extensions;
 using BuildingOs.ApiServer.Filters;
 using BuildingOs.ApiServer.GatewayProvisioning;
+using BuildingOS.Shared.Domain.GatewayProvisioning;
 using BuildingOS.Shared.Domain.AdminAudit;
 using BuildingOS.Shared.Domain.TwinAdmin;
 using Microsoft.AspNetCore.Mvc;
@@ -195,6 +196,12 @@ public class TwinAdminController : ControllerBase
                 Meta(request.Turtle, mode.ToString(), preview, request.AllowOrphans), CancellationToken.None).ConfigureAwait(false);
             return Ok(preview);
         }
+        catch (Exception ex) when (ex is ClockConfigurationException or TwinImportConcurrencyException)
+        {
+            await AuditAsync(auth, "import-apply", null, AdminAuditResult.Failure,
+                new { mode = mode.ToString(), error = ex.Message }, ct).ConfigureAwait(false);
+            return Conflict(new { error = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Twin import apply failed");
@@ -222,6 +229,7 @@ public class TwinAdminController : ControllerBase
         if (preview.IdCollisionCount > 0) return "同じ種別で sbco:id が重複しているため適用できません";
         // #600: a release point that cannot work reaches the gateway as an ordinary enum point — never applied.
         if (preview.ReleaseOfIssueCount > 0) return "bos:releaseOf の宣言に不正があるため適用できません";
+        if (preview.ClockIssueCount > 0) return "ClockSource の定義・設備参照に不正があるため適用できません";
         if (preview.OrphanCount > 0 && !allowOrphans)
             return "階層に接続されていないリソースがあるため適用できません（allowOrphans で明示的に許可できます）";
         return null;
@@ -237,6 +245,7 @@ public class TwinAdminController : ControllerBase
         orphanCount = preview.OrphanCount,
         idCollisionCount = preview.IdCollisionCount,
         releaseOfIssueCount = preview.ReleaseOfIssueCount,
+        clockIssueCount = preview.ClockIssueCount,
         allowOrphans,
         controlSchemaIssueCount = preview.ControlSchemaIssueCount,
         valid = preview.Valid,

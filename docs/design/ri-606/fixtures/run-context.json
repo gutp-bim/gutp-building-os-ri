@@ -3,7 +3,7 @@
   "gatewayId": "GW-EXAMPLE",
   "generation": 1,
   "runId": "example-run-001",
-  "provisioningRevision": "\"sha256:a9761f0f1a4ef8b27ab10f6fce4ec2970fea61daf038d859dee5ba91f7a2c8cf\"",
+  "provisioningRevision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\"",
   "clockId": "https://example.com/ri-606/clock/shared-simulation",
   "status": "active",
   "issuedAt": "2026-01-01T00:00:00Z",

@@ -114,6 +114,10 @@ public class OxiGraphTwinAdminServicePointListPushTest
                 };
             }
 
+            if (sparql.StartsWith("SELECT ?flag", StringComparison.Ordinal))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"results\":{\"bindings\":[{\"flag\":{\"value\":\"true\"}}]}}") };
+            if (sparql.Contains("SELECT DISTINCT ?s ?p ?o", StringComparison.Ordinal))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"results\":{\"bindings\":[]}}") };
             throw new InvalidOperationException($"unexpected SPARQL query in test: {sparql}");
         }
     }

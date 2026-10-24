@@ -8,17 +8,11 @@ namespace BuildingOS.Shared.Test.Infrastructure.OxiGraph;
 /// <summary>
 /// #447 — what a second <c>WORKER_ROLE=all</c> replica does to the twin seed.
 ///
-/// The seed replaces the default graph (<c>DROP DEFAULT</c> + rebuild), so the question is whether two
-/// replicas doing it at once can leave a reader looking at a half-cleared twin. They cannot, and the
-/// reason is a property of *this* code rather than of OxiGraph's concurrency: the whole rebuild is sent
-/// as one SPARQL UPDATE request, which OxiGraph commits in a single transaction. Split it into a
-/// request per statement — an entirely natural-looking refactor — and the guarantee is gone with no
-/// test to notice, which is what these characterization tests exist to prevent. The behaviour they
-/// pin predates #447 — that change added the tests, not the property — so they are a guard against
-/// future refactors rather than proof of a fix.
-///
-/// The remaining cost of a duplicate seed (importing the same file twice, pushing the point-list
-/// update twice) is convergent, not corrupting — see <see cref="OxiGraphSeedHostedService"/>.
+/// The seed prepares an isolated candidate, then replaces the live graph in one guarded UPDATE
+/// transaction. Candidate preparation and cleanup may use other requests, but cannot expose a
+/// half-cleared default graph. Concurrent edits after baseline capture refuse publication (#606).
+/// Source graphs must be per-call so concurrent importers cannot overwrite each other's input;
+/// the successful replace alone refreshes the retained provenance graph.
 /// </summary>
 public class OxiGraphSeedConcurrentReplicaTest
 {
@@ -37,29 +31,30 @@ public class OxiGraphSeedConcurrentReplicaTest
 
         // One request, not one per statement: a concurrent reader (or the other replica's own
         // uniqueness check) therefore sees the twin either wholly before or wholly after the rebuild.
-        var update = Assert.Single(handler.Updates);
-        Assert.Contains("DROP DEFAULT", update, StringComparison.Ordinal);
+        var update = Assert.Single(handler.Updates.Where(u => u.Contains("urn:bos:committed", StringComparison.Ordinal) && u.Contains("DELETE { ?s ?p ?o }", StringComparison.Ordinal)));
+        Assert.Contains("FILTER NOT EXISTS", update, StringComparison.Ordinal);
+        Assert.Contains("DELETE { ?s ?p ?o }", update, StringComparison.Ordinal);
         // …and it is the whole pass, not just the clear — the rebuild must not be able to land later.
         Assert.Contains("INSERT", update, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Seed_StagesTheSourceRdfUnderAFixedGraphUri_SoARepeatImportOverwritesIt()
+    public async Task Seed_UsesIsolatedSourceGraphs_AndRetainsProvenanceOnlyAtCommit()
     {
-        // The staging PUT is the one write that precedes the atomic UPDATE. It targets a fixed graph
-        // URI and is a full replace, so a second replica staging the same seed writes identical bytes
-        // to the same place instead of accumulating a graph per import.
+        // A concurrent importer must not overwrite another request's source before validation.
+        // Temporary graphs are isolated; the retained audit graph is written at commit only.
         var handler = new RecordingOxiGraphHandler();
         using var seed = new TempFile(Turtle);
 
         await BuildService(handler).RunAsync(seed.Path, templatePath: null, ct: default);
         await BuildService(handler).RunAsync(seed.Path, templatePath: null, ct: default);
 
-        // Both halves of the claim: the same graph URI (so imports overwrite instead of accumulating)
-        // AND the same bytes (so whichever replica lands second leaves the staged RDF unchanged).
-        // Comparing only the URI would let a per-replica payload through.
+        // Repeated identical payloads use distinct temporary source graphs. Both successful commits
+        // atomically refresh the same retained provenance graph.
         Assert.Equal(2, handler.Puts.Count);
-        Assert.Equal(handler.Puts[0].Uri, handler.Puts[1].Uri);
+        Assert.NotEqual(handler.Puts[0].Uri, handler.Puts[1].Uri);
+        Assert.All(handler.Updates.Where(u => u.Contains("DELETE { ?s ?p ?o }", StringComparison.Ordinal)),
+            u => Assert.Contains("GRAPH <urn:bos:twin-source>", u, StringComparison.Ordinal));
         Assert.Equal(handler.Puts[0].Body, handler.Puts[1].Body);
     }
 
@@ -128,7 +123,9 @@ public class OxiGraphSeedConcurrentReplicaTest
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(EmptyResults, Encoding.UTF8, "application/sparql-results+json"),
+                Content = new StringContent(WebUtility.UrlDecode(body).Contains("SELECT ?flag", StringComparison.Ordinal)
+                    ? "{\"results\":{\"bindings\":[{\"flag\":{\"value\":\"true\"}}]}}" : EmptyResults,
+                    Encoding.UTF8, "application/sparql-results+json"),
             };
         }
     }

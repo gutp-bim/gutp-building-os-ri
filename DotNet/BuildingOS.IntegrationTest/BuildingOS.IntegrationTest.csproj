@@ -37,6 +37,8 @@
 
     <ItemGroup>
         <None Include="Common\Fixtures\SeedData\*.ttl" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="../../docs/design/ri-606/fixtures/model.ttl" Link="ClockFixtures/model.ttl" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="../../docs/design/ri-606/fixtures/provisioning.json" Link="ClockFixtures/provisioning.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

@@ -1,8 +1,10 @@
 # RI #606: ClockSource設計・契約fixture案
 
-本ディレクトリは設計レビュー専用。製品コード、他リポジトリ、稼働環境への投入は行わない。
+本ディレクトリは設計と契約fixtureを管理する。RI側の静的設定取込み・配布を実装した。
+現在の動作と検証範囲は[実装仕様](../../architecture/oss-gateway-clock-provisioning.md)を参照。
+他リポジトリ・稼働環境への投入は行っていない。
 [ADR案](../../adr/0009-equipment-clock-source.md)を入口とする。
-新しいAPI・語彙・run contextは未実装/未承認。ここは共通ontologyの正本ではない。
+新APIはdraftとして実装、語彙の横断承認とrun contextの実装は後続。ここは共通ontologyの正本ではない。
 
 ## 既存実装の確認
 
@@ -59,7 +61,7 @@ SHACLだけでは実際のBACnet object存在・読取権限・単位一致を�
 ETagは本文revisionと同じ値、Cache-Control: private, no-cache。認可前に304を返さない。
 未知schemaVersion/必須項目/enum/重複ID/参照不整合はapply前に拒否する。
 HTTP例: `GET /gateways/GW-EXAMPLE/provisioning/v1`、次回は`If-None-Match: <revision値>`。
-このURLは候補であり現行サービスには存在しない。
+このURLはRIに実装したdraft API。nullプロパティは本文/hashの両方から省略する。
 
 ## 静的snapshotとrun contextの境界
 

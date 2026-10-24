@@ -119,6 +119,7 @@ def main():
     cases = [
         ('dangling clock', lambda g: g.set((EX['equipment-a'], BOS.usesClockSource, EX.missing))),
         ('multiple clocks', lambda g: g.add((EX['equipment-a'], BOS.usesClockSource, EX.other))),
+        ('missing equipment ID', lambda g: g.remove((EX['equipment-a'], SBCO.id, None))),
         ('unknown equipment', lambda g: g.add((EX.unknown, BOS.usesClockSource, clock))),
         ('cross gateway', lambda g: g.set((EX['BPT-0002'], SBCO.gatewayId, Literal('GW-OTHER')))),
         ('missing unit', lambda g: g.remove((clock, BOS.clockUnit, None))),

@@ -23,14 +23,13 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// import replaces the default graph, but <see cref="OxiGraphIngestMaterializer"/> sends the whole
 /// clear-and-rebuild as a single SPARQL UPDATE request, which OxiGraph commits in one transaction: a
 /// reader (including the other replica's own uniqueness check) sees the twin either wholly before or
-/// wholly after, never half-cleared. Two replicas racing to seed the same file while the store is still
-/// empty therefore write the same content, and the loser's work is simply redundant — plus one extra
-/// point-list push, which gateways absorb as an ETag 304. A replica joining *after* the store is already
+/// wholly after, never half-cleared. Two replicas racing to seed the same file converge on the same
+/// content; a stale baseline is rejected and logged instead of overwriting the winner. A replica joining *after* the store is already
 /// non-empty skips seeding entirely per the empty check above, which only strengthens convergence. What
 /// is *not* covered is two replicas seeding *different* files while both start from empty: they would
-/// race to decide the initial content. That is a misconfiguration to detect in deployment, not a race to
-/// lock against — a startup lock would buy nothing for the identical-file case and would add a hard NATS
-/// dependency to a path the single-container OSS stack must be able to run without.</para>
+/// race to decide the initial content. Guarded import (#606) now refuses a commit whose baseline
+/// changed during preparation; this is logged by the existing seed error handling. The already
+/// committed twin stays intact. Concurrent startup does not require an additional NATS lock.</para>
 /// </summary>
 public sealed class OxiGraphSeedHostedService(
     OxiGraphClient client,

@@ -120,10 +120,16 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
                 ReleaseOfIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
             var (releaseOfCount, releaseOfIssues) = ReleaseOfIssueDetection.Classify(releaseOfRows, MaxOrphans);
 
+            var clockRows = await _client.QueryAsync(
+                ClockConfigurationGraph.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
+            var clockProjection = new ClockConfigurationGraph(clockRows);
+            var previousClockRows = await _client.QueryAsync(ClockConfigurationGraph.BuildQuery(), ct).ConfigureAwait(false);
+            var clockIssues = clockProjection.Validate().Concat(clockProjection.ValidateOwnership(new(previousClockRows))).Distinct().ToArray();
+
             return new TwinImportPreview(
                 triples, (int)gateways, collisions, (int)orphanTotal, orphans,
                 schemaIssueCount, schemaIssues, (int)idCollisionTotal, idCollisions,
-                releaseOfCount, releaseOfIssues);
+                releaseOfCount, releaseOfIssues, clockIssues.Length, clockIssues.Take(MaxOrphans).ToArray());
         }
         finally
         {
