@@ -63,47 +63,57 @@ ETagは本文revisionと同じ値、Cache-Control: private, no-cache。認可前
 HTTP例: `GET /gateways/GW-EXAMPLE/provisioning/v1`、次回は`If-None-Match: <revision値>`。
 このURLはRIに実装したdraft API。nullプロパティは本文/hashの両方から省略する。
 
-## 静的snapshotとrun contextの境界
+## 静的snapshot・取得品質・run context
 
-`fixtures/run-context.json`は別の実行管理メッセージ案。
-`(gatewayId, clockId, provisioningRevision)`完全一致、runId非空、generation正整数・単調増加、
-status=active、issuedAt/現在UTC/expiresAtの有効期間を検証してから利用する。
-同generation同内容の再送は冪等、同generation異内容は拒否。状態をGW再起動後にも保持し、
-保持できなければ新context取得までsim未準備にする。generationはclockごとに採番、rollbackでも戻さない。
-reset/再initialize/実行切替は新runIdと新generation。static revisionが変わったら同runでも新contextを要求する。
-issuedAt/失効/通信鮮度/Safety/watchdogはUTCまたは実時間の単調時計を使いsim秒を使わない。
-clockの現在値・runId・generationは静的RDFに入れない。
+時刻契約の判断は[ADR-0010](../../adr/0010-simulation-observation-time-contract.md)にまとめた。
+Nexus参照SHAは`bc1a9e5137fec041df250e4f927299eaeb5d9a0f`。
+指定版のprototypeは4品質とsim_clock_revisionを出すが、run/stepを生成しない。
 
-初期案はpoll専用。時計を取得前後で読み、context/revision/generationが変わらず前後値が一致しても、
-resetして同値へ戻るABAやchunk中の変更を完全に排除したとはいえない。
-`bracket-only`ではquality=`bracketed`まで。厳密対応は唯一のadvance所有者による
-「step固定→全chunk取得→完了ACK→次step」のfenceを別途合意・検証して`verified`とする。
-時計が進まない同step複数pollは合法で、poll回数からstepIdを作らない。
-clock欠損/前後不一致/partial failure/reset/context失効/非対応COVでは以前のsim時間を流用せず、
-実UTCの設備観測にquality=`unavailable`と既知のclock/revisionだけ付け、sim_time_s/stepを省略する。
-不明runIdも省略。厳密sim分析には使わず欠落を計測する。設備値自体の失敗は既存品質契約に従う。
+| fixture | 役割 |
+|---|---|
+| `telemetry.json` | 新形式のstable_unfenced + absent。正常な診断観測で、run ID/generationを持たない |
+| `telemetry-with-run.json` | stable_unfenced + valid。独立した認証・取得区間・commit履歴の証拠が揃うテストでのみ有効 |
+| `run-context.json` | clock-run-context/2-draft。issuedAtとvalidFromを区別。取得方式のconsistencyModeは含めない |
+| `acquisition-evidence.json` | poll開始/終了、chunk数、各境界clock値、resetラッチ、context切替を表すテスト入力。送信属性ではない |
+| `receiver-evidence.json` | 発行元認証・権限・復旧済み世代履歴・commit/適用時刻・無効化runのテスト入力。認証/永続化の実装ではない |
+| `time-contract-cases.json` | 受入/拒否scenario。frame/contextファイルを読み、attributes/omitAttributesと各Patchを適用して独立した期待値と比較する |
+| `compat/ri-6e0fefe-*.json` | 変更前RIのtelemetry/context原文。bracketedや旧run主張を診断用に残す |
+| `compat/nexus-bc1a9e5-telemetry.json` | 指定Nexus版のwire属性を使う合成RI frame例。Nexus Common Eventのnative IDをそのままRIに送れることを意味しない |
 
-## Telemetry属性案
-
-`fixtures/telemetry.json`はprotobuf JSON表記ではなく、protoフィールド名で示した読解用frame例。
-attributesは既存map<string,string>へそのまま格納可能。現行protoの変更は提案しない。
+telemetry fixtureはprotoフィールド名で示した読解用frame例。attributesは既存map<string,string>。
+静的provisioning/RDF・設備35点は変更しない。context現在値やrun IDを静的graphへ書かない。
 
 | 属性 | 制約 |
 |---|---|
-| sim_clock_id | 静的clock IRI。gateway/point適用範囲と照合 |
-| sim_config_revision | 取得時の静的snapshot revision。再送時も保持 |
-| sim_context_generation | run contextのgenerationを10進文字列で保持 |
-| sim_run_id | 実行管理者生成のID。確定したcontextがある場合のみ |
-| sim_time_s | 非負・有限・10進の数値文字列、秒。NaN/Infinity禁止。bracketed/verifiedの場合のみ |
-| sim_step_id | 信頼できるstep fenceのIDがある場合のみ。fixtureには含めない |
-| sim_time_quality | verified / bracketed / unavailable。未設定はlegacy（確定扱い不可） |
+| sim_clock_id | 適用関係で明示されたclock IRI。gateway/pointのscopeと照合 |
+| sim_config_revision | 取得時のsnapshot全体のrevision。新producerのcanonical名 |
+| sim_clock_revision | 既知のNexus旧形式だけで読むalias。同時に異値なら拒否。元イベントは書き換えない |
+| sim_time_quality | 新producerはstable_unfenced / changed / missing / reset。run有効性と独立 |
+| sim_time_s | stable_unfencedで必須、他の新品質では禁止。非負・有限の数値文字列。指数表記も許容しNaN/Infinity・空白・先頭ゼロ等を拒否 |
+| sim_run_status | absent / valid / invalid / unverified。送信されたvalid文字列自体を信用しない |
+| sim_run_reason | invalid/unverifiedで必須。その他では禁止 |
+| sim_run_id / sim_context_generation | 新形式ではvalidの場合だけ必須。generationはcontextの正整数を10進文字列で表す |
+| sim_step_id | 未対応。poll回数や固定stepから生成せず、現在の検証では拒否 |
 
-`timestamp`はGateway取得UTCのまま。Normalizer/Store-and-Forwardで属性を再生成しない。
-Ingressは所属・revision/run関係と予約属性を検証する必要がある（現行は未実装）。過去revisionの再送は
-保持した履歴snapshot/contextで照合し、保持外なら未確定として扱い現行contextへ付け替えない。
-権限付きquery/BDE出力は元属性を保持するとともにsim_time_sを数値として扱う契約が必要。
-分析キーは少なくとも(clockId, configRevision, runId)、stepを省略可能とし、run越境集約を禁止する。
-既存UTC rollupをsim軸の集約結果と称さない。Oracle/KPI/正解値は属性へ混入させない。
+stable_unfenced + absent/invalid/unverifiedはsim秒を診断注記として保持してよいが、run別sim時間集約・joinから除外する。
+changed/missing + validではrun識別を保持できるがsim秒は出さない。
+run内の数値時間解析候補はstable_unfenced + validのみ。それでも厳密step対応を保証しない。
+旧bracketedは全chunk検査の証拠へ格上げせず、旧unavailableの原因も推定しない。
+unknown runという共有runへまとめない。UTC軸の設備値閲覧は引き続き可能。
+
+run contextの有効性は取得区間全体・取得開始以前のcommitと適用・scope/revision・取消・世代履歴・reset無効化を照合する。
+同世代同内容は冪等、異内容・過去世代は拒否。上位世代の受信だけでは有効化しない。
+reset後は新run IDと上位世代を要し、restartで状態を復旧できなければunverifiedのままとする。
+`time_contract.py`の世代遷移検証は純粋関数で、durable commitや初期watermark確立を行わない。
+
+取得品質はpoll前と各chunk後の有効なclock/単位検査で判定し、reset > missing > changed > stable_unfencedの順。
+証拠fixtureのclockSamplesのnullは欠損/不正値/単位検査失敗等を表す。前回値へフォールバックしない。
+再送は取得時のsnapshot/context/stateを使い、現在の設定や現在時刻へ付け替えない。
+入力fixtureを変更せず、互換解釈の結果を別のviewとして返すことも検証する。
+
+`timestamp`は取得UTC、設備値の品質とSafety/watchdogは実時間のまま。
+配送/認証/generationとreset履歴の永続化・初期化/復旧、厳密step fence、実Ingress検証、数値queryは未確定/未実装。
+製品コードは今回変更せず、fixtureの認証済み/valid例を実環境の安全性の証拠としない。
 
 ## 検証と後続の受入条件
 
@@ -114,7 +124,8 @@ uv run --with pyshacl==0.31.0 python docs/design/ri-606/verify_contract.py
 ```
 
 この検証はTTL構文/SHACL、35点のIDと属性のRDF↔JSON対応、hash、参照展開、run/telemetry整合、
-不正例の拒否をローカルで確認する。製品importや配布サービスのテストではない。
+不正例の拒否と、旧RI/指定Nexus形式・世代遷移・再送時の原文不変をローカルで確認する。
+scenarioの期待値を検証関数から生成せず、fixtureに明記する。製品importや配布サービスのテストではない。
 
 後続実装では以下を各ownerのPRに割り当て、横断成功の証跡を揃える。
 

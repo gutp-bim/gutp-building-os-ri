@@ -2,11 +2,12 @@
 import copy
 import hashlib
 import json
-from decimal import Decimal
 from pathlib import Path
 
 from pyshacl import validate
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
+
+from time_contract import ContractError, next_context_state, validate_observation
 
 ROOT = Path(__file__).parent / 'fixtures'
 BOS = Namespace('http://buildingos.gutp.jp/ontology#')
@@ -58,35 +59,84 @@ def check_snapshot(s):
         check(p['pointId'] not in clocks, 'Clock mixed into points')
 
 
-def check_run(s, run, frame):
-    check(run['schemaVersion'] == 'clock-run-context/1-draft', 'Unknown run schema')
-    check(run['gatewayId'] == s['gatewayId'] == frame['gateway_id'], 'Run gateway mismatch')
-    check(run['provisioningRevision'] == s['revision'], 'Stale run revision')
-    check(run['clockId'] == s['clockSources'][0]['clockId'], 'Wrong run clock')
-    check(run['status'] == 'active' and run['generation'] > 0 and run['runId'], 'Invalid context')
-    from datetime import datetime
-    issued, acquired, expires = [datetime.fromisoformat(t.replace('Z', '+00:00')) for t in (run['issuedAt'], frame['timestamp'], run['expiresAt'])]
-    check(issued <= acquired < expires, 'Expired context')
-    attrs = frame['attributes']
-    check(attrs['sim_run_id'] == run['runId'], 'Run ID mismatch')
-    check(attrs['sim_config_revision'] == s['revision'], 'Metadata revision mismatch')
-    check(attrs['sim_clock_id'] == run['clockId'], 'Metadata clock mismatch')
-    check(attrs['sim_context_generation'] == str(run['generation']), 'Generation mismatch')
-    check(attrs['sim_time_quality'] == 'bracketed' and run['consistencyMode'] == 'bracket-only', 'Unproved quality')
-    check('sim_step_id' not in attrs, 'Inferred step prohibited')
-    check(all(isinstance(v, str) for v in attrs.values()), 'Proto attributes must be strings')
-    numeric = Decimal(attrs['sim_time_s'])
-    check(numeric.is_finite() and numeric >= 0, 'Invalid numeric sim time')
+def check_time_cases(snapshot):
+    """Run explicit fixture scenarios with trusted evidence separate from the telemetry payload."""
+    def read(name):
+        return json.loads((ROOT / name).read_text())
+
+    suite = read('time-contract-cases.json')
+    accepted = rejected = 0
+    names = set()
+    for case in suite['cases']:
+        name = case['name']
+        check(name not in names, f'Duplicate time case: {name}')
+        names.add(name)
+        frame = read(case.get('frame', 'telemetry.json'))
+        frame.update(case.get('framePatch', {}))
+        frame['attributes'].update(case.get('attributes', {}))
+        for key in case.get('omitAttributes', []):
+            frame['attributes'].pop(key, None)
+        acquisition = read(suite['acquisitionEvidence'])
+        acquisition.update(case.get('acquisitionPatch', {}))
+        context = read(case['context']) if 'context' in case else None
+        receiver = read(suite['receiverEvidence']) if context is not None else None
+        if context is not None:
+            context.update(case.get('contextPatch', {}))
+            receiver.update(case.get('receiverPatch', {}))
+            if 'committedContextPatch' in case:
+                receiver['committedContext'].update(case['committedContextPatch'])
+        original = copy.deepcopy((snapshot, frame, acquisition, context, receiver))
+        try:
+            result = validate_observation(snapshot, frame, acquisition, context, receiver,
+                                          case.get('profile', suite['profile']))
+        except ContractError as error:
+            check(str(error) == case.get('expectedError'), f'{name}: unexpected rejection {error}')
+            rejected += 1
+        else:
+            check('expectedError' not in case, f'{name}: expected rejection')
+            for key, value in case['expected'].items():
+                check(result[key] == value, f'{name}: {key} = {result[key]!r}, expected {value!r}')
+            # Replay is assessed using the same recorded acquisition-time snapshot/state.
+            check(result == validate_observation(snapshot, frame, acquisition, context, receiver,
+                                                 case.get('profile', suite['profile'])), f'{name}: replay changed')
+            accepted += 1
+        check(original == (snapshot, frame, acquisition, context, receiver), f'{name}: mutated original event/state')
+
+    run = read('run-context.json')
+    original = copy.deepcopy(run)
+    check(next_context_state(run, run) == run, 'Same generation/content must be idempotent')
+    reordered = dict(reversed(list(run.items())))
+    check(next_context_state(run, reordered) == run, 'JSON key order must not create a generation conflict')
+    renewed = dict(run, generation=run['generation'] + 1)
+    check(next_context_state(run, renewed) == renewed, 'Higher generation can be staged')
+    new_run = dict(renewed, runId='example-run-002')
+    check(next_context_state(run, new_run, [run['runId']]) == new_run, 'Reset recovery needs new run ID')
+    revoked = dict(renewed, status='revoked')
+    check(next_context_state(run, revoked, [run['runId']]) == revoked, 'Revocation can advance generation')
+    transitions = [
+        ('no durable history', None, run, [], 'generation_history_unavailable'),
+        ('stale generation', renewed, run, [], 'stale_generation'),
+        ('same generation/content conflict', run, dict(run, runId='different'), [], 'generation_conflict'),
+        ('reset cannot be cleared by renewal', run, renewed, [run['runId']], 'reset_run_reuse'),
+        ('scope transfer', run, dict(renewed, gatewayId='GW-OTHER'), [], 'scope_mismatch'),
+    ]
+    for name, previous, candidate, invalidated, expected in transitions:
+        try:
+            next_context_state(previous, candidate, invalidated)
+        except ContractError as error:
+            check(str(error) == expected, f'{name}: unexpected transition rejection {error}')
+        else:
+            raise ValueError(f'{name}: transition should be rejected')
+    check(original == run, 'Context transition mutated committed state')
+    return accepted, rejected, 5 + len(transitions)
 
 
 def main():
     graph = Graph().parse(ROOT / 'model.ttl')
     check(conforms(graph), 'Positive SHACL fixture must conform')
     snapshot = json.loads((ROOT / 'provisioning.json').read_text())
-    run = json.loads((ROOT / 'run-context.json').read_text())
-    frame = json.loads((ROOT / 'telemetry.json').read_text())
     check_snapshot(snapshot)
-    check_run(snapshot, run, frame)
+    accepted, rejected, transitions = check_time_cases(snapshot)
     check(len(set(graph.subjects(RDF.type, SBCO.PointExt))) == 35, 'RDF point count')
     check(len(set(graph.subjects(RDF.type, BOS.ClockSource))) == 1, 'RDF clock count')
     check(len(list(graph.triples((None, BOS.usesClockSource, None)))) == 2, 'RDF binding count')
@@ -137,36 +187,31 @@ def main():
     for name, mutate in cases:
         reject_rdf(name, mutate)
 
-    def reject_json(name, s, r, f, mutate):
-        mutate(s, r, f)
+    def reject_json(name, s, mutate):
+        mutate(s)
         # Rehash intentional content mutations so semantic checks, not just hash, reject them.
         s['revision'] = digest(s)
         try:
             check_snapshot(s)
-            check_run(s, r, f)
         except ValueError:
             return
         raise ValueError(f'JSON must reject: {name}')
 
     json_cases = [
-        ('duplicate clock', lambda s,r,f: s['clockSources'].append(copy.deepcopy(s['clockSources'][0]))),
-        ('duplicate equipment', lambda s,r,f: s['clockBindings'].append(copy.deepcopy(s['clockBindings'][0]))),
-        ('missing point', lambda s,r,f: s['points'].pop()),
-        ('stale revision', lambda s,r,f: r.update(provisioningRevision='obsolete')),
-        ('wrong run', lambda s,r,f: r.update(runId='different')),
-        ('expired context', lambda s,r,f: r.update(expiresAt='2026-01-01T00:00:01Z')),
-        ('nonfinite sim time', lambda s,r,f: f['attributes'].update(sim_time_s='NaN')),
-        ('unproved quality', lambda s,r,f: f['attributes'].update(sim_time_quality='verified')),
+        ('duplicate clock', lambda s: s['clockSources'].append(copy.deepcopy(s['clockSources'][0]))),
+        ('duplicate equipment', lambda s: s['clockBindings'].append(copy.deepcopy(s['clockBindings'][0]))),
+        ('missing point', lambda s: s['points'].pop()),
     ]
     for name, mutate in json_cases:
-        reject_json(name, copy.deepcopy(snapshot), copy.deepcopy(run), copy.deepcopy(frame), mutate)
+        reject_json(name, copy.deepcopy(snapshot), mutate)
     changed = copy.deepcopy(snapshot)
     changed['clockSources'][0]['native']['objectInstance'] += 1
     check(digest(changed) != snapshot['revision'], 'Clock-only change invalidates revision')
     changed = copy.deepcopy(snapshot)
     changed['generatedAt'] = '2026-02-01T00:00:00Z'
     check(digest(changed) == snapshot['revision'], 'generatedAt excluded from hash')
-    print(f'PASS: RDF/JSON 35 points, 1 clock, 2 bindings; revision/run/telemetry; {len(cases)} SHACL and {len(json_cases)} JSON rejection cases')
+    print(f'PASS: RDF/JSON 35 points, 1 clock, 2 bindings; {len(cases)} SHACL + {len(json_cases)} static JSON rejections; '
+          f'time contract {accepted} accepted + {rejected} rejected; {transitions} generation transitions')
 
 
 if __name__ == '__main__':

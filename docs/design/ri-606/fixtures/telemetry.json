@@ -4,11 +4,10 @@
   "value_num": 0.5,
   "timestamp": "2026-01-01T00:00:05Z",
   "attributes": {
-    "sim_run_id": "example-run-001",
     "sim_clock_id": "https://example.com/ri-606/clock/shared-simulation",
     "sim_time_s": "120.5",
-    "sim_time_quality": "bracketed",
+    "sim_time_quality": "stable_unfenced",
     "sim_config_revision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\"",
-    "sim_context_generation": "1"
+    "sim_run_status": "absent"
   }
 }

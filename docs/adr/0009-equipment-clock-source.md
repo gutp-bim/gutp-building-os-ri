@@ -3,6 +3,7 @@
 - Status: **Proposed**（2026-10-24）。横断承認前のdraft。RIの部分実装状況は下記参照。
 - 関連: [RI #606](https://github.com/gutp-bim/gutp-building-os-ri/issues/606)、[Builder #44](https://github.com/smartbuilding-co-creation-organization/smartbuilding_datamodel_builder/issues/44)、[Nexus #201](https://github.com/gutp-bim/nexus-gateway/issues/201)
 - 実装状況: RIの静的設定取込み・配布はdraft契約で実装。[実装仕様](../architecture/oss-gateway-clock-provisioning.md)。run context・sim queryは後続。
+- 時刻契約: [ADR-0010](0010-simulation-observation-time-contract.md)で取得品質とrun有効性を分離。旧bracketed/unavailableの自動改名はしない。
 - 詳細・検証入口: [設計と契約fixture](../design/ri-606/README.md)
 
 ## Context
@@ -39,7 +40,8 @@ Ingress attributesは文字列mapとしてdataへ転記されるが、sim数値�
    関連APIを別々に取得する方式もrevision混在と複雑な再試行を避けるため初期案では採らない。
 7. runId/step/現在sim時刻は静的RDFと配布snapshotに保存しない。
    Testbed実行管理者が生成する別run contextを、静的snapshot revisionとclock IRIへ束縛する。
-   実験resetは新runId。run context配送経路・認証方式は未決であり、fixtureはメッセージ本体案のみ。
+   run contextなしの時計観測も診断用として受け入れ、run有効性は取得品質と別に判定する（ADR-0010）。
+   reset後の復帰は新runIdと上位generationを必要とする。配送・認証・generation永続化は未決/未実装。
 8. 通常検索・チャート・Point制御・points配列にはclockを出さない。
    gateway認証済み設定取得、権限付きtwin管理/RDF exportでは取得できる。
    クラス分離だけで除外が保証されたとはしない。二重型付けも拒否する。
@@ -84,7 +86,7 @@ Ingress attributesは文字列mapとしてdataへ転記されるが、sim数値�
 | 旧RI / 旧GW | 現行動作 |
 | 新RI / 旧GW | 旧APIで現行動作。sim metadata対応とは判定しない |
 | 旧RI / 新GW | 新API 404/非対応。clock要求なしなら明示legacy動作、clock必須なら未準備として停止 |
-| 新RI / 新GW | schema/capability検証・一括apply・一致run context後にsim有効 |
+| 新RI / 新GW | 静的設定と取得品質を検証。contextなしは診断用。run別解析への適格性はADR-0010で別判定 |
 
 Builderも旧CSV/RDFはclockなしで従来出力。新clockを旧形式へexportする場合は明示エラーとし黙って落とさない。
 Builder入力は35行CSV+clock sidecar案を推奨し、kind混在行案より件数混同を避ける。UI形式はBuilder側合意待ち。

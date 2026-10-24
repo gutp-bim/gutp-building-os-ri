@@ -71,3 +71,9 @@ Gateway範囲、並行更新の保持を検証する。Controllerテストは認
 今回含めないものはrun contextの配送/認証/失効、数値sim時間query/集約、Telemetryのsim語彙検証、
 Builder/Nexus/BDE/Testbedの製品変更、稼働環境への配布。新APIが返ることはGatewayへの適用成功を意味しない。
 共通ontology所有repo・正式schema・capability/適用ACKは引き続き横断合意が必要。
+
+## Nexus #201との時刻契約
+
+[ADR-0010](../adr/0010-simulation-observation-time-contract.md)で、sim_config_revisionをsnapshot全体のrevisionとし、
+取得品質とrun状態を分離する契約を整理した。run contextなしの安定した時計観測は診断用として保存可能だが、
+run別sim時間集約から除外する。文書・fixture・offline検証の更新であり、本API/Ingressへ実行時run配送・認証を追加していない。
