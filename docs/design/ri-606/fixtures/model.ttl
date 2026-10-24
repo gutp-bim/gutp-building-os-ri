@@ -1,0 +1,91 @@
+# Synthetic contract fixture, NOT a deployment model or bestest_air address map.
+
+@prefix sbco: <https://www.sbco.or.jp/ont/> .
+
+@prefix bos: <http://buildingos.gutp.jp/ontology#> .
+
+@prefix ex: <https://example.com/ri-606/> .
+
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+
+
+ex:equipment-a a sbco:EquipmentExt ; sbco:id "equipment-a" ; bos:usesClockSource <https://example.com/ri-606/clock/shared-simulation> ;
+  sbco:hasPoint ex:BPT-0002, ex:BPT-0003, ex:BPT-0004, ex:BPT-0005, ex:BPT-0006, ex:BPT-0007, ex:BPT-0008, ex:BPT-0009, ex:BPT-0010, ex:BPT-0011, ex:BPT-0012, ex:BPT-0013, ex:BPT-0014, ex:BPT-0015, ex:BPT-0016, ex:BPT-0017, ex:BPT-0018, ex:BPT-0019 .
+
+ex:BPT-0002 a sbco:PointExt ; sbco:id "BPT-0002" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "102" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0003 a sbco:PointExt ; sbco:id "BPT-0003" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "103" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0004 a sbco:PointExt ; sbco:id "BPT-0004" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "104" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0005 a sbco:PointExt ; sbco:id "BPT-0005" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "105" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0006 a sbco:PointExt ; sbco:id "BPT-0006" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "106" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0007 a sbco:PointExt ; sbco:id "BPT-0007" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "107" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0008 a sbco:PointExt ; sbco:id "BPT-0008" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "108" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0009 a sbco:PointExt ; sbco:id "BPT-0009" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "109" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0010 a sbco:PointExt ; sbco:id "BPT-0010" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "110" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0011 a sbco:PointExt ; sbco:id "BPT-0011" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "111" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0012 a sbco:PointExt ; sbco:id "BPT-0012" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "112" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0013 a sbco:PointExt ; sbco:id "BPT-0013" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "113" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0014 a sbco:PointExt ; sbco:id "BPT-0014" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "114" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0015 a sbco:PointExt ; sbco:id "BPT-0015" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "115" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0016 a sbco:PointExt ; sbco:id "BPT-0016" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "116" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0017 a sbco:PointExt ; sbco:id "BPT-0017" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "117" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0018 a sbco:PointExt ; sbco:id "BPT-0018" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "118" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0019 a sbco:PointExt ; sbco:id "BPT-0019" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "119" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:equipment-b a sbco:EquipmentExt ; sbco:id "equipment-b" ; bos:usesClockSource <https://example.com/ri-606/clock/shared-simulation> ;
+  sbco:hasPoint ex:BPT-0020, ex:BPT-0021, ex:BPT-0022, ex:BPT-0023, ex:BPT-0024, ex:BPT-0025, ex:BPT-0026, ex:BPT-0027, ex:BPT-0028, ex:BPT-0029, ex:BPT-0030, ex:BPT-0031, ex:BPT-0032, ex:BPT-0033, ex:BPT-0034, ex:BPT-0035, ex:BPT-0036 .
+
+ex:BPT-0020 a sbco:PointExt ; sbco:id "BPT-0020" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "120" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0021 a sbco:PointExt ; sbco:id "BPT-0021" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "121" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0022 a sbco:PointExt ; sbco:id "BPT-0022" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "122" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0023 a sbco:PointExt ; sbco:id "BPT-0023" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "123" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0024 a sbco:PointExt ; sbco:id "BPT-0024" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "124" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0025 a sbco:PointExt ; sbco:id "BPT-0025" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "125" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0026 a sbco:PointExt ; sbco:id "BPT-0026" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "126" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0027 a sbco:PointExt ; sbco:id "BPT-0027" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "127" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0028 a sbco:PointExt ; sbco:id "BPT-0028" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "128" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0029 a sbco:PointExt ; sbco:id "BPT-0029" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "129" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0030 a sbco:PointExt ; sbco:id "BPT-0030" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "130" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0031 a sbco:PointExt ; sbco:id "BPT-0031" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "131" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0032 a sbco:PointExt ; sbco:id "BPT-0032" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogInput" ; sbco:instanceNoBacnet "132" ; sbco:unit "1" ; sbco:writable false ; sbco:pointSpecification "Measurement" .
+
+ex:BPT-0033 a sbco:PointExt ; sbco:id "BPT-0033" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogValue" ; sbco:instanceNoBacnet "133" ; sbco:unit "1" ; sbco:writable true ; sbco:pointSpecification "Setpoint" ; bos:dataType "number" ; bos:minValue "0" ; bos:maxValue "1" .
+
+ex:BPT-0034 a sbco:PointExt ; sbco:id "BPT-0034" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogValue" ; sbco:instanceNoBacnet "134" ; sbco:unit "1" ; sbco:writable true ; sbco:pointSpecification "Setpoint" ; bos:dataType "number" ; bos:minValue "0" ; bos:maxValue "1" .
+
+ex:BPT-0035 a sbco:PointExt ; sbco:id "BPT-0035" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogValue" ; sbco:instanceNoBacnet "135" ; sbco:unit "1" ; sbco:writable true ; sbco:pointSpecification "Setpoint" ; bos:dataType "number" ; bos:minValue "0" ; bos:maxValue "1" .
+
+ex:BPT-0036 a sbco:PointExt ; sbco:id "BPT-0036" ; sbco:gatewayId "GW-EXAMPLE" ; bos:protocol "bacnet" ; sbco:deviceIdBacnet "1234" ; sbco:objectTypeBacnet "analogValue" ; sbco:instanceNoBacnet "136" ; sbco:unit "1" ; sbco:writable true ; sbco:pointSpecification "Setpoint" ; bos:dataType "number" ; bos:minValue "0" ; bos:maxValue "1" .
+
+<https://example.com/ri-606/clock/shared-simulation> a bos:ClockSource ; bos:clockDomain "simulation" ; bos:clockUnit "s" ; bos:readOnly true ; bos:acquisitionMode "poll" ; bos:nativeBinding ex:clock-native .
+
+ex:clock-native a bos:BacnetClockBinding ; bos:gatewayId "GW-EXAMPLE" ; bos:connectorId "bacnet-example" ; bos:deviceInstance 1234 ; bos:objectType "analogValue" ; bos:objectInstance 2 ; bos:property "presentValue" ; bos:nativeUnit "seconds" .

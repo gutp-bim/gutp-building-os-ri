@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "clock-run-context/1-draft",
+  "gatewayId": "GW-EXAMPLE",
+  "generation": 1,
+  "runId": "example-run-001",
+  "provisioningRevision": "\"sha256:a9761f0f1a4ef8b27ab10f6fce4ec2970fea61daf038d859dee5ba91f7a2c8cf\"",
+  "clockId": "https://example.com/ri-606/clock/shared-simulation",
+  "status": "active",
+  "issuedAt": "2026-01-01T00:00:00Z",
+  "expiresAt": "2026-01-01T01:00:00Z",
+  "consistencyMode": "bracket-only"
+}
