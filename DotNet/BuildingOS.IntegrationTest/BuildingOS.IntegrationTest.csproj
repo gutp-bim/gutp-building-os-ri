@@ -31,6 +31,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\BuildingOS.Shared\BuildingOS.Shared.csproj" />
+        <ProjectReference Include="..\BuildingOS.ConnectorWorker\BuildingOS.ConnectorWorker.csproj" />
         <ProjectReference Include="..\BuildingOS.GatewayBridge\BuildingOS.GatewayBridge.csproj" />
         <ProjectReference Include="..\BuildingOS.ApiServer\BuildingOS.ApiServer.csproj" />
     </ItemGroup>
