@@ -14,10 +14,10 @@ public class NatsFixture : IAsyncLifetime
     private const int NatsPort = 4222;
 
     private readonly IContainer _container = new ContainerBuilder()
-        .WithImage("nats:2.10-alpine")
+        .WithImage(Environment.GetEnvironmentVariable("NATS_TEST_IMAGE") ?? "nats:2.10-alpine")
         .WithCommand("-js")  // enable JetStream
         .WithPortBinding(NatsPort, true)
-        .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(NatsPort))
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server is ready"))
         .Build();
 
     public string NatsUrl =>

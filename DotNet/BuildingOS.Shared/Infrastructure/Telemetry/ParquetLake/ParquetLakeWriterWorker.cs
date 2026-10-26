@@ -228,23 +228,20 @@ public sealed class ParquetLakeWriterWorker : BackgroundService
         var config = ValidatedStreamLimits.Apply(
             new StreamConfig(streamName, subjects), _options.StreamMaxAge, _options.StreamMaxBytes);
 
-        // Only the "stream not found" lookup result drives create-vs-update. A genuine UpdateStream
-        // failure (permissions / invalid config / transient API error) must surface its own error
-        // rather than being masked by a follow-up CreateStream that fails with "already in use".
-        bool exists;
-        try
-        {
-            await _js.GetStreamAsync(streamName, cancellationToken: ct).ConfigureAwait(false);
-            exists = true;
-        }
-        catch (NatsJSApiException ex) when (ex.Error.Code == 404)
-        {
-            exists = false;
-        }
-
-        if (exists)
-            await _js.UpdateStreamAsync(config, ct).ConfigureAwait(false);
-        else
-            await _js.CreateStreamAsync(config, ct).ConfigureAwait(false);
+        var stream = await NatsStreamInitialization.EnsureAsync(_js, config, ct).ConfigureAwait(false);
+        // Start from the server snapshot: do not reset metadata, replica count or unrelated caps.
+        // Do not remove an existing bound or extend its retention window merely because this
+        // writer uses defaults. Administrative reconfiguration must be coordinated separately.
+        var existing = stream.Info.Config;
+        var maxAge = existing.MaxAge > TimeSpan.Zero &&
+            (config.MaxAge <= TimeSpan.Zero || existing.MaxAge < config.MaxAge)
+            ? existing.MaxAge : config.MaxAge;
+        var maxBytes = existing.MaxBytes > 0 &&
+            (config.MaxBytes <= 0 || existing.MaxBytes < config.MaxBytes)
+            ? existing.MaxBytes : config.MaxBytes;
+        // A fresh stream already has these limits. Avoid requiring UPDATE permission for a no-op.
+        if (existing.MaxAge == maxAge && existing.MaxBytes == maxBytes) return;
+        ValidatedStreamLimits.Apply(existing, maxAge, maxBytes);
+        await _js.UpdateStreamAsync(existing, ct).ConfigureAwait(false);
     }
 }
