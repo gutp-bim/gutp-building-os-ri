@@ -47,6 +47,17 @@ export type AssistantHelpContext = {
   terms?: AssistantContextTerm[] | undefined;
 }
 
+export type BacnetClockNative = {
+  gatewayId?: string | undefined;
+  connectorId?: string | undefined;
+  deviceInstance?: number | undefined;
+  objectType?: string | undefined;
+  objectInstance?: number | undefined;
+  property?: string | undefined;
+  unit?: string | undefined;
+  protocol?: string | undefined;
+}
+
 /** Request body for `POST /api/v1/telemetries/query/batch-latest` (#182). */
 export type BatchLatestRequest = {
   pointIds?: string[] | undefined;
@@ -139,6 +150,11 @@ export type EffectiveConfig = {
   entries?: ConfigEntry[] | undefined;
 }
 
+export type EquipmentClockBinding = {
+  equipmentId?: string | undefined;
+  clockId?: string | undefined;
+}
+
 export type FacetValueCount = {
   value: string;
   count?: number | undefined;
@@ -191,9 +207,29 @@ export type GatewayAdminView = {
   pointlistSynced?: boolean | null | undefined;
 }
 
+export type GatewayClockSource = {
+  clockId?: string | undefined;
+  clockDomain?: string | undefined;
+  unit?: string | undefined;
+  readOnly?: boolean | undefined;
+  acquisitionMode?: string | undefined;
+  native?: BacnetClockNative | undefined;
+}
+
 export type GatewayCollision = {
   gatewayId?: string | undefined;
   buildingCount?: number | undefined;
+}
+
+/** The opt-in static clock contract. The legacy pointlist endpoint is unchanged. */
+export type GatewayConfigurationResponse = {
+  schemaVersion?: string | undefined;
+  gatewayId: string;
+  revision?: string | undefined;
+  generatedAt?: string | undefined;
+  points: GatewayPointDto[];
+  clockSources: GatewayClockSource[];
+  clockBindings: EquipmentClockBinding[];
 }
 
 export type GatewayPointDto = {
@@ -392,6 +428,9 @@ export type LatestSample = {
    * alongside a numeric average — see that type's docs for why the field exists at all.
    */
   state?: string | null | boolean | undefined;
+
+  /** Additional telemetry metadata as a JSON string, matching single-point latest; null when absent. */
+  data?: string | null | undefined;
 }
 
 export type MissingReason = 'NeverReceived' | 'GatewayDisconnected' | 'Unknown'
@@ -873,6 +912,11 @@ export type TwinAdminControllerTwinImportRequest = {
   allowOrphans?: boolean | undefined;
 }
 
+export type TwinClockIssue = {
+  resourceId?: string | undefined;
+  reason?: string | undefined;
+}
+
 export type TwinControlSchemaIssue = {
   pointId?: string | undefined;
   reason?: string | undefined;
@@ -894,8 +938,10 @@ export type TwinImportPreview = {
   controlSchemaIssues?: TwinControlSchemaIssue[] | undefined;
   idCollisionCount?: number | undefined;
   releaseOfIssueCount?: number | undefined;
+  clockIssueCount?: number | undefined;
   idCollisions?: TwinIdCollision[] | undefined;
   releaseOfIssues?: TwinReleaseOfIssue[] | undefined;
+  clockIssues?: TwinClockIssue[] | undefined;
   valid?: boolean | undefined;
 }
 

@@ -110,3 +110,9 @@ dotnet test DotNet/BuildingOS.IntegrationTest --filter FullyQualifiedName~Teleme
 また、仕様のソース既定値とfixtureの権限文字列を既存の契約に合わせ、再実行で確認した。
 既定上限による大きい既存入力の拒否と、上限を上げた際のwire/KVサイズ差は仕様に明記。
 実KV未検証は未決事項として残す。KV設定や認証設定を勝手に拡大しない。
+
+## 後続のAPI契約変更
+
+上記はRI #607検証時点の記録（batch-latestはDataなし）。その後、batch-latestにも
+`data: string | null` を追加した。現在のHTTP契約テストはDataの一致を検証する。
+上記のcompact応答サイズは追加前の測定値であり、現在の応答サイズを示さない。

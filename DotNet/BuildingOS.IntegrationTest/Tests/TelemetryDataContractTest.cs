@@ -119,7 +119,7 @@ public class TelemetryDataContractTest(NatsFixture fixture) : IClassFixture<Nats
             latestReadings.Add(latest);
             maxKvBytes = Math.Max(maxKvBytes, JsonSerializer.SerializeToUtf8Bytes((await hot.GetAsync(row.PointId!, ct))!).Length);
         }
-        // Raw batch carries Data; batch-latest intentionally returns compact samples without Data.
+        // Raw batch and batch-latest both carry the stored Data as a JSON string.
         using var batch = await client.PostAsJsonAsync("/api/v1/telemetries/query/batch",
             new { pointIds, start = now.AddMinutes(-1), end = now.AddMinutes(1) }, ct);
         batch.EnsureSuccessStatusCode();
@@ -133,7 +133,11 @@ public class TelemetryDataContractTest(NatsFixture fixture) : IClassFixture<Nats
         var compactBytes = await compact.Content.ReadAsByteArrayAsync(ct);
         using var compactDocument = JsonDocument.Parse(compactBytes);
         Assert.Equal(pointCount, compactDocument.RootElement.GetArrayLength());
-        foreach (var sample in compactDocument.RootElement.EnumerateArray()) Assert.False(sample.TryGetProperty("data", out _));
+        foreach (var sample in compactDocument.RootElement.EnumerateArray())
+        {
+            var expected = Assert.Single(rows, row => row.PointId == sample.GetProperty("pointId").GetString());
+            Assert.Equal(expected.Data, sample.GetProperty("data").GetString());
+        }
         var measurements = new
         {
             pointCount, dataBytes = Encoding.UTF8.GetByteCount(rows[0].Data!),

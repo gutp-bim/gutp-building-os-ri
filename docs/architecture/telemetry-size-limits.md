@@ -76,8 +76,9 @@ History=1でもPoint数に応じた保存量、書込みごとの通信とファ
 Hot同期は従来どおりbest effort。validated publish後のHot失敗は受信成功を取り消さず、
 古いlatestが残り得る。Dataだけ削除して新しい値を保存するフォールバックは行わない。
 
-最新値の単点 `query?latest=true` はDataを返す。`query/batch-latest` のコンパクトな
-LatestSampleは元々Dataを含まず、その契約を維持する。raw `query/batch` はDataを含む。
+最新値の単点 `query?latest=true`、`query/batch-latest` のLatestSample、raw `query/batch` は
+DataをJSON文字列として返す。batch-latestの `data` は未設定・欠測時にnullとなる。
+RI #607は内部Hot投影のData保持を修正し、その後のAPI拡張でbatch-latestにもDataを追加した。
 500 Point等の件数制限は応答バイト数の上限ではない。
 今回、全HTTP応答への新しいバイト上限やページングは追加しない。
 

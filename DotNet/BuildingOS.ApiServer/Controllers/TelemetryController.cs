@@ -328,7 +328,7 @@ public class TelemetryController(
             var value = TelemetryValueKind.Resolve(latest);
             return new LatestSample(
                 pointId, latest?.Datetime, value,
-                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest));
+                TelemetryValueKind.KindOf(value), TelemetryValueKind.ResolveState(latest), latest?.Data);
         })).ConfigureAwait(false);
 
         Response.Headers["Cache-Control"] = "max-age=60";
@@ -529,6 +529,7 @@ public sealed record BatchLatestRequest(string[] PointIds);
 /// <see cref="BuildingOs.ApiServer.Telemetry.TelemetryReading.State"/> this never carries a state
 /// alongside a numeric average — see that type's docs for why the field exists at all.
 /// </param>
+/// <param name="Data">Additional telemetry metadata as a JSON string, matching single-point latest; null when absent.</param>
 public sealed record LatestSample(
     string PointId, string? Datetime, object? Value,
-    string? ValueType = null, object? State = null);
+    string? ValueType = null, object? State = null, string? Data = null);
