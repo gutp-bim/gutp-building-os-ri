@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <!-- gRPC ingress (GatewayIngress server stub; optional, gated on GRPC_INGRESS_PORT) -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.67.0" />
     <PackageReference Include="NATS.Client.Core" Version="3.0.1" />
     <PackageReference Include="NATS.Client.JetStream" Version="3.0.1" />

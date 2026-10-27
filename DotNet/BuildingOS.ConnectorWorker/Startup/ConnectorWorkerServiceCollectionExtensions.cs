@@ -204,6 +204,11 @@ public static class ConnectorWorkerServiceCollectionExtensions
         // building/device when GRPC_INGRESS_REQUIRE_HIERARCHY=true (default off keeps them flowing).
         builder.Services.AddSingleton(IngressHierarchyOptions.Parse(
             builder.Configuration["GRPC_INGRESS_REQUIRE_HIERARCHY"]));
+        // Signed run context (opt-in): load + verify the operator trust file at startup so a bad key,
+        // signature or schema fails fast instead of silently passing unverified run claims.
+        var runContextTrust = builder.Configuration["GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE"]?.Trim();
+        if (!string.IsNullOrEmpty(runContextTrust))
+            builder.Services.AddSingleton(RunContextVerifier.Load(runContextTrust));
         // Ingress bus publishes via JetStream publish-ack (#187) + keeps the KV hot store in sync.
         builder.Services.AddSingleton<IIngressTelemetryBus>(sp => new NatsIngressTelemetryBus(
             sp.GetRequiredService<INatsJSContext>(),

@@ -29,7 +29,8 @@ public sealed class GatewayIngressService(
     IPointMetadataCache metadataCache,
     IngressIdentityOptions identity,
     IngressHierarchyOptions hierarchy,
-    ILogger<GatewayIngressService> logger) : Protos.GatewayIngress.GatewayIngressBase
+    ILogger<GatewayIngressService> logger,
+    RunContextVerifier? runContext = null) : Protos.GatewayIngress.GatewayIngressBase
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
@@ -104,6 +105,17 @@ public sealed class GatewayIngressService(
                 "Ingress: gateway identity check failed ({Reason}) — frame gateway '{Gateway}' vs trusted '{Trusted}', skipping",
                 reason, frame.GatewayId, trustedGatewayId ?? "(none)");
             Count(frame.GatewayId, reason);
+            return false;
+        }
+
+        // Signed run context (opt-in, GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE): a frame claiming a run classification must
+        // match a pre-distributed signed lease and the mTLS-verified gateway. Checked before the
+        // twin lookup, like identity binding, so a forged claim never reaches validated telemetry.
+        if (runContext is not null && !runContext.Validate(frame, trustedGatewayId, out var runReason))
+        {
+            logger.LogWarning("Ingress: run context claim rejected ({Reason}) for gateway '{Gateway}' point '{PointId}', skipping",
+                runReason, frame.GatewayId, frame.PointId);
+            Count(frame.GatewayId, runReason);
             return false;
         }
 
