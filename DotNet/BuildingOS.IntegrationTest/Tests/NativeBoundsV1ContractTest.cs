@@ -38,6 +38,53 @@ public class NativeBoundsV1ContractTest(OxiGraphFixture store) : IClassFixture<O
     public Task InitializeAsync() => store.ClearAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
+    [Fact]
+    public async Task MetadataView_ReadsFractionalPointWithoutRawBounds_AndKeepsLegacyConflict()
+    {
+        await SeedAsync("278.15", "308.15");
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(store.Client, cache);
+        var key = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+        await using var app = CreateApi(db, key);
+        await app.StartAsync();
+        using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", IssueJwt(key, "admin"));
+        await store.Client.ImportTurtleAsync(Prefix + """@prefix bos: <http://buildingos.gutp.jp/ontology#> . ex:point sbco:unit "K" ; bos:dataType "number" ; bos:minValue 0 ; bos:maxValue 100 .""");
+        using var response = await client.GetAsync("/api/v1/point-metadata?buildingDtId=" + Uri.EscapeDataString(Building));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var detail = Assert.Single(body.RootElement.EnumerateArray());
+        var point = detail.GetProperty("point");
+        Assert.Equal("P1", point.GetProperty("id").GetString());
+        Assert.Equal("K", point.GetProperty("unit").GetString());
+        Assert.Equal("D1", detail.GetProperty("device").GetProperty("id").GetString());
+        Assert.Equal(0, detail.GetProperty("controlSchema").GetProperty("minValue").GetDouble());
+        Assert.Equal(100, detail.GetProperty("controlSchema").GetProperty("maxValue").GetDouble());
+        Assert.False(point.TryGetProperty("minPresValue", out _));
+        Assert.False(point.TryGetProperty("maxPresValue", out _));
+        Assert.False(point.TryGetProperty("hasUnrepresentableNativeBounds", out _));
+        using var legacy = await client.GetAsync("/api/v1/point-details?buildingDtId=" + Uri.EscapeDataString(Building));
+        Assert.Equal(HttpStatusCode.Conflict, legacy.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(null, HttpStatusCode.Unauthorized)]
+    [InlineData("operator", HttpStatusCode.Forbidden)]
+    public async Task MetadataView_AuthorizationPrecedesProjection(string? role, HttpStatusCode expected)
+    {
+        await SeedAsync("278.15", "308.15");
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(store.Client, cache);
+        var key = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+        await using var app = CreateApi(db, key);
+        await app.StartAsync();
+        using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        if (role is not null) client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", IssueJwt(key, role));
+        using var response = await client.GetAsync("/api/v1/point-metadata?buildingDtId=" + Uri.EscapeDataString(Building));
+        Assert.Equal(expected, response.StatusCode);
+        Assert.DoesNotContain("P1", await response.Content.ReadAsStringAsync());
+    }
+
     [Theory]
     [InlineData("278.15", "308.15")]
     [InlineData(null, "1.5")]
@@ -174,6 +221,50 @@ public class NativeBoundsV1ContractTest(OxiGraphFixture store) : IClassFixture<O
         Assert.Equal(35, (await db.ListPoints(null)).Length);
         using var batch = await client.GetAsync("/api/v1/point-details?buildingDtId=" + Uri.EscapeDataString("https://www.sbco.or.jp/ont/resource/bldg-boptest"));
         Assert.Equal(HttpStatusCode.Conflict, batch.StatusCode);
+    }
+
+    [Fact]
+    public async Task MetadataView_Builder35Points_PreserveUnitsAndLegacyRefusal()
+    {
+        var directory = Path.Combine(AppContext.BaseDirectory, "BuilderClockFixtures");
+        await new OxiGraphIngestMaterializer(store.Client).MaterializeAsync(File.ReadAllText(Path.Combine(directory, "model.ttl")));
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var db = new OxiGraphDigitalTwinDatabase(store.Client, cache);
+        var key = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+        await using var app = CreateApi(db, key);
+        await app.StartAsync();
+        var token = IssueJwt(key, "admin");
+        using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var path = "/api/v1/point-metadata?buildingDtId=" + Uri.EscapeDataString("https://www.sbco.or.jp/ont/resource/bldg-boptest");
+        using var response = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var details = body.RootElement.EnumerateArray().ToArray();
+        Assert.Equal(35, details.Length);
+        Assert.Equal(35, details.Select(d => d.GetProperty("point").GetProperty("id").GetString()).Distinct().Count());
+        Assert.All(details, d => Assert.False(d.GetProperty("point").TryGetProperty("minPresValue", out _)));
+        Assert.Equal("K", details.Single(d => d.GetProperty("point").GetProperty("id").GetString() == "BPT-0033")
+            .GetProperty("point").GetProperty("unit").GetString());
+        // Optional external consumer check; the normal RI suite remains independent of Python/BDE.
+        if (Environment.GetEnvironmentVariable("BDE_METADATA_CONTRACT_PROBE") is { Length: > 0 } probe)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(Environment.GetEnvironmentVariable("BDE_METADATA_CONTRACT_PYTHON") ?? "python3")
+            { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+            start.ArgumentList.Add(probe);
+            start.Environment["BDE_METADATA_TEST_URL"] = app.Urls.Single();
+            start.Environment["BDE_METADATA_TEST_TOKEN"] = token;
+            using var process = System.Diagnostics.Process.Start(start)!;
+            var output = process.StandardOutput.ReadToEndAsync();
+            var errors = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) { process.Kill(entireProcessTree: true); throw; }
+            Assert.True(process.ExitCode == 0, (await output) + (await errors));
+            Assert.Contains("\"status\": \"Pass\"", await output);
+            if (Environment.GetEnvironmentVariable("BDE_METADATA_CONTRACT_RESULT") is { Length: > 0 } resultPath)
+                await File.WriteAllTextAsync(resultPath, await output);
+        }
     }
 
     [Fact]

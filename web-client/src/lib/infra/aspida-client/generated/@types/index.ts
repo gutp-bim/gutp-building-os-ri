@@ -673,6 +673,23 @@ export type PointHealthSummaryResponse = {
 
 export type PointLastSeenIndexState = 'Warming' | 'Ready' | 'Degraded'
 
+export type PointMetadataDetail = {
+  point?: PointReadMetadata | undefined;
+  building?: Building | undefined;
+  floor?: Floor | undefined;
+  space?: Space | undefined;
+  device?: Device | undefined;
+  controlSchema?: ControlSchema | undefined;
+}
+
+export type PointReadMetadata = {
+  dtId?: string | undefined;
+  id?: string | undefined;
+  name?: string | undefined;
+  unit?: string | null | undefined;
+  writable?: boolean | null | undefined;
+}
+
 export type ProblemDetails = {
   type?: string | null | undefined;
   title?: string | null | undefined;

@@ -1649,6 +1649,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/point-metadata:
+    get:
+      tags:
+        - PointDetail
+      summary: 'Point identity, units and topology without native bounds (explicit read view).'
+      parameters:
+        - name: buildingDtId
+          in: query
+          schema:
+            type: string
+      responses:
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PointMetadataDetail'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/api/v1/point-details/{pointId}':
     get:
       tags:
@@ -5266,6 +5303,38 @@ components:
         - Ready
         - Degraded
       type: string
+    PointMetadataDetail:
+      type: object
+      properties:
+        point:
+          $ref: '#/components/schemas/PointReadMetadata'
+        building:
+          $ref: '#/components/schemas/Building'
+        floor:
+          $ref: '#/components/schemas/Floor'
+        space:
+          $ref: '#/components/schemas/Space'
+        device:
+          $ref: '#/components/schemas/Device'
+        controlSchema:
+          $ref: '#/components/schemas/ControlSchema'
+      additionalProperties: false
+    PointReadMetadata:
+      type: object
+      properties:
+        dtId:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        unit:
+          type: string
+          nullable: true
+        writable:
+          type: boolean
+          nullable: true
+      additionalProperties: false
     ProblemDetails:
       type: object
       properties:

@@ -31,7 +31,22 @@ public class PointDetailController(
     [ProducesResponseType(typeof(NativeBoundsV1Error), StatusCodes.Status409Conflict)]
     [Route(ApiRoutes.V1 + "/point-details")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<PointDetail[]>> List([FromQuery] string buildingDtId, CancellationToken ct)
+    public Task<ActionResult<PointDetail[]>> List([FromQuery] string buildingDtId, CancellationToken ct)
+        => ListAuthorized(buildingDtId, ct);
+
+    /// <summary>Point identity, units and topology without native bounds (explicit read view).</summary>
+    [HttpGet]
+    [Route(ApiRoutes.V1 + "/point-metadata")]
+    [ProducesResponseType(typeof(PointMetadataDetail[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PointMetadataDetail[]>> MetadataList([FromQuery] string buildingDtId, CancellationToken ct)
+    {
+        var result = await ListAuthorized(buildingDtId, ct).ConfigureAwait(false);
+        if (result.Result is not OkObjectResult { Value: PointDetail[] details }) return result.Result!;
+        return Ok(details.Select(PointMetadataDetail.FromDetail).ToArray());
+    }
+
+    private async Task<ActionResult<PointDetail[]>> ListAuthorized(string buildingDtId, CancellationToken ct)
     {
         var authContext = HttpContext.GetAuthorizationContext();
 
