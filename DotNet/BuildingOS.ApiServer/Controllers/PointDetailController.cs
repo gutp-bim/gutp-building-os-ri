@@ -27,6 +27,8 @@ public class PointDetailController(
     /// <param name="buildingDtId">ビルのdtId</param>
     /// <returns></returns>
     [HttpGet]
+    [NativeBoundsV1Filter]
+    [ProducesResponseType(typeof(NativeBoundsV1Error), StatusCodes.Status409Conflict)]
     [Route(ApiRoutes.V1 + "/point-details")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PointDetail[]>> List([FromQuery] string buildingDtId, CancellationToken ct)
@@ -65,6 +67,8 @@ public class PointDetailController(
     /// <param name="pointId">ポイントID（ビジネスID）</param>
     /// <returns></returns>
     [HttpGet]
+    [NativeBoundsV1Filter]
+    [ProducesResponseType(typeof(NativeBoundsV1Error), StatusCodes.Status409Conflict)]
     [Route(ApiRoutes.V1 + "/point-details/{pointId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PointDetail>> Get(string pointId, CancellationToken ct)
