@@ -1,6 +1,6 @@
 # 0012 Unsigned, fail-closed run context ingress (simulation scope)
 
-Status: Proposed. Supersedes the Ed25519 signature requirement of the signed run
+Status: Accepted (2026-10-28, project owner). Supersedes the Ed25519 signature requirement of the signed run
 context ingress introduced in 936a787. Mirrors Nexus ADR-0010 (unsigned run context).
 
 ## Decision
