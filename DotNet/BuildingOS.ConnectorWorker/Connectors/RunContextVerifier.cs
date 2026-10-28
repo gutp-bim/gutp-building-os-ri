@@ -3,21 +3,20 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using BuildingOS.ConnectorWorker.Protos;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Signers;
 
 namespace BuildingOS.ConnectorWorker.Connectors;
 
 /// <summary>
-/// Opt-in verification of pre-distributed signed leases. No payload/signature is
+/// Opt-in validation of operator-placed, UNSIGNED run context leases (ADR-0012; simulation
+/// scope: accidental run mixing only, forged run_id is out of scope). No payload is
 /// read from telemetry. Receiver activation evidence is trusted only after the
 /// existing mTLS Gateway identity binding. Nexus owns durable generation history;
 /// RI retains original historical frames instead of reclassifying them by now.
 /// </summary>
 public sealed class RunContextVerifier
 {
-    private sealed record Trust(string GatewayId, string ClockId, byte[] PublicKey, string EnvelopeFile);
-    private sealed record Envelope(byte[] Payload, byte[] Signature);
+    private sealed record Trust(string GatewayId, string ClockId, string EnvelopeFile);
+    private sealed record Envelope(byte[] Payload);
     private sealed record Lease(string Gateway, string Clock, string Revision, string Run, string Generation,
         string Status, decimal Issued, decimal From, decimal Expires);
     private readonly IReadOnlyList<Lease> leases;
@@ -39,16 +38,12 @@ public sealed class RunContextVerifier
         foreach (var entry in entries)
         {
             if (string.IsNullOrWhiteSpace(entry.GatewayId) || string.IsNullOrWhiteSpace(entry.ClockId)
-                || entry.PublicKey?.Length != 32 || !Path.IsPathFullyQualified(entry.EnvelopeFile))
-                throw new InvalidOperationException("Invalid run context trust scope/key/path");
+                || !Path.IsPathFullyQualified(entry.EnvelopeFile))
+                throw new InvalidOperationException("Invalid run context trust scope/path");
             var envelope = JsonSerializer.Deserialize<Envelope>(ReadBounded(entry.EnvelopeFile, 100000), JsonOptions)
                 ?? throw new InvalidOperationException("Missing run context envelope");
-            if (envelope.Payload is null || envelope.Payload.Length > 65536 || envelope.Signature?.Length != 64)
+            if (envelope.Payload is null || envelope.Payload.Length > 65536)
                 throw new InvalidOperationException("Invalid run context envelope size");
-            var signer = new Ed25519Signer();
-            signer.Init(false, new Ed25519PublicKeyParameters(entry.PublicKey, 0));
-            signer.BlockUpdate(envelope.Payload, 0, envelope.Payload.Length);
-            if (!signer.VerifySignature(envelope.Signature)) throw new InvalidOperationException("Invalid run context signature");
             using var document = JsonDocument.Parse(envelope.Payload);
             var root = document.RootElement;
             var properties = root.EnumerateObject().Select(p => p.Name).ToArray();
@@ -64,12 +59,24 @@ public sealed class RunContextVerifier
             if (Text("schemaVersion") != "clock-run-context/2-draft" || lease.Gateway != entry.GatewayId || lease.Clock != entry.ClockId
                 || string.IsNullOrWhiteSpace(lease.Run) || string.IsNullOrWhiteSpace(lease.Revision)
                 || lease.Status is not ("active" or "revoked") || lease.Issued > lease.From || lease.From >= lease.Expires)
-                throw new InvalidOperationException("Invalid signed run context contract");
+                throw new InvalidOperationException("Invalid run context contract");
             if (result.Any(l => l.Gateway == lease.Gateway && l.Clock == lease.Clock && l.Generation == lease.Generation))
                 throw new InvalidOperationException("Duplicate run context generation");
             result.Add(lease);
         }
         return new RunContextVerifier(result);
+    }
+
+    /// <summary>
+    /// True when the frame carries any run classification claim. Used for fail-closed
+    /// handling when no verifier is configured.
+    /// </summary>
+    public static bool HasRunClaim(TelemetryFrame frame)
+    {
+        var attrs = frame.Attributes;
+        var status = attrs.GetValueOrDefault("sim_run_status");
+        return (status is not null && status != "absent")
+            || attrs.ContainsKey("sim_run_id") || attrs.ContainsKey("sim_context_generation");
     }
 
     public bool Validate(TelemetryFrame frame, string? trustedGatewayId, out string reason)

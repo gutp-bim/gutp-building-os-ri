@@ -108,9 +108,17 @@ public sealed class GatewayIngressService(
             return false;
         }
 
-        // Signed run context (opt-in, GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE): a frame claiming a run classification must
-        // match a pre-distributed signed lease and the mTLS-verified gateway. Checked before the
-        // twin lookup, like identity binding, so a forged claim never reaches validated telemetry.
+        // Unsigned run context (opt-in, GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE, ADR-0012): a frame claiming a run
+        // classification must match an operator-placed lease and the mTLS-verified gateway. Fail closed: a
+        // claim arriving with no configuration is rejected, never passed through as valid. Checked before the
+        // twin lookup, like identity binding.
+        if (runContext is null && RunContextVerifier.HasRunClaim(frame))
+        {
+            logger.LogWarning("Ingress: run context claim rejected (run_context_unconfigured) for gateway '{Gateway}' point '{PointId}', skipping",
+                frame.GatewayId, frame.PointId);
+            Count(frame.GatewayId, "run_context_unconfigured");
+            return false;
+        }
         if (runContext is not null && !runContext.Validate(frame, trustedGatewayId, out var runReason))
         {
             logger.LogWarning("Ingress: run context claim rejected ({Reason}) for gateway '{Gateway}' point '{PointId}', skipping",

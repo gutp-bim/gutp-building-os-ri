@@ -3,12 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Module;
 using BuildingOS.Shared.Test.Infrastructure.ConnectorWorker.Fakes;
-using System.Security.Cryptography;
 using System.Text.Json;
 using BuildingOS.ConnectorWorker.Connectors;
 using BuildingOS.ConnectorWorker.Protos;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Signers;
 
 namespace BuildingOS.Shared.Test.Infrastructure;
 
@@ -23,20 +20,18 @@ public sealed class RunContextVerifierTest
         public Fixture()
         {
             Directory.CreateDirectory(DirectoryPath);
-            var key = new Ed25519PrivateKeyParameters(RandomNumberGenerator.GetBytes(32), 0);
             var payload = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 schemaVersion = "clock-run-context/2-draft", gatewayId = "GW-EXAMPLE", clockId = "urn:clock:test",
                 provisioningRevision = "rev-a", runId = "run-a", generation = 1, status = "active",
                 issuedAt = "2026-01-01T00:00:00Z", validFrom = "2026-01-01T00:00:00Z", expiresAt = "2026-01-01T01:00:00Z"
             });
-            var signer = new Ed25519Signer(); signer.Init(true, key); signer.BlockUpdate(payload, 0, payload.Length);
             EnvelopePath = Path.Combine(DirectoryPath, "envelope.json");
-            File.WriteAllBytes(EnvelopePath, JsonSerializer.SerializeToUtf8Bytes(new { payload, signature = signer.GenerateSignature() }));
+            File.WriteAllBytes(EnvelopePath, JsonSerializer.SerializeToUtf8Bytes(new { payload }));
             Config = Path.Combine(DirectoryPath, "trust.json");
             File.WriteAllBytes(Config, JsonSerializer.SerializeToUtf8Bytes(new[]
             {
-                new { gatewayId = "GW-EXAMPLE", clockId = "urn:clock:test", publicKey = key.GeneratePublicKey().GetEncoded(), envelopeFile = EnvelopePath }
+                new { gatewayId = "GW-EXAMPLE", clockId = "urn:clock:test", envelopeFile = EnvelopePath }
             }));
             Frame = new TelemetryFrame { GatewayId = "GW-EXAMPLE", PointId = "BPT-0002", Timestamp = "2026-01-01T00:00:05.000001Z" };
             foreach (var (name, value) in new Dictionary<string,string>
@@ -86,17 +81,6 @@ public sealed class RunContextVerifierTest
     }
 
     [Fact]
-    public void ModifiedSignedFileIsRejectedAtLoad()
-    {
-        using var fixture = new Fixture();
-        using var doc = JsonDocument.Parse(File.ReadAllBytes(fixture.EnvelopePath));
-        var payload = doc.RootElement.GetProperty("payload").GetBytesFromBase64(); payload[0] ^= 1;
-        var signature = doc.RootElement.GetProperty("signature").GetBytesFromBase64();
-        File.WriteAllBytes(fixture.EnvelopePath, JsonSerializer.SerializeToUtf8Bytes(new { payload, signature }));
-        Assert.Throws<InvalidOperationException>(() => RunContextVerifier.Load(fixture.Config));
-    }
-
-    [Fact]
     public async Task IngressRejectsUnboundRunBeforePublishingAndContinuesToValidFrame()
     {
         using var fixture = new Fixture(); var verifier = RunContextVerifier.Load(fixture.Config);
@@ -111,5 +95,72 @@ public sealed class RunContextVerifierTest
             new IngressHierarchyOptions(), NullLogger<GatewayIngressService>.Instance, verifier);
         Assert.Equal(1, await service.RunAsync(reader, CancellationToken.None, "GW-EXAMPLE"));
         bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    private static (GatewayIngressService Service, Mock<IIngressTelemetryBus> Bus) NewService(RunContextVerifier? verifier)
+    {
+        var bus = new Mock<IIngressTelemetryBus>();
+        bus.Setup(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var cache = new Mock<IPointMetadataCache>();
+        cache.Setup(c => c.GetAsync("BPT-0002", It.IsAny<CancellationToken>())).ReturnsAsync(
+            new PointMetadata("BPT-0002", "BLDG", "Temperature", "DEVICE", "GW-EXAMPLE"));
+        return (new GatewayIngressService(bus.Object, cache.Object, new IngressIdentityOptions { Enforce = true },
+            new IngressHierarchyOptions(), NullLogger<GatewayIngressService>.Instance, verifier), bus);
+    }
+
+    private static async Task<long> RunAsync(GatewayIngressService service, params TelemetryFrame[] frames)
+    {
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        foreach (var f in frames) reader.Push(f);
+        reader.Complete();
+        return await service.RunAsync(reader, CancellationToken.None, "GW-EXAMPLE");
+    }
+
+    [Fact]
+    public async Task ConfiguredMatch_IsPublished()
+    {
+        using var fixture = new Fixture();
+        var (service, bus) = NewService(RunContextVerifier.Load(fixture.Config));
+        Assert.Equal(1, await RunAsync(service, fixture.Frame));
+        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfiguredMismatch_IsRejected()
+    {
+        using var fixture = new Fixture();
+        var (service, bus) = NewService(RunContextVerifier.Load(fixture.Config));
+        fixture.Frame.Attributes["sim_run_id"] = "other";
+        Assert.Equal(0, await RunAsync(service, fixture.Frame));
+        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UnconfiguredClaim_FailsClosed()
+    {
+        using var fixture = new Fixture();
+        var (service, bus) = NewService(null);
+        Assert.Equal(0, await RunAsync(service, fixture.Frame));
+        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UnconfiguredWithoutClaim_StillPublishes()
+    {
+        using var fixture = new Fixture();
+        var plain = new TelemetryFrame { GatewayId = "GW-EXAMPLE", PointId = "BPT-0002", Timestamp = fixture.Frame.Timestamp };
+        var absent = plain.Clone(); absent.Attributes["sim_run_status"] = "absent";
+        var (service, bus) = NewService(null);
+        Assert.Equal(2, await RunAsync(service, plain, absent));
+        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void UnsignedEnvelopeWithExtraSignatureFieldIsRejectedAtLoad()
+    {
+        using var fixture = new Fixture();
+        var payload = JsonDocument.Parse(File.ReadAllBytes(fixture.EnvelopePath)).RootElement.GetProperty("payload").GetBytesFromBase64();
+        File.WriteAllBytes(fixture.EnvelopePath, JsonSerializer.SerializeToUtf8Bytes(new { payload, signature = new byte[64] }));
+        Assert.Throws<JsonException>(() => RunContextVerifier.Load(fixture.Config));
     }
 }
