@@ -1,3 +1,4 @@
+using BuildingOS.Shared.Domain.TwinAdmin;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -13,7 +14,7 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// checks) assume <c>sbco:</c>/<c>bos:</c> exclusively. Rather than teach every one of those ~100+
 /// call sites a second vocabulary, this stages the incoming Turtle in a named graph, then runs a
 /// small set of <c>INSERT ... WHERE</c> statements that derive the missing <c>sbco:</c> triples into
-/// the default graph — so the rest of the codebase never has to change.
+/// an isolated candidate graph. Clock validation precedes publication of that candidate.
 ///
 /// The complete REC↔SBCO class/property pairs from
 /// <c>docs/architecture/standard-mapping.md</c> are materialized. This includes
@@ -24,15 +25,11 @@ namespace BuildingOS.Shared.Infrastructure.OxiGraph;
 /// Site node therefore keeps its materialized property edges (<c>sbco:hasPart</c>/<c>sbco:name</c>)
 /// but is never given an <c>rdf:type</c> here; that is deliberate, not a missed rule (#416).
 ///
-/// <b>Atomicity</b>: every statement for one materialization pass (the graph clear/stage plus every
-/// copy-through/rule INSERT) is sent as a single semicolon-separated SPARQL UPDATE request, not one
-/// HTTP call per statement. OxiGraph executes a whole multi-statement UPDATE request inside one
-/// transaction (commit happens once, after every operation in the request has run) — so a concurrent
-/// reader sees either the twin exactly as it was before this call, or exactly as it is after, never a
-/// part-cleared/part-rebuilt intermediate state. (OxiGraph does not implement the SPARQL 1.1
-/// <c>MOVE</c>/<c>ADD</c>/<c>COPY</c> graph-management operations, which would otherwise be the more
-/// obvious way to get this — confirmed against its <c>GraphUpdateOperation</c> handling, which only
-/// covers <c>InsertData</c>/<c>DeleteData</c>/<c>DeleteInsert</c>/<c>Load</c>/<c>Clear</c>/<c>Create</c>/<c>Drop</c>.)
+/// <b>Atomicity</b>: candidate preparation does not mutate the default graph. Publication compares
+/// the baseline to the current twin, then replaces the default graph in one SPARQL UPDATE
+/// transaction. A reader sees the complete previous or complete new twin. A concurrent edit after
+/// baseline capture refuses the import instead of being overwritten. Temporary graphs are unique
+/// to each call; only the successfully committed replace input is retained as provenance.
 /// </summary>
 public sealed class OxiGraphIngestMaterializer
 {
@@ -45,13 +42,6 @@ public sealed class OxiGraphIngestMaterializer
     // adjacency (#440). Note it is *not* added to the copy-through prefix filter below: bot: triples
     // reach the default graph only through an explicit rule, as bos:adjacentZone.
     private const string BotNs = "https://w3id.org/bot#";
-
-    // A fixed (not per-call GUID) graph URI, kept in place (not dropped) after materialization — it is
-    // the audit copy of the last-imported pre-materialization RDF, in whatever vocabulary the source
-    // used. LoadNamedGraphAsync (PUT, full replace) overwrites it on the next MaterializeAsync call, so
-    // it always reflects the current twin's actual source, not a growing history. Only the Replace path
-    // uses this graph; MaterializeAppendAsync stages into its own per-call graph instead (see there).
-    private const string SourceGraph = "urn:bos:twin-source";
 
     private static readonly (string From, string To)[] ClassRules =
     {
@@ -90,58 +80,27 @@ public sealed class OxiGraphIngestMaterializer
         _logger = logger ?? NullLogger<OxiGraphIngestMaterializer>.Instance;
     }
 
-    /// <summary>
-    /// Stage <paramref name="turtle"/> in the <see cref="SourceGraph"/> named graph (retained as
-    /// provenance, not dropped), then atomically replace the default graph with its
-    /// SBCO/<c>bos:</c>-canonical materialization. Equivalent to
-    /// <see cref="OxiGraphClient.ReplaceDefaultGraphAsync"/> except the default graph ends up
-    /// vocabulary-normalized regardless of what vocabulary <paramref name="turtle"/> used.
-    /// </summary>
-    public async Task MaterializeAsync(string turtle, CancellationToken ct = default)
+    /// <summary>Validate and atomically replace the canonical default graph.</summary>
+    public Task MaterializeAsync(string turtle, CancellationToken ct = default)
+        => MaterializeValidatedAsync(turtle, TwinImportMode.Replace, ct);
+
+    /// <summary>Validate the merged candidate and atomically publish it.</summary>
+    public Task MaterializeAppendAsync(string turtle, CancellationToken ct = default)
+        => MaterializeValidatedAsync(turtle, TwinImportMode.Append, ct);
+
+    private async Task MaterializeValidatedAsync(string turtle, TwinImportMode mode, CancellationToken ct)
     {
-        await _client.LoadNamedGraphAsync(SourceGraph, turtle, ct).ConfigureAwait(false);
-
-        var statements = new List<string> { "DROP DEFAULT" };
-        AppendMaterializationStatements(statements, SourceGraph);
-        await _client.UpdateAsync(string.Join(" ;\n", statements), ct).ConfigureAwait(false);
-
-        _logger.LogInformation(
-            "Materialized (replace) OxiGraph twin from staged RDF ({ClassRules} class rule(s), {PropertyRules} property rule(s))",
-            ClassRules.Length, PropertyRules.Length);
-    }
-
-    /// <summary>
-    /// Merge <paramref name="turtle"/>'s SBCO/<c>bos:</c>-canonical materialization into the existing
-    /// default graph — the append counterpart of <see cref="MaterializeAsync"/>. Unlike Replace, the
-    /// existing default graph is left untouched (no <c>DROP DEFAULT</c>); this only adds triples.
-    /// </summary>
-    public async Task MaterializeAppendAsync(string turtle, CancellationToken ct = default)
-    {
-        var stagingGraph = $"urn:bos:twin-append-source:{Guid.NewGuid():N}";
-        await _client.LoadNamedGraphAsync(stagingGraph, turtle, ct).ConfigureAwait(false);
+        var source = $"urn:bos:twin-import-source:{Guid.NewGuid():N}";
+        await _client.LoadNamedGraphAsync(source, turtle, ct).ConfigureAwait(false);
         try
         {
-            var statements = new List<string>();
-            AppendMaterializationStatements(statements, stagingGraph);
-            await _client.UpdateAsync(string.Join(" ;\n", statements), ct).ConfigureAwait(false);
-
-            _logger.LogInformation(
-                "Materialized (append) OxiGraph twin from staged RDF ({ClassRules} class rule(s), {PropertyRules} property rule(s))",
-                ClassRules.Length, PropertyRules.Length);
+            await ClockValidatedImport.ApplyAsync(_client, this, source, mode, _logger, ct).ConfigureAwait(false);
+            _logger.LogInformation("Materialized OxiGraph twin in {Mode} mode with clock validation", mode);
         }
         finally
         {
-            // Unlike SourceGraph (retained provenance for a full seed/replace), an append batch isn't
-            // "the twin's source" in that sense — always discard the staging graph, best-effort so
-            // cleanup failure never masks the original exception.
-            try
-            {
-                await _client.DropNamedGraphAsync(stagingGraph, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to drop twin append-materialization staging graph {Graph}", stagingGraph);
-            }
+            try { await _client.DropNamedGraphAsync(source, CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to drop import source graph {Graph}", source); }
         }
     }
 

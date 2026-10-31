@@ -31,6 +31,21 @@ public class GatewayIngressServiceTest
             NullLogger<GatewayIngressService>.Instance);
 
     [Fact]
+    public async Task StreamTelemetry_SizeRejectionIsNotAccepted_AndNextFrameContinues()
+    {
+        var bus = new FakeIngressTelemetryBus { NextFailure = new TelemetrySizeLimitException("data", 1025, 1024) };
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-SIZE"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 2; i++)
+            reader.Push(new TelemetryFrame { GatewayId = "GW-SIZE", PointId = "PT001", ValueNum = i, Timestamp = "2026-10-24T00:00:00Z" });
+        reader.Complete();
+        var (accepted, results) = await RunCapturingResultsAsync("GW-SIZE", () => NewService(bus, cache).RunAsync(reader, CancellationToken.None));
+        Assert.Equal(1, accepted);
+        Assert.Equal(new[] { "size_exceeded", "published" }, results);
+        Assert.Single(bus.Published);
+    }
+
+    [Fact]
     public async Task StreamTelemetry_KnownPoint_PublishesEnrichedValidatedTelemetry()
     {
         var bus = new FakeIngressTelemetryBus();
@@ -798,9 +813,15 @@ public class GatewayIngressServiceTest
 
         /// <summary>When true, the next publish throws (simulates a JetStream publish-ack failure).</summary>
         public bool FailOnce { get; set; }
+        public Exception? NextFailure { get; set; }
 
         public Task PublishAsync(string subject, string message, CancellationToken cancellationToken)
         {
+            if (NextFailure is { } error)
+            {
+                NextFailure = null;
+                throw error;
+            }
             if (FailOnce)
             {
                 FailOnce = false;

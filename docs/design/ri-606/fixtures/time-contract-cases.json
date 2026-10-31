@@ -1,0 +1,1184 @@
+{
+  "profile": "ri-clock-observation/2-draft",
+  "acquisitionEvidence": "acquisition-evidence.json",
+  "receiverEvidence": "receiver-evidence.json",
+  "cases": [
+    {
+      "name": "stable without run is diagnostic",
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "changed without run",
+      "attributes": {
+        "sim_time_quality": "changed"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "180",
+          "180"
+        ]
+      },
+      "expected": {
+        "quality": "changed",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "missing without run",
+      "attributes": {
+        "sim_time_quality": "missing"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          null,
+          "120.5"
+        ]
+      },
+      "expected": {
+        "quality": "missing",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "reset without run",
+      "attributes": {
+        "sim_time_quality": "reset"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "0",
+          "0"
+        ]
+      },
+      "expected": {
+        "quality": "reset",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "latched reset takes precedence over missing",
+      "attributes": {
+        "sim_time_quality": "reset"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          null,
+          null,
+          null
+        ],
+        "resetLatched": true
+      },
+      "expected": {
+        "quality": "reset",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "backward boundary across polls",
+      "attributes": {
+        "sim_time_quality": "reset"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "previousClockValue": "180"
+      },
+      "expected": {
+        "quality": "reset",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "stable with validated context",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "valid",
+        "runReason": null,
+        "runTimeEligible": true,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "changed can have a valid run",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_time_quality": "changed"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "180",
+          "180"
+        ]
+      },
+      "expected": {
+        "quality": "changed",
+        "runStatus": "valid",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "missing can have a valid run",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_time_quality": "missing"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          null,
+          "120.5",
+          "120.5"
+        ]
+      },
+      "expected": {
+        "quality": "missing",
+        "runStatus": "valid",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "reset invalidates current run",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_time_quality": "reset",
+        "sim_run_status": "invalid",
+        "sim_run_reason": "reset_detected"
+      },
+      "omitAttributes": [
+        "sim_time_s",
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "0",
+          "0"
+        ]
+      },
+      "expected": {
+        "quality": "reset",
+        "runStatus": "invalid",
+        "runReason": "reset_detected",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "expired before poll",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "expired"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "expiresAt": "2026-01-01T00:00:03Z"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "expired",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "expires during poll although point timestamp is earlier",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "expired"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "expiresAt": "2026-01-01T00:00:06Z"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "expired",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context validFrom is later than poll start",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "not_yet_valid"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "validFrom": "2026-01-01T00:00:05Z"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "not_yet_valid",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context revoked",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "revoked"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "status": "revoked"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "revoked",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context revision mismatch",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "revision_mismatch"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "provisioningRevision": "\"sha256:obsolete\""
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "revision_mismatch",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context gateway mismatch",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "scope_mismatch"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "gatewayId": "GW-OTHER"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "scope_mismatch",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context clock mismatch",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "scope_mismatch"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "clockId": "https://example.com/another-clock"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "scope_mismatch",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context switched during acquisition",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "context_changed"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "acquisitionPatch": {
+        "contextChanged": true
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "context_changed",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context not authenticated",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "unverified",
+        "sim_run_reason": "unauthenticated_context"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "receiverPatch": {
+        "authenticated": false
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "unverified",
+        "runReason": "unauthenticated_context",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "issuer not authorized",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "unverified",
+        "sim_run_reason": "issuer_not_authorized"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "receiverPatch": {
+        "issuerAuthorized": false
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "unverified",
+        "runReason": "issuer_not_authorized",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "generation history lost on restart",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "unverified",
+        "sim_run_reason": "generation_history_unavailable"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "receiverPatch": {
+        "historyRecovered": false
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "unverified",
+        "runReason": "generation_history_unavailable",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "not committed yet",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "unverified",
+        "sim_run_reason": "context_not_committed"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "receiverPatch": {
+        "committedContext": null
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "unverified",
+        "runReason": "context_not_committed",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "higher generation is not implicit activation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "unverified",
+        "sim_run_reason": "context_not_committed"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "generation": 2
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "unverified",
+        "runReason": "context_not_committed",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "stale generation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "stale_generation"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "committedContextPatch": {
+        "generation": 2
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "stale_generation",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "same generation different payload",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "generation_conflict"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "contextPatch": {
+        "runId": "example-run-other"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "generation_conflict",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context cannot be attached retroactively",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "context_not_active_at_start"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "receiverPatch": {
+        "committedAt": "2026-01-01T00:00:05Z"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "context_not_active_at_start",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "reset invalidation survives connector restart",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "reset_detected"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "receiverPatch": {
+        "invalidatedRunIds": [
+          "example-run-001"
+        ]
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "reset_detected",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "new committed run after reset can resume unfenced reads",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_id": "example-run-002",
+        "sim_context_generation": "2"
+      },
+      "receiverPatch": {
+        "committedContext": {
+          "schemaVersion": "clock-run-context/2-draft",
+          "gatewayId": "GW-EXAMPLE",
+          "generation": 2,
+          "runId": "example-run-002",
+          "provisioningRevision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\"",
+          "clockId": "https://example.com/ri-606/clock/shared-simulation",
+          "status": "active",
+          "issuedAt": "2026-01-01T00:00:00Z",
+          "expiresAt": "2026-01-01T01:00:00Z",
+          "validFrom": "2026-01-01T00:00:00Z"
+        },
+        "invalidatedRunIds": [
+          "example-run-001"
+        ]
+      },
+      "contextPatch": {
+        "runId": "example-run-002",
+        "generation": 2
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "valid",
+        "runReason": null,
+        "runTimeEligible": true,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "pinned Nexus stable_unfenced",
+      "frame": "compat/nexus-bc1a9e5-telemetry.json",
+      "attributes": {
+        "sim_time_quality": "stable_unfenced"
+      },
+      "omitAttributes": [],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "120.5",
+          "120.5"
+        ]
+      },
+      "profile": "nexus-bc1a9e5137fec041df250e4f927299eaeb5d9a0f",
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "pinned Nexus changed",
+      "frame": "compat/nexus-bc1a9e5-telemetry.json",
+      "attributes": {
+        "sim_time_quality": "changed"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "180",
+          "180"
+        ]
+      },
+      "profile": "nexus-bc1a9e5137fec041df250e4f927299eaeb5d9a0f",
+      "expected": {
+        "quality": "changed",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "pinned Nexus missing",
+      "frame": "compat/nexus-bc1a9e5-telemetry.json",
+      "attributes": {
+        "sim_time_quality": "missing"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          null,
+          null,
+          null
+        ]
+      },
+      "profile": "nexus-bc1a9e5137fec041df250e4f927299eaeb5d9a0f",
+      "expected": {
+        "quality": "missing",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "pinned Nexus reset",
+      "frame": "compat/nexus-bc1a9e5-telemetry.json",
+      "attributes": {
+        "sim_time_quality": "reset"
+      },
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "0",
+          "0"
+        ]
+      },
+      "profile": "nexus-bc1a9e5137fec041df250e4f927299eaeb5d9a0f",
+      "expected": {
+        "quality": "reset",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "matching revision alias is readable",
+      "frame": "compat/nexus-bc1a9e5-telemetry.json",
+      "attributes": {
+        "sim_config_revision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\""
+      },
+      "profile": "nexus-bc1a9e5137fec041df250e4f927299eaeb5d9a0f",
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "conflicting revision aliases",
+      "frame": "compat/nexus-bc1a9e5-telemetry.json",
+      "attributes": {
+        "sim_config_revision": "\"sha256:other\""
+      },
+      "profile": "nexus-bc1a9e5137fec041df250e4f927299eaeb5d9a0f",
+      "expectedError": "revision_alias_conflict"
+    },
+    {
+      "name": "old RI brackets do not prove chunk stability or valid run",
+      "frame": "compat/ri-6e0fefe-telemetry.json",
+      "profile": "ri-6e0fefee8be2caaa33608d76845cbab2841cf9dd",
+      "expected": {
+        "quality": "bracketed",
+        "runStatus": "unverified",
+        "runReason": "legacy_run_claims",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "old unavailable has unknown cause",
+      "frame": "compat/ri-6e0fefe-telemetry.json",
+      "attributes": {
+        "sim_time_quality": "unavailable"
+      },
+      "omitAttributes": [
+        "sim_time_s",
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "profile": "ri-6e0fefee8be2caaa33608d76845cbab2841cf9dd",
+      "expected": {
+        "quality": "unavailable",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "old verified string is not fencing evidence",
+      "frame": "compat/ri-6e0fefe-telemetry.json",
+      "attributes": {
+        "sim_time_quality": "verified"
+      },
+      "profile": "ri-6e0fefee8be2caaa33608d76845cbab2841cf9dd",
+      "expected": {
+        "quality": "verified",
+        "runStatus": "unverified",
+        "runReason": "legacy_run_claims",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "old context cannot pass the new context contract",
+      "frame": "telemetry-with-run.json",
+      "context": "compat/ri-6e0fefe-run-context.json",
+      "expectedError": "invalid_context_fields"
+    },
+    {
+      "name": "claimed valid run without context",
+      "frame": "telemetry-with-run.json",
+      "expectedError": "run_status_mismatch"
+    },
+    {
+      "name": "claimed valid run without authentication",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "receiverPatch": {
+        "authenticated": false
+      },
+      "expectedError": "run_status_mismatch"
+    },
+    {
+      "name": "run identity forbidden when absent",
+      "attributes": {
+        "sim_run_id": "invented"
+      },
+      "expectedError": "untrusted_run_identity"
+    },
+    {
+      "name": "old quality cannot be renamed in modern profile",
+      "attributes": {
+        "sim_time_quality": "bracketed"
+      },
+      "expectedError": "unknown_acquisition_quality"
+    },
+    {
+      "name": "unproved step ID",
+      "attributes": {
+        "sim_step_id": "7"
+      },
+      "expectedError": "step_fence_unproved"
+    },
+    {
+      "name": "wrong clock stability claim",
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "180",
+          "180"
+        ]
+      },
+      "expectedError": "acquisition_quality_mismatch"
+    },
+    {
+      "name": "incomplete chunk coverage",
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "120.5"
+        ]
+      },
+      "expectedError": "incomplete_clock_boundaries"
+    },
+    {
+      "name": "missing stable numeric time",
+      "omitAttributes": [
+        "sim_time_s"
+      ],
+      "expectedError": "stable_time_mismatch"
+    },
+    {
+      "name": "changed cannot carry time",
+      "attributes": {
+        "sim_time_quality": "changed"
+      },
+      "acquisitionPatch": {
+        "clockSamples": [
+          "120.5",
+          "180",
+          "180"
+        ]
+      },
+      "expectedError": "unstable_time_present"
+    },
+    {
+      "name": "reject NaN sim time",
+      "attributes": {
+        "sim_time_s": "NaN"
+      },
+      "expectedError": "invalid_sim_time"
+    },
+    {
+      "name": "reject infinity sim time",
+      "attributes": {
+        "sim_time_s": "Infinity"
+      },
+      "expectedError": "invalid_sim_time"
+    },
+    {
+      "name": "reject negative sim time",
+      "attributes": {
+        "sim_time_s": "-1"
+      },
+      "expectedError": "invalid_sim_time"
+    },
+    {
+      "name": "reject whitespace sim time",
+      "attributes": {
+        "sim_time_s": " 120.5"
+      },
+      "expectedError": "invalid_sim_time"
+    },
+    {
+      "name": "reject leading zero sim time",
+      "attributes": {
+        "sim_time_s": "0120.5"
+      },
+      "expectedError": "invalid_sim_time"
+    },
+    {
+      "name": "attributes must remain strings",
+      "attributes": {
+        "sim_time_s": 120.5
+      },
+      "expectedError": "attributes_must_be_strings"
+    },
+    {
+      "name": "scientific numeric notation is finite seconds",
+      "attributes": {
+        "sim_time_s": "1.205e2"
+      },
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "absent",
+        "runReason": null,
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "reject boolean generation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "generation": true
+      },
+      "expectedError": "invalid_generation"
+    },
+    {
+      "name": "reject zero generation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "generation": 0
+      },
+      "expectedError": "invalid_generation"
+    },
+    {
+      "name": "reject negative generation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "generation": -1
+      },
+      "expectedError": "invalid_generation"
+    },
+    {
+      "name": "reject floating generation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "generation": 1.0
+      },
+      "expectedError": "invalid_generation"
+    },
+    {
+      "name": "reject unsafe JSON integer generation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "generation": 9007199254740992
+      },
+      "expectedError": "invalid_generation"
+    },
+    {
+      "name": "context cannot carry acquisition mode",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "consistencyMode": "bracket-only"
+      },
+      "expectedError": "invalid_context_fields"
+    },
+    {
+      "name": "context cannot self-authenticate",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "authenticated": true
+      },
+      "expectedError": "invalid_context_fields"
+    },
+    {
+      "name": "empty run identity",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "runId": ""
+      },
+      "expectedError": "invalid_context_identity"
+    },
+    {
+      "name": "empty context interval",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "expiresAt": "2026-01-01T00:00:00Z"
+      },
+      "expectedError": "invalid_context_interval"
+    },
+    {
+      "name": "non-UTC context time",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "issuedAt": "2026-01-01T00:00:00"
+      },
+      "expectedError": "invalid_utc"
+    },
+    {
+      "name": "frame timestamp outside acquisition",
+      "acquisitionPatch": {
+        "endedAt": "2026-01-01T00:00:04Z"
+      },
+      "expectedError": "timestamp_outside_acquisition"
+    },
+    {
+      "name": "frame must match selected historical snapshot",
+      "attributes": {
+        "sim_config_revision": "\"sha256:other\""
+      },
+      "expectedError": "frame_revision_mismatch"
+    },
+    {
+      "name": "new producer must use canonical revision",
+      "attributes": {
+        "sim_clock_revision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\""
+      },
+      "omitAttributes": [
+        "sim_config_revision"
+      ],
+      "expectedError": "canonical_revision_required"
+    },
+    {
+      "name": "valid run must match observation run ID",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_run_id": "invented"
+      },
+      "expectedError": "run_identity_mismatch"
+    },
+    {
+      "name": "generation attribute is exact decimal representation",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "attributes": {
+        "sim_context_generation": "01"
+      },
+      "expectedError": "run_identity_mismatch"
+    },
+    {
+      "name": "reason cannot contradict derived run state",
+      "attributes": {
+        "sim_run_reason": "expired"
+      },
+      "expectedError": "run_reason_mismatch"
+    },
+    {
+      "name": "fractional context boundary is not rounded down",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "contextPatch": {
+        "validFrom": "2026-01-01T00:00:04.0000001Z"
+      },
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "not_yet_valid"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "not_yet_valid",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "unknown profile is not guessed",
+      "profile": "unknown-producer",
+      "expectedError": "unknown_profile"
+    },
+    {
+      "name": "unrelated clock cannot be attached to a point",
+      "attributes": {
+        "sim_clock_id": "https://example.com/another-clock"
+      },
+      "expectedError": "clock_scope_mismatch"
+    },
+    {
+      "name": "unknown point is not clock telemetry",
+      "framePatch": {
+        "point_id": "BPT-0001"
+      },
+      "expectedError": "point_missing"
+    },
+    {
+      "name": "durable commit alone is not application",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "receiverPatch": {
+        "appliedAt": null
+      },
+      "attributes": {
+        "sim_run_status": "unverified",
+        "sim_run_reason": "context_not_applied"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "unverified",
+        "runReason": "context_not_applied",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    },
+    {
+      "name": "context applied after acquisition started",
+      "frame": "telemetry-with-run.json",
+      "context": "run-context.json",
+      "receiverPatch": {
+        "appliedAt": "2026-01-01T00:00:05Z"
+      },
+      "attributes": {
+        "sim_run_status": "invalid",
+        "sim_run_reason": "context_not_active_at_start"
+      },
+      "omitAttributes": [
+        "sim_run_id",
+        "sim_context_generation"
+      ],
+      "expected": {
+        "quality": "stable_unfenced",
+        "runStatus": "invalid",
+        "runReason": "context_not_active_at_start",
+        "runTimeEligible": false,
+        "strictStepEligible": false
+      }
+    }
+  ]
+}

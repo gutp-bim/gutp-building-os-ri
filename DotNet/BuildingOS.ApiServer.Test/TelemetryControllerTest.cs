@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BuildingOS.Shared;
 using BuildingOS.Shared.Domain.Authorization;
 using BuildingOS.Shared.Domain.Grouping;
@@ -178,6 +179,40 @@ public class TelemetryControllerTest
         var p2 = Assert.Single(body, s => s.PointId == "p2");
         Assert.Null(p2.Datetime);
         Assert.Null(p2.Value);
+    }
+
+    [Fact]
+    public async Task BatchLatest_ReturnsStoredDataAsJsonString()
+    {
+        var (controller, router, _) = Build();
+        const string data = """{"sim_time_s":"3600.0","clock":{"quality":"stable"}}""";
+        var row = Sample("p1", "2026-07-15T00:00:00Z", 21.5);
+        row.Data = data;
+        router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "p1" && q.Latest), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new[] { row });
+
+        var result = await controller.QueryBatchLatest(new BatchLatestRequest(["p1"]), CancellationToken.None);
+
+        var json = JsonSerializer.SerializeToElement(Body(result),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(data, json[0].GetProperty("data").GetString());
+        Assert.Equal(21.5, json[0].GetProperty("value").GetDouble());
+    }
+
+    [Fact]
+    public async Task BatchLatest_ReturnsNullData_ForLegacyAndMissingReadings()
+    {
+        var (controller, router, _) = Build();
+        router.Setup(r => r.QueryAsync(It.Is<TelemetryQueryRequest>(q => q.PointId == "legacy" && q.Latest), It.IsAny<CancellationToken>()))
+              .ReturnsAsync(new[] { Sample("legacy", "2026-07-15T00:00:00Z", 21.5) });
+
+        var result = await controller.QueryBatchLatest(new BatchLatestRequest(["legacy", "missing"]), CancellationToken.None);
+
+        var json = JsonSerializer.SerializeToElement(Body(result),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(2, json.GetArrayLength());
+        foreach (var sample in json.EnumerateArray())
+            Assert.Equal(JsonValueKind.Null, sample.GetProperty("data").ValueKind);
     }
 
     [Fact]

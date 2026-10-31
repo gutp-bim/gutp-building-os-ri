@@ -1,0 +1,12 @@
+{
+  "startedAt": "2026-01-01T00:00:04Z",
+  "endedAt": "2026-01-01T00:00:06Z",
+  "chunkCount": 2,
+  "clockSamples": [
+    "120.5",
+    "120.5",
+    "120.5"
+  ],
+  "resetLatched": false,
+  "contextChanged": false
+}

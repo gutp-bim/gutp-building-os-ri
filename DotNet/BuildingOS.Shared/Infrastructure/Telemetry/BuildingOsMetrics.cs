@@ -27,6 +27,14 @@ public static class BuildingOsMetrics
 {
     private static readonly Meter Meter = new(OtelSetup.MeterName, "1.0.0");
 
+    /// <summary>Hot projection/put failures. Tag: source (connector|gateway-grpc). No payload tags.</summary>
+    public static readonly Counter<long> TelemetryHotWriteFailures = Meter.CreateCounter<long>(
+        "building_os.telemetry.hot_write_failures", unit: "{observation}");
+
+    /// <summary>Rejected envelopes, first oversized observation only. Tags: source, dimension (data|record).</summary>
+    public static readonly Counter<long> TelemetrySizeRejections = Meter.CreateCounter<long>(
+        "building_os.telemetry.size_rejections", unit: "{message}");
+
     /// <summary>Messages processed by a connector worker. Tags: connector, result (published|skipped|error).</summary>
     public static readonly Counter<long> ConnectorMessagesProcessed =
         Meter.CreateCounter<long>(

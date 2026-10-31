@@ -484,6 +484,8 @@ OSS スタック（`docker-compose.oss.yaml`）と各コンポーネントが使
 | 変数 | 説明 | 必須 |
 |------|------|------|
 | `NATS_URL` | NATS 接続 URL | ✅ |
+| `TELEMETRY_MAX_DATA_BYTES` | 1観測の `data` JSON上限。既定1,024 bytes。UTF-8・エスケープ込み | — |
+| `TELEMETRY_MAX_RECORD_BYTES` | 1観測全体のJSON上限。既定16,384 bytes。Data上限以上の正整数。超過はpublish前に拒否。[詳細](docs/architecture/telemetry-size-limits.md) | — |
 | `WORKER_ROLE` | 起動する機能グループ（#400）。`all`（既定・未設定も同じ）/ `ingest` / `lake` / `control`。不正値は起動時に fail-fast。`all` / `lake` は 1 レプリカ固定、`ingest` / `control` は水平スケール可。分割例は `docker-compose.roles.yaml` | — |
 | `WARM_STORE` | Warm 層モード。`parquet`（既定）/ `timescale` | — |
 | `MINIO_ENDPOINT` | MinIO/S3 エンドポイント（parquet モード時必須）| parquet モード |
