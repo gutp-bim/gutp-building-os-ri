@@ -1433,6 +1433,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeBoundsV1Error'
         '200':
           description: OK
           content:
@@ -1465,6 +1471,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeBoundsV1Error'
         '200':
           description: OK
           content:
@@ -1625,6 +1637,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PointDetail'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeBoundsV1Error'
         '404':
           description: Not Found
           content:
@@ -1662,6 +1680,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PointDetail'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeBoundsV1Error'
         '404':
           description: Not Found
           content:
@@ -4790,6 +4814,15 @@ components:
           type: string
           nullable: true
       additionalProperties: false
+    NativeBoundsV1Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      additionalProperties: false
+      description: A v1 read response was refused because its native bounds cannot be represented.
     OidcClientDetail:
       type: object
       properties:

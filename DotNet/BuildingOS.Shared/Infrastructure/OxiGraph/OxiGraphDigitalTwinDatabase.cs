@@ -823,8 +823,13 @@ WHERE {{
   BIND(?pt AS ?ptDt){PointOptionals}
 }}";
 
-    private static BuildingOS.Shared.Point MapPoint(IReadOnlyDictionary<string, string> r) =>
-        new()
+    private static BuildingOS.Shared.Point MapPoint(IReadOnlyDictionary<string, string> r)
+    {
+        var minRaw = r.GetValueOrDefault("ptMinPres");
+        var maxRaw = r.GetValueOrDefault("ptMaxPres");
+        var min = NativeBoundInt32.Parse(minRaw);
+        var max = NativeBoundInt32.Parse(maxRaw);
+        return new()
         {
             DtId = r.GetValueOrDefault("ptDt", ""),
             Id = r.GetValueOrDefault("ptId", ""),
@@ -858,9 +863,11 @@ WHERE {{
             Scale = TryParseNullableFloat(r.GetValueOrDefault("ptScale")),
             TargetArea = r.GetValueOrDefault("ptTargetArea"),
             InstallationArea = r.GetValueOrDefault("ptInstallArea"),
-            MinPresValue = TryParseNullableInt(r.GetValueOrDefault("ptMinPres")),
-            MaxPresValue = TryParseNullableInt(r.GetValueOrDefault("ptMaxPres")),
+            MinPresValue = min,
+            MaxPresValue = max,
+            HasUnrepresentableNativeBounds = (minRaw is not null && min is null) || (maxRaw is not null && max is null),
         };
+    }
 
     private static Device MapDevice(IReadOnlyDictionary<string, string> r) =>
         new()
