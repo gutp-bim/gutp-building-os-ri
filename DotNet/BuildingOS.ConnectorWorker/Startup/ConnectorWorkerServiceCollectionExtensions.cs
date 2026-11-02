@@ -75,6 +75,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
     /// <summary>NATS connection + JetStream, Hot KV latest store, and the KV-decorating publisher.</summary>
     public static IHostApplicationBuilder AddConnectorWorkerMessaging(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddSingleton(TelemetrySizeLimits.Parse(
+            builder.Configuration["TELEMETRY_MAX_DATA_BYTES"],
+            builder.Configuration["TELEMETRY_MAX_RECORD_BYTES"]));
         var natsUrl = builder.Configuration["NATS_URL"] ?? "nats://localhost:4222";
         builder.Services.AddSingleton<INatsConnection>(_ =>
             new NatsConnection(new NatsOpts { Url = natsUrl }));
@@ -88,7 +91,8 @@ public static class ConnectorWorkerServiceCollectionExtensions
         builder.Services.AddSingleton<INatsPublisher>(sp => new NatsKvPublisher(
             new NatsPublisher(sp.GetRequiredService<INatsConnection>()),
             sp.GetRequiredService<IHotTelemetryStore>(),
-            sp.GetRequiredService<ILogger<NatsKvPublisher>>()));
+            sp.GetRequiredService<ILogger<NatsKvPublisher>>(),
+            sp.GetRequiredService<TelemetrySizeLimits>()));
         return builder;
     }
 
@@ -204,7 +208,8 @@ public static class ConnectorWorkerServiceCollectionExtensions
         builder.Services.AddSingleton<IIngressTelemetryBus>(sp => new NatsIngressTelemetryBus(
             sp.GetRequiredService<INatsJSContext>(),
             sp.GetRequiredService<IHotTelemetryStore>(),
-            sp.GetRequiredService<ILogger<NatsIngressTelemetryBus>>()));
+            sp.GetRequiredService<ILogger<NatsIngressTelemetryBus>>(),
+            sp.GetRequiredService<TelemetrySizeLimits>()));
         builder.Services.AddSingleton<IPointMetadataDataSource>(sp =>
             new OxiGraphPointMetadataDataSource(
                 sp.GetRequiredService<OxiGraphClient>(),

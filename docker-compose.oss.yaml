@@ -574,6 +574,9 @@ services:
       # NATS/MQTT-driven). Set to a port (e.g. 5051) to expose the canonical point-id ingest path; the
       # E5 point-list-integrity harness drives it via grpc. Mapped to the host below when set.
       GRPC_INGRESS_PORT: ${GRPC_INGRESS_PORT:-5051}
+      # Per-observation validated JSON limits, in UTF-8 bytes (not an envelope or KV bucket limit).
+      TELEMETRY_MAX_DATA_BYTES: ${TELEMETRY_MAX_DATA_BYTES:-1024}
+      TELEMETRY_MAX_RECORD_BYTES: ${TELEMETRY_MAX_RECORD_BYTES:-16384}
       # OSS/local: register only SimulatedDeviceControlHandler. The Kandt (IoT Hub)
       # handler requires IOT_HUB_CONNECTION_STRING / IOT_EDGE_MODULE_ID credentials
       # and aborts startup when those are absent.

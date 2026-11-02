@@ -154,6 +154,14 @@ public sealed class GatewayIngressService(
             // metered and the frame is not acked to the gateway, but the stream continues.
             await bus.PublishAsync(ValidatedSubject, BuildValidatedTelemetry(frame, meta), ct).ConfigureAwait(false);
         }
+        catch (TelemetrySizeLimitException ex)
+        {
+            logger.LogWarning(
+                "Ingress: telemetry {Dimension} exceeds byte limit ({ActualBytes} > {LimitBytes}), not accepted",
+                ex.Dimension, ex.ActualBytes, ex.LimitBytes);
+            Count(frame.GatewayId, "size_exceeded");
+            return false;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Ingress: publish failed for point '{PointId}', not accepted", frame.PointId);

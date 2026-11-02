@@ -27,12 +27,14 @@ public class ValidatedTelemetryHotStoreTest
     private sealed class FakeHotStore(string? throwForPointId = null, Exception? throwWith = null) : IHotTelemetryStore
     {
         public List<string> Put { get; } = new();
+        public Dictionary<string, ValidTelemetryData> Rows { get; } = new();
 
         public Task PutAsync(string pointId, ValidTelemetryData data, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (pointId == throwForPointId) throw throwWith ?? new InvalidOperationException("KV put failed");
             Put.Add(pointId);
+            Rows[pointId] = data;
             return Task.CompletedTask;
         }
 
@@ -48,6 +50,75 @@ public class ValidatedTelemetryHotStoreTest
               "value": 23.5, "datetime": "{{e.Datetime:O}}" }
             """))}} ] }
         """;
+
+    [Theory]
+    [InlineData("23.5")]
+    [InlineData("\"auto\"")]
+    [InlineData("true")]
+    [InlineData("false")]
+    public async Task WriteAsync_MissingOrNullDataReplacesPreviousData_WithoutChangingValueOrUtc(string value)
+    {
+        var hot = new FakeHotStore();
+        foreach (var data in new[] { ",\"data\":{\"clock\":\"previous\"}", "", ",\"data\":null", ",\"data\":{}" })
+        {
+            var message = "{\"telemetries\":[{\"point_id\":\"p\",\"building\":\"b\",\"device_id\":\"d\",\"name\":\"n\"," +
+                "\"datetime\":\"2026-10-24T00:00:00Z\",\"value\":" + value + data + "}]}";
+            await ValidatedTelemetryHotStore.WriteAsync(hot, message, "test-legacy", NullLogger.Instance, CancellationToken.None);
+            var row = hot.Rows["p"];
+            var history = BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake.ValidTelemetryEnvelope.Parse(message)[0];
+            Assert.Equal(history.Data, row.Data);
+            Assert.Equal(history.Value, row.Value);
+            Assert.Equal(history.ValueText, row.ValueText);
+            Assert.Equal(history.ValueBool, row.ValueBool);
+            Assert.Equal(history.ValueType, row.ValueType);
+            Assert.Equal(history.Datetime, row.Datetime);
+        }
+    }
+
+    [Fact]
+    public async Task WriteAsync_HotFailureIsCountedWithoutStoppingOtherPoints()
+    {
+        const string source = "test-607-hot-failure";
+        long failures = 0;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == OtelSetup.MeterName && instrument.Name == "building_os.telemetry.hot_write_failures")
+                l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            foreach (var tag in tags)
+                if (tag.Key == "source" && tag.Value?.ToString() == source) failures += value;
+        });
+        listener.Start();
+        var hot = new FakeHotStore(throwForPointId: "p1");
+        await ValidatedTelemetryHotStore.WriteAsync(hot,
+            Message(("p1", DateTimeOffset.UtcNow), ("p2", DateTimeOffset.UtcNow)),
+            source, NullLogger.Instance, CancellationToken.None);
+        Assert.Equal(1, failures);
+        Assert.Equal(new[] { "p2" }, hot.Put);
+    }
+
+    [Fact]
+    public async Task WriteAsync_PreservesClockDataLikeRawHistory()
+    {
+        const string message = """
+        {"telemetries":[{"point_id":"BPT-0002","building":"bldg-boptest","device_id":"DEV-FCU-1",
+        "name":"temperature","value":21.5,"datetime":"2026-10-24T00:00:00Z",
+        "data":{"gatewayId":"GW-BOPTEST-001","sim_clock_id":"urn:boptest:clock:bestest-air",
+        "sim_config_revision":"fixture-revision","sim_time_s":"3600.0",
+        "sim_time_quality":"stable_unfenced","sim_run_status":"absent"}}]}
+        """;
+        var hot = new FakeHotStore();
+        await ValidatedTelemetryHotStore.WriteAsync(hot, message, "test-clock", NullLogger.Instance, CancellationToken.None);
+
+        var row = hot.Rows["BPT-0002"];
+        Assert.NotNull(row.Data);
+        Assert.Equal(BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake.ValidTelemetryEnvelope.Parse(message)[0].Data, row.Data);
+        Assert.Equal(21.5, row.Value);
+        Assert.Equal("2026-10-24T00:00:00Z", row.Datetime);
+    }
 
     [Fact]
     public async Task WriteAsync_RecordsEventLag_FromTheReadingsOwnDatetime()

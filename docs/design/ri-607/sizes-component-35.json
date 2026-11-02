@@ -1,0 +1,15 @@
+{
+  "pointCount": 35,
+  "dataBytes": 203,
+  "maxSerializedHotRowBytes": 545,
+  "envelopeBytes": 13632,
+  "authenticatedRawBatchResponseBytes": 16906,
+  "authenticatedCompactLatestResponseBytes": 3921,
+  "authenticatedIndividualLatestResponseBytesSum": 15050,
+  "actualKv": false,
+  "actualHttp": true,
+  "jwtSignatureValidated": true,
+  "rawHistoryHttpPoints": 35,
+  "parquetStorage": "temporary local files",
+  "metadataAndHierarchy": "fixtures"
+}

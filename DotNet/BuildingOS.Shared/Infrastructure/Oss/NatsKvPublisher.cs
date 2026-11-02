@@ -7,12 +7,13 @@ namespace BuildingOS.Shared.Infrastructure.Oss;
 /// <summary>
 /// INatsPublisher decorator that additionally writes to NATS KV latest store
 /// for validated telemetry publishes (subject = building-os.validated.telemetry).
-/// Wraps the inner publisher and catches KV errors so they never fail the publish.
+/// Rejects oversized validated envelopes before publishing; KV sync remains best effort.
 /// </summary>
 public sealed class NatsKvPublisher(
     INatsPublisher inner,
     IHotTelemetryStore hot,
-    ILogger<NatsKvPublisher> logger) : INatsPublisher
+    ILogger<NatsKvPublisher> logger,
+    TelemetrySizeLimits? sizeLimits = null) : INatsPublisher
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
@@ -21,9 +22,10 @@ public sealed class NatsKvPublisher(
 
     public async Task PublishAsync(string subject, string message, CancellationToken cancellationToken = default)
     {
-        await inner.PublishAsync(subject, message, cancellationToken);
+        if (subject == ValidatedSubject) (sizeLimits ?? TelemetrySizeLimits.Default).Validate(message, LagSource);
+        await inner.PublishAsync(subject, message, cancellationToken).ConfigureAwait(false);
 
         if (subject != ValidatedSubject) return;
-        await ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken);
+        await ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken).ConfigureAwait(false);
     }
 }

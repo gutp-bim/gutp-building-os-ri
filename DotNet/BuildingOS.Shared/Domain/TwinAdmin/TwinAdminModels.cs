@@ -1,3 +1,5 @@
+using BuildingOS.Shared.Domain.GatewayProvisioning;
+
 namespace BuildingOS.Shared.Domain.TwinAdmin;
 
 /// <summary>How an RDF import is applied to the default graph.</summary>
@@ -153,7 +155,9 @@ public sealed record TwinImportPreview(
     int IdCollisionCount = 0,
     IReadOnlyList<TwinIdCollision>? IdCollisions = null,
     int ReleaseOfIssueCount = 0,
-    IReadOnlyList<TwinReleaseOfIssue>? ReleaseOfIssues = null)
+    IReadOnlyList<TwinReleaseOfIssue>? ReleaseOfIssues = null,
+    int ClockIssueCount = 0,
+    IReadOnlyList<TwinClockIssue>? ClockIssues = null)
 {
     public IReadOnlyList<TwinIdCollision> IdCollisions { get; } = IdCollisions ?? [];
 
@@ -164,7 +168,9 @@ public sealed record TwinImportPreview(
     /// </summary>
     public IReadOnlyList<TwinReleaseOfIssue> ReleaseOfIssues { get; } = ReleaseOfIssues ?? [];
 
-    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0 && ReleaseOfIssueCount == 0;
+    public IReadOnlyList<TwinClockIssue> ClockIssues { get; } = ClockIssues ?? [];
+
+    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0 && ReleaseOfIssueCount == 0 && ClockIssueCount == 0;
 }
 
 /// <summary>Result of a read-only SPARQL query: columns + rows (capped) + timing.</summary>

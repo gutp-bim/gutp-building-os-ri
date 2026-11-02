@@ -1,0 +1,659 @@
+{
+  "schemaVersion": "clock-provisioning/1-draft",
+  "gatewayId": "GW-BOPTEST-001",
+  "revision": "\"sha256:f38674f3223990430f78f33905c34c5e1b44ea0e79cb7d641af6a5b8a17f6a16\"",
+  "generatedAt": "2026-10-24T22:44:32.3620134Z",
+  "points": [
+    {
+      "pointId": "BPT-0002",
+      "localId": "analogInput,3",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "3"
+      },
+      "unit": "kg/s",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0003",
+      "localId": "analogInput,4",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "4"
+      },
+      "unit": "W",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0004",
+      "localId": "analogInput,5",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "5"
+      },
+      "unit": "W",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0005",
+      "localId": "analogInput,6",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "6"
+      },
+      "unit": "W",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0006",
+      "localId": "analogInput,7",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "7"
+      },
+      "unit": "ppm",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0007",
+      "localId": "analogInput,8",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "8"
+      },
+      "unit": "W",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0008",
+      "localId": "analogInput,9",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "9"
+      },
+      "unit": "W",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0009",
+      "localId": "analogInput,10",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "10"
+      },
+      "unit": "K",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0010",
+      "localId": "analogInput,11",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "11"
+      },
+      "unit": "m",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0011",
+      "localId": "analogInput,12",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "12"
+      },
+      "unit": "s",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0012",
+      "localId": "analogInput,13",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "13"
+      },
+      "unit": "W/m2",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0013",
+      "localId": "analogInput,14",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "14"
+      },
+      "unit": "W/m2",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0014",
+      "localId": "analogInput,15",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "15"
+      },
+      "unit": "W/m2",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0015",
+      "localId": "analogInput,16",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "16"
+      },
+      "unit": "W/m2",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0016",
+      "localId": "analogInput,17",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "17"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0017",
+      "localId": "analogInput,18",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "18"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0018",
+      "localId": "analogInput,19",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "19"
+      },
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0019",
+      "localId": "analogInput,20",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "20"
+      },
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0020",
+      "localId": "analogInput,21",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "21"
+      },
+      "unit": "Pa",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0021",
+      "localId": "analogInput,22",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "22"
+      },
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0022",
+      "localId": "analogInput,23",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "23"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0023",
+      "localId": "analogInput,24",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "24"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0024",
+      "localId": "analogInput,25",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "25"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0025",
+      "localId": "analogInput,26",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "26"
+      },
+      "unit": "s",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0026",
+      "localId": "analogInput,27",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "27"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0027",
+      "localId": "analogInput,28",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "28"
+      },
+      "unit": "K",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0028",
+      "localId": "analogInput,29",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "29"
+      },
+      "unit": "K",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0029",
+      "localId": "analogInput,30",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "30"
+      },
+      "unit": "K",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0030",
+      "localId": "analogInput,31",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "31"
+      },
+      "unit": "K",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0031",
+      "localId": "analogInput,32",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "32"
+      },
+      "unit": "rad",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0032",
+      "localId": "analogInput,33",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogInput",
+        "instanceNo": "33"
+      },
+      "unit": "m/s",
+      "writable": false,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0033",
+      "localId": "analogOutput,34",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogOutput",
+        "instanceNo": "34"
+      },
+      "unit": "K",
+      "writable": true,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0034",
+      "localId": "analogOutput,35",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogOutput",
+        "instanceNo": "35"
+      },
+      "unit": "K",
+      "writable": true,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0035",
+      "localId": "analogOutput,36",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogOutput",
+        "instanceNo": "36"
+      },
+      "writable": true,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    },
+    {
+      "pointId": "BPT-0036",
+      "localId": "analogOutput,37",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "599",
+        "objectType": "analogOutput",
+        "instanceNo": "37"
+      },
+      "unit": "K",
+      "writable": true,
+      "device": {
+        "dtId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+        "id": "DEV-FCU-1",
+        "name": "FCU 01"
+      }
+    }
+  ],
+  "clockSources": [
+    {
+      "clockId": "urn:boptest:clock:bestest-air",
+      "clockDomain": "simulation",
+      "unit": "s",
+      "readOnly": true,
+      "acquisitionMode": "poll",
+      "native": {
+        "gatewayId": "GW-BOPTEST-001",
+        "connectorId": "bacnet-boptest",
+        "deviceInstance": 599,
+        "objectType": "analogValue",
+        "objectInstance": 2,
+        "property": "presentValue",
+        "unit": "seconds",
+        "protocol": "bacnet"
+      }
+    }
+  ],
+  "clockBindings": [
+    {
+      "equipmentId": "https://www.sbco.or.jp/ont/resource/DEV-FCU-1",
+      "clockId": "urn:boptest:clock:bestest-air"
+    }
+  ]
+}

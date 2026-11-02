@@ -357,6 +357,59 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Floor'
+  '/gateways/{gatewayId}/provisioning/v1':
+    get:
+      tags:
+        - GatewayConfiguration
+      parameters:
+        - name: gatewayId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: since
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/GatewayConfigurationResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayConfigurationResponse'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/GatewayConfigurationResponse'
+        '304':
+          description: Not Modified
+        '403':
+          description: Forbidden
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Conflict
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+            text/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
   '/gateways/{gatewayId}/pointlist':
     get:
       tags:
@@ -4017,6 +4070,29 @@ components:
           items:
             $ref: '#/components/schemas/AssistantContextTerm'
       additionalProperties: false
+    BacnetClockNative:
+      type: object
+      properties:
+        gatewayId:
+          type: string
+        connectorId:
+          type: string
+        deviceInstance:
+          type: integer
+          format: int32
+        objectType:
+          type: string
+        objectInstance:
+          type: integer
+          format: int32
+        property:
+          type: string
+        unit:
+          type: string
+        protocol:
+          type: string
+          readOnly: true
+      additionalProperties: false
     BatchLatestRequest:
       type: object
       properties:
@@ -4203,6 +4279,14 @@ components:
           items:
             $ref: '#/components/schemas/ConfigEntry'
       additionalProperties: false
+    EquipmentClockBinding:
+      type: object
+      properties:
+        equipmentId:
+          type: string
+        clockId:
+          type: string
+      additionalProperties: false
     FacetValueCount:
       required:
         - value
@@ -4276,6 +4360,22 @@ components:
           nullable: true
       additionalProperties: false
       description: "Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived\nBuildingOs.ApiServer.Controllers.GatewayAdminView.LastTelemetryAt last-seen signal (#181 Phase 2), the live egress\nBuildingOs.ApiServer.Controllers.GatewayAdminView.Connected state (#230 Phase 2②), and the pointlist BuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced state\n(#230 Phase 2b). `LastTelemetryAt` is the most recent telemetry timestamp across the gateway's\npoints (ISO-8601), or `null` when none have reported — it is the ingress last-seen, distinct\nfrom `Connected`. `Connected` is the cross-replica egress heartbeat (ADR-0004): `true`\nwhen a bridge replica is holding a live egress stream for this gateway right now, `false` when\nnone is observed (TTL-expired/absent), `null` when the heartbeat could not be read at all\n(#463 — 不明; distinct from 未接続, and deliberately the same tri-state shape as\nBuildingOs.ApiServer.Controllers.GatewayAdminView.PointlistSynced below). `PointlistSynced` compares the ETag the gateway reports\nas applied against the twin-authoritative BuildingOs.ApiServer.Controllers.GatewayAdminView.Revision: `true` = in sync, `false`\n= drifted (a resync is warranted), `null` = the gateway has not reported one (unknown — e.g. not\nconnected, or a gateway build that predates the report)."
+    GatewayClockSource:
+      type: object
+      properties:
+        clockId:
+          type: string
+        clockDomain:
+          type: string
+        unit:
+          type: string
+        readOnly:
+          type: boolean
+        acquisitionMode:
+          type: string
+        native:
+          $ref: '#/components/schemas/BacnetClockNative'
+      additionalProperties: false
     GatewayCollision:
       type: object
       properties:
@@ -4285,6 +4385,38 @@ components:
           type: integer
           format: int32
       additionalProperties: false
+    GatewayConfigurationResponse:
+      required:
+        - clockBindings
+        - clockSources
+        - gatewayId
+        - points
+      type: object
+      properties:
+        schemaVersion:
+          type: string
+        gatewayId:
+          type: string
+        revision:
+          type: string
+          readOnly: true
+        generatedAt:
+          type: string
+          format: date-time
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/GatewayPointDto'
+        clockSources:
+          type: array
+          items:
+            $ref: '#/components/schemas/GatewayClockSource'
+        clockBindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentClockBinding'
+      additionalProperties: false
+      description: The opt-in static clock contract. The legacy pointlist endpoint is unchanged.
     GatewayPointDto:
       type: object
       properties:
@@ -4610,6 +4742,10 @@ components:
               nullable: true
             - type: boolean
           description: "The reading's <b>non-numeric half</b> — a System.String, a System.Boolean, or\n`null` — independent of any number in Value (#359). Replaced the legacy\n`ValueText`/`ValueBool` pair. A non-numeric reading is repeated here rather than left\nnull, so a client reads the state half with a single lookup instead of falling back to\nValue. Batch-latest returns raw samples only, so unlike\nBuildingOs.ApiServer.Telemetry.TelemetryReading.State this never carries a state\nalongside a numeric average — see that type's docs for why the field exists at all."
+        data:
+          type: string
+          description: 'Additional telemetry metadata as a JSON string, matching single-point latest; null when absent.'
+          nullable: true
       additionalProperties: false
       description: "One point's latest sample; `Datetime`/`Value` are null when it has no data (#182).\n\n`Value` is the union-typed reading (#344) — a number, string, or boolean — described in the\nOpenAPI document as `oneOf` by `TelemetryValueSchemaFilter`. `State` carries the\nreading's non-numeric half, and `ValueType` describes `Value`; the legacy\n`ValueText`/`ValueBool` pair left the wire in #359. Kept in step with\nBuildingOs.ApiServer.Telemetry.TelemetryReading, whose docs carry the full rationale\n— the client's value decoder is satisfied structurally by both, so a divergence here surfaces only\nas a type error in the generated client.\nResponse-only: `object?` deserializes as a `JsonElement`, so do not reuse this for input."
     MissingReason:
@@ -5527,6 +5663,14 @@ components:
           type: boolean
           description: "階層未接続リソース（#291）があっても適用する明示的な上書き。既定 false（拒否）。\ngateway_id 一意性違反は上書きできない。"
       additionalProperties: false
+    TwinClockIssue:
+      type: object
+      properties:
+        resourceId:
+          type: string
+        reason:
+          type: string
+      additionalProperties: false
     TwinControlSchemaIssue:
       type: object
       properties:
@@ -5579,6 +5723,9 @@ components:
         releaseOfIssueCount:
           type: integer
           format: int32
+        clockIssueCount:
+          type: integer
+          format: int32
         idCollisions:
           type: array
           items:
@@ -5587,6 +5734,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TwinReleaseOfIssue'
+        clockIssues:
+          type: array
+          items:
+            $ref: '#/components/schemas/TwinClockIssue'
         valid:
           type: boolean
           readOnly: true
@@ -5674,6 +5825,7 @@ tags:
   - name: Device
   - name: DeviceDetail
   - name: Floor
+  - name: GatewayConfiguration
   - name: GatewayProvisioning
   - name: Gateways
   - name: Groups
