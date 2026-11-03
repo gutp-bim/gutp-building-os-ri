@@ -37,6 +37,8 @@ public class PointController(
     /// ポイント情報の一括取得
     /// </summary>
     [HttpGet]
+    [NativeBoundsV1Filter]
+    [ProducesResponseType(typeof(NativeBoundsV1Error), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(Point[]), StatusCodes.Status200OK)]
     public async Task<ActionResult<Point[]>> List([FromQuery] string? deviceDtId, CancellationToken ct)
     {
@@ -49,6 +51,8 @@ public class PointController(
     /// ポイント情報の取得
     /// </summary>
     [HttpGet]
+    [NativeBoundsV1Filter]
+    [ProducesResponseType(typeof(NativeBoundsV1Error), StatusCodes.Status409Conflict)]
     [Route("{pointId}")]
     [ProducesResponseType(typeof(Point), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -458,6 +458,12 @@ export type NativeAddressingDto = {
   instanceNo?: string | null | undefined;
 }
 
+/** A v1 read response was refused because its native bounds cannot be represented. */
+export type NativeBoundsV1Error = {
+  error?: string | undefined;
+  message?: string | undefined;
+}
+
 export type OidcClientDetail = {
   id?: string | undefined;
   clientId?: string | undefined;

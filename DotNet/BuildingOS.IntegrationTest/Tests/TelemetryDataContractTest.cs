@@ -57,7 +57,7 @@ public class TelemetryDataContractTest(NatsFixture fixture) : IClassFixture<Nats
         await bus.PublishAsync(Subject, message, ct);
 
         // Read the bytes persisted by the actual bus, then use the real Parquet serializer/reader.
-        var consumer = await js.CreateOrUpdateConsumerAsync("BUILDING_OS_VALIDATED", new ConsumerConfig
+        var consumer = await js.CreateOrUpdateConsumerAsync("BUILDING_OS_VALIDATED", new ConsumerConfig($"data-contract-{pointCount}")
         {
             FilterSubject = Subject, DeliverPolicy = ConsumerConfigDeliverPolicy.Last,
             AckPolicy = ConsumerConfigAckPolicy.None,

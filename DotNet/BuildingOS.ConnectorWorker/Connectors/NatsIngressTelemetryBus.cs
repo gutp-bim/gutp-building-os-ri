@@ -61,14 +61,8 @@ public sealed class NatsIngressTelemetryBus(
         try
         {
             if (_ensuredStreams.ContainsKey(streamName)) return;
-            try
-            {
-                await js.GetStreamAsync(streamName, cancellationToken: ct).ConfigureAwait(false);
-            }
-            catch
-            {
-                await js.CreateStreamAsync(new StreamConfig(streamName, streamSubjects), ct).ConfigureAwait(false);
-            }
+            await NatsStreamInitialization.EnsureAsync(
+                js, new StreamConfig(streamName, streamSubjects), ct).ConfigureAwait(false);
             _ensuredStreams[streamName] = true;
         }
         finally
