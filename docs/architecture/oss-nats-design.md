@@ -202,3 +202,42 @@ Architecture reviewers must confirm:
 - Replay behavior is acceptable for operations.
 - Control latency is compatible with gRPC streaming expectations.
 
+
+## Concurrent stream initialization (#609)
+
+`NatsIngressTelemetryBus` and `ParquetLakeWriterWorker` share
+`NatsStreamInitialization`. Only the stream-not-found response (404 / 10059)
+permits creation. If creation loses a race (10058), initialization performs one
+fresh lookup and validates the winner before reusing it. Permissions, quotas,
+other API failures and cancellation propagate; a failed bus initialization is
+not cached. The publisher still requires a successful JetStream publish ACK
+before updating Hot or reporting acceptance.
+
+Compatibility requires the canonical subject set (order independent), file
+storage, Limits retention and the requested discard policy. No-ACK, sealed,
+mirrored, sourced or subject-transforming streams are rejected. Other capacity
+limits remain effective and can legitimately reject a publish. The bus never
+updates an existing stream's configuration.
+
+The Parquet writer owns the validated stream's `MaxAge` / `MaxBytes` policy.
+It starts from the server configuration, preserving metadata, replica settings
+and unrelated limits. A pre-existing positive bound is retained if it is stricter
+than the writer's requested bound; defaults do not remove a configured cap.
+Changing or relaxing such a bound requires coordinated administrative action.
+This initialization handshake is not a transaction against concurrent operator
+reconfiguration; operators must coordinate changes separately.
+
+The fix is scoped to the writer / ingress bus pair. MQTT, AMQP and
+`NatsMessageSubscription` still have their existing raw-stream initialization
+paths; consolidating those paths is separate work.
+
+Regression coverage includes both deterministic real-404 interleavings, twenty
+natural concurrent starts, initial publish ACK / Hot metadata / writer delivery
+and consumer ACK completion, existing stricter limits, and error propagation.
+The lake is a test adapter (no external S3 service). Unit tests inject permission
+and account quota failures at the NATS boundary; real-server tests exercise
+storage mismatch and a message-size cap. `NatsFixture` defaults to
+`nats:2.10-alpine`; `NATS_TEST_IMAGE` can select a locally available test image.
+Official NATS 2.10.29 and 2.14.5 binaries were used in isolated local images
+when Docker Hub was unavailable. Error identifiers
+follow the [NATS server error definitions](https://github.com/nats-io/nats-server/blob/v2.10.29/server/jetstream_errors_generated.go).

@@ -25,6 +25,10 @@ public class Point
     public string? GatewayName { get; set; }
     public int? MinPresValue { get; set; }
     public int? MaxPresValue { get; set; }
+    /// <summary>Read metadata could not be represented by the v1 int32 native-bounds contract.
+    /// Kept out of JSON; read endpoints reject such a response, while control and import remain usable.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasUnrepresentableNativeBounds { get; set; }
     public string? TargetArea { get; set; }
     public float? Scale { get; set; }
     public string? InstallationArea { get; set; }

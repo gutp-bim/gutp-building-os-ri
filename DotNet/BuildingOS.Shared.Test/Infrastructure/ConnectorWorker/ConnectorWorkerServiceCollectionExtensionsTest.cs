@@ -8,6 +8,7 @@ using BuildingOS.Shared.Infrastructure.Messaging;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOS.Shared.Module;
+using Moq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -113,6 +114,47 @@ public class ConnectorWorkerServiceCollectionExtensionsTest
         on.AddTelemetryIngress(5051);
         Assert.Contains(on.Services, d => d.ServiceType == typeof(IIngressTelemetryBus));
         Assert.Contains(on.Services, d => d.ServiceType == typeof(IPointMetadataCache));
+    }
+
+    [Fact]
+    public void RunContextVerifier_OptionalDi_AbsentWhenUnsetAndResolvedWhenConfigured()
+    {
+        var off = NewBuilder();
+        off.AddTelemetryIngress(5051);
+        Assert.DoesNotContain(off.Services, d => d.ServiceType == typeof(RunContextVerifier));
+        // Optional ctor parameter: activation succeeds with no verifier and yields null (fail-closed path).
+        using var offProvider = new ServiceCollection()
+            .AddSingleton(Mock.Of<IIngressTelemetryBus>()).AddSingleton(Mock.Of<IPointMetadataCache>())
+            .AddSingleton(new IngressIdentityOptions()).AddSingleton(new IngressHierarchyOptions())
+            .AddLogging().BuildServiceProvider();
+        Assert.NotNull(ActivatorUtilities.CreateInstance<GatewayIngressService>(offProvider));
+
+        var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
+        try
+        {
+            var envelope = Path.Combine(dir, "envelope.json"); var trust = Path.Combine(dir, "trust.json");
+            var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schemaVersion = "clock-run-context/2-draft", gatewayId = "GW", clockId = "c", provisioningRevision = "r",
+                runId = "run", generation = 1, status = "active",
+                issuedAt = "2026-01-01T00:00:00Z", validFrom = "2026-01-01T00:00:00Z", expiresAt = "2026-01-01T01:00:00Z"
+            });
+            File.WriteAllBytes(envelope, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { payload }));
+            File.WriteAllBytes(trust, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                new[] { new { gatewayId = "GW", clockId = "c", envelopeFile = envelope } }));
+            var on = NewBuilder(new() { ["GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE"] = trust });
+            on.AddTelemetryIngress(5051);
+            Assert.Contains(on.Services, d => d.ServiceType == typeof(RunContextVerifier));
+            using var provider = new ServiceCollection()
+                .AddSingleton(Mock.Of<IIngressTelemetryBus>()).AddSingleton(Mock.Of<IPointMetadataCache>())
+                .AddSingleton(new IngressIdentityOptions()).AddSingleton(new IngressHierarchyOptions())
+                .AddLogging()
+                .AddSingleton((RunContextVerifier)on.Services.Single(d => d.ServiceType == typeof(RunContextVerifier)).ImplementationInstance!)
+                .BuildServiceProvider();
+            Assert.NotNull(provider.GetService<RunContextVerifier>());
+            Assert.NotNull(ActivatorUtilities.CreateInstance<GatewayIngressService>(provider));
+        }
+        finally { Directory.Delete(dir, true); }
     }
 
     [Fact]
