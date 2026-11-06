@@ -56,6 +56,7 @@ public sealed class CoalescingHotTelemetryStore : ISourceTaggedHotTelemetryStore
     private CancellationTokenSource? _loopCts;
     private Task? _loop;
     private int _dirty;
+    private int _disposed;
 
     public CoalescingHotTelemetryStore(IHotTelemetryStore inner, CoalescingHotStoreOptions options, ILogger<CoalescingHotTelemetryStore> logger)
     {
@@ -271,9 +272,13 @@ public sealed class CoalescingHotTelemetryStore : ISourceTaggedHotTelemetryStore
         }
     }
 
+    // The same instance is registered three times (concrete, IHotTelemetryStore, IHostedService), so
+    // the container disposes it once per registration: both dispose paths are idempotent.
+
     /// <summary>Synchronous dispose (containers that are not disposed asynchronously): stops the loop without flushing.</summary>
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
         lock (_loopLock) { _loopCts?.Cancel(); }
         // The loop observes the cancellation on its own; the semaphores are left to the finalizer-free
         // GC path on purpose, since the loop task may still be touching them.
@@ -281,6 +286,7 @@ public sealed class CoalescingHotTelemetryStore : ISourceTaggedHotTelemetryStore
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
         Task? loop;
         lock (_loopLock)
         {
