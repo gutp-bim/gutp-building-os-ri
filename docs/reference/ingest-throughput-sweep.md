@@ -49,7 +49,7 @@ Lake 行数が受理数より数件多いのは、点の登録確認用に送る
 
 ## 4. 切り分け（第 2 回計測）
 
-Worker を介さない NATS 単体のベンチ（`ingest-throughput-sweep-data/nats_bench.py`、同形式のペイロード、各 8 秒）と、
+Worker を介さない NATS 単体のベンチ（`Tools/e2e-performance/nats_bench.py`（#626 で data ディレクトリから正式ツール化）、同形式のペイロード、各 8 秒）と、
 stream 数・Worker 数を変えた sweep（目標 10,000/s、40 秒、負荷生成器 2 プロセス）で切り分けた。
 
 **NATS 単体（Worker なし、Python 1 プロセス）**
