@@ -5,6 +5,7 @@ using BuildingOS.Shared.Infrastructure.ConnectorWorker;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.DeviceControlHandler;
 using BuildingOS.Shared.Infrastructure.OxiGraph;
+using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOS.Shared.Module;
@@ -198,7 +199,7 @@ public class ConnectorWorkerRoleTest
         var hosted = HostedServiceNames(b.Services);
 
         Assert.Equal(
-            [nameof(ParquetLakeWriterWorker), nameof(CompactionWorker), nameof(LakeRetentionHostedService)],
+            [nameof(CoalescingHotTelemetryStore), nameof(ParquetLakeWriterWorker), nameof(CompactionWorker), nameof(LakeRetentionHostedService)],
             hosted);
         Assert.True(Registers<IParquetLakeWriter>(b.Services));
     }
@@ -226,7 +227,7 @@ public class ConnectorWorkerRoleTest
         });
         b.AddConnectorWorkerCapabilities(WorkerRole.Lake, null);
 
-        Assert.Equal([nameof(ColdExportWorker)], HostedServiceNames(b.Services));
+        Assert.Equal([nameof(CoalescingHotTelemetryStore), nameof(ColdExportWorker)], HostedServiceNames(b.Services));
         Assert.True(Registers<IColdExportService>(b.Services));
     }
 
@@ -239,7 +240,7 @@ public class ConnectorWorkerRoleTest
         b.AddConnectorWorkerCapabilities(WorkerRole.Control, 5051);
         var hosted = HostedServiceNames(b.Services);
 
-        Assert.Equal([nameof(NatsPointControlWorker)], hosted);
+        Assert.Equal([nameof(CoalescingHotTelemetryStore), nameof(NatsPointControlWorker)], hosted);
         Assert.True(Registers<IGatewayConnectionRegistry>(b.Services));
         Assert.False(Registers<IIngressTelemetryBus>(b.Services));
         Assert.False(Registers<IParquetLakeWriter>(b.Services));

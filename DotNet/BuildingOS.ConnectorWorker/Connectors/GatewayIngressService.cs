@@ -5,6 +5,7 @@ using BuildingOS.Shared.Helpers;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Module;
 using Corvus.Json;
+using System.Threading.Channels;
 using Grpc.Core;
 
 namespace BuildingOS.ConnectorWorker.Connectors;
@@ -30,9 +31,15 @@ public sealed class GatewayIngressService(
     IngressIdentityOptions identity,
     IngressHierarchyOptions hierarchy,
     ILogger<GatewayIngressService> logger,
-    RunContextVerifier? runContext = null) : Protos.GatewayIngress.GatewayIngressBase
+    RunContextVerifier? runContext = null,
+    IngressPublishOptions? publish = null) : Protos.GatewayIngress.GatewayIngressBase
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
+
+    private readonly int _window = Math.Max(1, (publish ?? new IngressPublishOptions()).Window);
+
+    /// <summary>A frame whose publish is in flight: its ack task plus what the result is tagged with.</summary>
+    private readonly record struct PendingAck(string GatewayId, string PointId, Task Ack);
 
     public override async Task<StreamAck> StreamTelemetry(
         IAsyncStreamReader<TelemetryFrame> requestStream, ServerCallContext context)
@@ -71,26 +78,163 @@ public sealed class GatewayIngressService(
         return found;
     }
 
-    /// <summary>Transport-agnostic core (testable without a live gRPC channel / NATS / OxiGraph).</summary>
+    /// <summary>
+    /// Transport-agnostic core (testable without a live gRPC channel / NATS / OxiGraph).
+    ///
+    /// #625 slice B: publishes are pipelined. The read loop validates each frame, issues its publish
+    /// through <see cref="IIngressTelemetryBus.BeginPublishAsync"/> and queues the ack task; a drain
+    /// task awaits the acks in order and counts <c>accepted</c> only for the ones that succeeded
+    /// (#187 unchanged: accepted = persisted). At most <see cref="IngressPublishOptions.Window"/> acks
+    /// are outstanding — past that the read loop blocks until the drain frees a slot, so memory is
+    /// bounded and the gateway sees backpressure instead of unbounded buffering. Window 1 is the
+    /// pre-#625 serial loop. The stream's <see cref="StreamAck"/> is produced only after every queued
+    /// ack has been resolved; on cancellation the still-unresolved ones are not counted.
+    /// </summary>
     internal async Task<long> RunAsync(
         IAsyncStreamReader<TelemetryFrame> requestStream, CancellationToken ct, string? trustedGatewayId = null)
     {
-        var accepted = 0L;
-        while (await requestStream.MoveNext(ct).ConfigureAwait(false))
+        using var slots = new SemaphoreSlim(_window, _window);
+        var pending = Channel.CreateBounded<PendingAck>(new BoundedChannelOptions(_window)
         {
-            if (await TryIngestAsync(requestStream.Current, trustedGatewayId, ct).ConfigureAwait(false)) accepted++;
+            SingleReader = true,
+            SingleWriter = true,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
+        var drain = DrainAsync(pending.Reader, slots, ct);
+
+        try
+        {
+            while (await requestStream.MoveNext(ct).ConfigureAwait(false))
+            {
+                var frame = requestStream.Current;
+                if (!await TryBeginIngestAsync(frame, trustedGatewayId, slots, ct).ConfigureAwait(false)) continue;
+                // TryBeginIngestAsync releases the slot on every non-queued outcome, so a frame that
+                // reaches here holds exactly one slot until the drain releases it.
+            }
         }
-        logger.LogInformation("Ingress stream completed: {Accepted} telemetry frames enqueued", accepted);
+        catch (Exception)
+        {
+            // The gateway went away, the host is stopping, or the transport failed: stop reading and
+            // settle the drain before surfacing the exception as before. Under cancellation the drain
+            // gives up on the unresolved acks (not counted); otherwise it resolves what is in flight.
+            // Either way it must finish before the slot pool is disposed.
+            pending.Writer.TryComplete();
+            ObserveLeftovers(await drain.ConfigureAwait(false));
+            throw;
+        }
+        pending.Writer.TryComplete();
+
+        var (accepted, _) = await drain.ConfigureAwait(false);
+        logger.LogInformation("Ingress stream completed: {Accepted} telemetry frames enqueued (publish window {Window})", accepted, _window);
         return accepted;
+
+        // Resolves queued acks in order. Returns the accepted count plus any acks it stopped awaiting
+        // (cancellation), which the caller observes so a late fault is never an unobserved exception.
+        async Task<(long Accepted, List<Task> Unresolved)> DrainAsync(
+            ChannelReader<PendingAck> reader, SemaphoreSlim slotPool, CancellationToken token)
+        {
+            var count = 0L;
+            var unresolved = new List<Task>();
+            await foreach (var item in reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
+            {
+                if (token.IsCancellationRequested)
+                {
+                    unresolved.Add(item.Ack);
+                    slotPool.Release();
+                    continue;
+                }
+                try
+                {
+                    await item.Ack.WaitAsync(token).ConfigureAwait(false);
+                    count++;
+                    Count(item.GatewayId, "published");
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    // Undetermined, not failed: the frame may well be persisted, but we cannot tell the
+                    // gateway so (the stream is gone), hence it is not counted — same as before #625.
+                    unresolved.Add(item.Ack);
+                }
+                catch (TelemetrySizeLimitException ex)
+                {
+                    // Only reachable through a transport that defers validation to the ack task.
+                    logger.LogWarning(
+                        "Ingress: telemetry {Dimension} exceeds byte limit ({ActualBytes} > {LimitBytes}), not accepted",
+                        ex.Dimension, ex.ActualBytes, ex.LimitBytes);
+                    Count(item.GatewayId, "size_exceeded");
+                }
+                catch (Exception ex)
+                {
+                    // The ack failed (stream refused/dropped the message, request timed out): not
+                    // accepted, but the stream continues, exactly like the serial path's publish_failed.
+                    logger.LogWarning(ex, "Ingress: publish failed for point '{PointId}', not accepted", item.PointId);
+                    Count(item.GatewayId, "publish_failed");
+                }
+                finally
+                {
+                    slotPool.Release();
+                }
+            }
+            return (count, unresolved);
+        }
+
+        void ObserveLeftovers((long Accepted, List<Task> Unresolved) result)
+        {
+            foreach (var task in result.Unresolved)
+                _ = task.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+        }
+
+        // Validates the frame, acquires a window slot and issues the publish; true only when an ack is
+        // now queued for the drain. Every other outcome has already been counted and released its slot.
+        async Task<bool> TryBeginIngestAsync(TelemetryFrame frame, string? trusted, SemaphoreSlim slotPool, CancellationToken token)
+        {
+            var message = await PrepareAsync(frame, trusted, token).ConfigureAwait(false);
+            if (message is null) return false;
+
+            await slotPool.WaitAsync(token).ConfigureAwait(false); // backpressure: the window is full
+            Task ack;
+            try
+            {
+                ack = await bus.BeginPublishAsync(ValidatedSubject, message, token).ConfigureAwait(false);
+            }
+            catch (TelemetrySizeLimitException ex)
+            {
+                slotPool.Release();
+                logger.LogWarning(
+                    "Ingress: telemetry {Dimension} exceeds byte limit ({ActualBytes} > {LimitBytes}), not accepted",
+                    ex.Dimension, ex.ActualBytes, ex.LimitBytes);
+                Count(frame.GatewayId, "size_exceeded");
+                return false;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                slotPool.Release();
+                logger.LogWarning(ex, "Ingress: publish failed for point '{PointId}', not accepted", frame.PointId);
+                Count(frame.GatewayId, "publish_failed");
+                return false;
+            }
+            catch
+            {
+                slotPool.Release();
+                throw;
+            }
+
+            await pending.Writer.WriteAsync(new PendingAck(frame.GatewayId, frame.PointId, ack), token).ConfigureAwait(false);
+            return true;
+        }
     }
 
-    private async Task<bool> TryIngestAsync(TelemetryFrame frame, string? trustedGatewayId, CancellationToken ct)
+    /// <summary>
+    /// The pre-publish checks (ids, identity binding, run context, twin lookup, ownership, hierarchy):
+    /// returns the validated-telemetry message to publish, or null after counting the rejection.
+    /// </summary>
+    private async Task<string?> PrepareAsync(TelemetryFrame frame, string? trustedGatewayId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(frame.GatewayId) || string.IsNullOrEmpty(frame.PointId))
         {
             logger.LogWarning("Ingress: frame missing gateway_id/point_id, skipping");
             Count(frame.GatewayId, "missing_id");
-            return false;
+            return null;
         }
 
         // Identity binding (#296): reject a frame whose claimed gateway_id does not match the
@@ -105,7 +249,7 @@ public sealed class GatewayIngressService(
                 "Ingress: gateway identity check failed ({Reason}) — frame gateway '{Gateway}' vs trusted '{Trusted}', skipping",
                 reason, frame.GatewayId, trustedGatewayId ?? "(none)");
             Count(frame.GatewayId, reason);
-            return false;
+            return null;
         }
 
         // Unsigned run context (opt-in, GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE, ADR-0012): a frame claiming a run
@@ -117,14 +261,14 @@ public sealed class GatewayIngressService(
             logger.LogWarning("Ingress: run context claim rejected (run_context_unconfigured) for gateway '{Gateway}' point '{PointId}', skipping",
                 frame.GatewayId, frame.PointId);
             Count(frame.GatewayId, "run_context_unconfigured");
-            return false;
+            return null;
         }
         if (runContext is not null && !runContext.Validate(frame, trustedGatewayId, out var runReason))
         {
             logger.LogWarning("Ingress: run context claim rejected ({Reason}) for gateway '{Gateway}' point '{PointId}', skipping",
                 runReason, frame.GatewayId, frame.PointId);
             Count(frame.GatewayId, runReason);
-            return false;
+            return null;
         }
 
         var meta = await metadataCache.GetAsync(frame.PointId, ct).ConfigureAwait(false);
@@ -132,7 +276,7 @@ public sealed class GatewayIngressService(
         {
             logger.LogWarning("Ingress: unknown point_id '{PointId}', skipping frame", frame.PointId);
             Count(frame.GatewayId, "unknown_point");
-            return false;
+            return null;
         }
 
         // Ownership: when the twin records which gateway owns the point, reject a mismatching sender.
@@ -143,7 +287,7 @@ public sealed class GatewayIngressService(
             logger.LogWarning("Ingress: gateway '{Gateway}' does not own point '{PointId}' (owner '{Owner}'), skipping",
                 frame.GatewayId, frame.PointId, meta.GatewayId);
             Count(frame.GatewayId, "gateway_mismatch");
-            return false;
+            return null;
         }
 
         // Hierarchy completeness (#292): a point the twin does not place under a building/device
@@ -164,38 +308,18 @@ public sealed class GatewayIngressService(
                 "Ingress: point '{PointId}' is not connected to the building hierarchy ({Reason}), skipping",
                 frame.PointId, reason);
             Count(frame.GatewayId, reason);
-            return false;
+            return null;
         }
 
-        try
-        {
-            // The bus publish is a JetStream publish-ack (#187): it throws if the stream did not
-            // persist the frame, so we count it as accepted only on success. A failure is logged +
-            // metered and the frame is not acked to the gateway, but the stream continues.
-            await bus.PublishAsync(ValidatedSubject, BuildValidatedTelemetry(frame, meta), ct).ConfigureAwait(false);
-        }
-        catch (TelemetrySizeLimitException ex)
-        {
-            logger.LogWarning(
-                "Ingress: telemetry {Dimension} exceeds byte limit ({ActualBytes} > {LimitBytes}), not accepted",
-                ex.Dimension, ex.ActualBytes, ex.LimitBytes);
-            Count(frame.GatewayId, "size_exceeded");
-            return false;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Ingress: publish failed for point '{PointId}', not accepted", frame.PointId);
-            Count(frame.GatewayId, "publish_failed");
-            return false;
-        }
-
-        Count(frame.GatewayId, "published");
-        return true;
+        // The publish itself is a JetStream publish-ack (#187): the frame is counted as accepted only
+        // once its ack succeeds (see RunAsync's drain); a failure is logged + metered and the frame
+        // is not acked to the gateway, but the stream continues.
+        return BuildValidatedTelemetry(frame, meta);
     }
 
     private string BuildValidatedTelemetry(TelemetryFrame frame, PointMetadata meta)
     {
-        var timestamp = NormalizeTimestamp(frame.Timestamp, frame.GatewayId);
+        var (eventTime, timestamp) = NormalizeTimestamp(frame.Timestamp, frame.GatewayId);
 
         var dataProps = new List<JsonObjectProperty>
         {
@@ -210,7 +334,7 @@ public sealed class GatewayIngressService(
         }
 
         var entity = ValidMessage.ValidTelemetryEntity.Create(
-            id: $"{meta.PointId}.{DateTime.UtcNow.ToUnixTime()}",
+            id: TelemetryId(meta.PointId, eventTime),
             pointId: meta.PointId,
             building: new JsonString(meta.Building),
             datetime: new JsonString(timestamp).As<JsonDateTime>(),
@@ -239,17 +363,36 @@ public sealed class GatewayIngressService(
             _ => (JsonNumber)frame.ValueNum,
         };
 
+    /// <summary>
+    /// The validated-telemetry <c>id</c> for a gRPC frame: <c>{pointId}.{event time in unix µs}</c>.
+    ///
+    /// The lake de-duplicates rows by <c>id</c> (the writer within a flush, compaction within an hour,
+    /// reads across overlapping parts), so the id must name the <i>reading</i>, not the moment it
+    /// arrived. It used to be <c>{pointId}.{receive time in unix ms}</c>: two distinct readings of one
+    /// point received in the same millisecond — a gateway catching up a buffer, or simply a fast
+    /// stream after #625's pipelining — collapsed into one lake row although both were acked as
+    /// accepted (#625 S26: ~1.6 % of rows at 50 readings/s per point). A frame carries the point id and
+    /// its own timestamp, which is enough to identify the reading, so the id is deterministic as
+    /// <c>telemetry-specification.md</c> asks: a re-sent frame (e.g. one persisted but not counted in
+    /// <see cref="StreamAck"/> when a stream dropped) now gets the same id and collapses instead of
+    /// duplicating. Two frames of one point with the very same timestamp are one reading by this
+    /// definition (the later one wins), which is also how S22 counts duplicates. A frame whose
+    /// timestamp fell back to receive time (#418) gets a receive-time id, as before.
+    /// </summary>
+    internal static string TelemetryId(string pointId, DateTimeOffset eventTime)
+        => $"{pointId}.{(eventTime.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) / TimeSpan.TicksPerMicrosecond}";
+
     // A non-empty, parseable timestamp is normalized to round-trip ISO-8601; empty or unparseable
     // falls back to receive time so a malformed gateway timestamp cannot fail downstream date parsing.
     // #418: that fallback silently mixes clock semantics (the point's later readings carry the
     // gateway's own clock, this one carries ours) — logged + metered so it is observable after the
     // fact rather than a silent divergence.
-    private string NormalizeTimestamp(string raw, string gatewayId)
+    private (DateTimeOffset Instant, string Text) NormalizeTimestamp(string raw, string gatewayId)
     {
         if (!string.IsNullOrEmpty(raw) &&
             DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
-            return parsed.ToString("O", CultureInfo.InvariantCulture);
+            return (parsed, parsed.ToString("O", CultureInfo.InvariantCulture));
         }
 
         logger.LogWarning(
@@ -259,7 +402,8 @@ public sealed class GatewayIngressService(
             1,
             new KeyValuePair<string, object?>("source", "gateway-grpc"),
             new KeyValuePair<string, object?>("gateway", gatewayId));
-        return DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        var now = DateTime.UtcNow;
+        return (new DateTimeOffset(now), now.ToString("O", CultureInfo.InvariantCulture));
     }
 
     private static void Count(string gatewayId, string result) =>

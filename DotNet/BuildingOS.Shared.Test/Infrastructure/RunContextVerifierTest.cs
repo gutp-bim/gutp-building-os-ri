@@ -85,7 +85,7 @@ public sealed class RunContextVerifierTest
     {
         using var fixture = new Fixture(); var verifier = RunContextVerifier.Load(fixture.Config);
         var bus = new Mock<IIngressTelemetryBus>();
-        bus.Setup(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        bus.Setup(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(Task.CompletedTask);
         var cache = new Mock<IPointMetadataCache>();
         cache.Setup(c => c.GetAsync("BPT-0002", It.IsAny<CancellationToken>())).ReturnsAsync(
             new PointMetadata("BPT-0002", "BLDG", "Temperature", "DEVICE", "GW-EXAMPLE"));
@@ -94,13 +94,13 @@ public sealed class RunContextVerifierTest
         var service = new GatewayIngressService(bus.Object, cache.Object, new IngressIdentityOptions { Enforce = true },
             new IngressHierarchyOptions(), NullLogger<GatewayIngressService>.Instance, verifier);
         Assert.Equal(1, await service.RunAsync(reader, CancellationToken.None, "GW-EXAMPLE"));
-        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        bus.Verify(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static (GatewayIngressService Service, Mock<IIngressTelemetryBus> Bus) NewService(RunContextVerifier? verifier)
     {
         var bus = new Mock<IIngressTelemetryBus>();
-        bus.Setup(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        bus.Setup(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(Task.CompletedTask);
         var cache = new Mock<IPointMetadataCache>();
         cache.Setup(c => c.GetAsync("BPT-0002", It.IsAny<CancellationToken>())).ReturnsAsync(
             new PointMetadata("BPT-0002", "BLDG", "Temperature", "DEVICE", "GW-EXAMPLE"));
@@ -122,7 +122,7 @@ public sealed class RunContextVerifierTest
         using var fixture = new Fixture();
         var (service, bus) = NewService(RunContextVerifier.Load(fixture.Config));
         Assert.Equal(1, await RunAsync(service, fixture.Frame));
-        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        bus.Verify(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class RunContextVerifierTest
         var (service, bus) = NewService(RunContextVerifier.Load(fixture.Config));
         fixture.Frame.Attributes["sim_run_id"] = "other";
         Assert.Equal(0, await RunAsync(service, fixture.Frame));
-        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        bus.Verify(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class RunContextVerifierTest
         using var fixture = new Fixture();
         var (service, bus) = NewService(null);
         Assert.Equal(0, await RunAsync(service, fixture.Frame));
-        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        bus.Verify(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public sealed class RunContextVerifierTest
         var absent = plain.Clone(); absent.Attributes["sim_run_status"] = "absent";
         var (service, bus) = NewService(null);
         Assert.Equal(2, await RunAsync(service, plain, absent));
-        bus.Verify(b => b.PublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        bus.Verify(b => b.BeginPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]

@@ -15,6 +15,9 @@
 #       building-os.connector-worker building-os.connector-worker-lake \
 #       building-os.connector-worker-control
 #
+# A second ingest replica for the #626 scaling matrix is the `ingest-replicas` profile
+# (`--profile ingest-replicas`, host ports 5052/8084); see that service's comment.
+#
 # Adding this file demotes the base `building-os.connector-worker` to WORKER_ROLE=ingest: the override
 # below wins over that service's ${WORKER_ROLE:-all} default. That has to live in the file rather than
 # in an exported shell variable — leaving it to the operator would mean any later `up`, `restart` or
@@ -50,6 +53,44 @@ services:
   building-os.connector-worker:
     environment:
       WORKER_ROLE: ingest
+
+  # Second ingest replica (#626 R-1): the same image, the same role, its own host ports. gRPC
+  # streams are long-lived, so there is no load balancer here — the load generator (and a real
+  # deployment's gateways) address the replicas directly:
+  #   s22_ingest_rate_sweep.py --ingress localhost:5051,localhost:5052
+  # Add a third/fourth by copying this block (5053/8085, …). Nothing else changes: ingest replicas
+  # share no state beyond NATS, and each stream is pinned to the replica it connected to.
+  building-os.connector-worker-ingest-2:
+    build:
+      context: .
+      dockerfile: DotNet/BuildingOS.ConnectorWorker/Dockerfile
+    container_name: building-os.connector-worker-ingest-2
+    environment:
+      WORKER_ROLE: ingest
+      NATS_URL: nats://building-os.nats:4222
+      HEALTH_PORT: "8081"
+      GRPC_INGRESS_PORT: "5051"
+      TELEMETRY_MAX_DATA_BYTES: ${TELEMETRY_MAX_DATA_BYTES:-1024}
+      TELEMETRY_MAX_RECORD_BYTES: ${TELEMETRY_MAX_RECORD_BYTES:-16384}
+      GRPC_INGRESS_PUBLISH_WINDOW: ${GRPC_INGRESS_PUBLISH_WINDOW:-}
+      HOT_STORE_COALESCE_MS: ${HOT_STORE_COALESCE_MS:-}
+      HOT_STORE_COALESCE_MAX_POINTS: ${HOT_STORE_COALESCE_MAX_POINTS:-}
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://building-os.otel-collector:4317
+      OTEL_SERVICE_NAME: building-os-connector-worker-ingest-2
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+      OXIGRAPH_ENDPOINT: http://building-os.oxigraph:7878
+    ports:
+      - "5052:5051"
+      - "8084:8081"
+    depends_on:
+      building-os.nats:
+        condition: service_healthy
+    networks:
+      - oss
+    restart: unless-stopped
+    profiles:
+      - ingest-replicas
 
   # Telemetry persistence: ParquetLakeWriterWorker + CompactionWorker + LakeRetentionHostedService
   # (or ColdExportWorker under WARM_STORE=timescale). No ingest surface, no twin client.

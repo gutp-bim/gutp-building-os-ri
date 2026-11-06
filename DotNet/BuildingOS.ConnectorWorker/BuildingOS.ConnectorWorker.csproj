@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="BuildingOS.Shared.Test" />
+    <InternalsVisibleTo Include="BuildingOS.IntegrationTest" />
   </ItemGroup>
 
 </Project>

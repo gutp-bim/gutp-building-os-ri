@@ -22,13 +22,195 @@ public class GatewayIngressServiceTest
         FakeIngressTelemetryBus bus,
         FakePointMetadataCache cache,
         IngressIdentityOptions? identity = null,
-        IngressHierarchyOptions? hierarchy = null)
+        IngressHierarchyOptions? hierarchy = null,
+        int? window = null)
         => new(
             bus,
             cache,
             identity ?? new IngressIdentityOptions(),
             hierarchy ?? new IngressHierarchyOptions(),
-            NullLogger<GatewayIngressService>.Instance);
+            NullLogger<GatewayIngressService>.Instance,
+            publish: window is { } w ? new IngressPublishOptions { Window = w } : null);
+
+    private static TelemetryFrame Frame(string gateway, string point, double value)
+        => new() { GatewayId = gateway, PointId = point, ValueNum = value, Timestamp = "2026-11-07T00:00:00Z" };
+
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 5000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("condition not met");
+            await Task.Delay(10);
+        }
+    }
+
+    // ── Telemetry id = the reading, not its arrival (#625 S26) ────────────────
+
+    [Fact]
+    public async Task Id_TwoReadingsOfOnePointMicrosecondsApart_GetDistinctIds()
+    {
+        // Received back-to-back (same millisecond on the server) they used to share
+        // {pointId}.{receive ms} and the lake's id de-dup dropped one of them.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-ID"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-ID", PointId = "PT001", ValueNum = 1, Timestamp = "2026-11-07T00:00:00.000001Z" });
+        reader.Push(new TelemetryFrame { GatewayId = "GW-ID", PointId = "PT001", ValueNum = 2, Timestamp = "2026-11-07T00:00:00.000002Z" });
+        reader.Complete();
+
+        await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        var ids = bus.Published.Select(p => JsonDocument.Parse(p.Message).RootElement.GetProperty("telemetries")[0].GetProperty("id").GetString()).ToArray();
+        Assert.Equal(2, ids.Distinct().Count());
+        Assert.Equal("PT001.1794009600000001", ids[0]);
+    }
+
+    [Fact]
+    public async Task Id_ReSentFrame_GetsTheSameId()
+    {
+        // A frame persisted but not counted in StreamAck (stream dropped mid-window) and re-sent by
+        // the gateway must collapse in the lake instead of duplicating.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-ID2"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 2; i++)
+            reader.Push(new TelemetryFrame { GatewayId = "GW-ID2", PointId = "PT001", ValueNum = 5, Timestamp = "2026-11-07T09:00:00+09:00" });
+        reader.Complete();
+
+        await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        var ids = bus.Published.Select(p => JsonDocument.Parse(p.Message).RootElement.GetProperty("telemetries")[0].GetProperty("id").GetString()).ToArray();
+        Assert.Equal(ids[0], ids[1]);
+        Assert.Equal(GatewayIngressService.TelemetryId("PT001", DateTimeOffset.Parse("2026-11-07T00:00:00Z")), ids[0]);
+    }
+
+    // ── Publish window (#625 slice B) ────────────────────────────────────────
+
+    [Fact]
+    public async Task Window_AcceptsOnlyAckedFrames_FailureMidWindowDoesNotAffectOthers()
+    {
+        var bus = new FakeIngressTelemetryBus { HoldAcks = true };
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-WIN"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 5; i++) reader.Push(Frame("GW-WIN", "PT001", i));
+        reader.Complete();
+
+        var (acceptedTask, results) = await RunCapturingResultsAsync("GW-WIN", async () =>
+        {
+            var run = NewService(bus, cache, window: 8).RunAsync(reader, CancellationToken.None);
+            await WaitUntilAsync(() => bus.HeldCount == 5);
+            bus.ReleaseNext();
+            bus.ReleaseNext(new InvalidOperationException("ack failed"));
+            bus.ReleaseNext();
+            bus.ReleaseNext(new InvalidOperationException("ack failed"));
+            bus.ReleaseNext();
+            return await run;
+        });
+
+        Assert.Equal(3L, acceptedTask);
+        Assert.Equal(3, results.Count(r => r == "published"));
+        Assert.Equal(2, results.Count(r => r == "publish_failed"));
+        Assert.Equal(5, bus.Published.Count);
+    }
+
+    [Fact]
+    public async Task Window_FullWindowBlocksReading_UntilAnAckResolves()
+    {
+        var bus = new FakeIngressTelemetryBus { HoldAcks = true };
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-BP"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 5; i++) reader.Push(Frame("GW-BP", "PT001", i));
+        reader.Complete();
+
+        var run = NewService(bus, cache, window: 2).RunAsync(reader, CancellationToken.None);
+
+        await WaitUntilAsync(() => bus.Begun == 2);
+        await Task.Delay(100);
+        Assert.Equal(2, bus.Begun); // backpressure: the third publish waits for a slot
+
+        Assert.True(bus.ReleaseNext());
+        await WaitUntilAsync(() => bus.Begun == 3);
+        Assert.Equal(3, bus.Begun);
+
+        while (bus.ReleaseNext() || bus.Begun < 5) await Task.Delay(10);
+        Assert.Equal(5L, await run);
+    }
+
+    [Fact]
+    public async Task Window1_IsTheSerialLoop()
+    {
+        var bus = new FakeIngressTelemetryBus { HoldAcks = true };
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-SER"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 3; i++) reader.Push(Frame("GW-SER", "PT001", i));
+        reader.Complete();
+
+        var run = NewService(bus, cache, window: 1).RunAsync(reader, CancellationToken.None);
+
+        await WaitUntilAsync(() => bus.Begun == 1);
+        await Task.Delay(100);
+        Assert.Equal(1, bus.Begun);
+        bus.ReleaseNext();
+        await WaitUntilAsync(() => bus.Begun == 2);
+        bus.ReleaseNext();
+        await WaitUntilAsync(() => bus.Begun == 3);
+        bus.ReleaseNext();
+        Assert.Equal(3L, await run);
+    }
+
+    [Fact]
+    public async Task Window_Cancellation_DoesNotCountUnresolvedAcks()
+    {
+        var bus = new FakeIngressTelemetryBus { HoldAcks = true };
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-CXL"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 3; i++) reader.Push(Frame("GW-CXL", "PT001", i));
+        using var cts = new CancellationTokenSource();
+
+        var (_, results) = await RunCapturingResultsAsync("GW-CXL", async () =>
+        {
+            var run = NewService(bus, cache, window: 8).RunAsync(reader, cts.Token);
+            await WaitUntilAsync(() => bus.HeldCount == 3);
+            bus.ReleaseNext(); // one ack lands before the cut
+            await WaitUntilAsync(() => bus.HeldCount == 2);
+            await Task.Delay(50);
+            cts.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+            // Late outcomes after the stream is gone must neither count nor crash.
+            bus.ReleaseNext(new InvalidOperationException("late failure"));
+            bus.ReleaseNext();
+            return 0L;
+        });
+
+        Assert.Equal(1, results.Count(r => r == "published"));
+        Assert.DoesNotContain("publish_failed", results);
+    }
+
+    [Fact]
+    public async Task Window_SerialTransportStaysCorrect_ThroughTheDefaultBeginPublish()
+    {
+        // A bus that only implements PublishAsync (the interface default wraps it) still works under
+        // a windowed caller: every frame is acked by the time BeginPublishAsync returns.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-DEF"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 50; i++) reader.Push(Frame("GW-DEF", "PT001", i));
+        reader.Complete();
+
+        Assert.Equal(50L, await NewService(bus, cache, window: 16).RunAsync(reader, CancellationToken.None));
+        Assert.Equal(50, bus.Published.Count);
+    }
+
+    [Theory]
+    [InlineData(null, 128)]
+    [InlineData("1", 1)]
+    [InlineData("64", 64)]
+    [InlineData("0", 128)]
+    [InlineData("-3", 128)]
+    [InlineData("abc", 128)]
+    public void PublishOptions_Parse(string? raw, int expected)
+        => Assert.Equal(expected, IngressPublishOptions.Parse(raw).Window);
 
     [Fact]
     public async Task StreamTelemetry_SizeRejectionIsNotAccepted_AndNextFrameContinues()
@@ -697,7 +879,8 @@ public class GatewayIngressServiceTest
                 if (tag.Key == "gateway") gateway = tag.Value?.ToString();
                 else if (tag.Key == "result") result = tag.Value?.ToString();
             }
-            if (result is not null && gateway == gatewayId) results.Add(result);
+            // The drain (#625) counts on another thread than the read loop: serialise the adds.
+            if (result is not null && gateway == gatewayId) lock (results) results.Add(result);
         });
         listener.Start();
 
@@ -809,11 +992,26 @@ public class GatewayIngressServiceTest
     private sealed class FakeIngressTelemetryBus : IIngressTelemetryBus
     {
         private readonly ConcurrentQueue<(string Subject, string Message)> _published = new();
+        private readonly ConcurrentQueue<TaskCompletionSource> _heldAcks = new();
         public IReadOnlyList<(string Subject, string Message)> Published => _published.ToArray();
 
         /// <summary>When true, the next publish throws (simulates a JetStream publish-ack failure).</summary>
         public bool FailOnce { get; set; }
         public Exception? NextFailure { get; set; }
+
+        /// <summary>#625: when true, every publish is handed back as an unresolved ack the test
+        /// settles with <see cref="ReleaseNext"/> — the pipelined transport's shape.</summary>
+        public bool HoldAcks { get; set; }
+        /// <summary>Publishes issued so far (including held ones).</summary>
+        public int Begun => _published.Count;
+        public int HeldCount => _heldAcks.Count;
+
+        public bool ReleaseNext(Exception? failure = null)
+        {
+            if (!_heldAcks.TryDequeue(out var tcs)) return false;
+            if (failure is null) tcs.SetResult(); else tcs.SetException(failure);
+            return true;
+        }
 
         public Task PublishAsync(string subject, string message, CancellationToken cancellationToken)
         {
@@ -829,6 +1027,15 @@ public class GatewayIngressServiceTest
             }
             _published.Enqueue((subject, message));
             return Task.CompletedTask;
+        }
+
+        public Task<Task> BeginPublishAsync(string subject, string message, CancellationToken cancellationToken)
+        {
+            if (!HoldAcks) return Task.FromResult(PublishAsync(subject, message, cancellationToken));
+            _published.Enqueue((subject, message));
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _heldAcks.Enqueue(tcs);
+            return Task.FromResult(tcs.Task);
         }
     }
 

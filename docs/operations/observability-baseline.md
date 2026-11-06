@@ -42,6 +42,7 @@ bounded number of series, unlike an identifier. The ingest signals below use onl
 | `building_os.ingress.messages` | `gateway` | gateway id, `source=gateway-grpc` only — bounded by the number of gateways, not points |
 | `building_os.ingress.event_lag` | `source` | `connector`, `gateway-grpc` |
 | `building_os.ingestion.lag` | `subject` | the `building-os.raw.*` subject the consumer reads |
+| `building_os.hot_store.coalesce_flush_latency` / `building_os.hot_store.coalesced_points` (#625) | — | no tags: one measurement per coalesced flush |
 | `building_os.health_events` (#455) | `action` | `raised`, `updated`, `cleared` |
 | `building_os.health_events` (#455) | `kind` | `stale`, `missing`, `alarm`, `gateway_offline` |
 
@@ -57,6 +58,7 @@ readings simply arrive later and later. Two histograms make that visible:
 |--------|------------------|
 | `building_os.ingress.event_lag` | Seconds between a reading's own event time (the telemetry `datetime`) and its arrival in the hot store. Recorded at the point every validated-telemetry producer converges, so it covers connectors and the gRPC ingress alike. |
 | `building_os.ingestion.lag` | Seconds a JetStream consumer trails its own raw-subject stream (consumer lag). |
+| `building_os.hot_store.coalesce_flush_latency` (#625) | Seconds the oldest pending hot-store put had waited when its coalesced flush started — the delay `HOT_STORE_COALESCE_MS` adds between `event_lag`'s measurement point and the value actually landing in NATS KV. Flat at ≈ the configured interval under normal load; rising means the flush itself (the KV) is slow. `building_os.hot_store.coalesced_points` beside it is how many puts one flush collapsed into. |
 
 `building_os.ingress.messages` also carries a `result` tag, so a message a transport refuses
 (malformed topic or non-JSON payload) is counted rather than only logged.
@@ -155,7 +157,7 @@ Notes:
   reports null, like every other KPI (`(A or vector(0)) + …` would report 0 with no data at all).
 - **Histogram buckets.** Every `building_os` histogram whose unit is `s`
   (`building_os.ingestion.lag`, `building_os.ingress.event_lag`,
-  `building_os.parquet_writer.freshness_lag`) is exported with explicit second-scale boundaries
+  `building_os.hot_store.coalesce_flush_latency`, `building_os.parquet_writer.freshness_lag`) is exported with explicit second-scale boundaries
   `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200` (+Inf) — a view
   registered in `OtelSetup.AddBuildingOsHistogramViews`. The SDK default boundaries
   (`0, 5, 10, 25, 50, 75, 100, 250, …`) are sized for milliseconds: with them an 80 ms lag falls in
