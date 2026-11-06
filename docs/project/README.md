@@ -8,3 +8,4 @@
 - [コスト・品質バックログ](cost-quality-backlog.md)
 - [統合管理コンソール・ロードマップ](oss-unified-console-roadmap.md)
 - [v1 UI / UX PRD](prd-v1-ui-ux-review.md)
+- [gRPC ingest スループット PRD（#625 / #626）](prd-ingest-stream-throughput.md)
