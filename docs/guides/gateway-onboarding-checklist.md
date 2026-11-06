@@ -58,6 +58,27 @@
   Ingress の注入設定を揃えます。
   詳細: [oss-gateway-pointlist-sync.md](../architecture/oss-gateway-pointlist-sync.md)の「トラスト境界」節。
 
+## スループットと stream 分割（#625）
+
+- **1 本の gRPC `StreamTelemetry` stream は 1 つの ConnectorWorker（`ingest`）レプリカで処理される。**
+  レプリカを増やしても既存の stream は移らない（再接続時にのみ分散する）ので、1 gateway の上限は
+  「1 stream の上限 × その gateway が張る stream 数」で決まる。
+- **1 stream の目安:** 既定設定（`GRPC_INGRESS_PUBLISH_WINDOW=128`・`HOT_STORE_COALESCE_MS=100`）で
+  **12,000 frame/s 以上**（同一ホストの直列実装は約 700/s。共有ホストでの S22 再計測、
+  [ingest-throughput-sweep.md](../reference/ingest-throughput-sweep.md) §9）。#625 以前の直列処理
+  （`GRPC_INGRESS_PUBLISH_WINDOW=1`・`HOT_STORE_COALESCE_MS=0`）では約 1.5k frame/s。
+  運用は上限の **50% 以下**を目安にし、それを超える gateway は **複数 stream に分割**する
+  （例: 1 stream あたり目標の 50% 以下になる本数。Point を stream に固定して割り当てると順序が保たれる）。
+- **再送とウィンドウ N:** `StreamAck.accepted` は JetStream に永続化済みの件数で、ack はウィンドウ内で
+  非同期に待つ。stream が途中で切れると「永続化済みだが `StreamAck` に数えられなかった」frame が
+  **最大 N 件**（既定 128。#625 以前は最大 1 件）残りうる。レイクに重複排除は無いため、切断後に
+  gateway が未 ack 分をそのまま再送すると最大 N 件が重複する。再送ポリシーは次のどちらかにする:
+  (a) 未 ack 分の再送を受け入れ、読み取り側で `point_id`+`datetime` の重複を許容する（最新値 API は
+  影響なし。集計は件数ベースの指標のみ N 件ぶん揺れる）、(b) 重複を避けたい gateway は
+  `GRPC_INGRESS_PUBLISH_WINDOW` を小さく（極端には `1`）して、そのぶん 1 stream の上限が下がることを
+  受け入れる。N を大きくしても得られるのはレイテンシ×帯域の積ぶんだけで、既定 128 で十分飽和する。
+- **Hot KV の鮮度:** 最新値は `HOT_STORE_COALESCE_MS`（既定 100 ms）ぶん遅れうる。stale 判定（秒〜分）には影響しない。
+
 ## 既知の制約
 
 - **GatewayBridge に HTTP ヘルスエンドポイントがありません**(gRPC h2c のみ)。オンボード後の

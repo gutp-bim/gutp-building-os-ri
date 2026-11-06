@@ -14,13 +14,17 @@ Building OS のテレメトリ読み取りは Hot / Warm / Cold の 3 層を `GE
 
 | 読み取り | 経路 | 鮮度（イベント→読める） | 目標 p95 レイテンシ | 用途 |
 |---|---|---|---|---|
-| **最新値** `latest=true` | Hot KV（NATS KV `telemetry-latest`） | **ほぼ即時**（publish 直後に上書き）[^visibility] | < 20ms（実測 latest API p95 ~7–60ms[^m]） | リアルタイムダッシュボード |
+| **最新値** `latest=true` | Hot KV（NATS KV `telemetry-latest`） | **ほぼ即時**（publish 後、合体間隔[^coalesce]以内に上書き）[^visibility] | < 20ms（実測 latest API p95 ~7–60ms[^m]） | リアルタイムダッシュボード |
 | **直近レンジ**（end が現在に近い） | Warm（Parquet レイク）＋ **tail-merge**（#220） | flush 未到達分を JetStream から補完し**ほぼ即時** | < 2,000ms（実測 warm p95 ~55ms） | 直近のチャート末尾 |
 | **過去レンジ**（end が flush 済み区間） | Warm/Cold（Parquet レイク） | **flush 間隔ぶん遅延**（既定 5 分） | < 2,000ms（warm）/ < 5,000ms（cold） | 履歴チャート |
 | **集計**（Hour/Day 粒度） | rollup（agg_hourly）＋欠落のみ on-read | rollup 生成（compaction）の進行度に依存 | < 3,000ms（実測 agg_hour ~606ms, rollup-backed） | 長期トレンド |
 
 [^m]: 計測条件（ローカル/QUICK）により latest API p95 は 7ms（E3 freshness 専用ハーネス）〜60ms（S5 エンドポイント全体）。
   いずれも目標を大きく下回る。生値は [PERFORMANCE_SUMMARY](../../Tools/e2e-performance/PERFORMANCE_SUMMARY.md) / [evaluation-summary.md](../reference/evaluation-summary.md)。
+[^coalesce]: #625 以降、Hot KV への put は frame ごとに同期しない。`CoalescingHotTelemetryStore` が point ごとの
+  最新値（`datetime` が新しい方）を `HOT_STORE_COALESCE_MS`（既定 **100 ms**、`0` で従来の同期 put）ごとにまとめて
+  書くため、最新値はその間隔ぶん遅れうる。stale 判定の閾値（`expectedInterval × 3`、秒〜分）には影響しない。
+  実際の遅れは `building_os.hot_store.coalesce_flush_latency`（flush 開始時点で最も古い保留 put の経過秒）で見える。
 [^visibility]: 「ほぼ即時」は当該点が twin の Point List に**継続して可視**だった場合の話（#417）。ある点が
   一時的に非公開化され、その間の送信元 publish が gateway に point-list miss として捨てられていた場合、
   再公開後の `latest=true` は非公開化「前」の保存済み行を返しうる——`datetime` が取り込み時刻より古くなり
@@ -43,8 +47,9 @@ Building OS のテレメトリ読み取りは Hot / Warm / Cold の 3 層を `GE
                                           └─► ParquetLakeWriter ─(flush)─► MinIO レイク … flush 間隔ぶん遅延
 ```
 
-- **Hot KV（最新値）**: `validated.telemetry` を受けた瞬間に `point_id` ごとの最新 1 件を上書き。永続化バッチを
-  待たないので即時。ただし保持は最新 1 件のみ（履歴は持たない）。
+- **Hot KV（最新値）**: `validated.telemetry` を受けた `point_id` ごとの最新 1 件を上書き。永続化バッチを
+  待たないので即時（合体間隔 `HOT_STORE_COALESCE_MS`、既定 100 ms 以内[^coalesce]）。ただし保持は最新 1 件のみ
+  （履歴は持たない）。
 - **Parquet レイク（履歴）**: `ParquetLakeWriterWorker` が行をバッファし、`PARQUET_FLUSH_INTERVAL`（既定 **5 分**）
   または `PARQUET_FLUSH_MAX_ROWS`（既定 50,000 行）に達した時点で MinIO へ Parquet ファイルを書き出す。
   書き出されるまでの末尾データはレイクに存在しない＝過去レンジクエリでは flush 間隔ぶんの空白が生じる。
@@ -178,8 +183,10 @@ Building OS のプロセスに**到達しません**。到達しないものを�
 
 ### 6.4 飽和したときの緩和策
 
-本リリースは**観測可能にするところまで**で、スループット自体の改善（直列 consume ループの並列化、
-per-message KV put のバッチ化など）と背圧機構は含みません。現状取れる手は運用側の調整です。
+本リリースは**観測可能にするところまで**で、直列 consume ループの並列化などスループット自体の改善は
+含みません。gRPC ingress については #625 で per-frame の KV put の合体（`HOT_STORE_COALESCE_MS`）と
+publish-ack の有界ウィンドウ化（`GRPC_INGRESS_PUBLISH_WINDOW`、満杯で読み取りを止める背圧）が入りました。
+それ以外で現状取れる手は運用側の調整です。
 
 | 手 | 効果 | 副作用 |
 |---|---|---|

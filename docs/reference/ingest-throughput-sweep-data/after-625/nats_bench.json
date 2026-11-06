@@ -1,0 +1,58 @@
+{
+  "url": "nats://localhost:4222",
+  "duration_s": 6.0,
+  "results": [
+    {
+      "mode": "pub",
+      "tasks": 1,
+      "ops_per_s": 1457,
+      "p50_ms": 0.64,
+      "p99_ms": 1.22
+    },
+    {
+      "mode": "pub+kv",
+      "tasks": 1,
+      "ops_per_s": 737,
+      "p50_ms": 1.27,
+      "p99_ms": 2.27
+    },
+    {
+      "mode": "pub",
+      "tasks": 6,
+      "ops_per_s": 7176,
+      "p50_ms": 0.79,
+      "p99_ms": 1.5
+    },
+    {
+      "mode": "pub+kv",
+      "tasks": 6,
+      "ops_per_s": 3422,
+      "p50_ms": 1.62,
+      "p99_ms": 3.26
+    },
+    {
+      "mode": "pub",
+      "tasks": 24,
+      "ops_per_s": 19657,
+      "p50_ms": 1.16,
+      "p99_ms": 2.08
+    },
+    {
+      "mode": "pub+kv",
+      "tasks": 24,
+      "ops_per_s": 8746,
+      "p50_ms": 2.51,
+      "p99_ms": 5.57
+    },
+    {
+      "mode": "pub-pipelined(window=50)",
+      "tasks": 1,
+      "ops_per_s": 23775
+    },
+    {
+      "mode": "pub-pipelined(window=200)",
+      "tasks": 1,
+      "ops_per_s": 32133
+    }
+  ]
+}

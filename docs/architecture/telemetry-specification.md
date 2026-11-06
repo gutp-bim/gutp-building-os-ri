@@ -121,6 +121,15 @@ gRPC ingress（GatewayIngress → `NatsIngressTelemetryBus`）は **JetStream pu
 `StreamAck.accepted` は「ストリームへ永続化済み」を意味する（at-most-once の解消）。ack が取れなかった
 フレームは accepted されず、`publish_failed` メトリクスを計上してストリームは継続する。
 
+**ack の待ち方（#625）:** ack は frame ごとに直列には待たない。`GatewayIngressService` は publish を発行して
+ack の Task をキューに積み、別タスクが順に待って **ack が成功した frame だけ** `accepted` に数える。同時に
+未確定でいられる ack は `GRPC_INGRESS_PUBLISH_WINDOW`（既定 128、`1` = 従来の直列）件までで、それを超えると
+stream の読み取りが止まる（背圧）。`StreamAck` はキューの ack がすべて解決してから返す。stream が途中で切れた
+場合、「永続化済みだが `StreamAck` に数えられなかった」frame は最大ウィンドウ件になりうる（従来は最大 1 件）。
+レイクに重複排除は無いので、gateway の再送はこの件数ぶん重複を生みうる（運用上の扱いは
+[gateway-onboarding-checklist.md](../guides/gateway-onboarding-checklist.md) の「スループットと stream 分割」）。
+Hot KV への最新値反映は `HOT_STORE_COALESCE_MS` ごとの合体書込みで、永続化とは独立（失敗しても publish は失敗しない）。
+
 > 既知の残件: 他の validated.telemetry 生産者（HVAC/BACnet 等のコネクタワーカー、および MQTT/Hono の
 > `raw.*` ingress）は依然として core publish（fire-and-forget）であり、ack を取っていない。共有 `NatsPublisher`
 > は `control.result`（非 JetStream subject）にも使われるため一律切替はできず、全生産者の at-least-once 化は

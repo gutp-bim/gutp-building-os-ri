@@ -80,6 +80,33 @@ Tools/e2e-performance/.venv/bin/python \
   --run-id "$(date -u +%Y%m%dT%H%M%SZ)-s17" --continue-on-failure
 ```
 
+### S22 — gRPC ingest rate sweep (#625 / #626)
+
+Raises the sustained frame rate on the canonical gRPC path step by step and reports, per step,
+achieved/accepted rate, JetStream lag, lake loss/duplicates and worker CPU/RSS — see
+[`docs/reference/ingest-throughput-sweep.md`](../../docs/reference/ingest-throughput-sweep.md).
+Three tools:
+
+- `s22_ingest_rate_sweep.py` — the sweep. `--streams N` fixes the stream count, `--ingress h:p,h:p`
+  round-robins streams over several ConnectorWorker replicas and `--worker-pid p,p` samples each
+  replica's CPU/RSS (`per_replica` in `sweep.json`, #626). Every sample also records NATS `/varz`
+  (cpu, in bytes/s, slow consumers) and the load generator's own CPU. One Python process saturates a
+  core at roughly 2.5–3k frames/s, so keep `--procs` ≥ streams × rate / 2500 or the generator, not the
+  pipeline, is what you measure (`loadgen_cpu_pct_p50` ≈ 100 × procs is the tell).
+- `s22_single_stream_dotnet.py` + `ingress-loadgen-dotnet/` — the single-stream ceiling with a native
+  Grpc.Net.Client generator (one stream well past 10k frames/s). Build it once with
+  `dotnet build -c Release Tools/e2e-performance/ingress-loadgen-dotnet`.
+- `nats_bench.py` — the NATS-only reference (publish-ack and publish-ack + KV put loops, pipelined
+  publish) for the same server, to separate the worker's ceiling from the broker's.
+
+```bash
+PARQUET_FLUSH_INTERVAL=1 GRPC_INGRESS_PORT=5051 docker compose -f docker-compose.oss.yaml up -d
+cd Tools/e2e-performance
+python s22_ingest_rate_sweep.py --out results/S22 --rates 2000,5000,10000 --streams 12 --procs 4 --duration 60 --label after
+python s22_single_stream_dotnet.py --out results/S22-single --rates 2000,5000,8000,12000 --label after
+python nats_bench.py --duration 8 --json results/S22/nats_bench.json
+```
+
 ### S1 — Smoke E2E (quick CI check)
 
 Verifies ConnectorWorker MQTT ingress, starts the optional Timescale consumer, runs
