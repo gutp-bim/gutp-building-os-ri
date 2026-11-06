@@ -63,7 +63,11 @@ public static class ValidatedTelemetryHotStore
                     };
                     // Discriminated value (#152): number → Value, string → ValueText, boolean → ValueBool.
                     TelemetryValueKind.Apply(data, te.Value.AsJsonElement);
-                    await hot.PutAsync(pointId, data, cancellationToken).ConfigureAwait(false);
+                    // A coalescing store (#625) defers the write, so hand it the source: a failure
+                    // that surfaces at flush time is then still counted under this producer.
+                    await (hot is ISourceTaggedHotTelemetryStore tagged
+                        ? tagged.PutAsync(pointId, data, source, cancellationToken)
+                        : hot.PutAsync(pointId, data, cancellationToken)).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {

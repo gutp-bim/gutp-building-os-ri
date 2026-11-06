@@ -5,6 +5,7 @@ using BuildingOS.Shared.Infrastructure.ConnectorWorker;
 using BuildingOS.Shared.Infrastructure.ControlRouting;
 using BuildingOS.Shared.Infrastructure.DeviceControlHandler;
 using BuildingOS.Shared.Infrastructure.Messaging;
+using BuildingOS.Shared.Infrastructure.Oss;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using BuildingOS.Shared.Infrastructure.Telemetry.ParquetLake;
 using BuildingOS.Shared.Module;
@@ -47,6 +48,32 @@ public class ConnectorWorkerServiceCollectionExtensionsTest
 
         Assert.Contains(b.Services, d => d.ServiceType == typeof(INatsPublisher));
         Assert.Contains(b.Services, d => d.ServiceType == typeof(IHotTelemetryStore));
+    }
+
+    [Fact]
+    public async Task Messaging_HotStoreIsTheCoalescingDecorator_AndFlushesOnShutdownAsAHostedService()
+    {
+        // #625 slice A: both validated-telemetry producers resolve the one coalescing singleton, and
+        // the same instance is registered as the hosted service that flushes the remainder at stop.
+        var b = NewBuilder(new() { ["HOT_STORE_COALESCE_MS"] = "250", ["HOT_STORE_COALESCE_MAX_POINTS"] = "42" });
+        b.AddConnectorWorkerMessaging();
+        b.Services.AddLogging();
+        await using var sp = b.Services.BuildServiceProvider();
+
+        var hot = sp.GetRequiredService<IHotTelemetryStore>();
+        var coalescing = Assert.IsType<CoalescingHotTelemetryStore>(hot);
+        Assert.Contains(sp.GetServices<IHostedService>(), h => ReferenceEquals(h, coalescing));
+        var options = sp.GetRequiredService<CoalescingHotStoreOptions>();
+        Assert.Equal(250, options.Interval.TotalMilliseconds);
+        Assert.Equal(42, options.MaxPoints);
+    }
+
+    [Fact]
+    public void Messaging_HotStoreCoalescingDisabledByZero()
+    {
+        var b = NewBuilder(new() { ["HOT_STORE_COALESCE_MS"] = "0" });
+        b.AddConnectorWorkerMessaging();
+        Assert.False(b.Services.BuildServiceProvider().GetRequiredService<CoalescingHotStoreOptions>().Enabled);
     }
 
     [Fact]

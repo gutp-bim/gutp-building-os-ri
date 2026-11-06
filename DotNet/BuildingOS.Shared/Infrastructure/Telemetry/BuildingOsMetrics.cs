@@ -31,6 +31,20 @@ public static class BuildingOsMetrics
     public static readonly Counter<long> TelemetryHotWriteFailures = Meter.CreateCounter<long>(
         "building_os.telemetry.hot_write_failures", unit: "{observation}");
 
+    /// <summary>
+    /// #625: age (seconds) of the oldest coalesced hot-store put when its flush started — the delay
+    /// <see cref="Oss.CoalescingHotTelemetryStore"/> adds before the latest value reaches NATS KV.
+    /// One measurement per flush, no tags.
+    /// </summary>
+    public static readonly Histogram<double> HotStoreCoalesceFlushLatency = Meter.CreateHistogram<double>(
+        "building_os.hot_store.coalesce_flush_latency", unit: "s",
+        description: "Age of the oldest pending hot-store put at the start of each coalesced flush.");
+
+    /// <summary>#625: points written per coalesced hot-store flush (how many puts collapsed into one). No tags.</summary>
+    public static readonly Histogram<long> HotStoreCoalescedPoints = Meter.CreateHistogram<long>(
+        "building_os.hot_store.coalesced_points", unit: "{point}",
+        description: "Points written to the hot store per coalesced flush.");
+
     /// <summary>Rejected envelopes, first oversized observation only. Tags: source, dimension (data|record).</summary>
     public static readonly Counter<long> TelemetrySizeRejections = Meter.CreateCounter<long>(
         "building_os.telemetry.size_rejections", unit: "{message}");
