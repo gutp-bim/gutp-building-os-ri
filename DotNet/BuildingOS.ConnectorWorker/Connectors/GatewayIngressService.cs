@@ -29,7 +29,8 @@ public sealed class GatewayIngressService(
     IPointMetadataCache metadataCache,
     IngressIdentityOptions identity,
     IngressHierarchyOptions hierarchy,
-    ILogger<GatewayIngressService> logger) : Protos.GatewayIngress.GatewayIngressBase
+    ILogger<GatewayIngressService> logger,
+    RunContextVerifier? runContext = null) : Protos.GatewayIngress.GatewayIngressBase
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
@@ -107,6 +108,25 @@ public sealed class GatewayIngressService(
             return false;
         }
 
+        // Unsigned run context (opt-in, GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE, ADR-0012): a frame claiming a run
+        // classification must match an operator-placed lease and the mTLS-verified gateway. Fail closed: a
+        // claim arriving with no configuration is rejected, never passed through as valid. Checked before the
+        // twin lookup, like identity binding.
+        if (runContext is null && RunContextVerifier.HasRunClaim(frame))
+        {
+            logger.LogWarning("Ingress: run context claim rejected (run_context_unconfigured) for gateway '{Gateway}' point '{PointId}', skipping",
+                frame.GatewayId, frame.PointId);
+            Count(frame.GatewayId, "run_context_unconfigured");
+            return false;
+        }
+        if (runContext is not null && !runContext.Validate(frame, trustedGatewayId, out var runReason))
+        {
+            logger.LogWarning("Ingress: run context claim rejected ({Reason}) for gateway '{Gateway}' point '{PointId}', skipping",
+                runReason, frame.GatewayId, frame.PointId);
+            Count(frame.GatewayId, runReason);
+            return false;
+        }
+
         var meta = await metadataCache.GetAsync(frame.PointId, ct).ConfigureAwait(false);
         if (meta is null)
         {
@@ -153,6 +173,14 @@ public sealed class GatewayIngressService(
             // persist the frame, so we count it as accepted only on success. A failure is logged +
             // metered and the frame is not acked to the gateway, but the stream continues.
             await bus.PublishAsync(ValidatedSubject, BuildValidatedTelemetry(frame, meta), ct).ConfigureAwait(false);
+        }
+        catch (TelemetrySizeLimitException ex)
+        {
+            logger.LogWarning(
+                "Ingress: telemetry {Dimension} exceeds byte limit ({ActualBytes} > {LimitBytes}), not accepted",
+                ex.Dimension, ex.ActualBytes, ex.LimitBytes);
+            Count(frame.GatewayId, "size_exceeded");
+            return false;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

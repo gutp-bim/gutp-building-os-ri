@@ -26,7 +26,8 @@ namespace BuildingOS.ConnectorWorker.Connectors;
 /// immediately.
 /// </summary>
 public sealed class NatsIngressTelemetryBus(
-    INatsJSContext js, IHotTelemetryStore hot, ILogger<NatsIngressTelemetryBus> logger) : IIngressTelemetryBus
+    INatsJSContext js, IHotTelemetryStore hot, ILogger<NatsIngressTelemetryBus> logger,
+    TelemetrySizeLimits? sizeLimits = null) : IIngressTelemetryBus
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
@@ -38,6 +39,7 @@ public sealed class NatsIngressTelemetryBus(
 
     public async Task PublishAsync(string subject, string message, CancellationToken cancellationToken)
     {
+        if (subject == ValidatedSubject) (sizeLimits ?? TelemetrySizeLimits.Default).Validate(message, LagSource);
         await EnsureStreamExistsAsync(subject, cancellationToken).ConfigureAwait(false);
 
         var bytes = Encoding.UTF8.GetBytes(message);
@@ -59,14 +61,8 @@ public sealed class NatsIngressTelemetryBus(
         try
         {
             if (_ensuredStreams.ContainsKey(streamName)) return;
-            try
-            {
-                await js.GetStreamAsync(streamName, cancellationToken: ct).ConfigureAwait(false);
-            }
-            catch
-            {
-                await js.CreateStreamAsync(new StreamConfig(streamName, streamSubjects), ct).ConfigureAwait(false);
-            }
+            await NatsStreamInitialization.EnsureAsync(
+                js, new StreamConfig(streamName, streamSubjects), ct).ConfigureAwait(false);
             _ensuredStreams[streamName] = true;
         }
         finally

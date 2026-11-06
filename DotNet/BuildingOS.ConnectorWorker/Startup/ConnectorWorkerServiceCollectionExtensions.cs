@@ -75,6 +75,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
     /// <summary>NATS connection + JetStream, Hot KV latest store, and the KV-decorating publisher.</summary>
     public static IHostApplicationBuilder AddConnectorWorkerMessaging(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddSingleton(TelemetrySizeLimits.Parse(
+            builder.Configuration["TELEMETRY_MAX_DATA_BYTES"],
+            builder.Configuration["TELEMETRY_MAX_RECORD_BYTES"]));
         var natsUrl = builder.Configuration["NATS_URL"] ?? "nats://localhost:4222";
         builder.Services.AddSingleton<INatsConnection>(_ =>
             new NatsConnection(new NatsOpts { Url = natsUrl }));
@@ -88,7 +91,8 @@ public static class ConnectorWorkerServiceCollectionExtensions
         builder.Services.AddSingleton<INatsPublisher>(sp => new NatsKvPublisher(
             new NatsPublisher(sp.GetRequiredService<INatsConnection>()),
             sp.GetRequiredService<IHotTelemetryStore>(),
-            sp.GetRequiredService<ILogger<NatsKvPublisher>>()));
+            sp.GetRequiredService<ILogger<NatsKvPublisher>>(),
+            sp.GetRequiredService<TelemetrySizeLimits>()));
         return builder;
     }
 
@@ -200,11 +204,17 @@ public static class ConnectorWorkerServiceCollectionExtensions
         // building/device when GRPC_INGRESS_REQUIRE_HIERARCHY=true (default off keeps them flowing).
         builder.Services.AddSingleton(IngressHierarchyOptions.Parse(
             builder.Configuration["GRPC_INGRESS_REQUIRE_HIERARCHY"]));
+        // Unsigned run context (opt-in): load the operator-placed file at startup so a bad scope or
+        // schema fails fast. When unset, run claims are rejected (fail closed) by GatewayIngressService.
+        var runContextTrust = builder.Configuration["GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE"]?.Trim();
+        if (!string.IsNullOrEmpty(runContextTrust))
+            builder.Services.AddSingleton(RunContextVerifier.Load(runContextTrust));
         // Ingress bus publishes via JetStream publish-ack (#187) + keeps the KV hot store in sync.
         builder.Services.AddSingleton<IIngressTelemetryBus>(sp => new NatsIngressTelemetryBus(
             sp.GetRequiredService<INatsJSContext>(),
             sp.GetRequiredService<IHotTelemetryStore>(),
-            sp.GetRequiredService<ILogger<NatsIngressTelemetryBus>>()));
+            sp.GetRequiredService<ILogger<NatsIngressTelemetryBus>>(),
+            sp.GetRequiredService<TelemetrySizeLimits>()));
         builder.Services.AddSingleton<IPointMetadataDataSource>(sp =>
             new OxiGraphPointMetadataDataSource(
                 sp.GetRequiredService<OxiGraphClient>(),

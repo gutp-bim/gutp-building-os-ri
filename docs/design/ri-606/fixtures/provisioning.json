@@ -1,0 +1,652 @@
+{
+  "schemaVersion": "clock-provisioning/1-draft",
+  "gatewayId": "GW-EXAMPLE",
+  "points": [
+    {
+      "pointId": "BPT-0002",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "102"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0003",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "103"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0004",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "104"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0005",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "105"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0006",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "106"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0007",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "107"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0008",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "108"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0009",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "109"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0010",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "110"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0011",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "111"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0012",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "112"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0013",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "113"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0014",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "114"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0015",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "115"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0016",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "116"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0017",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "117"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0018",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "118"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0019",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "119"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-a",
+        "id": "equipment-a",
+        "name": "equipment-a"
+      }
+    },
+    {
+      "pointId": "BPT-0020",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "120"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0021",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "121"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0022",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "122"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0023",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "123"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0024",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "124"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0025",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "125"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0026",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "126"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0027",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "127"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0028",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "128"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0029",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "129"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0030",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "130"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0031",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "131"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0032",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogInput",
+        "instanceNo": "132"
+      },
+      "unit": "1",
+      "writable": false,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      }
+    },
+    {
+      "pointId": "BPT-0033",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogValue",
+        "instanceNo": "133"
+      },
+      "unit": "1",
+      "writable": true,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      },
+      "controlSchema": {
+        "dataType": "number",
+        "minValue": "0",
+        "maxValue": "1"
+      }
+    },
+    {
+      "pointId": "BPT-0034",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogValue",
+        "instanceNo": "134"
+      },
+      "unit": "1",
+      "writable": true,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      },
+      "controlSchema": {
+        "dataType": "number",
+        "minValue": "0",
+        "maxValue": "1"
+      }
+    },
+    {
+      "pointId": "BPT-0035",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogValue",
+        "instanceNo": "135"
+      },
+      "unit": "1",
+      "writable": true,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      },
+      "controlSchema": {
+        "dataType": "number",
+        "minValue": "0",
+        "maxValue": "1"
+      }
+    },
+    {
+      "pointId": "BPT-0036",
+      "protocol": "bacnet",
+      "native": {
+        "protocol": "bacnet",
+        "deviceId": "1234",
+        "objectType": "analogValue",
+        "instanceNo": "136"
+      },
+      "unit": "1",
+      "writable": true,
+      "device": {
+        "dtId": "https://example.com/ri-606/equipment-b",
+        "id": "equipment-b",
+        "name": "equipment-b"
+      },
+      "controlSchema": {
+        "dataType": "number",
+        "minValue": "0",
+        "maxValue": "1"
+      }
+    }
+  ],
+  "clockSources": [
+    {
+      "clockId": "https://example.com/ri-606/clock/shared-simulation",
+      "clockDomain": "simulation",
+      "unit": "s",
+      "readOnly": true,
+      "acquisitionMode": "poll",
+      "native": {
+        "protocol": "bacnet",
+        "gatewayId": "GW-EXAMPLE",
+        "connectorId": "bacnet-example",
+        "deviceInstance": 1234,
+        "objectType": "analogValue",
+        "objectInstance": 2,
+        "property": "presentValue",
+        "unit": "seconds"
+      }
+    }
+  ],
+  "clockBindings": [
+    {
+      "equipmentId": "https://example.com/ri-606/equipment-a",
+      "clockId": "https://example.com/ri-606/clock/shared-simulation"
+    },
+    {
+      "equipmentId": "https://example.com/ri-606/equipment-b",
+      "clockId": "https://example.com/ri-606/clock/shared-simulation"
+    }
+  ],
+  "revision": "\"sha256:ca3125a6b31a0f1a98297be621138452eeebdda7cb5126710f3284b40b78f298\"",
+  "generatedAt": "2026-01-01T00:00:00Z"
+}

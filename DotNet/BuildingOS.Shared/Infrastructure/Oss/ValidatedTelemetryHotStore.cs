@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BuildingOS.Shared.Entities;
 using BuildingOS.Shared.Infrastructure.Telemetry;
 using Microsoft.Extensions.Logging;
@@ -49,6 +50,7 @@ public static class ValidatedTelemetryHotStore
                     // Recorded before the put, so a slow/failing KV cannot swallow the measurement.
                     IngestLagRecorder.RecordEventLag(source, datetime, DateTimeOffset.UtcNow);
 
+                    var additionalData = te.Data.AsJsonElement;
                     var data = new ValidTelemetryData
                     {
                         PointId  = pointId,
@@ -56,6 +58,8 @@ public static class ValidatedTelemetryHotStore
                         DeviceId = te.DeviceId.GetString(),
                         Name     = te.Name.GetString(),
                         Datetime = datetime,
+                        Data = additionalData.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
+                            ? null : additionalData.GetRawText(),
                     };
                     // Discriminated value (#152): number → Value, string → ValueText, boolean → ValueBool.
                     TelemetryValueKind.Apply(data, te.Value.AsJsonElement);
@@ -72,6 +76,8 @@ public static class ValidatedTelemetryHotStore
                 }
                 catch (Exception ex)
                 {
+                    BuildingOsMetrics.TelemetryHotWriteFailures.Add(1,
+                        new KeyValuePair<string, object?>("source", source));
                     // This guards the whole per-entity path — projection and value mapping as well
                     // as the KV put — so it must not claim the put is what failed.
                     logger.LogWarning(

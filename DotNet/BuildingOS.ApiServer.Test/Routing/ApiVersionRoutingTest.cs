@@ -44,6 +44,9 @@ public class ApiVersionRoutingTest
         Assert.DoesNotContain(templates, t => t.StartsWith("api/", StringComparison.OrdinalIgnoreCase)
                                               && t.EndsWith("/{gatewayId}/pointlist", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(templates, t => t == ApiRoutes.GatewayProvisioning + "/{gatewayId}/pointlist");
+        Assert.Contains(templates, t => t == ApiRoutes.GatewayProvisioning + "/{gatewayId}/provisioning/v1");
+        Assert.DoesNotContain(templates, t => t.StartsWith("api/", StringComparison.OrdinalIgnoreCase)
+            && t.EndsWith("/provisioning/v1", StringComparison.OrdinalIgnoreCase));
         // Naming rule (ADR-0008 §1): every literal segment is lower-kebab; only {parameters} may differ.
         var badlyNamed = templates
             .Where(t => t.Split('/').Any(seg => !seg.StartsWith('{')

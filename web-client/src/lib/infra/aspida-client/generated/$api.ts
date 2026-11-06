@@ -69,6 +69,7 @@ import type { Methods as Methods_1u1qdzx } from './api/v1/users/_id@string/enabl
 import type { Methods as Methods_8lgnkw } from './api/v1/users/_id@string/permissions';
 import type { Methods as Methods_7enijb } from './api/v1/users/roles';
 import type { Methods as Methods_137chuu } from './gateways/_gatewayId@string/pointlist';
+import type { Methods as Methods_tfr09v } from './gateways/_gatewayId@string/provisioning/v1';
 
 const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
   const prefix = (baseURL === undefined ? '' : baseURL).replace(/\/$/, '');
@@ -125,6 +126,7 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
   const PATH50 = '/api/v1/users/roles';
   const PATH51 = '/gateways';
   const PATH52 = '/pointlist';
+  const PATH53 = '/provisioning/v1';
   const GET = 'GET';
   const POST = 'POST';
   const PUT = 'PUT';
@@ -1189,6 +1191,22 @@ const api = <T>({ baseURL, fetch }: AspidaClient<T>) => {
               fetch<Methods_137chuu['get']['resBody'], BasicHeaders, Methods_137chuu['get']['status']>(prefix, `${prefix1}${PATH52}`, GET, option).json().then(r => r.body),
             $path: (option?: { method?: 'get' | undefined; query: Methods_137chuu['get']['query'] } | undefined) =>
               `${prefix}${prefix1}${PATH52}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+          },
+          provisioning: {
+            v1: {
+              /**
+               * @returns OK
+               */
+              get: (option?: { query?: Methods_tfr09v['get']['query'] | undefined, config?: T | undefined } | undefined) =>
+                fetch<Methods_tfr09v['get']['resBody'], BasicHeaders, Methods_tfr09v['get']['status']>(prefix, `${prefix1}${PATH53}`, GET, option).json(),
+              /**
+               * @returns OK
+               */
+              $get: (option?: { query?: Methods_tfr09v['get']['query'] | undefined, config?: T | undefined } | undefined) =>
+                fetch<Methods_tfr09v['get']['resBody'], BasicHeaders, Methods_tfr09v['get']['status']>(prefix, `${prefix1}${PATH53}`, GET, option).json().then(r => r.body),
+              $path: (option?: { method?: 'get' | undefined; query: Methods_tfr09v['get']['query'] } | undefined) =>
+                `${prefix}${prefix1}${PATH53}${option && option.query ? `?${dataToURLString(option.query)}` : ''}`,
+            },
           },
         };
       },

@@ -65,6 +65,7 @@ namespace BuildingOs.ApiServer
 
             // === Digital twin layer ===
             services.AddScoped<IDigitalTwinDatabase, OxiGraphDigitalTwinDatabase>();
+            services.AddScoped<BuildingOS.Shared.Domain.GatewayProvisioning.IGatewayProvisioningSource, OxiGraphGatewayProvisioningSource>();
             services.AddScoped<IControlSchemaResolver, OssControlSchemaResolver>();
             // Control-write fail-closed switch (#481). Parsed once; the effective value is logged in Configure.
             services.AddSingleton(new BuildingOS.Shared.Domain.ControlSafetyOptions(
