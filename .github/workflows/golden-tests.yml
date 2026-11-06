@@ -22,19 +22,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The SDK is pinned by DotNet/global.json, which only applies to commands run from DotNet/ or
+      # below. Running from the repo root used the runner's newest preinstalled SDK instead, whose
+      # C# 14 binds `array.Reverse()` to the in-place Span overload (void) and broke the build
+      # (#575/#585/#594/#608/#616). Install the pinned SDK and run every dotnet step from DotNet/.
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x'
+          global-json-file: DotNet/global.json
 
       - name: Restore
-        run: dotnet restore DotNet/BuildingOS.Shared.Test
+        working-directory: DotNet
+        run: dotnet restore BuildingOS.Shared.Test
 
       - name: Build
-        run: dotnet build DotNet/BuildingOS.Shared.Test --no-restore
+        working-directory: DotNet
+        run: dotnet build BuildingOS.Shared.Test --no-restore
 
       - name: Run golden tests
-        run: dotnet test DotNet/BuildingOS.Shared.Test --no-build --filter "FullyQualifiedName~Golden"
+        working-directory: DotNet
+        run: dotnet test BuildingOS.Shared.Test --no-build --filter "FullyQualifiedName~Golden"
 
       - name: Fail if snapshots are stale
         run: |
