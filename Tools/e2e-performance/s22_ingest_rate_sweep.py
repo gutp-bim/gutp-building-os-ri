@@ -109,48 +109,55 @@ def parse_proc_stat(text: str) -> int:
 
 
 # ── load generation (runs in child processes) ─────────────────────────────────────────────────────
-def load_worker(target: str, gw: str, points: list[str], rate: int, duration: int,
-                start_at: float) -> dict:
+def load_worker(specs: list[tuple[str, str, list[str], int]], duration: int, start_at: float) -> list[dict]:
+    """Drive several client-streams concurrently from ONE process (one asyncio loop).
+
+    ``specs`` = [(target, gateway_id, points, rate)]. Packing many streams into few processes keeps the
+    load generator's CPU out of the measurement when the stream count is high.
+    """
     import grpc  # type: ignore
     import s10_pointlist_integrity as s10
 
     pb2, pb2g = s10.load_ingress_stubs()
-    sent = 0
 
-    async def gen():
-        nonlocal sent
-        t0 = start_at
-        total = rate * duration
-        npts = len(points)
-        while sent < total:
-            now = time.time()
-            if now >= t0 + duration:
-                break
-            due = min(total, int((now - t0) / 1.0 * rate)) if now >= t0 else 0
-            base = datetime.now(timezone.utc)
-            if due <= sent:
-                await asyncio.sleep(TICK_S)
-                continue
-            for k in range(due - sent):
-                # unique (point, time) per frame: 1 us apart inside a batch
-                ts = (base + timedelta(microseconds=k)).isoformat()
-                yield pb2.TelemetryFrame(gateway_id=gw, point_id=points[sent % npts],
-                                         value_num=20.0 + (sent % 100) / 10.0, timestamp=ts)
-                sent += 1
-            await asyncio.sleep(0)  # let gRPC flush; backpressure blocks the yield above
+    async def one(target: str, gw: str, points: list[str], rate: int) -> dict:
+        sent = 0
 
-    async def run() -> tuple[int, float]:
+        async def gen():
+            nonlocal sent
+            t0 = start_at
+            total = rate * duration
+            npts = len(points)
+            while sent < total:
+                now = time.time()
+                if now >= t0 + duration:
+                    break
+                due = min(total, int((now - t0) * rate)) if now >= t0 else 0
+                base = datetime.now(timezone.utc)
+                if due <= sent:
+                    await asyncio.sleep(TICK_S)
+                    continue
+                for k in range(due - sent):
+                    # unique (point, time) per frame: 1 us apart inside a batch
+                    ts = (base + timedelta(microseconds=k)).isoformat()
+                    yield pb2.TelemetryFrame(gateway_id=gw, point_id=points[sent % npts],
+                                             value_num=20.0 + (sent % 100) / 10.0, timestamp=ts)
+                    sent += 1
+                await asyncio.sleep(0)  # let gRPC flush; backpressure blocks the yield above
+
         delay = start_at - time.time()
         if delay > 0:
             await asyncio.sleep(delay)
         t = time.perf_counter()
-        opts = [("grpc.max_send_message_length", -1)]
-        async with grpc.aio.insecure_channel(target, options=opts) as ch:
+        async with grpc.aio.insecure_channel(target, options=[("grpc.max_send_message_length", -1)]) as ch:
             ack = await pb2g.GatewayIngressStub(ch).StreamTelemetry(gen())
-        return int(ack.accepted), time.perf_counter() - t
+        return {"gateway": gw, "target": target, "sent": sent, "accepted": int(ack.accepted),
+                "elapsed_s": time.perf_counter() - t}
 
-    accepted, elapsed = asyncio.run(run())
-    return {"gateway": gw, "sent": sent, "accepted": accepted, "elapsed_s": elapsed}
+    async def run() -> list[dict]:
+        return list(await asyncio.gather(*[one(*sp) for sp in specs]))
+
+    return asyncio.run(run())
 
 
 # ── sampling ──────────────────────────────────────────────────────────────────────────────────────
@@ -286,18 +293,22 @@ def run_step(args, rate: int, idx: int, run_id: str, worker_pid: int | None) -> 
             for p in pts[gw]:
                 s10.insert_point(args.oxigraph, p, gw, building)
                 seeded.append(p)
+        targets = [t.strip() for t in args.ingress.split(",") if t.strip()]
+        tgt = {gw: targets[i % len(targets)] for i, gw in enumerate(gws)}
         for gw in gws:
-            if not s10.wait_visible(pb2, pb2g, args.ingress, gw, pts[gw][0], timeout_s=90):
+            if not s10.wait_visible(pb2, pb2g, tgt[gw], gw, pts[gw][0], timeout_s=90):
                 return {"target_rate": rate, "pass": False, "fail_reasons": ["seeded points not visible"]}
 
         sampler = Sampler(args.nats_monitor, worker_pid)
         sampler.start()
         start_at = time.time() + 3.0
         ctx = mp.get_context("spawn")
-        with cf.ProcessPoolExecutor(max_workers=streams, mp_context=ctx) as pool:
-            futs = [pool.submit(load_worker, args.ingress, gw, pts[gw], r, args.duration, start_at)
-                    for gw, r in zip(gws, per_rate)]
-            res = [f.result() for f in futs]
+        nproc = max(1, min(streams, args.procs or args.max_streams))
+        groups = [[(tgt[gw], gw, pts[gw], r) for j, (gw, r) in enumerate(zip(gws, per_rate)) if j % nproc == i]
+                  for i in range(nproc)]
+        with cf.ProcessPoolExecutor(max_workers=nproc, mp_context=ctx) as pool:
+            futs = [pool.submit(load_worker, g, args.duration, start_at) for g in groups if g]
+            res = [r for f in futs for r in f.result()]
         load_end = time.time()
         end_lag = next((s["pending"] for s in reversed(sampler.samples) if s["pending"] >= 0), -1)
         accepted = sum(r["accepted"] for r in res)
@@ -377,12 +388,14 @@ def main() -> int:
     ap.add_argument("--duration", type=int, default=60)
     ap.add_argument("--points-per-gateway", type=int, default=100)
     ap.add_argument("--streams", type=int, default=0, help="force stream count (0 = auto)")
+    ap.add_argument("--procs", type=int, default=0, help="load-generator processes (0 = max-streams)")
     ap.add_argument("--max-streams", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--lag-seconds", type=float, default=5.0)
     ap.add_argument("--drain-timeout", type=int, default=240)
     ap.add_argument("--continue-on-failure", action="store_true")
     ap.add_argument("--keep-lake", action="store_true")
-    ap.add_argument("--ingress", default=os.environ.get("INGRESS_TARGET", "localhost:5051"))
+    ap.add_argument("--ingress", default=os.environ.get("INGRESS_TARGET", "localhost:5051"),
+                    help="host:port; comma-separate several ConnectorWorker replicas (streams go round-robin)")
     ap.add_argument("--oxigraph", default=os.environ.get("OXIGRAPH_URL", "http://localhost:7878"))
     ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
     ap.add_argument("--bucket", default=os.environ.get("LAKE_BUCKET", "cold"))
