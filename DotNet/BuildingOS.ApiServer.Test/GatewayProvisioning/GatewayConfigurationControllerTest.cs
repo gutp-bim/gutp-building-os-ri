@@ -81,6 +81,6 @@ public sealed class GatewayConfigurationControllerTest
         var bound = s with { ClockBindings = bindings };
         Assert.NotEqual(first, GatewayConfigurationResponse.From("GW-EXAMPLE", bound).Revision);
         Assert.Equal(GatewayConfigurationResponse.From("GW-EXAMPLE", bound).Revision,
-            GatewayConfigurationResponse.From("GW-EXAMPLE", bound with { ClockBindings = bindings.Reverse().ToArray() }).Revision);
+            GatewayConfigurationResponse.From("GW-EXAMPLE", bound with { ClockBindings = Enumerable.Reverse(bindings).ToArray() }).Revision);
     }
 }

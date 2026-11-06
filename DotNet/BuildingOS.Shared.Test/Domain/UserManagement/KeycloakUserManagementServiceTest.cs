@@ -1043,7 +1043,7 @@ public class KeycloakUserManagementServiceTest
                     if (!DropAttributeWrites)
                     {
                         user.Attributes = LastPutAttributes.ToDictionary(
-                            kv => kv.Key, kv => ReverseStoredValues ? kv.Value.Reverse().ToArray() : kv.Value);
+                            kv => kv.Key, kv => ReverseStoredValues ? Enumerable.Reverse(kv.Value).ToArray() : kv.Value);
                         AfterPut?.Invoke(user.Attributes);
                     }
                 }
