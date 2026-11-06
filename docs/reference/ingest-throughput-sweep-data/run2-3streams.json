@@ -1,0 +1,57 @@
+{
+  "run_id": "s221106134809",
+  "steps": [
+    {
+      "target_rate": 2000,
+      "duration_s": 60,
+      "accepted": 119983,
+      "achieved_rate": 1999.2,
+      "achieved_ratio": 0.9996,
+      "lake_rows": 119986,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": true,
+      "fail_reasons": [],
+      "streams": 3,
+      "gateways": 3,
+      "points": 300,
+      "sent": 119983,
+      "drain_s": 60.8,
+      "peak_lag": 219,
+      "worker_cpu_pct_p50": 108.1,
+      "worker_cpu_pct_max": 129.7,
+      "host_cpu_pct_p50": 230.5,
+      "worker_rss_mb_max": 1122.2,
+      "lake_objects": 3
+    },
+    {
+      "target_rate": 5000,
+      "duration_s": 60,
+      "accepted": 292897,
+      "achieved_rate": 3241.1,
+      "achieved_ratio": 0.6482,
+      "lake_rows": 292900,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": false,
+      "fail_reasons": [
+        "achieved 64.8% < 95% of target"
+      ],
+      "streams": 3,
+      "gateways": 3,
+      "points": 300,
+      "sent": 292897,
+      "drain_s": 60.7,
+      "peak_lag": 1,
+      "worker_cpu_pct_p50": 127.6,
+      "worker_cpu_pct_max": 146.2,
+      "host_cpu_pct_p50": 266.3,
+      "worker_rss_mb_max": 1254.2,
+      "lake_objects": 6
+    }
+  ]
+}

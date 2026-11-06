@@ -1,0 +1,32 @@
+{
+  "run_id": "s221106181529",
+  "steps": [
+    {
+      "target_rate": 10000,
+      "duration_s": 40,
+      "accepted": 397728,
+      "achieved_rate": 8809.9,
+      "achieved_ratio": 0.881,
+      "lake_rows": 397752,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": false,
+      "fail_reasons": [
+        "achieved 88.1% < 95% of target"
+      ],
+      "streams": 24,
+      "gateways": 24,
+      "points": 2400,
+      "sent": 397728,
+      "drain_s": 60.9,
+      "peak_lag": 2290,
+      "worker_cpu_pct_p50": 127.1,
+      "worker_cpu_pct_max": 149.9,
+      "host_cpu_pct_p50": 288.5,
+      "worker_rss_mb_max": 1229.9,
+      "lake_objects": 8
+    }
+  ]
+}

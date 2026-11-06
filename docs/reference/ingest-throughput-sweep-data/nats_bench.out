@@ -1,0 +1,12 @@
+{"mode": "pub", "tasks": 1, "ops_per_s": 2866, "p50_ms": 0.31, "p99_ms": 0.79}
+{"mode": "pub+kv", "tasks": 1, "ops_per_s": 1515, "p50_ms": 0.6, "p99_ms": 1.39}
+{"mode": "pub", "tasks": 3, "ops_per_s": 5225, "p50_ms": 0.55, "p99_ms": 1.23}
+{"mode": "pub+kv", "tasks": 3, "ops_per_s": 2459, "p50_ms": 1.16, "p99_ms": 2.59}
+{"mode": "pub", "tasks": 6, "ops_per_s": 7737, "p50_ms": 0.75, "p99_ms": 1.56}
+{"mode": "pub+kv", "tasks": 6, "ops_per_s": 3550, "p50_ms": 1.61, "p99_ms": 3.3}
+{"mode": "pub", "tasks": 12, "ops_per_s": 11619, "p50_ms": 0.99, "p99_ms": 2.26}
+{"mode": "pub+kv", "tasks": 12, "ops_per_s": 5543, "p50_ms": 2.06, "p99_ms": 4.01}
+{"mode": "pub", "tasks": 24, "ops_per_s": 17010, "p50_ms": 1.39, "p99_ms": 2.69}
+{"mode": "pub+kv", "tasks": 24, "ops_per_s": 7605, "p50_ms": 3.0, "p99_ms": 6.95}
+{"mode": "pub-pipelined(window=50)", "tasks": 1, "ops_per_s": 18776}
+{"mode": "pub-pipelined(window=200)", "tasks": 1, "ops_per_s": 24950}
