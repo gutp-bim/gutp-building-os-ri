@@ -319,7 +319,7 @@ public sealed class GatewayIngressService(
 
     private string BuildValidatedTelemetry(TelemetryFrame frame, PointMetadata meta)
     {
-        var timestamp = NormalizeTimestamp(frame.Timestamp, frame.GatewayId);
+        var (eventTime, timestamp) = NormalizeTimestamp(frame.Timestamp, frame.GatewayId);
 
         var dataProps = new List<JsonObjectProperty>
         {
@@ -334,7 +334,7 @@ public sealed class GatewayIngressService(
         }
 
         var entity = ValidMessage.ValidTelemetryEntity.Create(
-            id: $"{meta.PointId}.{DateTime.UtcNow.ToUnixTime()}",
+            id: TelemetryId(meta.PointId, eventTime),
             pointId: meta.PointId,
             building: new JsonString(meta.Building),
             datetime: new JsonString(timestamp).As<JsonDateTime>(),
@@ -363,17 +363,36 @@ public sealed class GatewayIngressService(
             _ => (JsonNumber)frame.ValueNum,
         };
 
+    /// <summary>
+    /// The validated-telemetry <c>id</c> for a gRPC frame: <c>{pointId}.{event time in unix µs}</c>.
+    ///
+    /// The lake de-duplicates rows by <c>id</c> (the writer within a flush, compaction within an hour,
+    /// reads across overlapping parts), so the id must name the <i>reading</i>, not the moment it
+    /// arrived. It used to be <c>{pointId}.{receive time in unix ms}</c>: two distinct readings of one
+    /// point received in the same millisecond — a gateway catching up a buffer, or simply a fast
+    /// stream after #625's pipelining — collapsed into one lake row although both were acked as
+    /// accepted (#625 S26: ~1.6 % of rows at 50 readings/s per point). A frame carries the point id and
+    /// its own timestamp, which is enough to identify the reading, so the id is deterministic as
+    /// <c>telemetry-specification.md</c> asks: a re-sent frame (e.g. one persisted but not counted in
+    /// <see cref="StreamAck"/> when a stream dropped) now gets the same id and collapses instead of
+    /// duplicating. Two frames of one point with the very same timestamp are one reading by this
+    /// definition (the later one wins), which is also how S22 counts duplicates. A frame whose
+    /// timestamp fell back to receive time (#418) gets a receive-time id, as before.
+    /// </summary>
+    internal static string TelemetryId(string pointId, DateTimeOffset eventTime)
+        => $"{pointId}.{(eventTime.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) / TimeSpan.TicksPerMicrosecond}";
+
     // A non-empty, parseable timestamp is normalized to round-trip ISO-8601; empty or unparseable
     // falls back to receive time so a malformed gateway timestamp cannot fail downstream date parsing.
     // #418: that fallback silently mixes clock semantics (the point's later readings carry the
     // gateway's own clock, this one carries ours) — logged + metered so it is observable after the
     // fact rather than a silent divergence.
-    private string NormalizeTimestamp(string raw, string gatewayId)
+    private (DateTimeOffset Instant, string Text) NormalizeTimestamp(string raw, string gatewayId)
     {
         if (!string.IsNullOrEmpty(raw) &&
             DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
-            return parsed.ToString("O", CultureInfo.InvariantCulture);
+            return (parsed, parsed.ToString("O", CultureInfo.InvariantCulture));
         }
 
         logger.LogWarning(
@@ -383,7 +402,8 @@ public sealed class GatewayIngressService(
             1,
             new KeyValuePair<string, object?>("source", "gateway-grpc"),
             new KeyValuePair<string, object?>("gateway", gatewayId));
-        return DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        var now = DateTime.UtcNow;
+        return (new DateTimeOffset(now), now.ToString("O", CultureInfo.InvariantCulture));
     }
 
     private static void Count(string gatewayId, string result) =>

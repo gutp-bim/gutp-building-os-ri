@@ -126,7 +126,11 @@ ack の Task をキューに積み、別タスクが順に待って **ack が成
 未確定でいられる ack は `GRPC_INGRESS_PUBLISH_WINDOW`（既定 128、`1` = 従来の直列）件までで、それを超えると
 stream の読み取りが止まる（背圧）。`StreamAck` はキューの ack がすべて解決してから返す。stream が途中で切れた
 場合、「永続化済みだが `StreamAck` に数えられなかった」frame は最大ウィンドウ件になりうる（従来は最大 1 件）。
-レイクに重複排除は無いので、gateway の再送はこの件数ぶん重複を生みうる（運用上の扱いは
+gRPC ingress の `id` は `{pointId}.{frame の timestamp（unix µs）}`（#625 で受信時刻 ms から変更）なので、
+元の `timestamp` のまま再送された frame は同じ `id` になり、レイクの `id` 重複排除で 1 行に潰れる。
+受信時刻ベースの `id` では、同じ point の別の読み取りが同じミリ秒に届くと 1 行に潰れて失われていた
+（`accepted` には数えられるのに Lake に無い）。timestamp が欠落・不正で受信時刻に倒した frame（#418）の
+`id` は従来どおり受信時刻ベース（運用上の扱いは
 [gateway-onboarding-checklist.md](../guides/gateway-onboarding-checklist.md) の「スループットと stream 分割」）。
 Hot KV への最新値反映は `HOT_STORE_COALESCE_MS` ごとの合体書込みで、永続化とは独立（失敗しても publish は失敗しない）。
 

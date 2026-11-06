@@ -45,6 +45,46 @@ public class GatewayIngressServiceTest
         }
     }
 
+    // ── Telemetry id = the reading, not its arrival (#625 S26) ────────────────
+
+    [Fact]
+    public async Task Id_TwoReadingsOfOnePointMicrosecondsApart_GetDistinctIds()
+    {
+        // Received back-to-back (same millisecond on the server) they used to share
+        // {pointId}.{receive ms} and the lake's id de-dup dropped one of them.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-ID"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-ID", PointId = "PT001", ValueNum = 1, Timestamp = "2026-11-07T00:00:00.000001Z" });
+        reader.Push(new TelemetryFrame { GatewayId = "GW-ID", PointId = "PT001", ValueNum = 2, Timestamp = "2026-11-07T00:00:00.000002Z" });
+        reader.Complete();
+
+        await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        var ids = bus.Published.Select(p => JsonDocument.Parse(p.Message).RootElement.GetProperty("telemetries")[0].GetProperty("id").GetString()).ToArray();
+        Assert.Equal(2, ids.Distinct().Count());
+        Assert.Equal("PT001.1794009600000001", ids[0]);
+    }
+
+    [Fact]
+    public async Task Id_ReSentFrame_GetsTheSameId()
+    {
+        // A frame persisted but not counted in StreamAck (stream dropped mid-window) and re-sent by
+        // the gateway must collapse in the lake instead of duplicating.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-ID2"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 2; i++)
+            reader.Push(new TelemetryFrame { GatewayId = "GW-ID2", PointId = "PT001", ValueNum = 5, Timestamp = "2026-11-07T09:00:00+09:00" });
+        reader.Complete();
+
+        await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        var ids = bus.Published.Select(p => JsonDocument.Parse(p.Message).RootElement.GetProperty("telemetries")[0].GetProperty("id").GetString()).ToArray();
+        Assert.Equal(ids[0], ids[1]);
+        Assert.Equal(GatewayIngressService.TelemetryId("PT001", DateTimeOffset.Parse("2026-11-07T00:00:00Z")), ids[0]);
+    }
+
     // ── Publish window (#625 slice B) ────────────────────────────────────────
 
     [Fact]
