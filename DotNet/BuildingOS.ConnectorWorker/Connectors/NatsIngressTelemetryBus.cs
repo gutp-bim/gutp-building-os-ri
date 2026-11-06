@@ -16,10 +16,10 @@ namespace BuildingOS.ConnectorWorker.Connectors;
 /// start / ConnectorWorker restart cannot silently drop telemetry (the same startup-order guard the
 /// MQTT/AMQP ingress workers use).
 ///
-/// The publish is a <b>JetStream publish-ack</b> (<see cref="INatsJSContext.PublishAsync"/>): the call
-/// only returns successfully once the stream has persisted the message, so the gRPC ingest can count a
-/// frame as accepted only after it is durably stored (#187) — a NATS-side drop surfaces as a thrown
-/// ack error rather than a silent at-most-once loss. A publish to
+/// The publish is a <b>JetStream publish-ack</b> (<see cref="INatsJSContext.PublishAsync"/>, or the
+/// pipelined <see cref="BeginPublishAsync"/> whose ack task the caller awaits within a bounded window,
+/// #625): a frame counts as accepted only once the stream has persisted it (#187) — a NATS-side drop
+/// surfaces as a thrown ack error rather than a silent at-most-once loss. A publish to
 /// <c>building-os.validated.telemetry</c> also updates the KV hot store (via
 /// <see cref="ValidatedTelemetryHotStore"/>), exactly like the <c>NatsKvPublisher</c> decorator every
 /// other validated-telemetry producer routes through. The pod stays stateless: each frame is forwarded
@@ -46,6 +46,36 @@ public sealed class NatsIngressTelemetryBus(
         var ack = await js.PublishAsync(subject, bytes, cancellationToken: cancellationToken).ConfigureAwait(false);
         // Throws if the stream did not persist the message (e.g. no stream, quota) — the caller then
         // does not count the frame as accepted and the ingest stream continues.
+        ack.EnsureSuccess();
+
+        if (subject == ValidatedSubject)
+            await ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// #625 slice B: same validation and stream guard as <see cref="PublishAsync"/>, but the publish
+    /// goes out through <see cref="INatsJSContext.PublishConcurrentAsync{T}"/>, which returns before
+    /// the ack arrives. The returned ack task performs the same <c>EnsureSuccess</c> + hot-store sync
+    /// once the ack lands, so what "accepted" means (#187) is unchanged — only where the wait happens.
+    /// Messages on one connection are still written in call order; the acks may complete in any order.
+    /// </summary>
+    public async Task<Task> BeginPublishAsync(string subject, string message, CancellationToken cancellationToken)
+    {
+        if (subject == ValidatedSubject) (sizeLimits ?? TelemetrySizeLimits.Default).Validate(message, LagSource);
+        await EnsureStreamExistsAsync(subject, cancellationToken).ConfigureAwait(false);
+
+        var bytes = Encoding.UTF8.GetBytes(message);
+        var future = await js.PublishConcurrentAsync(subject, bytes, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return AwaitAckAsync(future, subject, message, cancellationToken);
+    }
+
+    private async Task AwaitAckAsync(NatsJSPublishConcurrentFuture future, string subject, string message, CancellationToken cancellationToken)
+    {
+        PubAckResponse ack;
+        await using (future.ConfigureAwait(false))
+        {
+            ack = await future.GetResponseAsync(cancellationToken).ConfigureAwait(false);
+        }
         ack.EnsureSuccess();
 
         if (subject == ValidatedSubject)

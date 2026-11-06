@@ -218,6 +218,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
         // building/device when GRPC_INGRESS_REQUIRE_HIERARCHY=true (default off keeps them flowing).
         builder.Services.AddSingleton(IngressHierarchyOptions.Parse(
             builder.Configuration["GRPC_INGRESS_REQUIRE_HIERARCHY"]));
+        // Publish window (#625 slice B): in-flight publish-acks per stream (1 = serial, pre-#625).
+        builder.Services.AddSingleton(IngressPublishOptions.Parse(
+            builder.Configuration["GRPC_INGRESS_PUBLISH_WINDOW"]));
         // Unsigned run context (opt-in): load the operator-placed file at startup so a bad scope or
         // schema fails fast. When unset, run claims are rejected (fail closed) by GatewayIngressService.
         var runContextTrust = builder.Configuration["GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE"]?.Trim();

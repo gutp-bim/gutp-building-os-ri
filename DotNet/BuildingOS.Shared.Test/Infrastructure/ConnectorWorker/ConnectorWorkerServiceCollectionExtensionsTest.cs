@@ -69,6 +69,20 @@ public class ConnectorWorkerServiceCollectionExtensionsTest
     }
 
     [Fact]
+    public void TelemetryIngress_RegistersThePublishWindow()
+    {
+        var b = NewBuilder(new() { ["GRPC_INGRESS_PUBLISH_WINDOW"] = "32" });
+        b.AddTelemetryIngress(5051);
+        var options = Assert.IsType<IngressPublishOptions>(
+            Assert.Single(b.Services, d => d.ServiceType == typeof(IngressPublishOptions)).ImplementationInstance);
+        Assert.Equal(32, options.Window);
+
+        var off = NewBuilder(new() { ["GRPC_INGRESS_PUBLISH_WINDOW"] = "32" });
+        off.AddTelemetryIngress(null);
+        Assert.DoesNotContain(off.Services, d => d.ServiceType == typeof(IngressPublishOptions));
+    }
+
+    [Fact]
     public void Messaging_HotStoreCoalescingDisabledByZero()
     {
         var b = NewBuilder(new() { ["HOT_STORE_COALESCE_MS"] = "0" });
