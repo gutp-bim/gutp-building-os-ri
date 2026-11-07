@@ -1,5 +1,17 @@
 # Golden File Tests
 
+> **Status (2026-11): reference material only — nothing checks these files automatically.**
+> They were written as the acceptance criteria for the Azure → OSS migration and have not changed
+> since. The test project that compared code output against them (`BuildingOS.Functions.Test`, see
+> "Running the tests" below) no longer exists, so the `golden-tests` workflow matched zero tests and
+> was removed, as was `parity-harness`'s self-consistency job (it compared each file with itself).
+> What these files describe is covered elsewhere: connector normalisation and control handling by the
+> unit tests in `DotNet/BuildingOS.Shared.Test`, hierarchy traversal by the resolver unit and
+> integration tests, and API response shapes by `swagger.yaml` plus `make openapi-breaking`.
+> To compare real output by hand: `cd Tools/parity-harness && dotnet run -- golden --golden-dir
+> ../../tests/golden/connector --actual-dir <dir with your JSON>`. The sections below describe the
+> original setup and are kept for history.
+
 This directory contains contract snapshots that define the **acceptance criteria** for OSS migration.
 Phase 1 onwards: every OSS replacement must produce output matching these snapshots.
 
