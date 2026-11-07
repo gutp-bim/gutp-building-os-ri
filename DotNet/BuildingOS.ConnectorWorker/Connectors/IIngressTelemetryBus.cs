@@ -23,4 +23,15 @@ public interface IIngressTelemetryBus
     /// </summary>
     Task<Task> BeginPublishAsync(string subject, string message, CancellationToken cancellationToken)
         => Task.FromResult(PublishAsync(subject, message, cancellationToken));
+
+    /// <summary>
+    /// Runs after <paramref name="message"/>'s ack succeeded, called by the windowed caller <b>in
+    /// publish order</b> (one stream at a time). This is where work that must not reorder belongs —
+    /// the hot-store "latest value" put: run inside the ack tasks, which complete concurrently, an
+    /// older frame's put could land after a newer one's when coalescing is off (Codex review on
+    /// #629). The default does nothing, which matches the default <see cref="BeginPublishAsync"/>
+    /// (its <see cref="PublishAsync"/> already did the whole job).
+    /// </summary>
+    Task CompletePublishAsync(string subject, string message, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }

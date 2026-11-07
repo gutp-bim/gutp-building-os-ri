@@ -39,7 +39,7 @@ public sealed class GatewayIngressService(
     private readonly int _window = Math.Max(1, (publish ?? new IngressPublishOptions()).Window);
 
     /// <summary>A frame whose publish is in flight: its ack task plus what the result is tagged with.</summary>
-    private readonly record struct PendingAck(string GatewayId, string PointId, Task Ack);
+    private readonly record struct PendingAck(string GatewayId, string PointId, string Message, Task Ack);
 
     public override async Task<StreamAck> StreamTelemetry(
         IAsyncStreamReader<TelemetryFrame> requestStream, ServerCallContext context)
@@ -148,6 +148,9 @@ public sealed class GatewayIngressService(
                     await item.Ack.WaitAsync(token).ConfigureAwait(false);
                     count++;
                     Count(item.GatewayId, "published");
+                    // In publish order (this loop is sequential): the hot-store put must not let an
+                    // older frame overwrite a newer one. Persisted already, so it never un-accepts.
+                    await bus.CompletePublishAsync(ValidatedSubject, item.Message, token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
@@ -219,7 +222,7 @@ public sealed class GatewayIngressService(
                 throw;
             }
 
-            await pending.Writer.WriteAsync(new PendingAck(frame.GatewayId, frame.PointId, ack), token).ConfigureAwait(false);
+            await pending.Writer.WriteAsync(new PendingAck(frame.GatewayId, frame.PointId, message, ack), token).ConfigureAwait(false);
             return true;
         }
     }
@@ -314,7 +317,19 @@ public sealed class GatewayIngressService(
         // The publish itself is a JetStream publish-ack (#187): the frame is counted as accepted only
         // once its ack succeeds (see RunAsync's drain); a failure is logged + metered and the frame
         // is not acked to the gateway, but the stream continues.
-        return BuildValidatedTelemetry(frame, meta);
+        try
+        {
+            return BuildValidatedTelemetry(frame, meta);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Serialization can fail for one frame (e.g. a NaN/Infinity value_num). Before #625 this
+            // ran inside the publish try and was counted as publish_failed; keep that boundary so one
+            // bad frame never ends the whole stream (Codex review on #629).
+            logger.LogWarning(ex, "Ingress: could not build telemetry for point '{PointId}', not accepted", frame.PointId);
+            Count(frame.GatewayId, "publish_failed");
+            return null;
+        }
     }
 
     private string BuildValidatedTelemetry(TelemetryFrame frame, PointMetadata meta)
