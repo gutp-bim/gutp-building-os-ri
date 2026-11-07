@@ -1,0 +1,49 @@
+{
+  "run_id": "s261107045848",
+  "meta": {
+    "label": "r3-sync-always",
+    "commit": "08c5c91",
+    "host": "Takashi-PC",
+    "cpu_count": 16,
+    "python": "3.12.3",
+    "started_at": "2026-11-07T04:58:48.962980+00:00",
+    "args": {
+      "rates": "20000",
+      "duration": 60,
+      "points_per_gateway": 50,
+      "streams": "24",
+      "procs": 1,
+      "max_streams": null,
+      "lag_seconds": 5.0,
+      "ingress": "localhost:15051,localhost:15052",
+      "nats_monitor": "http://localhost:8222"
+    },
+    "workers": [
+      {
+        "pid": 91343,
+        "env": {
+          "WORKER_ROLE": "ingest",
+          "PARQUET_FLUSH_INTERVAL": "1",
+          "WARM_STORE": "parquet"
+        }
+      },
+      {
+        "pid": 91375,
+        "env": {
+          "WORKER_ROLE": "ingest",
+          "PARQUET_FLUSH_INTERVAL": "1",
+          "WARM_STORE": "parquet"
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "streams": 24,
+      "pass": false,
+      "fail_reasons": [
+        "cell aborted: _InactiveRpcError: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.DEADLINE_EXCEEDED\n\tdetails = \"Deadline Exceeded\"\n\tdebug_error_string = \"DEADLINE_EXCEEDED:Deadline Exceeded\"\n>"
+      ]
+    }
+  ]
+}

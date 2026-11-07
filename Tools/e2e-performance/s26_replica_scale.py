@@ -37,6 +37,71 @@ import s22_ingest_rate_sweep as s22  # noqa: E402
 LOADGEN_DLL = os.path.join(HERE, "ingress-loadgen-dotnet", "bin", "Release", "net8.0", "IngressLoadGen.dll")
 
 
+class CompactionAwareLakeCounter(s22.LakeCounter):
+    """S22's counter, but it reads an hour partition the way the API does (ParquetLakeReadPlanner):
+    when a ``compact-*.parquet`` exists for the hour, only that object counts and the hour's
+    ``part-*`` objects are ignored. Runs longer than the compaction settle time (R-4) otherwise
+    count the hour twice while compaction's source parts are still being deleted."""
+
+    def _selected(self, keys: list[str]) -> list[str]:
+        by_hour: dict[str, list[str]] = {}
+        for k in keys:
+            by_hour.setdefault(k.rsplit("/", 1)[0], []).append(k)
+        out: list[str] = []
+        for hour_keys in by_hour.values():
+            compact = [k for k in hour_keys if k.rsplit("/", 1)[1].startswith("compact-")]
+            out.extend(compact or [k for k in hour_keys if k.rsplit("/", 1)[1].startswith("part-")])
+        return out
+
+    def count(self) -> int:
+        import duckdb
+
+        keys = self._selected([k for k in self.lc.list_keys(self.endpoint, self.bucket, self.prefix) if k.endswith(".parquet")])
+        con = duckdb.connect()
+        for k in keys:
+            if k in self.rows:
+                continue
+            try:
+                self.rows[k] = con.execute(
+                    "SELECT sum(num_rows) FROM parquet_file_metadata(?)", [self._local(k)]).fetchone()[0] or 0
+            except Exception:  # noqa: BLE001 — partially written object: retry next poll
+                continue
+        self._current = set(keys)
+        return sum(v for k, v in self.rows.items() if k in self._current)
+
+    def duplicates(self) -> int:
+        import duckdb
+
+        files = [self._local(k) for k in self.rows if k in getattr(self, "_current", set(self.rows))]
+        if not files:
+            return 0
+        con = duckdb.connect()
+        return con.execute(
+            "SELECT coalesce(sum(c - 1), 0) FROM (SELECT count(*) c FROM read_parquet(?, union_by_name=1) "
+            "GROUP BY point_id, time HAVING count(*) > 1)", [files]).fetchone()[0]
+
+    def purge(self):
+        for k in self.lc.list_keys(self.endpoint, self.bucket, self.prefix):
+            self.s3.delete_object(Bucket=self.bucket, Key=k)
+
+
+def wait_drained(nats_monitor: str, timeout_s: float) -> tuple[int, float]:
+    """Block until the lake writer's consumer has no pending messages, so one cell's backlog never
+    becomes the next cell's load (a catching-up lake writer reads from the file store and can
+    saturate NATS on its own). Returns (pending at exit, seconds waited)."""
+    t0 = time.time()
+    pending = -1
+    while time.time() - t0 < timeout_s:
+        try:
+            pending, _ = s22.jsz_pending(nats_monitor)
+        except Exception:  # noqa: BLE001
+            pending = -1
+        if pending == 0:
+            break
+        time.sleep(2)
+    return pending, round(time.time() - t0, 1)
+
+
 def run_cell(args, streams: int, idx: int, run_id: str, pids: list[int]) -> dict:
     targets = [t.strip() for t in args.ingress.split(",") if t.strip()]
     base_gw = f"GW-{run_id}-{idx}"
@@ -55,6 +120,7 @@ def run_cell(args, streams: int, idx: int, run_id: str, pids: list[int]) -> dict
         for i in range(streams):
             if not s10.wait_visible(pb2, pb2g, targets[i % len(targets)], f"{base_gw}-{i}", f"{prefix}-{i}-000", timeout_s=120):
                 return {"streams": streams, "pass": False, "fail_reasons": [f"stream {i} points not visible"]}
+        pre_pending, pre_wait = wait_drained(args.nats_monitor, args.drain_timeout)
         sampler = s22.Sampler(args.nats_monitor, pids)
         sampler.start()
         cmd = ["dotnet", LOADGEN_DLL, "--target", ",".join(targets), "--gateway", base_gw,
@@ -72,7 +138,7 @@ def run_cell(args, streams: int, idx: int, run_id: str, pids: list[int]) -> dict
             sampler.stop()
             return {"streams": streams, "pass": False, "fail_reasons": [f"loadgen rc={proc.returncode}: {proc.stderr[-600:]}"]}
         end_lag = next((s["pending"] for s in reversed(sampler.samples) if s["pending"] >= 0), -1)
-        lake = s22.LakeCounter(args.minio_endpoint, args.bucket, building, cache)
+        lake = CompactionAwareLakeCounter(args.minio_endpoint, args.bucket, building, cache)
         rows, deadline = 0, load_end + args.drain_timeout
         while time.time() < deadline:
             rows = lake.count()
@@ -97,6 +163,7 @@ def run_cell(args, streams: int, idx: int, run_id: str, pids: list[int]) -> dict
         step.update({
             "streams": streams, "replicas": len(targets), "sent": total["sent"], "refused": total["sent"] - total["accepted"],
             "drain_s": drain_s, "per_replica": per_replica,
+            "pre_cell_pending": pre_pending, "pre_cell_wait_s": pre_wait,
             "peak_lag": max((s["pending"] for s in sampler.samples if s["pending"] >= 0), default=None),
             "worker_cpu_pct_p50_by_replica": [
                 pct([s["worker_cpu_pct_by_replica"][i] for s in win
@@ -178,7 +245,10 @@ def main() -> int:
     steps = []
     for idx, n in enumerate(int(x) for x in args.streams.split(",") if x.strip()):
         print(f"[s26] cell {idx + 1}: {n} streams over {len(args.ingress.split(','))} replica(s) at {args.rate}/s ...", flush=True)
-        step = run_cell(args, n, idx, run_id, pids)
+        try:
+            step = run_cell(args, n, idx, run_id, pids)
+        except Exception as ex:  # noqa: BLE001 — one broken cell (e.g. a probe timing out) must not end the series
+            step = {"streams": n, "pass": False, "fail_reasons": [f"cell aborted: {type(ex).__name__}: {str(ex)[:200]}"]}
         steps.append(step)
         print(f"[s26]   -> {'PASS' if step['pass'] else 'FAIL'} achieved={step.get('achieved_rate')} "
               f"rows={step.get('lake_rows')}/{step.get('accepted')} per_replica="

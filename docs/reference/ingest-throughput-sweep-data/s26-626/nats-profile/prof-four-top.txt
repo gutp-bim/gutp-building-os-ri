@@ -1,0 +1,24 @@
+File: nats-server
+Build ID: 54501ef76d848f2c3bd35a2abd7a229f23061b8d
+Type: cpu
+Time: Nov 7, 2026 at 9:13pm (JST)
+Duration: 20.16s, Total samples = 30.12s (149.42%)
+Showing nodes accounting for 26.38s, 87.58% of 30.12s total
+Dropped 365 nodes (cum <= 0.15s)
+Showing top 15 nodes out of 71
+      flat  flat%   sum%        cum   cum%
+    23.96s 79.55% 79.55%     23.96s 79.55%  internal/runtime/syscall.Syscall6
+     1.46s  4.85% 84.40%      1.46s  4.85%  runtime.futex
+     0.18s   0.6% 84.99%      0.26s  0.86%  github.com/nats-io/nats-server/v2/server.encodeConsumerState
+     0.15s   0.5% 85.49%     27.35s 90.80%  github.com/nats-io/nats-server/v2/server.(*stream).internalLoop
+     0.15s   0.5% 85.99%     26.87s 89.21%  github.com/nats-io/nats-server/v2/server.(*stream).processJetStreamMsgWithBatch
+     0.10s  0.33% 86.32%     24.27s 80.58%  github.com/nats-io/nats-server/v2/server.(*msgBlock).writeMsgRecordLocked
+     0.07s  0.23% 86.55%     24.82s 82.40%  github.com/nats-io/nats-server/v2/server.(*fileStore).storeRawMsg
+     0.06s   0.2% 86.75%      0.42s  1.39%  runtime.mallocgc
+     0.05s  0.17% 86.92%     23.66s 78.55%  syscall.pwrite
+     0.04s  0.13% 87.05%     23.70s 78.69%  internal/poll.(*FD).Pwrite
+     0.04s  0.13% 87.18%      0.89s  2.95%  runtime.chansend
+     0.03s   0.1% 87.28%      0.40s  1.33%  github.com/nats-io/nats-server/v2/server.(*client).parse
+     0.03s   0.1% 87.38%      0.32s  1.06%  github.com/nats-io/nats-server/v2/server.(*client).processMsgResults
+     0.03s   0.1% 87.48%      0.32s  1.06%  github.com/nats-io/nats-server/v2/server.(*stream).signalConsumersLoop
+     0.03s   0.1% 87.58%     23.73s 78.78%  os.(*File).WriteAt
