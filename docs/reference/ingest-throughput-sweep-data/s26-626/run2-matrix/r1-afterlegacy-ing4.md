@@ -1,6 +1,6 @@
 # S26 ingest replica scaling — s261107042347 (r1-afterlegacy-ing4)
 
-commit 08c5c91 · host Takashi-PC · ingress localhost:15051,localhost:15052,localhost:15053,localhost:15054 · rate 20000/s
+commit 08c5c91 · host bench-host · ingress localhost:15051,localhost:15052,localhost:15053,localhost:15054 · rate 20000/s
 
 | streams | replicas | achieved/s | ratio | loss | dup | per replica accepted/s | worker CPU% p50 (each) | NATS CPU% p50/max | loadgen CPU% | peak lag | result |
 |--:|--:|--:|--:|--:|--:|---|---|--:|--:|--:|---|

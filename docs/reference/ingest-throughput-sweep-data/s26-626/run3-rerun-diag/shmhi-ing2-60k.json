@@ -3,7 +3,7 @@
   "meta": {
     "label": "shmhi-ing2-60k",
     "commit": "08c5c91",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-07T12:30:47.719086+00:00",

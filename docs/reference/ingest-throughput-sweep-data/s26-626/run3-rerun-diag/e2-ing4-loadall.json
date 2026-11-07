@@ -3,7 +3,7 @@
   "meta": {
     "label": "e2-ing4-loadall",
     "commit": "08c5c91",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-07T08:22:52.224643+00:00",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # #626 provisional matrix on one core-pinned 16-core host (see s26lib.sh for the core map).
-source /tmp/claude-1000/-home-takashi-projects-gutp-bos-ri-main/80e8998f-8e72-4e50-91de-83d1e729f3ef/scratchpad/s26lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/s26lib.sh"
 A=$S/cw; B=$S/cw-base; PPS="--points-per-stream 50"; export FRESH_NATS=1
 echo "== start $(date -u +%FT%TZ)"
 nats_up

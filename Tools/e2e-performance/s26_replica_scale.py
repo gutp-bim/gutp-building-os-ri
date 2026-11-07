@@ -111,16 +111,27 @@ def run_cell(args, streams: int, idx: int, run_id: str, pids: list[int]) -> dict
     cache = tempfile.mkdtemp(prefix="s26-lake-")
     pb2, pb2g = s10.load_ingress_stubs()
     try:
+        # Same naming rule as ingress-loadgen-dotnet: one stream sends as the bare gateway id, N > 1
+        # streams as "{gateway}-{i}". Seeding/probing a different name would let the probe pass and
+        # every real frame be rejected as gateway_mismatch.
+        def gw_of(i: int) -> str:
+            return base_gw if streams == 1 else f"{base_gw}-{i}"
+
         for i in range(streams):
-            gw = f"{base_gw}-{i}"
+            gw = gw_of(i)
             for j in range(args.points_per_stream):
                 p = f"{prefix}-{i}-{j:03d}"
                 s10.insert_point(args.oxigraph, p, gw, building)
                 seeded.append(p)
         for i in range(streams):
-            if not s10.wait_visible(pb2, pb2g, targets[i % len(targets)], f"{base_gw}-{i}", f"{prefix}-{i}-000", timeout_s=120):
+            if not s10.wait_visible(pb2, pb2g, targets[i % len(targets)], gw_of(i), f"{prefix}-{i}-000", timeout_s=120):
                 return {"streams": streams, "pass": False, "fail_reasons": [f"stream {i} points not visible"]}
         pre_pending, pre_wait = wait_drained(args.nats_monitor, args.drain_timeout)
+        if pre_pending != 0:
+            # The previous cell's backlog (or an unreachable monitor) would compete with this load and
+            # invalidate the comparison the drain wait exists to protect: refuse the cell.
+            return {"streams": streams, "pass": False, "pre_cell_pending": pre_pending, "pre_cell_wait_s": pre_wait,
+                    "fail_reasons": [f"lake backlog did not drain before the cell (pending={pre_pending} after {pre_wait}s)"]}
         sampler = s22.Sampler(args.nats_monitor, pids)
         sampler.start()
         cmd = ["dotnet", LOADGEN_DLL, "--target", ",".join(targets), "--gateway", base_gw,
@@ -261,7 +272,7 @@ def main() -> int:
         f.write(md)
     print(md)
     print(f"[s26] wrote {out}")
-    return 0
+    return 0 if steps and all(st.get("pass") for st in steps) else 1
 
 
 if __name__ == "__main__":

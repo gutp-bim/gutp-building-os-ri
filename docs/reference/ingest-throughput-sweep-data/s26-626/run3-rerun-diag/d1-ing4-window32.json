@@ -3,7 +3,7 @@
   "meta": {
     "label": "d1-ing4-window32",
     "commit": "08c5c91",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-07T06:45:31.046170+00:00",

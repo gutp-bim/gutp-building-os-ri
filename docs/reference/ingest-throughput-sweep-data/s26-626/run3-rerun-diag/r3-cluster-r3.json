@@ -3,7 +3,7 @@
   "meta": {
     "label": "r3-cluster-r3",
     "commit": "08c5c91",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-07T07:12:21.702390+00:00",

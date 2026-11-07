@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Decisive check for the 4-replica slowdown: same cells with the JetStream store on tmpfs.
-source /tmp/claude-1000/-home-takashi-projects-gutp-bos-ri-main/80e8998f-8e72-4e50-91de-83d1e729f3ef/scratchpad/s26lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/s26lib.sh"
 A=$S/cw; PPS="--points-per-stream 50"
 while pgrep -f "[r]eplica_scale" >/dev/null; do sleep 5; done
 nats_shm() { pkill -f "[n]ats-server -js -sd"; sleep 1; rm -rf /dev/shm/nats-s26; mkdir -p /dev/shm/nats-s26

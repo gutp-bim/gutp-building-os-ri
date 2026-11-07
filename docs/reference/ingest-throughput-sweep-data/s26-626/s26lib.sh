@@ -1,8 +1,16 @@
 # Helpers for the #626 provisional runs on one 16-core host, core-pinned:
 #   NATS 0-1 · OxiGraph+RustFS+lake worker 2-3 · ingest replicas 4-11 (2 cores each) · loadgen 12-15
-S=/tmp/claude-1000/-home-takashi-projects-gutp-bos-ri-main/80e8998f-8e72-4e50-91de-83d1e729f3ef/scratchpad
-REPO=/home/takashi/projects/gutp/bos-ri-main
-PY=$S/s22venv/bin/python
+#
+# Usage: S26_WORKDIR=<scratch dir> bash s26-matrix.sh   (any of the s26-*.sh runners)
+#   $S26_WORKDIR holds the NATS store, logs and results, plus the builds the runners expect:
+#     cw/       `dotnet publish -c Release` of the ConnectorWorker under test (After)
+#     cw-base/  the same for the baseline commit
+#     s22venv/  a venv with Tools/e2e-performance/requirements.txt (or set PY)
+#   The repository is found relative to this file.
+: "${S26_WORKDIR:?set S26_WORKDIR to a scratch directory}"
+S=$S26_WORKDIR
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
+PY=${PY:-$S/s22venv/bin/python}
 NATS_CONF=${NATS_CONF:-}
 
 infra_up() {

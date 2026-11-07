@@ -3,7 +3,7 @@
   "meta": {
     "label": "d3-ing1-nats4core",
     "commit": "08c5c91",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-07T06:51:55.602370+00:00",

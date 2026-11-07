@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Re-run the #626 cells that aborted on the slowed twin (probe DEADLINE_EXCEEDED), with a fresh
 # OxiGraph per replica set, then the NATS-core diagnostics and R-4.
-source /tmp/claude-1000/-home-takashi-projects-gutp-bos-ri-main/80e8998f-8e72-4e50-91de-83d1e729f3ef/scratchpad/s26lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/s26lib.sh"
 A=$S/cw; B=$S/cw-base; PPS="--points-per-stream 50"; export FRESH_NATS=1
 echo "== rerun start $(date -u +%FT%TZ)"
 ingest_set $A 4; run_s26 r1hi-after-ing4 48 40000 $PPS

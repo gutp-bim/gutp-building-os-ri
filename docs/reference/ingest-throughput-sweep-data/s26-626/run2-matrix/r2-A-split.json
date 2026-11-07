@@ -3,7 +3,7 @@
   "meta": {
     "label": "r2-A-split",
     "commit": "08c5c91",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-07T04:41:40.652306+00:00",
