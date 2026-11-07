@@ -32,7 +32,12 @@ nats_up() {  # $1 = optional extra nats-server args
   for i in $(seq 1 20); do curl -sf -m 1 http://localhost:8222/varz >/dev/null && break; sleep 0.5; done
   echo "nats up $1"
 }
-workers_down() { pkill -f "[B]uildingOS.ConnectorWorker.dll"; sleep 3; }
+# Stop only the workers this harness started (their pids are recorded by start_worker), never
+# another ConnectorWorker of the same user.
+workers_down() {
+  [ -f "$S/s26-workers.pids" ] && xargs -r kill < "$S/s26-workers.pids" 2>/dev/null
+  rm -f "$S/s26-workers.pids"; sleep 3
+}
 # start_worker <build dir> <role> <index> <cpus> [ENV=VAL ...]   (index 0 = lake/all health 18080)
 start_worker() {
   local build=$1 role=$2 idx=$3 cpus=$4; shift 4
@@ -43,6 +48,7 @@ start_worker() {
      OXIGRAPH_ENDPOINT=http://localhost:7878 WARM_STORE=parquet ENABLE_SIM_CONTROL=true "$@" \
      setsid nohup taskset -c $cpus dotnet $build/BuildingOS.ConnectorWorker.dll > $S/worker-$role-$idx.log 2>&1 < /dev/null &)
   for i in $(seq 1 40); do curl -s -m 1 http://localhost:$health/health/ready | grep -qE "Healthy|Degraded" && break; sleep 0.5; done
+  ss -ltnpH "sport = :$health" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2 >> "$S/s26-workers.pids"
 }
 pid_of() { pgrep -f "taskset -c $1 dotnet" >/dev/null; ps -eo pid,args | awk -v c="$1" '$0 ~ "dotnet .*BuildingOS.ConnectorWorker.dll" {print $1}' ; }
 # ingest_set <build> <n> [ENV=VAL ...]  → starts lake (cpus 2-3) + n ingest replicas; sets INGRESS and PIDS

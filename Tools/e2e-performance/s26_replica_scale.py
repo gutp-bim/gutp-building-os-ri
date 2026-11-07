@@ -85,15 +85,30 @@ class CompactionAwareLakeCounter(s22.LakeCounter):
             self.s3.delete_object(Bucket=self.bucket, Key=k)
 
 
+LAKE_CONSUMER = "parquetlakewriter"
+
+
+def lake_pending(nats_monitor: str) -> int:
+    """The lake writer's pending count, or -1 when that consumer is not visible on this monitor.
+
+    An empty consumer list must not read as "drained": on a cluster the monitored node may not host
+    the consumer (Codex review on #632), and summing nothing gives 0."""
+    import kpi_sampler as ks
+
+    _, per = ks.sample_pending(nats_monitor, "VALIDATED")
+    hits = [v for k, v in per.items() if k.rsplit("/", 1)[-1] == LAKE_CONSUMER]
+    return sum(hits) if hits else -1
+
+
 def wait_drained(nats_monitor: str, timeout_s: float) -> tuple[int, float]:
     """Block until the lake writer's consumer has no pending messages, so one cell's backlog never
     becomes the next cell's load (a catching-up lake writer reads from the file store and can
-    saturate NATS on its own). Returns (pending at exit, seconds waited)."""
+    saturate NATS on its own). Returns (pending at exit, seconds waited); -1 = consumer not seen."""
     t0 = time.time()
     pending = -1
     while time.time() - t0 < timeout_s:
         try:
-            pending, _ = s22.jsz_pending(nats_monitor)
+            pending = lake_pending(nats_monitor)
         except Exception:  # noqa: BLE001
             pending = -1
         if pending == 0:
@@ -148,7 +163,15 @@ def run_cell(args, streams: int, idx: int, run_id: str, pids: list[int]) -> dict
         if total is None:
             sampler.stop()
             return {"streams": streams, "pass": False, "fail_reasons": [f"loadgen rc={proc.returncode}: {proc.stderr[-600:]}"]}
-        end_lag = next((s["pending"] for s in reversed(sampler.samples) if s["pending"] >= 0), -1)
+        try:
+            end_lag = lake_pending(args.nats_monitor)
+        except Exception:  # noqa: BLE001
+            end_lag = -1
+        if end_lag < 0:
+            sampler.stop()
+            return {"streams": streams, "pass": False,
+                    "fail_reasons": [f"lake consumer '{LAKE_CONSUMER}' not visible on {args.nats_monitor}; "
+                                     "point --nats-monitor at the node that hosts it"]}
         lake = CompactionAwareLakeCounter(args.minio_endpoint, args.bucket, building, cache)
         rows, deadline = 0, load_end + args.drain_timeout
         while time.time() < deadline:
