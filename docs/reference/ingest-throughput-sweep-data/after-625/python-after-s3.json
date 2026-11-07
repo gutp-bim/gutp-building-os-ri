@@ -3,7 +3,7 @@
   "meta": {
     "label": "after-s3",
     "commit": "cfcd4e3",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-06T22:25:03.371069+00:00",

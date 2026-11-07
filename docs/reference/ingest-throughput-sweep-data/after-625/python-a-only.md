@@ -1,6 +1,6 @@
 # S22 ingest rate sweep — s221106222047 (a-only)
 
-commit cfcd4e3 · host Takashi-PC · ingress localhost:15051 · workers 71202 {"GRPC_INGRESS_PUBLISH_WINDOW": "1", "PARQUET_FLUSH_INTERVAL": "1", "WARM_STORE": "parquet"}
+commit cfcd4e3 · host bench-host · ingress localhost:15051 · workers 71202 {"GRPC_INGRESS_PUBLISH_WINDOW": "1", "PARQUET_FLUSH_INTERVAL": "1", "WARM_STORE": "parquet"}
 
 duration/step 60s · points/gateway 100 · cpu 16 cores (load generator shares the host)
 

@@ -479,7 +479,10 @@ def run_metadata(args, pids: list[int]) -> dict:
     except Exception:  # noqa: BLE001
         commit = None
     return {
-        "label": args.label, "commit": commit, "host": platform.node(), "cpu_count": os.cpu_count(),
+        # A neutral label, never the machine name: results get committed to a public repository
+        # (AGENTS.md "Security and repository hygiene"). Set BENCH_HOST_LABEL to tell runs apart.
+        "label": args.label, "commit": commit, "host": os.environ.get("BENCH_HOST_LABEL", "bench-host"),
+        "cpu_count": os.cpu_count(),
         "python": platform.python_version(), "started_at": datetime.now(timezone.utc).isoformat(),
         "args": {k: getattr(args, k) for k in ("rates", "duration", "points_per_gateway", "streams", "procs",
                                                   "max_streams", "lag_seconds", "ingress", "nats_monitor")},

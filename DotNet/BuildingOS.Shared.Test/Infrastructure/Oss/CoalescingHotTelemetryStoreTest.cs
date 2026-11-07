@@ -258,6 +258,50 @@ public class CoalescingHotTelemetryStoreTest
     }
 
     [Fact]
+    public async Task CancelledFlush_RequeuesUnwrittenPoints_SoTheNextFlushWritesThem()
+    {
+        // Codex review on #629: a flush cancelled mid-way (the loop stopping during shutdown) had already
+        // marked its whole claim clean, so the final flush skipped the points it never got to.
+        var inner = new RecordingStore { HoldPuts = true };
+        await using var store = NewStore(inner, new CoalescingHotStoreOptions { Interval = TimeSpan.FromHours(1), FlushConcurrency = 4 });
+        for (var i = 0; i < 50; i++) await store.PutAsync($"p{i}", Row($"p{i}", i), "test");
+
+        using var cts = new CancellationTokenSource();
+        var flush = store.FlushAsync(cts.Token);
+        await WaitUntilAsync(() => Volatile.Read(ref inner.MaxObservedConcurrency) >= 4);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => flush);
+        Assert.Equal(50, store.PendingCount);
+
+        inner.Gate.SetResult();
+        await store.FlushAsync();
+
+        Assert.Equal(50, inner.Latest.Count);
+        Assert.Equal(0, store.PendingCount);
+    }
+
+    [Fact]
+    public async Task CancelledFlush_DoesNotRequeueAnOlderValueOverANewerPut()
+    {
+        var inner = new RecordingStore { HoldPuts = true };
+        await using var store = NewStore(inner, new CoalescingHotStoreOptions { Interval = TimeSpan.FromHours(1), FlushConcurrency = 1 });
+        await store.PutAsync("p1", Row("p1", 1, "2026-11-07T00:00:01Z"), "test");
+
+        using var cts = new CancellationTokenSource();
+        var flush = store.FlushAsync(cts.Token);
+        await WaitUntilAsync(() => Volatile.Read(ref inner.MaxObservedConcurrency) >= 1);
+        await store.PutAsync("p1", Row("p1", 2, "2026-11-07T00:00:02Z"), "test"); // newer value arrives mid-flush
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => flush);
+
+        inner.Gate.SetResult();
+        await store.FlushAsync();
+
+        Assert.Equal(2, inner.Latest["p1"].Value);
+        Assert.Equal(0, store.PendingCount);
+    }
+
+    [Fact]
     public async Task StopAsync_FlushesPendingPoints()
     {
         var inner = new RecordingStore();

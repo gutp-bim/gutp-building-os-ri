@@ -121,30 +121,44 @@ public sealed class CoalescingHotTelemetryStore : ISourceTaggedHotTelemetryStore
             foreach (var (_, entry) in claimed) oldest = Math.Min(oldest, entry.EnqueuedTicks);
             var oldestAge = Stopwatch.GetElapsedTime(oldest, flushStart);
 
-            await Parallel.ForEachAsync(
-                claimed,
-                new ParallelOptions { MaxDegreeOfParallelism = _options.FlushConcurrency, CancellationToken = cancellationToken },
-                async (item, ct) =>
-                {
-                    var (pointId, entry) = item;
-                    try
+            // Points whose put finished (written, or failed and counted). A cancelled flush — the loop
+            // being stopped mid-flush, or the shutdown deadline — re-queues every other claimed point,
+            // so the final flush in StopAsync still writes it instead of the claim silently dropping it.
+            var settled = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+            try
+            {
+                await Parallel.ForEachAsync(
+                    claimed,
+                    new ParallelOptions { MaxDegreeOfParallelism = _options.FlushConcurrency, CancellationToken = cancellationToken },
+                    async (item, ct) =>
                     {
-                        await _inner.PutAsync(pointId, entry.Data, ct).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                    {
-                        // Shutdown deadline, not a store failure. The value stays in the table as the
-                        // point's last known reading; it is simply not re-queued (nothing will flush it).
-                    }
-                    catch (Exception ex)
-                    {
-                        BuildingOsMetrics.TelemetryHotWriteFailures.Add(1,
-                            new KeyValuePair<string, object?>("source", entry.Source));
-                        _logger.LogWarning(ex,
-                            "CoalescingHotTelemetryStore: hot store put failed for point {PointId} from source {Source}",
-                            pointId, entry.Source);
-                    }
-                }).ConfigureAwait(false);
+                        var (pointId, entry) = item;
+                        try
+                        {
+                            await _inner.PutAsync(pointId, entry.Data, ct).ConfigureAwait(false);
+                            settled[pointId] = 0;
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            // Cancelled, not failed: left unsettled, so it is re-queued below.
+                        }
+                        catch (Exception ex)
+                        {
+                            settled[pointId] = 0;
+                            BuildingOsMetrics.TelemetryHotWriteFailures.Add(1,
+                                new KeyValuePair<string, object?>("source", entry.Source));
+                            _logger.LogWarning(ex,
+                                "CoalescingHotTelemetryStore: hot store put failed for point {PointId} from source {Source}",
+                                pointId, entry.Source);
+                        }
+                    }).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Requeue(claimed, settled);
+                throw;
+            }
+            if (settled.Count < claimed.Count) Requeue(claimed, settled);
 
             BuildingOsMetrics.HotStoreCoalescedPoints.Record(claimed.Count);
             BuildingOsMetrics.HotStoreCoalesceFlushLatency.Record(oldestAge.TotalSeconds);
@@ -152,6 +166,24 @@ public sealed class CoalescingHotTelemetryStore : ISourceTaggedHotTelemetryStore
         finally
         {
             _flushGate.Release();
+        }
+    }
+
+    // Puts claimed-but-unwritten values back in the queue. A point that took a newer put meanwhile is
+    // already dirty with that newer value and is left alone.
+    private void Requeue(List<KeyValuePair<string, Entry>> claimed, ConcurrentDictionary<string, byte> settled)
+    {
+        foreach (var (pointId, entry) in claimed)
+        {
+            if (settled.ContainsKey(pointId)) continue;
+            while (_table.TryGetValue(pointId, out var current) && !current.Dirty && ReferenceEquals(current.Data, entry.Data))
+            {
+                if (_table.TryUpdate(pointId, current with { Dirty = true }, current))
+                {
+                    Interlocked.Increment(ref _dirty);
+                    break;
+                }
+            }
         }
     }
 

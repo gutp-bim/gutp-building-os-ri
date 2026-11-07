@@ -1,6 +1,6 @@
 # S22 single-stream ceiling (.NET load generator) — s22s1106224348 (b-only)
 
-commit cfcd4e3 · host Takashi-PC · ingress localhost:15051 · workers 86983 {"HOT_STORE_COALESCE_MS": "0", "PARQUET_FLUSH_INTERVAL": "1", "WARM_STORE": "parquet"}
+commit cfcd4e3 · host bench-host · ingress localhost:15051 · workers 86983 {"HOT_STORE_COALESCE_MS": "0", "PARQUET_FLUSH_INTERVAL": "1", "WARM_STORE": "parquet"}
 
 | target/s | achieved/s | ratio | sent | accepted | peak lag | worker CPU% p50/max | worker RSS MB | loadgen CPU% p50 | NATS CPU% p50 | result |
 |--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|---|
