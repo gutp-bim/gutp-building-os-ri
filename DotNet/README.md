@@ -1,6 +1,6 @@
 # Building OS バックエンド
 
-> .NET 8.0 ベースのバックエンドシステム
+> .NET 10 ベースのバックエンドシステム
 
 Building OS のバックエンドは、Azure Functions による IoT データ処理と、ASP.NET Core による REST API で構成されています。
 
@@ -23,13 +23,13 @@ DotNet/
 | **BuildingOS.ApiServer**      | ASP.NET Core 8.0                  | REST API サーバー                          |
 | **BuildingOS.Functions**      | Azure Functions (Isolated Worker) | IoT データ処理（Connector/Consumer）       |
 | **BuildingOS.Functions.Test** | xUnit                             | Functions の単体テスト                     |
-| **BuildingOS.Shared**         | .NET 8.0                          | 共有ライブラリ（エンティティ、ヘルパー等） |
+| **BuildingOS.Shared**         | .NET 10                           | 共有ライブラリ（エンティティ、ヘルパー等） |
 
 ## 🚀 技術スタック
 
 ### フレームワーク
 
-- **.NET 8.0**: 最新の .NET ランタイム
+- **.NET 10**: LTS の .NET ランタイム（サポート 2028-11 まで）
 - **ASP.NET Core 8.0**: Web API フレームワーク
 - **Azure Functions (Isolated Worker Model)**: サーバーレス実行環境
 
@@ -53,7 +53,7 @@ DotNet/
 
 ### 前提条件
 
-- [.NET SDK 8.0](https://dotnet.microsoft.com/ja-jp/download/dotnet/8.0)
+- [.NET SDK 10.0](https://dotnet.microsoft.com/ja-jp/download/dotnet/10.0)
 - Visual Studio 2022 / Rider / VS Code
 - Azure Functions Core Tools v4
 - Docker Desktop（ローカル開発用）

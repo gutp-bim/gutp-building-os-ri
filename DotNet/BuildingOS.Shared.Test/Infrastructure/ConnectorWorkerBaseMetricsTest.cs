@@ -30,8 +30,10 @@ public class ConnectorWorkerBaseMetricsTest
     /// <summary>Subscription double that captures the registered handler for manual invocation.</summary>
     private sealed class CapturingSubscription : IMessageSubscription
     {
-        public Func<string, Task>? Handler { get; private set; }
-        public void Register(Func<string, Task> handler) => Handler = handler;
+        private readonly TaskCompletionSource<Func<string, Task>> _handler =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<Func<string, Task>> Handler => _handler.Task;
+        public void Register(Func<string, Task> handler) => _handler.TrySetResult(handler);
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
@@ -56,13 +58,11 @@ public class ConnectorWorkerBaseMetricsTest
         var publisher = new Mock<INatsPublisher>();
         var connector = new TestConnector(subscription, publisher.Object, process);
 
-        // Register() is the first call in ExecuteAsync (before any await). BackgroundService
-        // calls ExecuteAsync synchronously until the first real suspension; since
-        // CapturingSubscription.StartAsync returns Task.CompletedTask, ExecuteAsync
-        // completes synchronously and Handler is guaranteed non-null after StartAsync returns.
+        // Since .NET 10, BackgroundService runs ExecuteAsync on the thread pool, so Register() may
+        // happen after StartAsync returns — wait for it instead of assuming it already ran.
         await connector.StartAsync(CancellationToken.None);
-        Assert.NotNull(subscription.Handler);
-        await subscription.Handler!("raw-message");
+        var handler = await subscription.Handler.WaitAsync(TimeSpan.FromSeconds(5));
+        await handler("raw-message");
 
         return results;
     }

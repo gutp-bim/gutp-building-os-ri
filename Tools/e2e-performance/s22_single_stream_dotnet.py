@@ -34,7 +34,7 @@ LOADGEN_DIR = os.path.join(HERE, "ingress-loadgen-dotnet")
 
 
 def loadgen_cmd() -> list[str]:
-    dll = os.path.join(LOADGEN_DIR, "bin", "Release", "net8.0", "IngressLoadGen.dll")
+    dll = os.path.join(LOADGEN_DIR, "bin", "Release", "net10.0", "IngressLoadGen.dll")
     if not os.path.exists(dll):
         raise SystemExit(f"build the load generator first: dotnet build -c Release {LOADGEN_DIR}")
     return ["dotnet", dll]
