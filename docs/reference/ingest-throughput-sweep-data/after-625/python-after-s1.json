@@ -1,0 +1,1748 @@
+{
+  "run_id": "s221106220225",
+  "steps": [
+    {
+      "target_rate": 2000,
+      "duration_s": 60,
+      "accepted": 119992,
+      "achieved_rate": 1998.2,
+      "achieved_ratio": 0.9991,
+      "lake_rows": 119993,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": true,
+      "fail_reasons": [],
+      "streams": 1,
+      "gateways": 1,
+      "points": 100,
+      "sent": 119992,
+      "drain_s": 61.0,
+      "peak_lag": 367,
+      "worker_cpu_pct_p50": 177.6,
+      "worker_cpu_pct_max": 301.3,
+      "host_cpu_pct_p50": 630.1,
+      "worker_rss_mb_max": 1688.5,
+      "lake_objects": 3,
+      "samples": [
+        {
+          "t": 1794002546.4030535,
+          "pending": 0,
+          "stream_msgs": 1,
+          "worker_rss_mb": 127.3
+        },
+        {
+          "t": 1794002548.4956436,
+          "pending": 0,
+          "stream_msgs": 1,
+          "host_cpu_pct": 425.7,
+          "worker_cpu_pct": 10.5,
+          "worker_rss_mb": 129.9
+        },
+        {
+          "t": 1794002550.5032856,
+          "pending": 0,
+          "stream_msgs": 2192,
+          "host_cpu_pct": 559.6,
+          "worker_cpu_pct": 178.8,
+          "worker_rss_mb": 179.5
+        },
+        {
+          "t": 1794002552.5144455,
+          "pending": 0,
+          "stream_msgs": 6214,
+          "host_cpu_pct": 746.8,
+          "worker_cpu_pct": 301.3,
+          "worker_rss_mb": 272.4
+        },
+        {
+          "t": 1794002554.5202024,
+          "pending": 0,
+          "stream_msgs": 10210,
+          "host_cpu_pct": 676.0,
+          "worker_cpu_pct": 236.8,
+          "worker_rss_mb": 306.9
+        },
+        {
+          "t": 1794002556.5291722,
+          "pending": 0,
+          "stream_msgs": 14262,
+          "host_cpu_pct": 719.3,
+          "worker_cpu_pct": 183.2,
+          "worker_rss_mb": 348.2
+        },
+        {
+          "t": 1794002558.5423393,
+          "pending": 0,
+          "stream_msgs": 18268,
+          "host_cpu_pct": 630.1,
+          "worker_cpu_pct": 178.8,
+          "worker_rss_mb": 410.2
+        },
+        {
+          "t": 1794002560.5363035,
+          "pending": 0,
+          "stream_msgs": 22269,
+          "host_cpu_pct": 680.9,
+          "worker_cpu_pct": 182.6,
+          "worker_rss_mb": 490.2
+        },
+        {
+          "t": 1794002562.5458903,
+          "pending": 0,
+          "stream_msgs": 26257,
+          "host_cpu_pct": 621.4,
+          "worker_cpu_pct": 177.6,
+          "worker_rss_mb": 576.4
+        },
+        {
+          "t": 1794002564.5537364,
+          "pending": 0,
+          "stream_msgs": 30301,
+          "host_cpu_pct": 666.8,
+          "worker_cpu_pct": 192.7,
+          "worker_rss_mb": 662.5
+        },
+        {
+          "t": 1794002566.563133,
+          "pending": 0,
+          "stream_msgs": 34304,
+          "host_cpu_pct": 742.4,
+          "worker_cpu_pct": 181.1,
+          "worker_rss_mb": 748.2
+        },
+        {
+          "t": 1794002568.5739317,
+          "pending": 0,
+          "stream_msgs": 38324,
+          "host_cpu_pct": 619.7,
+          "worker_cpu_pct": 197.4,
+          "worker_rss_mb": 838.5
+        },
+        {
+          "t": 1794002570.580418,
+          "pending": 0,
+          "stream_msgs": 42347,
+          "host_cpu_pct": 667.4,
+          "worker_cpu_pct": 170.9,
+          "worker_rss_mb": 838.6
+        },
+        {
+          "t": 1794002572.588544,
+          "pending": 0,
+          "stream_msgs": 46366,
+          "host_cpu_pct": 680.4,
+          "worker_cpu_pct": 151.9,
+          "worker_rss_mb": 838.6
+        },
+        {
+          "t": 1794002574.5967584,
+          "pending": 367,
+          "stream_msgs": 50377,
+          "host_cpu_pct": 606.2,
+          "worker_cpu_pct": 177.3,
+          "worker_rss_mb": 845.7
+        },
+        {
+          "t": 1794002576.6052809,
+          "pending": 0,
+          "stream_msgs": 54366,
+          "host_cpu_pct": 866.7,
+          "worker_cpu_pct": 236.5,
+          "worker_rss_mb": 874.8
+        },
+        {
+          "t": 1794002578.6195033,
+          "pending": 0,
+          "stream_msgs": 58425,
+          "host_cpu_pct": 630.2,
+          "worker_cpu_pct": 179.2,
+          "worker_rss_mb": 897.8
+        },
+        {
+          "t": 1794002580.6280723,
+          "pending": 0,
+          "stream_msgs": 62450,
+          "host_cpu_pct": 671.2,
+          "worker_cpu_pct": 184.2,
+          "worker_rss_mb": 936.7
+        },
+        {
+          "t": 1794002582.6365328,
+          "pending": 0,
+          "stream_msgs": 66460,
+          "host_cpu_pct": 615.0,
+          "worker_cpu_pct": 169.8,
+          "worker_rss_mb": 994.6
+        },
+        {
+          "t": 1794002584.6443703,
+          "pending": 0,
+          "stream_msgs": 70484,
+          "host_cpu_pct": 659.7,
+          "worker_cpu_pct": 180.3,
+          "worker_rss_mb": 1062.8
+        },
+        {
+          "t": 1794002586.651516,
+          "pending": 0,
+          "stream_msgs": 74474,
+          "host_cpu_pct": 747.5,
+          "worker_cpu_pct": 182.3,
+          "worker_rss_mb": 1138.0
+        },
+        {
+          "t": 1794002588.6601682,
+          "pending": 0,
+          "stream_msgs": 78492,
+          "host_cpu_pct": 660.3,
+          "worker_cpu_pct": 177.2,
+          "worker_rss_mb": 1220.8
+        },
+        {
+          "t": 1794002590.6535575,
+          "pending": 0,
+          "stream_msgs": 82511,
+          "host_cpu_pct": 587.2,
+          "worker_cpu_pct": 168.6,
+          "worker_rss_mb": 1305.7
+        },
+        {
+          "t": 1794002592.6610734,
+          "pending": 0,
+          "stream_msgs": 86502,
+          "host_cpu_pct": 483.5,
+          "worker_cpu_pct": 158.9,
+          "worker_rss_mb": 1392.1
+        },
+        {
+          "t": 1794002594.6689136,
+          "pending": 0,
+          "stream_msgs": 90542,
+          "host_cpu_pct": 549.6,
+          "worker_cpu_pct": 171.8,
+          "worker_rss_mb": 1477.8
+        },
+        {
+          "t": 1794002596.6790023,
+          "pending": 0,
+          "stream_msgs": 94539,
+          "host_cpu_pct": 624.5,
+          "worker_cpu_pct": 174.6,
+          "worker_rss_mb": 1562.4
+        },
+        {
+          "t": 1794002598.6869397,
+          "pending": 0,
+          "stream_msgs": 98574,
+          "host_cpu_pct": 552.0,
+          "worker_cpu_pct": 177.3,
+          "worker_rss_mb": 1648.3
+        },
+        {
+          "t": 1794002600.69919,
+          "pending": 0,
+          "stream_msgs": 102598,
+          "host_cpu_pct": 629.6,
+          "worker_cpu_pct": 271.8,
+          "worker_rss_mb": 1687.7
+        },
+        {
+          "t": 1794002602.705886,
+          "pending": 0,
+          "stream_msgs": 106602,
+          "host_cpu_pct": 488.8,
+          "worker_cpu_pct": 163.0,
+          "worker_rss_mb": 1687.7
+        },
+        {
+          "t": 1794002604.7133956,
+          "pending": 0,
+          "stream_msgs": 110627,
+          "host_cpu_pct": 578.8,
+          "worker_cpu_pct": 166.9,
+          "worker_rss_mb": 1688.0
+        },
+        {
+          "t": 1794002606.7214215,
+          "pending": 0,
+          "stream_msgs": 114623,
+          "host_cpu_pct": 713.1,
+          "worker_cpu_pct": 171.3,
+          "worker_rss_mb": 1688.0
+        },
+        {
+          "t": 1794002608.7293186,
+          "pending": 0,
+          "stream_msgs": 118659,
+          "host_cpu_pct": 593.6,
+          "worker_cpu_pct": 169.8,
+          "worker_rss_mb": 1688.5
+        },
+        {
+          "t": 1794002610.7373655,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 325.8,
+          "worker_cpu_pct": 58.8,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002612.7426786,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 141.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002614.7476285,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 142.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002616.7553036,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 243.4,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002618.7617319,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 166.2,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002620.7515693,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 167.7,
+          "worker_cpu_pct": 0.0,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002622.7568245,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 150.5,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002624.7626889,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 134.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002626.7674367,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 241.6,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.6
+        },
+        {
+          "t": 1794002628.7730873,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 166.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.4
+        },
+        {
+          "t": 1794002630.7789433,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 164.1,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.4
+        },
+        {
+          "t": 1794002632.7846582,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 145.0,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.4
+        },
+        {
+          "t": 1794002634.7894073,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 136.2,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.4
+        },
+        {
+          "t": 1794002636.7941697,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 287.6,
+          "worker_cpu_pct": 0.0,
+          "worker_rss_mb": 1688.4
+        },
+        {
+          "t": 1794002638.7995222,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 192.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.4
+        },
+        {
+          "t": 1794002640.805047,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 157.6,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.5
+        },
+        {
+          "t": 1794002642.8100092,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 141.0,
+          "worker_cpu_pct": 1.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002644.8156419,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 132.9,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002646.8213208,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 262.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002648.82707,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 193.6,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002650.8147366,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 165.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002652.8215334,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 163.9,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002654.830328,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 150.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002656.8382297,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 260.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002658.8435674,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 162.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002660.84954,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 163.9,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002662.8554804,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 126.3,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002664.8611228,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 138.4,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002666.8671722,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 253.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        },
+        {
+          "t": 1794002668.8736057,
+          "pending": 0,
+          "stream_msgs": 119993,
+          "host_cpu_pct": 159.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 1688.8
+        }
+      ]
+    },
+    {
+      "target_rate": 5000,
+      "duration_s": 60,
+      "accepted": 207901,
+      "achieved_rate": 2888.0,
+      "achieved_ratio": 0.5776,
+      "lake_rows": 207902,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": false,
+      "fail_reasons": [
+        "achieved 57.8% < 95% of target"
+      ],
+      "streams": 1,
+      "gateways": 1,
+      "points": 100,
+      "sent": 207901,
+      "drain_s": 60.7,
+      "peak_lag": 1182,
+      "worker_cpu_pct_p50": 232.6,
+      "worker_cpu_pct_max": 303.4,
+      "host_cpu_pct_p50": 657.1,
+      "worker_rss_mb_max": 2040.1,
+      "lake_objects": 5,
+      "samples": [
+        {
+          "t": 1794002671.0534902,
+          "pending": 0,
+          "stream_msgs": 119994,
+          "worker_rss_mb": 1704.1
+        },
+        {
+          "t": 1794002673.0612571,
+          "pending": 0,
+          "stream_msgs": 119994,
+          "host_cpu_pct": 141.9,
+          "worker_cpu_pct": 3.5,
+          "worker_rss_mb": 1704.3
+        },
+        {
+          "t": 1794002675.0670228,
+          "pending": 0,
+          "stream_msgs": 123002,
+          "host_cpu_pct": 375.3,
+          "worker_cpu_pct": 117.7,
+          "worker_rss_mb": 1704.4
+        },
+        {
+          "t": 1794002677.0759616,
+          "pending": 0,
+          "stream_msgs": 128320,
+          "host_cpu_pct": 753.0,
+          "worker_cpu_pct": 225.0,
+          "worker_rss_mb": 1704.6
+        },
+        {
+          "t": 1794002679.0839875,
+          "pending": 0,
+          "stream_msgs": 134194,
+          "host_cpu_pct": 616.9,
+          "worker_cpu_pct": 232.6,
+          "worker_rss_mb": 1704.8
+        },
+        {
+          "t": 1794002681.083281,
+          "pending": 0,
+          "stream_msgs": 140134,
+          "host_cpu_pct": 659.2,
+          "worker_cpu_pct": 236.6,
+          "worker_rss_mb": 1705.4
+        },
+        {
+          "t": 1794002683.0918586,
+          "pending": 0,
+          "stream_msgs": 146143,
+          "host_cpu_pct": 605.4,
+          "worker_cpu_pct": 240.0,
+          "worker_rss_mb": 1705.5
+        },
+        {
+          "t": 1794002685.100457,
+          "pending": 0,
+          "stream_msgs": 151983,
+          "host_cpu_pct": 620.4,
+          "worker_cpu_pct": 239.0,
+          "worker_rss_mb": 1720.1
+        },
+        {
+          "t": 1794002687.109387,
+          "pending": 0,
+          "stream_msgs": 157413,
+          "host_cpu_pct": 772.3,
+          "worker_cpu_pct": 234.5,
+          "worker_rss_mb": 1760.6
+        },
+        {
+          "t": 1794002689.1166973,
+          "pending": 0,
+          "stream_msgs": 163314,
+          "host_cpu_pct": 688.9,
+          "worker_cpu_pct": 242.1,
+          "worker_rss_mb": 1825.4
+        },
+        {
+          "t": 1794002691.1248767,
+          "pending": 0,
+          "stream_msgs": 169263,
+          "host_cpu_pct": 686.5,
+          "worker_cpu_pct": 240.0,
+          "worker_rss_mb": 1928.0
+        },
+        {
+          "t": 1794002693.131971,
+          "pending": 0,
+          "stream_msgs": 175358,
+          "host_cpu_pct": 677.8,
+          "worker_cpu_pct": 303.4,
+          "worker_rss_mb": 1959.6
+        },
+        {
+          "t": 1794002695.1390073,
+          "pending": 0,
+          "stream_msgs": 181284,
+          "host_cpu_pct": 594.9,
+          "worker_cpu_pct": 226.2,
+          "worker_rss_mb": 1960.0
+        },
+        {
+          "t": 1794002697.1474297,
+          "pending": 1,
+          "stream_msgs": 186635,
+          "host_cpu_pct": 741.9,
+          "worker_cpu_pct": 217.6,
+          "worker_rss_mb": 1960.1
+        },
+        {
+          "t": 1794002699.154664,
+          "pending": 0,
+          "stream_msgs": 192444,
+          "host_cpu_pct": 664.8,
+          "worker_cpu_pct": 227.2,
+          "worker_rss_mb": 1960.6
+        },
+        {
+          "t": 1794002701.1635725,
+          "pending": 0,
+          "stream_msgs": 198083,
+          "host_cpu_pct": 745.9,
+          "worker_cpu_pct": 231.0,
+          "worker_rss_mb": 1960.8
+        },
+        {
+          "t": 1794002703.1714573,
+          "pending": 0,
+          "stream_msgs": 204098,
+          "host_cpu_pct": 604.6,
+          "worker_cpu_pct": 232.6,
+          "worker_rss_mb": 1960.8
+        },
+        {
+          "t": 1794002705.1797154,
+          "pending": 0,
+          "stream_msgs": 210090,
+          "host_cpu_pct": 639.0,
+          "worker_cpu_pct": 232.0,
+          "worker_rss_mb": 1962.1
+        },
+        {
+          "t": 1794002707.188346,
+          "pending": 0,
+          "stream_msgs": 215459,
+          "host_cpu_pct": 745.0,
+          "worker_cpu_pct": 222.0,
+          "worker_rss_mb": 1962.5
+        },
+        {
+          "t": 1794002709.1953259,
+          "pending": 1182,
+          "stream_msgs": 221183,
+          "host_cpu_pct": 672.9,
+          "worker_cpu_pct": 246.6,
+          "worker_rss_mb": 1991.4
+        },
+        {
+          "t": 1794002711.1868293,
+          "pending": 0,
+          "stream_msgs": 226690,
+          "host_cpu_pct": 688.5,
+          "worker_cpu_pct": 276.7,
+          "worker_rss_mb": 1981.2
+        },
+        {
+          "t": 1794002713.198163,
+          "pending": 0,
+          "stream_msgs": 232467,
+          "host_cpu_pct": 658.9,
+          "worker_cpu_pct": 235.7,
+          "worker_rss_mb": 1981.2
+        },
+        {
+          "t": 1794002715.2064593,
+          "pending": 0,
+          "stream_msgs": 238353,
+          "host_cpu_pct": 623.4,
+          "worker_cpu_pct": 236.0,
+          "worker_rss_mb": 1981.2
+        },
+        {
+          "t": 1794002717.215391,
+          "pending": 0,
+          "stream_msgs": 243380,
+          "host_cpu_pct": 774.3,
+          "worker_cpu_pct": 221.0,
+          "worker_rss_mb": 1981.2
+        },
+        {
+          "t": 1794002719.225767,
+          "pending": 0,
+          "stream_msgs": 249051,
+          "host_cpu_pct": 637.1,
+          "worker_cpu_pct": 234.8,
+          "worker_rss_mb": 1981.2
+        },
+        {
+          "t": 1794002721.2348716,
+          "pending": 0,
+          "stream_msgs": 254929,
+          "host_cpu_pct": 644.3,
+          "worker_cpu_pct": 238.9,
+          "worker_rss_mb": 1981.2
+        },
+        {
+          "t": 1794002723.24886,
+          "pending": 0,
+          "stream_msgs": 260842,
+          "host_cpu_pct": 609.7,
+          "worker_cpu_pct": 230.9,
+          "worker_rss_mb": 1984.7
+        },
+        {
+          "t": 1794002725.258233,
+          "pending": 0,
+          "stream_msgs": 266981,
+          "host_cpu_pct": 605.3,
+          "worker_cpu_pct": 231.9,
+          "worker_rss_mb": 2000.9
+        },
+        {
+          "t": 1794002727.267258,
+          "pending": 0,
+          "stream_msgs": 272394,
+          "host_cpu_pct": 775.9,
+          "worker_cpu_pct": 255.3,
+          "worker_rss_mb": 2035.7
+        },
+        {
+          "t": 1794002729.275208,
+          "pending": 0,
+          "stream_msgs": 278406,
+          "host_cpu_pct": 648.4,
+          "worker_cpu_pct": 260.5,
+          "worker_rss_mb": 2017.3
+        },
+        {
+          "t": 1794002731.2831936,
+          "pending": 0,
+          "stream_msgs": 284529,
+          "host_cpu_pct": 605.5,
+          "worker_cpu_pct": 228.6,
+          "worker_rss_mb": 2017.4
+        },
+        {
+          "t": 1794002733.292332,
+          "pending": 0,
+          "stream_msgs": 290708,
+          "host_cpu_pct": 600.9,
+          "worker_cpu_pct": 226.0,
+          "worker_rss_mb": 2017.8
+        },
+        {
+          "t": 1794002735.301929,
+          "pending": 0,
+          "stream_msgs": 296831,
+          "host_cpu_pct": 611.5,
+          "worker_cpu_pct": 229.9,
+          "worker_rss_mb": 2017.8
+        },
+        {
+          "t": 1794002737.3109703,
+          "pending": 0,
+          "stream_msgs": 302355,
+          "host_cpu_pct": 720.2,
+          "worker_cpu_pct": 221.0,
+          "worker_rss_mb": 2017.8
+        },
+        {
+          "t": 1794002739.3184602,
+          "pending": 0,
+          "stream_msgs": 308021,
+          "host_cpu_pct": 652.3,
+          "worker_cpu_pct": 228.6,
+          "worker_rss_mb": 2018.5
+        },
+        {
+          "t": 1794002741.3014786,
+          "pending": 0,
+          "stream_msgs": 313953,
+          "host_cpu_pct": 657.1,
+          "worker_cpu_pct": 231.5,
+          "worker_rss_mb": 2018.6
+        },
+        {
+          "t": 1794002743.3115678,
+          "pending": 595,
+          "stream_msgs": 320598,
+          "host_cpu_pct": 719.3,
+          "worker_cpu_pct": 225.9,
+          "worker_rss_mb": 2032.4
+        },
+        {
+          "t": 1794002745.3203864,
+          "pending": 0,
+          "stream_msgs": 326329,
+          "host_cpu_pct": 646.0,
+          "worker_cpu_pct": 264.3,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002747.3439364,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 436.7,
+          "worker_cpu_pct": 71.7,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002749.3503053,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 170.1,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002751.3566556,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 145.9,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002753.3632064,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 163.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002755.370261,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 163.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002757.3770068,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 241.3,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002759.3846776,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 152.0,
+          "worker_cpu_pct": 0.0,
+          "worker_rss_mb": 2040.1
+        },
+        {
+          "t": 1794002761.3913512,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 133.5,
+          "worker_cpu_pct": 2.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002763.3968928,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 162.4,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002765.4041564,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 162.4,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002767.4105673,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 228.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002769.401011,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 206.6,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002771.4063585,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 386.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002773.41226,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 225.1,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002775.4178739,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 152.1,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002777.4235098,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 238.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002779.4311786,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 136.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002781.4363315,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 139.0,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002783.441921,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 153.8,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002785.4475183,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 153.5,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002787.453186,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 233.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002789.4612582,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 145.8,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.1
+        },
+        {
+          "t": 1794002791.4666774,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 134.3,
+          "worker_cpu_pct": 1.5,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002793.4742713,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 147.0,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002795.4813092,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 153.6,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002797.48718,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 228.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002799.4784024,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 177.9,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002801.484079,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 142.6,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002803.489612,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 252.6,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.3
+        },
+        {
+          "t": 1794002805.4957483,
+          "pending": 0,
+          "stream_msgs": 327895,
+          "host_cpu_pct": 270.4,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2041.3
+        }
+      ]
+    },
+    {
+      "target_rate": 8000,
+      "duration_s": 60,
+      "accepted": 273140,
+      "achieved_rate": 2955.7,
+      "achieved_ratio": 0.3695,
+      "lake_rows": 273141,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": false,
+      "fail_reasons": [
+        "achieved 36.9% < 95% of target"
+      ],
+      "streams": 1,
+      "gateways": 1,
+      "points": 100,
+      "sent": 273140,
+      "drain_s": 60.6,
+      "peak_lag": 1307,
+      "worker_cpu_pct_p50": 228.7,
+      "worker_cpu_pct_max": 297.8,
+      "host_cpu_pct_p50": 637.0,
+      "worker_rss_mb_max": 2557.8,
+      "lake_objects": 6,
+      "samples": [
+        {
+          "t": 1794002807.479515,
+          "pending": 0,
+          "stream_msgs": 327896,
+          "worker_rss_mb": 2044.5
+        },
+        {
+          "t": 1794002809.4924502,
+          "pending": 0,
+          "stream_msgs": 327896,
+          "host_cpu_pct": 270.4,
+          "worker_cpu_pct": 1.5,
+          "worker_rss_mb": 2047.0
+        },
+        {
+          "t": 1794002811.4982786,
+          "pending": 0,
+          "stream_msgs": 330877,
+          "host_cpu_pct": 406.4,
+          "worker_cpu_pct": 115.2,
+          "worker_rss_mb": 2047.3
+        },
+        {
+          "t": 1794002813.509687,
+          "pending": 0,
+          "stream_msgs": 336976,
+          "host_cpu_pct": 617.7,
+          "worker_cpu_pct": 225.7,
+          "worker_rss_mb": 2047.6
+        },
+        {
+          "t": 1794002815.5167844,
+          "pending": 0,
+          "stream_msgs": 343013,
+          "host_cpu_pct": 614.3,
+          "worker_cpu_pct": 228.7,
+          "worker_rss_mb": 2052.8
+        },
+        {
+          "t": 1794002817.5280528,
+          "pending": 0,
+          "stream_msgs": 348485,
+          "host_cpu_pct": 763.1,
+          "worker_cpu_pct": 228.7,
+          "worker_rss_mb": 2069.4
+        },
+        {
+          "t": 1794002819.5368242,
+          "pending": 0,
+          "stream_msgs": 354535,
+          "host_cpu_pct": 629.9,
+          "worker_cpu_pct": 230.5,
+          "worker_rss_mb": 2088.1
+        },
+        {
+          "t": 1794002821.5443785,
+          "pending": 0,
+          "stream_msgs": 360868,
+          "host_cpu_pct": 618.0,
+          "worker_cpu_pct": 240.1,
+          "worker_rss_mb": 2144.3
+        },
+        {
+          "t": 1794002823.5549314,
+          "pending": 0,
+          "stream_msgs": 366975,
+          "host_cpu_pct": 656.9,
+          "worker_cpu_pct": 237.7,
+          "worker_rss_mb": 2227.9
+        },
+        {
+          "t": 1794002825.5621836,
+          "pending": 0,
+          "stream_msgs": 373095,
+          "host_cpu_pct": 668.3,
+          "worker_cpu_pct": 237.1,
+          "worker_rss_mb": 2347.9
+        },
+        {
+          "t": 1794002827.5723088,
+          "pending": 784,
+          "stream_msgs": 378740,
+          "host_cpu_pct": 777.8,
+          "worker_cpu_pct": 284.6,
+          "worker_rss_mb": 2481.4
+        },
+        {
+          "t": 1794002829.5734506,
+          "pending": 0,
+          "stream_msgs": 384318,
+          "host_cpu_pct": 792.8,
+          "worker_cpu_pct": 292.8,
+          "worker_rss_mb": 2451.7
+        },
+        {
+          "t": 1794002831.5818872,
+          "pending": 0,
+          "stream_msgs": 390612,
+          "host_cpu_pct": 566.9,
+          "worker_cpu_pct": 228.0,
+          "worker_rss_mb": 2451.7
+        },
+        {
+          "t": 1794002833.5918937,
+          "pending": 0,
+          "stream_msgs": 396716,
+          "host_cpu_pct": 620.4,
+          "worker_cpu_pct": 226.9,
+          "worker_rss_mb": 2451.7
+        },
+        {
+          "t": 1794002835.5995965,
+          "pending": 0,
+          "stream_msgs": 402822,
+          "host_cpu_pct": 604.5,
+          "worker_cpu_pct": 222.6,
+          "worker_rss_mb": 2451.7
+        },
+        {
+          "t": 1794002837.607394,
+          "pending": 0,
+          "stream_msgs": 408395,
+          "host_cpu_pct": 721.3,
+          "worker_cpu_pct": 228.6,
+          "worker_rss_mb": 2451.7
+        },
+        {
+          "t": 1794002839.6188765,
+          "pending": 0,
+          "stream_msgs": 414333,
+          "host_cpu_pct": 628.8,
+          "worker_cpu_pct": 228.7,
+          "worker_rss_mb": 2452.4
+        },
+        {
+          "t": 1794002841.6264422,
+          "pending": 0,
+          "stream_msgs": 420538,
+          "host_cpu_pct": 584.1,
+          "worker_cpu_pct": 227.1,
+          "worker_rss_mb": 2452.4
+        },
+        {
+          "t": 1794002843.633247,
+          "pending": 0,
+          "stream_msgs": 426319,
+          "host_cpu_pct": 637.3,
+          "worker_cpu_pct": 225.7,
+          "worker_rss_mb": 2452.4
+        },
+        {
+          "t": 1794002845.64071,
+          "pending": 0,
+          "stream_msgs": 432289,
+          "host_cpu_pct": 654.5,
+          "worker_cpu_pct": 253.1,
+          "worker_rss_mb": 2476.4
+        },
+        {
+          "t": 1794002847.6492279,
+          "pending": 0,
+          "stream_msgs": 437951,
+          "host_cpu_pct": 736.0,
+          "worker_cpu_pct": 225.0,
+          "worker_rss_mb": 2476.5
+        },
+        {
+          "t": 1794002849.6633189,
+          "pending": 0,
+          "stream_msgs": 443635,
+          "host_cpu_pct": 683.7,
+          "worker_cpu_pct": 225.9,
+          "worker_rss_mb": 2476.7
+        },
+        {
+          "t": 1794002851.6725287,
+          "pending": 0,
+          "stream_msgs": 449726,
+          "host_cpu_pct": 599.5,
+          "worker_cpu_pct": 233.9,
+          "worker_rss_mb": 2477.5
+        },
+        {
+          "t": 1794002853.6809115,
+          "pending": 0,
+          "stream_msgs": 455671,
+          "host_cpu_pct": 648.3,
+          "worker_cpu_pct": 234.5,
+          "worker_rss_mb": 2477.7
+        },
+        {
+          "t": 1794002855.6893306,
+          "pending": 0,
+          "stream_msgs": 461652,
+          "host_cpu_pct": 631.8,
+          "worker_cpu_pct": 233.0,
+          "worker_rss_mb": 2477.7
+        },
+        {
+          "t": 1794002857.7020655,
+          "pending": 0,
+          "stream_msgs": 467325,
+          "host_cpu_pct": 703.2,
+          "worker_cpu_pct": 231.5,
+          "worker_rss_mb": 2479.0
+        },
+        {
+          "t": 1794002859.692378,
+          "pending": 0,
+          "stream_msgs": 473089,
+          "host_cpu_pct": 652.1,
+          "worker_cpu_pct": 236.1,
+          "worker_rss_mb": 2482.6
+        },
+        {
+          "t": 1794002861.700516,
+          "pending": 1307,
+          "stream_msgs": 479211,
+          "host_cpu_pct": 658.2,
+          "worker_cpu_pct": 297.8,
+          "worker_rss_mb": 2525.6
+        },
+        {
+          "t": 1794002863.7095537,
+          "pending": 0,
+          "stream_msgs": 484900,
+          "host_cpu_pct": 699.5,
+          "worker_cpu_pct": 270.3,
+          "worker_rss_mb": 2517.4
+        },
+        {
+          "t": 1794002865.718623,
+          "pending": 0,
+          "stream_msgs": 490811,
+          "host_cpu_pct": 619.4,
+          "worker_cpu_pct": 224.5,
+          "worker_rss_mb": 2517.4
+        },
+        {
+          "t": 1794002867.7252169,
+          "pending": 0,
+          "stream_msgs": 496618,
+          "host_cpu_pct": 696.9,
+          "worker_cpu_pct": 222.8,
+          "worker_rss_mb": 2517.4
+        },
+        {
+          "t": 1794002869.739874,
+          "pending": 0,
+          "stream_msgs": 502523,
+          "host_cpu_pct": 634.7,
+          "worker_cpu_pct": 225.3,
+          "worker_rss_mb": 2517.4
+        },
+        {
+          "t": 1794002871.7494304,
+          "pending": 1,
+          "stream_msgs": 508690,
+          "host_cpu_pct": 595.2,
+          "worker_cpu_pct": 224.4,
+          "worker_rss_mb": 2517.4
+        },
+        {
+          "t": 1794002873.75647,
+          "pending": 0,
+          "stream_msgs": 514682,
+          "host_cpu_pct": 631.6,
+          "worker_cpu_pct": 225.2,
+          "worker_rss_mb": 2518.4
+        },
+        {
+          "t": 1794002875.763877,
+          "pending": 0,
+          "stream_msgs": 520811,
+          "host_cpu_pct": 616.6,
+          "worker_cpu_pct": 229.6,
+          "worker_rss_mb": 2518.6
+        },
+        {
+          "t": 1794002877.7732055,
+          "pending": 0,
+          "stream_msgs": 526530,
+          "host_cpu_pct": 688.6,
+          "worker_cpu_pct": 223.5,
+          "worker_rss_mb": 2518.6
+        },
+        {
+          "t": 1794002879.7834184,
+          "pending": 0,
+          "stream_msgs": 532371,
+          "host_cpu_pct": 687.3,
+          "worker_cpu_pct": 247.2,
+          "worker_rss_mb": 2537.9
+        },
+        {
+          "t": 1794002881.792611,
+          "pending": 0,
+          "stream_msgs": 538394,
+          "host_cpu_pct": 630.2,
+          "worker_cpu_pct": 227.0,
+          "worker_rss_mb": 2538.1
+        },
+        {
+          "t": 1794002883.8001075,
+          "pending": 0,
+          "stream_msgs": 544316,
+          "host_cpu_pct": 637.0,
+          "worker_cpu_pct": 222.7,
+          "worker_rss_mb": 2538.1
+        },
+        {
+          "t": 1794002885.807746,
+          "pending": 0,
+          "stream_msgs": 550248,
+          "host_cpu_pct": 621.4,
+          "worker_cpu_pct": 220.7,
+          "worker_rss_mb": 2538.5
+        },
+        {
+          "t": 1794002887.8159833,
+          "pending": 0,
+          "stream_msgs": 556006,
+          "host_cpu_pct": 675.3,
+          "worker_cpu_pct": 225.6,
+          "worker_rss_mb": 2538.5
+        },
+        {
+          "t": 1794002889.8129745,
+          "pending": 0,
+          "stream_msgs": 561764,
+          "host_cpu_pct": 710.7,
+          "worker_cpu_pct": 226.8,
+          "worker_rss_mb": 2538.6
+        },
+        {
+          "t": 1794002891.8202603,
+          "pending": 0,
+          "stream_msgs": 568043,
+          "host_cpu_pct": 600.8,
+          "worker_cpu_pct": 235.1,
+          "worker_rss_mb": 2539.9
+        },
+        {
+          "t": 1794002893.8276503,
+          "pending": 0,
+          "stream_msgs": 574184,
+          "host_cpu_pct": 609.6,
+          "worker_cpu_pct": 229.7,
+          "worker_rss_mb": 2541.1
+        },
+        {
+          "t": 1794002895.8350601,
+          "pending": 0,
+          "stream_msgs": 580153,
+          "host_cpu_pct": 679.7,
+          "worker_cpu_pct": 284.9,
+          "worker_rss_mb": 2557.8
+        },
+        {
+          "t": 1794002897.8431444,
+          "pending": 0,
+          "stream_msgs": 585795,
+          "host_cpu_pct": 690.3,
+          "worker_cpu_pct": 255.0,
+          "worker_rss_mb": 2554.2
+        },
+        {
+          "t": 1794002899.853865,
+          "pending": 2,
+          "stream_msgs": 591760,
+          "host_cpu_pct": 643.3,
+          "worker_cpu_pct": 227.3,
+          "worker_rss_mb": 2554.2
+        },
+        {
+          "t": 1794002901.8614867,
+          "pending": 0,
+          "stream_msgs": 598063,
+          "host_cpu_pct": 578.8,
+          "worker_cpu_pct": 232.6,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002903.8697555,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 378.3,
+          "worker_cpu_pct": 112.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002905.8753924,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 155.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002907.8813322,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 192.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002909.887719,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 181.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002911.894671,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 123.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002913.900556,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 150.7,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002915.9062204,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 160.0,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002917.9127274,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 192.8,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002919.9011934,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 169.2,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002921.906558,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 132.1,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002923.9132986,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 156.3,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002925.9187195,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 167.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002927.9242256,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 208.5,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002929.9294195,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 179.6,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002931.9354084,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 142.4,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002933.9405508,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 155.4,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002935.946235,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 174.5,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002937.951216,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 241.4,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002939.9581382,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 191.5,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002941.9640067,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 175.6,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002943.9706483,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 149.3,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002945.977199,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 153.3,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002947.9826345,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 201.1,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002949.9779334,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 225.4,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002951.9843814,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 128.0,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002953.9903338,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 159.0,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002955.9956572,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 144.5,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.4
+        },
+        {
+          "t": 1794002958.0014079,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 201.6,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002960.0074353,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 169.6,
+          "worker_cpu_pct": 1.0,
+          "worker_rss_mb": 2554.5
+        },
+        {
+          "t": 1794002962.0127554,
+          "pending": 0,
+          "stream_msgs": 601036,
+          "host_cpu_pct": 134.3,
+          "worker_cpu_pct": 0.5,
+          "worker_rss_mb": 2554.5
+        }
+      ]
+    }
+  ]
+}

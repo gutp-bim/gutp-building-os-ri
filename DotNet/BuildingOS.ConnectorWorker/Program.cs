@@ -113,9 +113,11 @@ void LogStartup(IServiceProvider services, WorkerRole role, int? ingressGrpcPort
     // operator can spot the "listener up but enforcement off" misconfiguration from the logs.
     var identity = services.GetService<IngressIdentityOptions>();
     var hierarchy = services.GetService<IngressHierarchyOptions>();
+    var publish = services.GetService<IngressPublishOptions>();
     var grpcDesc = ingressGrpcPort is int p
         ? $"enabled port={p}, identity-binding={(identity?.Enforce == true ? $"enforced(header={identity.HeaderName})" : "off")}" +
-          $", hierarchy-check={(hierarchy?.Enforce == true ? "enforced" : "off")}"
+          $", hierarchy-check={(hierarchy?.Enforce == true ? "enforced" : "off")}" +
+          $", publish-window={publish?.Window ?? IngressPublishOptions.DefaultWindow}"
         : role.RunsTelemetryIngress()
             ? "disabled (GRPC_INGRESS_PORT unset)"
             : $"disabled (role={role.ToString().ToLowerInvariant()})";

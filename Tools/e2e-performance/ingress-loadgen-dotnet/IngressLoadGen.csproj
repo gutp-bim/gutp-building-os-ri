@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- #625 / #626: a native gRPC load generator for ONE high-rate GatewayIngress stream. The Python
+       harness (s22_ingest_rate_sweep.py) saturates a CPU core at ~2.5-3k frames/s per process, so it
+       cannot tell a 3k ceiling of the worker from its own; this client drives a single stream well
+       past 10k frames/s. Driven by s22_single_stream_dotnet.py, which seeds the points. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>IngressLoadGen</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.27.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.67.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.67.0" PrivateAssets="All" />
+  </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="..\..\..\proto\gateway_ingress.proto" GrpcServices="Client" Link="Protos\gateway_ingress.proto" />
+  </ItemGroup>
+</Project>

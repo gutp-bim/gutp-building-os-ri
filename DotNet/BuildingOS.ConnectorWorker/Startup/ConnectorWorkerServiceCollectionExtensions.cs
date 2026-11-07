@@ -84,8 +84,22 @@ public static class ConnectorWorkerServiceCollectionExtensions
         builder.Services.AddSingleton<INatsJSContext>(sp =>
             new NatsJSContext(sp.GetRequiredService<INatsConnection>()));
 
-        // Hot telemetry store (NATS KV) — caches latest values per point.
-        builder.Services.AddSingleton<IHotTelemetryStore, NatsKvLatestStore>();
+        // Hot telemetry store (NATS KV) — caches latest values per point. Wrapped in the coalescing
+        // decorator (#625 slice A): puts are collapsed per point and flushed every
+        // HOT_STORE_COALESCE_MS (0 = synchronous, pre-#625 behaviour) or once
+        // HOT_STORE_COALESCE_MAX_POINTS are pending. Both validated-telemetry producers (the
+        // NatsKvPublisher decorator and the gRPC ingress bus) resolve the same singleton, and the
+        // hosted-service registration is what flushes the remainder on shutdown.
+        builder.Services.AddSingleton(CoalescingHotStoreOptions.Parse(
+            builder.Configuration["HOT_STORE_COALESCE_MS"],
+            builder.Configuration["HOT_STORE_COALESCE_MAX_POINTS"]));
+        builder.Services.AddSingleton<NatsKvLatestStore>();
+        builder.Services.AddSingleton<CoalescingHotTelemetryStore>(sp => new CoalescingHotTelemetryStore(
+            sp.GetRequiredService<NatsKvLatestStore>(),
+            sp.GetRequiredService<CoalescingHotStoreOptions>(),
+            sp.GetRequiredService<ILogger<CoalescingHotTelemetryStore>>()));
+        builder.Services.AddSingleton<IHotTelemetryStore>(sp => sp.GetRequiredService<CoalescingHotTelemetryStore>());
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<CoalescingHotTelemetryStore>());
 
         // Publisher: wraps raw NATS publish with KV put for validated telemetry.
         builder.Services.AddSingleton<INatsPublisher>(sp => new NatsKvPublisher(
@@ -204,6 +218,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
         // building/device when GRPC_INGRESS_REQUIRE_HIERARCHY=true (default off keeps them flowing).
         builder.Services.AddSingleton(IngressHierarchyOptions.Parse(
             builder.Configuration["GRPC_INGRESS_REQUIRE_HIERARCHY"]));
+        // Publish window (#625 slice B): in-flight publish-acks per stream (1 = serial, pre-#625).
+        builder.Services.AddSingleton(IngressPublishOptions.Parse(
+            builder.Configuration["GRPC_INGRESS_PUBLISH_WINDOW"]));
         // Unsigned run context (opt-in): load the operator-placed file at startup so a bad scope or
         // schema fails fast. When unset, run claims are rejected (fail closed) by GatewayIngressService.
         var runContextTrust = builder.Configuration["GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE"]?.Trim();

@@ -23,7 +23,12 @@ frames. The first non-PASS step is the knee; the sweep stops there unless --cont
 Usage:
   python s22_ingest_rate_sweep.py --out results/S22 --rates 500,1000,2000,5000,10000,20000 \
       [--duration 60] [--points-per-gateway 100] [--ingress localhost:5051] [--oxigraph http://localhost:7878] \
-      [--minio-endpoint localhost:9000] [--nats-monitor http://localhost:8222] [--worker-pid N]
+      [--minio-endpoint localhost:9000] [--nats-monitor http://localhost:8222] [--worker-pid N[,N2,…]] [--label tag]
+
+Several ConnectorWorker replicas (#626): list them in ``--ingress host:port,host:port`` (streams go
+round-robin) and ``--worker-pid pid,pid`` (per-replica CPU/RSS); ``per_replica`` in sweep.json then
+carries each replica's accepted rate, and every sample also records NATS /varz (cpu, in bytes/s, slow
+consumers) and the load generator's own CPU so the bottleneck can be attributed (PRD §5.4).
 """
 
 from __future__ import annotations
@@ -35,6 +40,7 @@ import json
 import math
 import multiprocessing as mp
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -170,30 +176,72 @@ def jsz_pending(nats_monitor: str, stream_filter: str = "VALIDATED") -> tuple[in
     return total, st["messages"]
 
 
-class Sampler(threading.Thread):
-    """Samples JetStream pending + worker/host CPU every ``interval`` s until stopped."""
+def varz(nats_monitor: str) -> dict:
+    """NATS server-level counters from /varz (#626: is NATS itself the bottleneck?)."""
+    import requests
 
-    def __init__(self, nats_monitor: str, worker_pid: int | None, interval: float = 2.0):
+    r = requests.get(f"{nats_monitor.rstrip('/')}/varz", timeout=5)
+    r.raise_for_status()
+    v = r.json()
+    return {"cpu": v.get("cpu"), "mem": v.get("mem"), "in_bytes": v.get("in_bytes"),
+            "out_bytes": v.get("out_bytes"), "in_msgs": v.get("in_msgs"),
+            "slow_consumers": v.get("slow_consumers"), "connections": v.get("connections")}
+
+
+def proc_cpu_ticks(pid: int) -> int | None:
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return parse_proc_stat(f.read())
+    except OSError:
+        return None
+
+
+def child_pids(parent: int) -> list[int]:
+    """Direct children of ``parent`` (the load-generator pool processes) via /proc."""
+    out = []
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat") as f:
+                txt = f.read()
+            if int(txt[txt.rindex(")") + 2:].split()[1]) == parent:
+                out.append(int(name))
+        except (OSError, ValueError):
+            continue
+    return out
+
+
+class Sampler(threading.Thread):
+    """Samples JetStream pending, NATS /varz, per-replica worker CPU/RSS, host CPU and the load
+    generator's own CPU every ``interval`` s until stopped.
+
+    ``worker_pids`` is one pid per ConnectorWorker replica (#626): each gets ``worker_cpu_pct[i]`` /
+    ``worker_rss_mb[i]`` in the sample, and the aggregate keys ``worker_cpu_pct`` (sum) /
+    ``worker_rss_mb`` (max) keep the single-replica report shape.
+    """
+
+    def __init__(self, nats_monitor: str, worker_pids: list[int] | int | None, interval: float = 2.0):
         super().__init__(daemon=True)
-        self.nats_monitor, self.pid, self.interval = nats_monitor, worker_pid, interval
+        if isinstance(worker_pids, int):
+            worker_pids = [worker_pids]
+        self.nats_monitor, self.pids, self.interval = nats_monitor, list(worker_pids or []), interval
         self.stop_ev = threading.Event()
         self.samples: list[dict] = []
         self.hz = os.sysconf("SC_CLK_TCK")
         self._prev = None
+        self._prev_varz = None
+        self._self_pid = os.getpid()
 
-    def _cpu(self) -> tuple[float, float, float | None]:
+    def _cpu(self) -> tuple[float, float, list[int | None], int]:
         with open("/proc/stat") as f:
             parts = [int(x) for x in f.readline().split()[1:]]
         host_busy = sum(parts) - parts[3] - parts[4]
         host_total = sum(parts)
-        worker = None
-        if self.pid:
-            try:
-                with open(f"/proc/{self.pid}/stat") as f:
-                    worker = parse_proc_stat(f.read())
-            except OSError:
-                pass
-        return host_busy, host_total, worker
+        workers = [proc_cpu_ticks(p) for p in self.pids]
+        loadgen = sum(t for t in (proc_cpu_ticks(p) for p in [self._self_pid] + child_pids(self._self_pid))
+                      if t is not None)
+        return host_busy, host_total, workers, loadgen
 
     def run(self):
         ncpu = os.cpu_count() or 1
@@ -203,22 +251,48 @@ class Sampler(threading.Thread):
                 pending, msgs = jsz_pending(self.nats_monitor)
             except Exception:  # noqa: BLE001
                 pending, msgs = -1, -1
-            hb, ht, w = self._cpu()
+            try:
+                vz = varz(self.nats_monitor)
+            except Exception:  # noqa: BLE001
+                vz = None
+            hb, ht, ws, lg = self._cpu()
             s = {"t": t, "pending": pending, "stream_msgs": msgs}
+            if vz:
+                s["nats_cpu_pct"] = vz["cpu"]
+                s["nats_mem_mb"] = round((vz["mem"] or 0) / 1048576, 1)
+                s["nats_slow_consumers"] = vz["slow_consumers"]
+                s["nats_connections"] = vz["connections"]
             if self._prev:
-                pt, phb, pht, pw = self._prev
+                pt, phb, pht, pws, plg = self._prev
                 dt = t - pt
                 if dt > 0 and ht > pht:
                     s["host_cpu_pct"] = round(100.0 * (hb - phb) / (ht - pht) * ncpu, 1)
-                    if w is not None and pw is not None:
-                        s["worker_cpu_pct"] = round(100.0 * (w - pw) / self.hz / dt, 1)
-            self._prev = (t, hb, ht, w)
-            if self.pid:
+                    per = [round(100.0 * (w - pw) / self.hz / dt, 1) if w is not None and pw is not None else None
+                           for w, pw in zip(ws, pws)]
+                    if per:
+                        s["worker_cpu_pct_by_replica"] = per
+                        known = [x for x in per if x is not None]
+                        if known:
+                            s["worker_cpu_pct"] = round(sum(known), 1)
+                    s["loadgen_cpu_pct"] = round(100.0 * (lg - plg) / self.hz / dt, 1)
+                if vz and self._prev_varz and dt > 0:
+                    s["nats_in_bytes_per_s"] = round(((vz["in_bytes"] or 0) - (self._prev_varz["in_bytes"] or 0)) / dt)
+                    s["nats_in_msgs_per_s"] = round(((vz["in_msgs"] or 0) - (self._prev_varz["in_msgs"] or 0)) / dt)
+            self._prev = (t, hb, ht, ws, lg)
+            if vz:
+                self._prev_varz = vz
+            rss = []
+            for p in self.pids:
                 try:
-                    with open(f"/proc/{self.pid}/statm") as f:
-                        s["worker_rss_mb"] = round(int(f.read().split()[1]) * 4096 / 1048576, 1)
+                    with open(f"/proc/{p}/statm") as f:
+                        rss.append(round(int(f.read().split()[1]) * 4096 / 1048576, 1))
                 except OSError:
-                    pass
+                    rss.append(None)
+            if rss:
+                s["worker_rss_mb_by_replica"] = rss
+                known = [x for x in rss if x is not None]
+                if known:
+                    s["worker_rss_mb"] = max(known)
             self.samples.append(s)
             self.stop_ev.wait(self.interval)
 
@@ -328,6 +402,16 @@ def run_step(args, rate: int, idx: int, run_id: str, worker_pid: int | None) -> 
         step = assess_step(rate, args.duration, accepted, elapsed, rows, dup, end_lag, args.lag_seconds)
         pend = [s["pending"] for s in sampler.samples if s["pending"] >= 0]
         win = [s for s in sampler.samples if start_at <= s["t"] <= load_end]  # CPU/RSS: load window only
+        # #626: per-replica view — streams are assigned round-robin over --ingress targets, so each
+        # target's accepted sum is that replica's share of the load.
+        per_replica = {}
+        for r in res:
+            d = per_replica.setdefault(r["target"], {"streams": 0, "accepted": 0, "sent": 0})
+            d["streams"] += 1
+            d["accepted"] += r["accepted"]
+            d["sent"] += r["sent"]
+        for d in per_replica.values():
+            d["achieved_rate"] = round(d["accepted"] / elapsed, 1) if elapsed > 0 else 0.0
         step.update({
             "streams": streams, "gateways": len(gws), "points": sum(len(v) for v in pts.values()),
             "sent": sent, "drain_s": drain_s,
@@ -335,7 +419,16 @@ def run_step(args, rate: int, idx: int, run_id: str, worker_pid: int | None) -> 
             "worker_cpu_pct_p50": percentile([s["worker_cpu_pct"] for s in win if "worker_cpu_pct" in s], .5),
             "worker_cpu_pct_max": percentile([s["worker_cpu_pct"] for s in win if "worker_cpu_pct" in s], 1.0),
             "host_cpu_pct_p50": percentile([s["host_cpu_pct"] for s in win if "host_cpu_pct" in s], .5),
+            "loadgen_cpu_pct_p50": percentile([s["loadgen_cpu_pct"] for s in win if "loadgen_cpu_pct" in s], .5),
+            "nats_cpu_pct_p50": percentile([s["nats_cpu_pct"] for s in win if s.get("nats_cpu_pct") is not None], .5),
+            "nats_in_bytes_per_s_p50": percentile([s["nats_in_bytes_per_s"] for s in win if "nats_in_bytes_per_s" in s], .5),
+            "nats_slow_consumers_max": percentile([s["nats_slow_consumers"] for s in win if s.get("nats_slow_consumers") is not None], 1.0),
             "worker_rss_mb_max": percentile([s["worker_rss_mb"] for s in win if "worker_rss_mb" in s], 1.0),
+            "worker_cpu_pct_p50_by_replica": [
+                percentile([s["worker_cpu_pct_by_replica"][i] for s in win
+                            if "worker_cpu_pct_by_replica" in s and s["worker_cpu_pct_by_replica"][i] is not None], .5)
+                for i in range(len(sampler.pids))],
+            "per_replica": per_replica,
             "lake_objects": len(lake.rows), "samples": sampler.samples,
         })
         if not args.keep_lake:
@@ -350,29 +443,71 @@ def run_step(args, rate: int, idx: int, run_id: str, worker_pid: int | None) -> 
         shutil.rmtree(cache, ignore_errors=True)
 
 
-def find_worker_pid(explicit: int | None) -> int | None:
+def find_worker_pids(explicit: str | None) -> list[int]:
+    """``--worker-pid`` accepts a comma-separated list (one per replica, #626); unset → every
+    ConnectorWorker process on this host, in pid order."""
     if explicit:
-        return explicit
+        return [int(x) for x in explicit.split(",") if x.strip()]
     try:
         out = subprocess.check_output(["pgrep", "-f", "BuildingOS.ConnectorWorker.dll"], text=True)
-        return int(out.split()[0])
+        return sorted(int(x) for x in out.split())
     except Exception:  # noqa: BLE001
-        return None
+        return []
+
+
+WORKER_ENV_KEYS = ("WORKER_ROLE", "GRPC_INGRESS_PUBLISH_WINDOW", "HOT_STORE_COALESCE_MS",
+                   "HOT_STORE_COALESCE_MAX_POINTS", "PARQUET_FLUSH_INTERVAL", "PARQUET_FLUSH_MAX_ROWS",
+                   "WARM_STORE", "GRPC_INGRESS_REQUIRE_HIERARCHY")
+
+
+def worker_env(pid: int) -> dict[str, str]:
+    """The ingest-relevant env of a (host-run) worker, read from /proc; empty for a container."""
+    try:
+        with open(f"/proc/{pid}/environ", "rb") as f:
+            items = f.read().split(b"\0")
+    except OSError:
+        return {}
+    env = dict(kv.decode(errors="replace").split("=", 1) for kv in items if b"=" in kv)
+    return {k: env[k] for k in WORKER_ENV_KEYS if k in env}
+
+
+def run_metadata(args, pids: list[int]) -> dict:
+    """What the numbers were measured on (#626 §5.6): commit, host, args, worker env per replica."""
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        commit = subprocess.check_output(["git", "-C", repo, "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:  # noqa: BLE001
+        commit = None
+    return {
+        # A neutral label, never the machine name: results get committed to a public repository
+        # (AGENTS.md "Security and repository hygiene"). Set BENCH_HOST_LABEL to tell runs apart.
+        "label": args.label, "commit": commit, "host": os.environ.get("BENCH_HOST_LABEL", "bench-host"),
+        "cpu_count": os.cpu_count(),
+        "python": platform.python_version(), "started_at": datetime.now(timezone.utc).isoformat(),
+        "args": {k: getattr(args, k) for k in ("rates", "duration", "points_per_gateway", "streams", "procs",
+                                                  "max_streams", "lag_seconds", "ingress", "nats_monitor")},
+        "workers": [{"pid": p, "env": worker_env(p)} for p in pids],
+    }
 
 
 def render_md(run_id: str, args, steps: list[dict], knee: dict | None) -> str:
-    lines = [f"# S22 ingest rate sweep — {run_id}", "",
+    meta = getattr(args, "_meta", None) or {}
+    lines = [f"# S22 ingest rate sweep — {run_id}" + (f" ({meta['label']})" if meta.get("label") else ""), "",
+             f"commit {meta.get('commit', '-')} · host {meta.get('host', '-')} · ingress {args.ingress} · "
+             f"workers {', '.join(str(w['pid']) + ' ' + json.dumps(w['env']) for w in meta.get('workers', [])) or '-'}", "",
              f"duration/step {args.duration}s · points/gateway {args.points_per_gateway} · "
              f"cpu {os.cpu_count()} cores (load generator shares the host)", "",
              "| target/s | streams | achieved/s | accepted | lake rows | loss | dup | peak lag | end lag | drain s "
-             "| worker CPU% p50/max | worker RSS MB | result |",
-             "|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|---|"]
+             "| worker CPU% p50/max | worker RSS MB | NATS CPU% p50 | loadgen CPU% p50 | per replica (accepted/s) | result |",
+             "|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|---|---|"]
     for s in steps:
         lines.append(
             f"| {s['target_rate']} | {s.get('streams','-')} | {s.get('achieved_rate','-')} | {s.get('accepted','-')} "
             f"| {s.get('lake_rows','-')} | {s.get('loss_rate','-')} | {s.get('duplicate_rate','-')} "
             f"| {s.get('peak_lag','-')} | {s.get('end_lag','-')} | {s.get('drain_s','-')} "
             f"| {s.get('worker_cpu_pct_p50','-')}/{s.get('worker_cpu_pct_max','-')} | {s.get('worker_rss_mb_max','-')} "
+            f"| {s.get('nats_cpu_pct_p50','-')} | {s.get('loadgen_cpu_pct_p50','-')} "
+            f"| {' / '.join(t + ': ' + str(d['achieved_rate']) for t, d in (s.get('per_replica') or {}).items()) or '-'} "
             f"| {'PASS' if s['pass'] else 'FAIL: ' + '; '.join(s['fail_reasons'])} |")
     lines += ["", f"**Knee:** {'none within the swept range' if not knee else 'first failing step = ' + str(knee['target_rate']) + ' frames/s'}"]
     ok = [s["achieved_rate"] for s in steps if s["pass"]]
@@ -400,14 +535,17 @@ def main() -> int:
     ap.add_argument("--minio-endpoint", default=os.environ.get("MINIO_ENDPOINT_HOST", "localhost:9000"))
     ap.add_argument("--bucket", default=os.environ.get("LAKE_BUCKET", "cold"))
     ap.add_argument("--nats-monitor", default=os.environ.get("NATS_MONITOR_URL", "http://localhost:8222"))
-    ap.add_argument("--worker-pid", type=int, default=None)
+    ap.add_argument("--worker-pid", default=None,
+                    help="ConnectorWorker pid(s), comma-separated one per replica (default: every worker on this host)")
+    ap.add_argument("--label", default=None, help="free-text tag stored in sweep.json (e.g. baseline / after-defaults)")
     args = ap.parse_args()
 
     run_id = "s22" + datetime.now(timezone.utc).strftime("%m%d%H%M%S")
     out = os.path.join(args.out, run_id)
     os.makedirs(out, exist_ok=True)
-    pid = find_worker_pid(args.worker_pid)
-    print(f"[s22] run={run_id} worker_pid={pid} rates={args.rates}")
+    pid = find_worker_pids(args.worker_pid)
+    meta = run_metadata(args, pid)
+    print(f"[s22] run={run_id} worker_pids={pid} rates={args.rates} commit={meta['commit']} label={args.label}")
 
     steps, knee = [], None
     for i, rate in enumerate(parse_rates(args.rates)):
@@ -418,11 +556,12 @@ def main() -> int:
               f"rows={step.get('lake_rows')}/{step.get('accepted')} lag_end={step.get('end_lag')} "
               f"drain={step.get('drain_s')}s {step.get('fail_reasons') or ''}", flush=True)
         with open(os.path.join(out, "sweep.json"), "w") as f:
-            json.dump({"run_id": run_id, "steps": steps}, f, indent=2)
+            json.dump({"run_id": run_id, "meta": meta, "steps": steps}, f, indent=2)
         if not step["pass"] and knee is None:
             knee = step
             if not args.continue_on_failure:
                 break
+    args._meta = meta
     md = render_md(run_id, args, [{k: v for k, v in s.items() if k != "samples"} for s in steps], knee)
     with open(os.path.join(out, "report.md"), "w") as f:
         f.write(md)

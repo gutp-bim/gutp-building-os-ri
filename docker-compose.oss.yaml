@@ -574,6 +574,11 @@ services:
       # NATS/MQTT-driven). Set to a port (e.g. 5051) to expose the canonical point-id ingest path; the
       # E5 point-list-integrity harness drives it via grpc. Mapped to the host below when set.
       GRPC_INGRESS_PORT: ${GRPC_INGRESS_PORT:-5051}
+      # #625 throughput controls; empty = the built-in defaults (window 128, coalesce 100 ms / 5000).
+      # GRPC_INGRESS_PUBLISH_WINDOW=1 HOT_STORE_COALESCE_MS=0 restores the pre-#625 serial behaviour.
+      GRPC_INGRESS_PUBLISH_WINDOW: ${GRPC_INGRESS_PUBLISH_WINDOW:-}
+      HOT_STORE_COALESCE_MS: ${HOT_STORE_COALESCE_MS:-}
+      HOT_STORE_COALESCE_MAX_POINTS: ${HOT_STORE_COALESCE_MAX_POINTS:-}
       # Per-observation validated JSON limits, in UTF-8 bytes (not an envelope or KV bucket limit).
       TELEMETRY_MAX_DATA_BYTES: ${TELEMETRY_MAX_DATA_BYTES:-1024}
       TELEMETRY_MAX_RECORD_BYTES: ${TELEMETRY_MAX_RECORD_BYTES:-16384}

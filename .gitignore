@@ -44,3 +44,5 @@ secrets/
 *.key
 *.p12
 *.pfx
+Tools/e2e-performance/ingress-loadgen-dotnet/bin/
+Tools/e2e-performance/ingress-loadgen-dotnet/obj/

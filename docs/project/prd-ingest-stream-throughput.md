@@ -55,7 +55,10 @@ NATS 単体の同形ループ（`nats_bench.py`）は publish-ack のみで 2,86
 - 他の validated.telemetry 生産者（HVAC/BACnet 等の `raw.*` コネクタ、MQTT/Hono）の at-least-once 化
   （`telemetry-specification.md` §永続化保証の「既知の残件」のまま）。
 - gateway 側（BOWS / nexus-gateway）の実装変更。stream 分割は gateway の責務として文書化するのみ。
-- Lake 側の重複排除。`ValidTelemetryEntity.id` は `{pointId}.{受信 unix 秒}` で決定的ではなく、本件では触らない。
+- Lake 側の重複排除。~~`ValidTelemetryEntity.id` は `{pointId}.{受信 unix 秒}` で決定的ではなく、本件では触らない。~~
+  （2026-11-07 改訂: 実際は受信 unix **ミリ秒**で、Lake は `id` で重複排除するため、同じ point の別の読み取りが
+  同一ミリ秒に届くと潰れて失われることが #626 の計測で判明した。gRPC ingress に限り `id` を frame の timestamp
+  （unix µs）から作るよう #625 で変更。他の生産者の `id` は対象外のまま。）
 - NATS クラスタ化・ストレージ変更の**実施**（#626 で影響を確認するにとどめる）。
 - gRPC L4/L7 ロードバランサの導入。
 
