@@ -16,7 +16,7 @@
 #       building-os.connector-worker-control
 #
 # A second ingest replica for the #626 scaling matrix is the `ingest-replicas` profile
-# (`--profile ingest-replicas`, host ports 5052/8084); see that service's comment.
+# (`--profile ingest-replicas`, host ports 5061/8084); see that service's comment.
 #
 # Adding this file demotes the base `building-os.connector-worker` to WORKER_ROLE=ingest: the override
 # below wins over that service's ${WORKER_ROLE:-all} default. That has to live in the file rather than
@@ -57,8 +57,9 @@ services:
   # Second ingest replica (#626 R-1): the same image, the same role, its own host ports. gRPC
   # streams are long-lived, so there is no load balancer here — the load generator (and a real
   # deployment's gateways) address the replicas directly:
-  #   s22_ingest_rate_sweep.py --ingress localhost:5051,localhost:5052
-  # Add a third/fourth by copying this block (5053/8085, …). Nothing else changes: ingest replicas
+  #   s22_ingest_rate_sweep.py --ingress localhost:5051,localhost:5061
+  # Add a third/fourth by copying this block (5062/8085, …); host 5052 is taken by GatewayBridge's
+  # egress port in the OSS stack. Nothing else changes: ingest replicas
   # share no state beyond NATS, and each stream is pinned to the replica it connected to.
   building-os.connector-worker-ingest-2:
     build:
@@ -81,7 +82,7 @@ services:
       OTEL_METRIC_EXPORT_INTERVAL: "15000"
       OXIGRAPH_ENDPOINT: http://building-os.oxigraph:7878
     ports:
-      - "5052:5051"
+      - "5061:5051"
       - "8084:8081"
     depends_on:
       building-os.nats:

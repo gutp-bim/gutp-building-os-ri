@@ -3,7 +3,7 @@
   "meta": {
     "label": "baseline-serial",
     "commit": "f68d088",
-    "host": "Takashi-PC",
+    "host": "bench-host",
     "cpu_count": 16,
     "python": "3.12.3",
     "started_at": "2026-11-06T22:09:55.963067+00:00",
