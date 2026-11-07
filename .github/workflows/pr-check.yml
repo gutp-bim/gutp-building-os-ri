@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           # tomllib (stdlib) needs 3.11+; the generator has no other dependency.
           python-version: "3.12"
