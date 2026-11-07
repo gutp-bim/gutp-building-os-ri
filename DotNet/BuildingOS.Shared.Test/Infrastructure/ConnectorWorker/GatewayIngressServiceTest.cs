@@ -188,6 +188,44 @@ public class GatewayIngressServiceTest
     }
 
     [Fact]
+    public async Task Window_CompletesInPublishOrder_EvenWhenAcksArriveOutOfOrder()
+    {
+        // Codex review on #629: the hot-store put used to run inside each ack task, so with
+        // coalescing off an older frame could overwrite a newer latest value.
+        var bus = new FakeIngressTelemetryBus { HoldAcks = true };
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-ORD"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        for (var i = 0; i < 4; i++) reader.Push(Frame("GW-ORD", "PT001", i));
+        reader.Complete();
+
+        var run = NewService(bus, cache, window: 8).RunAsync(reader, CancellationToken.None);
+        await WaitUntilAsync(() => bus.HeldCount == 4);
+        while (bus.ReleaseNewest()) { } // acks resolve 3, 2, 1, 0
+
+        Assert.Equal(4L, await run);
+        var values = bus.Completed.Select(m => JsonDocument.Parse(m).RootElement.GetProperty("telemetries")[0].GetProperty("value").GetDouble()).ToArray();
+        Assert.Equal(new[] { 0d, 1d, 2d, 3d }, values);
+    }
+
+    [Fact]
+    public async Task Window_UnserializableFrame_IsNotAccepted_AndTheStreamContinues()
+    {
+        // Codex review on #629: NaN cannot be written as JSON; the frame must be counted as
+        // publish_failed (as before #625), not end the stream.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(new PointMetadata("PT001", "bldg-1", "Temp", "DEV001", "GW-NAN"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-NAN", PointId = "PT001", ValueNum = double.NaN, Timestamp = "2026-11-07T00:00:00Z" });
+        reader.Push(Frame("GW-NAN", "PT001", 1));
+        reader.Complete();
+
+        var (accepted, results) = await RunCapturingResultsAsync("GW-NAN", () => NewService(bus, cache, window: 8).RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1L, accepted);
+        Assert.Equal(new[] { "publish_failed", "published" }, results);
+    }
+
+    [Fact]
     public async Task Window_SerialTransportStaysCorrect_ThroughTheDefaultBeginPublish()
     {
         // A bus that only implements PublishAsync (the interface default wraps it) still works under
@@ -992,7 +1030,10 @@ public class GatewayIngressServiceTest
     private sealed class FakeIngressTelemetryBus : IIngressTelemetryBus
     {
         private readonly ConcurrentQueue<(string Subject, string Message)> _published = new();
-        private readonly ConcurrentQueue<TaskCompletionSource> _heldAcks = new();
+        private readonly List<TaskCompletionSource> _heldAcks = new();
+        private readonly ConcurrentQueue<string> _completed = new();
+        /// <summary>Messages passed to CompletePublishAsync, in call order.</summary>
+        public IReadOnlyList<string> Completed => _completed.ToArray();
         public IReadOnlyList<(string Subject, string Message)> Published => _published.ToArray();
 
         /// <summary>When true, the next publish throws (simulates a JetStream publish-ack failure).</summary>
@@ -1004,13 +1045,31 @@ public class GatewayIngressServiceTest
         public bool HoldAcks { get; set; }
         /// <summary>Publishes issued so far (including held ones).</summary>
         public int Begun => _published.Count;
-        public int HeldCount => _heldAcks.Count;
+        public int HeldCount { get { lock (_heldAcks) return _heldAcks.Count; } }
 
-        public bool ReleaseNext(Exception? failure = null)
+        public bool ReleaseNext(Exception? failure = null) => Release(newest: false, failure);
+
+        /// <summary>Resolves the most recently issued held ack first (acks completing out of order).</summary>
+        public bool ReleaseNewest(Exception? failure = null) => Release(newest: true, failure);
+
+        private bool Release(bool newest, Exception? failure)
         {
-            if (!_heldAcks.TryDequeue(out var tcs)) return false;
+            TaskCompletionSource tcs;
+            lock (_heldAcks)
+            {
+                if (_heldAcks.Count == 0) return false;
+                var i = newest ? _heldAcks.Count - 1 : 0;
+                tcs = _heldAcks[i];
+                _heldAcks.RemoveAt(i);
+            }
             if (failure is null) tcs.SetResult(); else tcs.SetException(failure);
             return true;
+        }
+
+        public Task CompletePublishAsync(string subject, string message, CancellationToken cancellationToken)
+        {
+            _completed.Enqueue(message);
+            return Task.CompletedTask;
         }
 
         public Task PublishAsync(string subject, string message, CancellationToken cancellationToken)
@@ -1034,7 +1093,7 @@ public class GatewayIngressServiceTest
             if (!HoldAcks) return Task.FromResult(PublishAsync(subject, message, cancellationToken));
             _published.Enqueue((subject, message));
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            _heldAcks.Enqueue(tcs);
+            lock (_heldAcks) _heldAcks.Add(tcs);
             return Task.FromResult(tcs.Task);
         }
     }

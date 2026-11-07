@@ -55,9 +55,11 @@ public sealed class NatsIngressTelemetryBus(
     /// <summary>
     /// #625 slice B: same validation and stream guard as <see cref="PublishAsync"/>, but the publish
     /// goes out through <see cref="INatsJSContext.PublishConcurrentAsync{T}"/>, which returns before
-    /// the ack arrives. The returned ack task performs the same <c>EnsureSuccess</c> + hot-store sync
-    /// once the ack lands, so what "accepted" means (#187) is unchanged — only where the wait happens.
-    /// Messages on one connection are still written in call order; the acks may complete in any order.
+    /// the ack arrives. The returned ack task performs the same <c>EnsureSuccess</c> once the ack
+    /// lands, so what "accepted" means (#187) is unchanged — only where the wait happens. The hot-store
+    /// put is not done here but in <see cref="CompletePublishAsync"/>, which the caller runs in publish
+    /// order: ack tasks complete concurrently, and the latest value must not be overwritten by an
+    /// older frame. Messages on one connection are still written in call order.
     /// </summary>
     public async Task<Task> BeginPublishAsync(string subject, string message, CancellationToken cancellationToken)
     {
@@ -66,10 +68,16 @@ public sealed class NatsIngressTelemetryBus(
 
         var bytes = Encoding.UTF8.GetBytes(message);
         var future = await js.PublishConcurrentAsync(subject, bytes, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return AwaitAckAsync(future, subject, message, cancellationToken);
+        return AwaitAckAsync(future, cancellationToken);
     }
 
-    private async Task AwaitAckAsync(NatsJSPublishConcurrentFuture future, string subject, string message, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public Task CompletePublishAsync(string subject, string message, CancellationToken cancellationToken)
+        => subject == ValidatedSubject
+            ? ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken)
+            : Task.CompletedTask;
+
+    private static async Task AwaitAckAsync(NatsJSPublishConcurrentFuture future, CancellationToken cancellationToken)
     {
         PubAckResponse ack;
         await using (future.ConfigureAwait(false))
@@ -77,9 +85,6 @@ public sealed class NatsIngressTelemetryBus(
             ack = await future.GetResponseAsync(cancellationToken).ConfigureAwait(false);
         }
         ack.EnsureSuccess();
-
-        if (subject == ValidatedSubject)
-            await ValidatedTelemetryHotStore.WriteAsync(hot, message, LagSource, logger, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task EnsureStreamExistsAsync(string subject, CancellationToken ct)
