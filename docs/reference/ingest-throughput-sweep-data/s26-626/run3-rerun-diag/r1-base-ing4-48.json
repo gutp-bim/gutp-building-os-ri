@@ -1,0 +1,4788 @@
+{
+  "run_id": "s261107063902",
+  "meta": {
+    "label": "r1-base-ing4-48",
+    "commit": "08c5c91",
+    "host": "bench-host",
+    "cpu_count": 16,
+    "python": "3.12.3",
+    "started_at": "2026-11-07T06:39:02.319937+00:00",
+    "args": {
+      "rates": "20000",
+      "duration": 60,
+      "points_per_gateway": 50,
+      "streams": "48",
+      "procs": 1,
+      "max_streams": null,
+      "lag_seconds": 5.0,
+      "ingress": "localhost:15051,localhost:15052,localhost:15053,localhost:15054",
+      "nats_monitor": "http://localhost:8222"
+    },
+    "workers": [
+      {
+        "pid": 23499,
+        "env": {
+          "WORKER_ROLE": "ingest",
+          "PARQUET_FLUSH_INTERVAL": "1",
+          "WARM_STORE": "parquet"
+        }
+      },
+      {
+        "pid": 23528,
+        "env": {
+          "WORKER_ROLE": "ingest",
+          "PARQUET_FLUSH_INTERVAL": "1",
+          "WARM_STORE": "parquet"
+        }
+      },
+      {
+        "pid": 23570,
+        "env": {
+          "WORKER_ROLE": "ingest",
+          "PARQUET_FLUSH_INTERVAL": "1",
+          "WARM_STORE": "parquet"
+        }
+      },
+      {
+        "pid": 23599,
+        "env": {
+          "WORKER_ROLE": "ingest",
+          "PARQUET_FLUSH_INTERVAL": "1",
+          "WARM_STORE": "parquet"
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "target_rate": 20000,
+      "duration_s": 60,
+      "accepted": 1008080,
+      "achieved_rate": 3526.9,
+      "achieved_ratio": 0.1763,
+      "lake_rows": 1008128,
+      "loss_rate": 0.0,
+      "duplicates": 0,
+      "duplicate_rate": 0.0,
+      "end_lag": 0,
+      "pass": false,
+      "fail_reasons": [
+        "achieved 17.6% < 95% of target"
+      ],
+      "streams": 48,
+      "replicas": 4,
+      "sent": 1008080,
+      "refused": 0,
+      "drain_s": 61.0,
+      "per_replica": {
+        "localhost:15051": {
+          "streams": 12,
+          "accepted": 280867,
+          "sent": 280867,
+          "achieved_rate": 982.7
+        },
+        "localhost:15052": {
+          "streams": 12,
+          "accepted": 293436,
+          "sent": 293436,
+          "achieved_rate": 1026.6
+        },
+        "localhost:15053": {
+          "streams": 12,
+          "accepted": 280587,
+          "sent": 280587,
+          "achieved_rate": 981.7
+        },
+        "localhost:15054": {
+          "streams": 12,
+          "accepted": 153190,
+          "sent": 153190,
+          "achieved_rate": 536.0
+        }
+      },
+      "pre_cell_pending": 0,
+      "pre_cell_wait_s": 0.0,
+      "peak_lag": 1844,
+      "worker_cpu_pct_p50_by_replica": [
+        39.7,
+        37.7,
+        38.1,
+        33.7
+      ],
+      "worker_rss_mb_max_by_replica": [
+        237.8,
+        195.7,
+        232.4,
+        226.5
+      ],
+      "nats_cpu_pct_p50": 127,
+      "nats_cpu_pct_max": 144,
+      "nats_in_bytes_per_s_p50": 2311364,
+      "nats_slow_consumers_max": 0,
+      "host_cpu_pct_p50": 339.4,
+      "loadgen_cpu_pct_p50": 0.5,
+      "samples": [
+        {
+          "t": 1794033553.5133686,
+          "pending": 0,
+          "stream_msgs": 48,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 21.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "worker_rss_mb_by_replica": [
+            123.4,
+            115.2,
+            122.2,
+            115.2
+          ],
+          "worker_rss_mb": 123.4
+        },
+        {
+          "t": 1794033555.5223553,
+          "pending": 0,
+          "stream_msgs": 3396,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 30.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 531.7,
+          "worker_cpu_pct_by_replica": [
+            69.7,
+            73.7,
+            71.7,
+            75.7
+          ],
+          "worker_cpu_pct": 290.8,
+          "loadgen_cpu_pct": 108.0,
+          "nats_in_bytes_per_s": 1079485,
+          "nats_in_msgs_per_s": 3350,
+          "worker_rss_mb_by_replica": [
+            143.9,
+            134.4,
+            142.2,
+            131.2
+          ],
+          "worker_rss_mb": 143.9
+        },
+        {
+          "t": 1794033557.5584424,
+          "pending": 14,
+          "stream_msgs": 11044,
+          "nats_cpu_pct": 144,
+          "nats_mem_mb": 44.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 1146.8,
+          "worker_cpu_pct_by_replica": [
+            152.7,
+            160.1,
+            149.3,
+            160.6
+          ],
+          "worker_cpu_pct": 622.7,
+          "loadgen_cpu_pct": 190.6,
+          "nats_in_bytes_per_s": 2420983,
+          "nats_in_msgs_per_s": 7513,
+          "worker_rss_mb_by_replica": [
+            185.2,
+            170.2,
+            181.2,
+            171.0
+          ],
+          "worker_rss_mb": 185.2
+        },
+        {
+          "t": 1794033559.5850945,
+          "pending": 0,
+          "stream_msgs": 18780,
+          "nats_cpu_pct": 135,
+          "nats_mem_mb": 64.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 998.5,
+          "worker_cpu_pct_by_replica": [
+            145.6,
+            135.7,
+            142.6,
+            145.6
+          ],
+          "worker_cpu_pct": 569.5,
+          "loadgen_cpu_pct": 106.1,
+          "nats_in_bytes_per_s": 2458802,
+          "nats_in_msgs_per_s": 7630,
+          "worker_rss_mb_by_replica": [
+            234.3,
+            195.7,
+            231.5,
+            219.6
+          ],
+          "worker_rss_mb": 234.3
+        },
+        {
+          "t": 1794033561.606201,
+          "pending": 0,
+          "stream_msgs": 25915,
+          "nats_cpu_pct": 140,
+          "nats_mem_mb": 60.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 676.0,
+          "worker_cpu_pct_by_replica": [
+            73.2,
+            74.7,
+            74.2,
+            85.6
+          ],
+          "worker_cpu_pct": 307.7,
+          "loadgen_cpu_pct": 99.5,
+          "nats_in_bytes_per_s": 2276941,
+          "nats_in_msgs_per_s": 7066,
+          "worker_rss_mb_by_replica": [
+            237.8,
+            180.8,
+            232.4,
+            226.5
+          ],
+          "worker_rss_mb": 237.8
+        },
+        {
+          "t": 1794033563.6318142,
+          "pending": 15,
+          "stream_msgs": 32830,
+          "nats_cpu_pct": 132,
+          "nats_mem_mb": 66.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 638.2,
+          "worker_cpu_pct_by_replica": [
+            72.1,
+            68.6,
+            71.6,
+            69.1
+          ],
+          "worker_cpu_pct": 281.4,
+          "loadgen_cpu_pct": 98.2,
+          "nats_in_bytes_per_s": 2198023,
+          "nats_in_msgs_per_s": 6822,
+          "worker_rss_mb_by_replica": [
+            217.3,
+            159.3,
+            212.1,
+            209.2
+          ],
+          "worker_rss_mb": 217.3
+        },
+        {
+          "t": 1794033565.653887,
+          "pending": 0,
+          "stream_msgs": 40450,
+          "nats_cpu_pct": 133,
+          "nats_mem_mb": 80.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 641.1,
+          "worker_cpu_pct_by_replica": [
+            73.2,
+            69.2,
+            71.2,
+            69.7
+          ],
+          "worker_cpu_pct": 283.3,
+          "loadgen_cpu_pct": 100.9,
+          "nats_in_bytes_per_s": 2438042,
+          "nats_in_msgs_per_s": 7566,
+          "worker_rss_mb_by_replica": [
+            210.0,
+            160.0,
+            204.9,
+            202.0
+          ],
+          "worker_rss_mb": 210.0
+        },
+        {
+          "t": 1794033567.6753767,
+          "pending": 0,
+          "stream_msgs": 47470,
+          "nats_cpu_pct": 137,
+          "nats_mem_mb": 84.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 623.4,
+          "worker_cpu_pct_by_replica": [
+            72.2,
+            64.8,
+            70.7,
+            65.8
+          ],
+          "worker_cpu_pct": 273.5,
+          "loadgen_cpu_pct": 99.4,
+          "nats_in_bytes_per_s": 2245777,
+          "nats_in_msgs_per_s": 6969,
+          "worker_rss_mb_by_replica": [
+            186.7,
+            160.8,
+            181.7,
+            178.8
+          ],
+          "worker_rss_mb": 186.7
+        },
+        {
+          "t": 1794033569.6880994,
+          "pending": 0,
+          "stream_msgs": 54774,
+          "nats_cpu_pct": 141,
+          "nats_mem_mb": 93.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 691.4,
+          "worker_cpu_pct_by_replica": [
+            72.0,
+            68.6,
+            70.1,
+            67.1
+          ],
+          "worker_cpu_pct": 277.8,
+          "loadgen_cpu_pct": 94.4,
+          "nats_in_bytes_per_s": 2425522,
+          "nats_in_msgs_per_s": 32066,
+          "worker_rss_mb_by_replica": [
+            187.4,
+            161.5,
+            182.2,
+            179.4
+          ],
+          "worker_rss_mb": 187.4
+        },
+        {
+          "t": 1794033571.7032115,
+          "pending": 0,
+          "stream_msgs": 61950,
+          "nats_cpu_pct": 136,
+          "nats_mem_mb": 101.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 642.2,
+          "worker_cpu_pct_by_replica": [
+            73.9,
+            71.0,
+            70.0,
+            67.5
+          ],
+          "worker_cpu_pct": 282.4,
+          "loadgen_cpu_pct": 95.3,
+          "nats_in_bytes_per_s": 2298190,
+          "nats_in_msgs_per_s": 7134,
+          "worker_rss_mb_by_replica": [
+            188.3,
+            162.4,
+            182.5,
+            180.2
+          ],
+          "worker_rss_mb": 188.3
+        },
+        {
+          "t": 1794033573.7321813,
+          "pending": 0,
+          "stream_msgs": 69297,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 92.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 624.9,
+          "worker_cpu_pct_by_replica": [
+            71.0,
+            67.5,
+            65.1,
+            66.5
+          ],
+          "worker_cpu_pct": 270.1,
+          "loadgen_cpu_pct": 89.2,
+          "nats_in_bytes_per_s": 2344424,
+          "nats_in_msgs_per_s": 7277,
+          "worker_rss_mb_by_replica": [
+            188.9,
+            163.0,
+            183.1,
+            181.0
+          ],
+          "worker_rss_mb": 188.9
+        },
+        {
+          "t": 1794033575.7633245,
+          "pending": 0,
+          "stream_msgs": 76650,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 86.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 605.4,
+          "worker_cpu_pct_by_replica": [
+            63.0,
+            63.5,
+            62.0,
+            62.5
+          ],
+          "worker_cpu_pct": 251.0,
+          "loadgen_cpu_pct": 78.3,
+          "nats_in_bytes_per_s": 2321872,
+          "nats_in_msgs_per_s": 7206,
+          "worker_rss_mb_by_replica": [
+            189.7,
+            163.7,
+            183.7,
+            181.5
+          ],
+          "worker_rss_mb": 189.7
+        },
+        {
+          "t": 1794033577.7759624,
+          "pending": 0,
+          "stream_msgs": 83936,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 97.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 308.2,
+          "worker_cpu_pct_by_replica": [
+            36.3,
+            33.8,
+            34.3,
+            32.8
+          ],
+          "worker_cpu_pct": 137.2,
+          "loadgen_cpu_pct": 1.5,
+          "nats_in_bytes_per_s": 2335163,
+          "nats_in_msgs_per_s": 7246,
+          "worker_rss_mb_by_replica": [
+            189.7,
+            163.7,
+            183.7,
+            181.5
+          ],
+          "worker_rss_mb": 189.7
+        },
+        {
+          "t": 1794033579.78846,
+          "pending": 0,
+          "stream_msgs": 90838,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 106.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 330.9,
+          "worker_cpu_pct_by_replica": [
+            37.8,
+            35.3,
+            35.3,
+            35.3
+          ],
+          "worker_cpu_pct": 143.7,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2211333,
+          "nats_in_msgs_per_s": 6863,
+          "worker_rss_mb_by_replica": [
+            189.7,
+            155.9,
+            183.7,
+            181.5
+          ],
+          "worker_rss_mb": 189.7
+        },
+        {
+          "t": 1794033581.8015244,
+          "pending": 0,
+          "stream_msgs": 98241,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 94.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 310.4,
+          "worker_cpu_pct_by_replica": [
+            37.3,
+            33.8,
+            34.8,
+            34.3
+          ],
+          "worker_cpu_pct": 140.2,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2373876,
+          "nats_in_msgs_per_s": 7367,
+          "worker_rss_mb_by_replica": [
+            169.7,
+            155.9,
+            166.1,
+            181.6
+          ],
+          "worker_rss_mb": 181.6
+        },
+        {
+          "t": 1794033583.8195288,
+          "pending": 0,
+          "stream_msgs": 105614,
+          "nats_cpu_pct": 143,
+          "nats_mem_mb": 108.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 395.3,
+          "worker_cpu_pct_by_replica": [
+            40.6,
+            38.7,
+            38.2,
+            38.2
+          ],
+          "worker_cpu_pct": 155.7,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2458043,
+          "nats_in_msgs_per_s": 32098,
+          "worker_rss_mb_by_replica": [
+            167.5,
+            155.9,
+            166.1,
+            161.7
+          ],
+          "worker_rss_mb": 167.5
+        },
+        {
+          "t": 1794033585.8347235,
+          "pending": 0,
+          "stream_msgs": 112872,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 108.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 306.6,
+          "worker_cpu_pct_by_replica": [
+            36.2,
+            33.2,
+            35.7,
+            33.7
+          ],
+          "worker_cpu_pct": 138.8,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2316455,
+          "nats_in_msgs_per_s": 7188,
+          "worker_rss_mb_by_replica": [
+            167.5,
+            155.9,
+            166.1,
+            161.7
+          ],
+          "worker_rss_mb": 167.5
+        },
+        {
+          "t": 1794033587.8451989,
+          "pending": 0,
+          "stream_msgs": 120493,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 104.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 331.9,
+          "worker_cpu_pct_by_replica": [
+            37.8,
+            35.3,
+            35.8,
+            34.3
+          ],
+          "worker_cpu_pct": 143.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2444164,
+          "nats_in_msgs_per_s": 7585,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            155.9,
+            166.1,
+            161.7
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033589.8584528,
+          "pending": 0,
+          "stream_msgs": 127674,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 105.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 338.7,
+          "worker_cpu_pct_by_replica": [
+            37.3,
+            35.3,
+            35.3,
+            33.3
+          ],
+          "worker_cpu_pct": 141.2,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2299845,
+          "nats_in_msgs_per_s": 7137,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            155.9,
+            166.1,
+            161.8
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033591.873916,
+          "pending": 15,
+          "stream_msgs": 134588,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 105.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 312.2,
+          "worker_cpu_pct_by_replica": [
+            35.7,
+            33.2,
+            35.2,
+            33.7
+          ],
+          "worker_cpu_pct": 137.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2211942,
+          "nats_in_msgs_per_s": 6864,
+          "worker_rss_mb_by_replica": [
+            168.9,
+            155.9,
+            166.1,
+            161.8
+          ],
+          "worker_rss_mb": 168.9
+        },
+        {
+          "t": 1794033593.8932178,
+          "pending": 2,
+          "stream_msgs": 141429,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 95.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 341.7,
+          "worker_cpu_pct_by_replica": [
+            39.1,
+            38.6,
+            39.1,
+            37.1
+          ],
+          "worker_cpu_pct": 153.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2184509,
+          "nats_in_msgs_per_s": 6780,
+          "worker_rss_mb_by_replica": [
+            168.9,
+            155.9,
+            166.1,
+            161.8
+          ],
+          "worker_rss_mb": 168.9
+        },
+        {
+          "t": 1794033595.9129813,
+          "pending": 0,
+          "stream_msgs": 149249,
+          "nats_cpu_pct": 136,
+          "nats_mem_mb": 103.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 360.5,
+          "worker_cpu_pct_by_replica": [
+            40.1,
+            37.1,
+            38.1,
+            37.6
+          ],
+          "worker_cpu_pct": 152.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2505902,
+          "nats_in_msgs_per_s": 7777,
+          "worker_rss_mb_by_replica": [
+            168.9,
+            155.9,
+            166.1,
+            161.8
+          ],
+          "worker_rss_mb": 168.9
+        },
+        {
+          "t": 1794033597.9139385,
+          "pending": 0,
+          "stream_msgs": 156196,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 101.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 405.1,
+          "worker_cpu_pct_by_replica": [
+            40.0,
+            36.5,
+            38.0,
+            37.0
+          ],
+          "worker_cpu_pct": 151.5,
+          "loadgen_cpu_pct": 6.5,
+          "nats_in_bytes_per_s": 2336449,
+          "nats_in_msgs_per_s": 31929,
+          "worker_rss_mb_by_replica": [
+            168.9,
+            155.3,
+            165.8,
+            161.8
+          ],
+          "worker_rss_mb": 168.9
+        },
+        {
+          "t": 1794033599.9270647,
+          "pending": 0,
+          "stream_msgs": 163206,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 91.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 327.2,
+          "worker_cpu_pct_by_replica": [
+            37.8,
+            36.8,
+            36.8,
+            34.3
+          ],
+          "worker_cpu_pct": 145.7,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2242121,
+          "nats_in_msgs_per_s": 6962,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            155.3,
+            165.8,
+            157.8
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033601.9439158,
+          "pending": 2,
+          "stream_msgs": 170002,
+          "nats_cpu_pct": 117,
+          "nats_mem_mb": 98.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 300.6,
+          "worker_cpu_pct_by_replica": [
+            34.7,
+            32.7,
+            33.2,
+            32.7
+          ],
+          "worker_cpu_pct": 133.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2176433,
+          "nats_in_msgs_per_s": 6757,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            155.3,
+            165.8,
+            159.8
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033603.9630313,
+          "pending": 0,
+          "stream_msgs": 177590,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 101.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 309.5,
+          "worker_cpu_pct_by_replica": [
+            37.6,
+            35.2,
+            34.7,
+            34.2
+          ],
+          "worker_cpu_pct": 141.7,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2416280,
+          "nats_in_msgs_per_s": 7498,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            155.3,
+            165.8,
+            161.9
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033605.9806,
+          "pending": 0,
+          "stream_msgs": 185187,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 89.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 320.9,
+          "worker_cpu_pct_by_replica": [
+            37.7,
+            36.2,
+            34.7,
+            34.7
+          ],
+          "worker_cpu_pct": 143.3,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2430718,
+          "nats_in_msgs_per_s": 7545,
+          "worker_rss_mb_by_replica": [
+            169.2,
+            155.8,
+            165.8,
+            161.9
+          ],
+          "worker_rss_mb": 169.2
+        },
+        {
+          "t": 1794033607.995373,
+          "pending": 0,
+          "stream_msgs": 192495,
+          "nats_cpu_pct": 135,
+          "nats_mem_mb": 102.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 336.6,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            34.2,
+            34.2,
+            34.7
+          ],
+          "worker_cpu_pct": 141.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2335584,
+          "nats_in_msgs_per_s": 7247,
+          "worker_rss_mb_by_replica": [
+            165.7,
+            155.8,
+            165.8,
+            161.9
+          ],
+          "worker_rss_mb": 165.8
+        },
+        {
+          "t": 1794033610.0080547,
+          "pending": 0,
+          "stream_msgs": 199804,
+          "nats_cpu_pct": 132,
+          "nats_mem_mb": 104.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 354.6,
+          "worker_cpu_pct_by_replica": [
+            36.3,
+            35.8,
+            34.8,
+            35.3
+          ],
+          "worker_cpu_pct": 142.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2341466,
+          "nats_in_msgs_per_s": 7266,
+          "worker_rss_mb_by_replica": [
+            167.7,
+            155.8,
+            165.8,
+            161.9
+          ],
+          "worker_rss_mb": 167.7
+        },
+        {
+          "t": 1794033612.0200417,
+          "pending": 0,
+          "stream_msgs": 206493,
+          "nats_cpu_pct": 138,
+          "nats_mem_mb": 80.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 520.8,
+          "worker_cpu_pct_by_replica": [
+            52.2,
+            38.3,
+            52.2,
+            39.3
+          ],
+          "worker_cpu_pct": 182.0,
+          "loadgen_cpu_pct": 91.9,
+          "nats_in_bytes_per_s": 2250483,
+          "nats_in_msgs_per_s": 31528,
+          "worker_rss_mb_by_replica": [
+            167.2,
+            155.8,
+            166.0,
+            161.9
+          ],
+          "worker_rss_mb": 167.2
+        },
+        {
+          "t": 1794033614.0470572,
+          "pending": 0,
+          "stream_msgs": 214065,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 85.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 409.4,
+          "worker_cpu_pct_by_replica": [
+            41.9,
+            51.8,
+            38.0,
+            38.0
+          ],
+          "worker_cpu_pct": 169.7,
+          "loadgen_cpu_pct": 62.7,
+          "nats_in_bytes_per_s": 2403591,
+          "nats_in_msgs_per_s": 7459,
+          "worker_rss_mb_by_replica": [
+            167.2,
+            155.8,
+            161.6,
+            161.9
+          ],
+          "worker_rss_mb": 167.2
+        },
+        {
+          "t": 1794033616.0607188,
+          "pending": 24,
+          "stream_msgs": 221557,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 102.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 360.3,
+          "worker_cpu_pct_by_replica": [
+            37.2,
+            41.7,
+            35.3,
+            38.7
+          ],
+          "worker_cpu_pct": 152.9,
+          "loadgen_cpu_pct": 35.3,
+          "nats_in_bytes_per_s": 2398989,
+          "nats_in_msgs_per_s": 7445,
+          "worker_rss_mb_by_replica": [
+            169.2,
+            155.8,
+            163.7,
+            161.9
+          ],
+          "worker_rss_mb": 169.2
+        },
+        {
+          "t": 1794033618.078694,
+          "pending": 0,
+          "stream_msgs": 229075,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 93.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 310.9,
+          "worker_cpu_pct_by_replica": [
+            34.7,
+            34.2,
+            34.2,
+            35.7
+          ],
+          "worker_cpu_pct": 138.8,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2399849,
+          "nats_in_msgs_per_s": 7448,
+          "worker_rss_mb_by_replica": [
+            168.7,
+            155.8,
+            163.7,
+            159.6
+          ],
+          "worker_rss_mb": 168.7
+        },
+        {
+          "t": 1794033620.0940027,
+          "pending": 0,
+          "stream_msgs": 236314,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 95.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 342.1,
+          "worker_cpu_pct_by_replica": [
+            36.7,
+            35.2,
+            35.2,
+            35.7
+          ],
+          "worker_cpu_pct": 142.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2324640,
+          "nats_in_msgs_per_s": 7215,
+          "worker_rss_mb_by_replica": [
+            168.7,
+            155.8,
+            163.7,
+            159.8
+          ],
+          "worker_rss_mb": 168.7
+        },
+        {
+          "t": 1794033622.1096811,
+          "pending": 0,
+          "stream_msgs": 243705,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 105.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 312.7,
+          "worker_cpu_pct_by_replica": [
+            35.7,
+            33.7,
+            33.7,
+            34.2
+          ],
+          "worker_cpu_pct": 137.3,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2365036,
+          "nats_in_msgs_per_s": 7339,
+          "worker_rss_mb_by_replica": [
+            168.7,
+            155.8,
+            163.7,
+            161.8
+          ],
+          "worker_rss_mb": 168.7
+        },
+        {
+          "t": 1794033624.1342854,
+          "pending": 677,
+          "stream_msgs": 250677,
+          "nats_cpu_pct": 121,
+          "nats_mem_mb": 94.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 301.5,
+          "worker_cpu_pct_by_replica": [
+            35.6,
+            34.1,
+            33.6,
+            33.1
+          ],
+          "worker_cpu_pct": 136.4,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2218383,
+          "nats_in_msgs_per_s": 6884,
+          "worker_rss_mb_by_replica": [
+            168.7,
+            155.2,
+            163.7,
+            161.8
+          ],
+          "worker_rss_mb": 168.7
+        },
+        {
+          "t": 1794033626.148816,
+          "pending": 14,
+          "stream_msgs": 257991,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 98.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 339.4,
+          "worker_cpu_pct_by_replica": [
+            36.2,
+            33.8,
+            34.3,
+            33.3
+          ],
+          "worker_cpu_pct": 137.6,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2437475,
+          "nats_in_msgs_per_s": 32075,
+          "worker_rss_mb_by_replica": [
+            168.7,
+            155.7,
+            163.7,
+            161.8
+          ],
+          "worker_rss_mb": 168.7
+        },
+        {
+          "t": 1794033628.1520905,
+          "pending": 0,
+          "stream_msgs": 265304,
+          "nats_cpu_pct": 121,
+          "nats_mem_mb": 105.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 324.4,
+          "worker_cpu_pct_by_replica": [
+            35.4,
+            34.4,
+            34.4,
+            33.9
+          ],
+          "worker_cpu_pct": 138.1,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2352253,
+          "nats_in_msgs_per_s": 7302,
+          "worker_rss_mb_by_replica": [
+            165.3,
+            155.7,
+            163.7,
+            161.8
+          ],
+          "worker_rss_mb": 165.3
+        },
+        {
+          "t": 1794033630.1639833,
+          "pending": 0,
+          "stream_msgs": 272561,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 91.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 418.9,
+          "worker_cpu_pct_by_replica": [
+            44.7,
+            36.3,
+            44.7,
+            36.3
+          ],
+          "worker_cpu_pct": 162.0,
+          "loadgen_cpu_pct": 49.2,
+          "nats_in_bytes_per_s": 2323322,
+          "nats_in_msgs_per_s": 7215,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            160.4,
+            162.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033632.1784217,
+          "pending": 0,
+          "stream_msgs": 280466,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 93.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 431.3,
+          "worker_cpu_pct_by_replica": [
+            43.7,
+            39.2,
+            41.7,
+            38.7
+          ],
+          "worker_cpu_pct": 163.3,
+          "loadgen_cpu_pct": 20.4,
+          "nats_in_bytes_per_s": 2541833,
+          "nats_in_msgs_per_s": 7888,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            164.2,
+            162.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033634.2087672,
+          "pending": 0,
+          "stream_msgs": 287893,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 104.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 355.2,
+          "worker_cpu_pct_by_replica": [
+            39.9,
+            39.9,
+            36.4,
+            34.5
+          ],
+          "worker_cpu_pct": 150.7,
+          "loadgen_cpu_pct": 22.2,
+          "nats_in_bytes_per_s": 2354629,
+          "nats_in_msgs_per_s": 7309,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            164.3,
+            160.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033636.2224157,
+          "pending": 0,
+          "stream_msgs": 295446,
+          "nats_cpu_pct": 133,
+          "nats_mem_mb": 107.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 352.9,
+          "worker_cpu_pct_by_replica": [
+            39.7,
+            35.3,
+            36.3,
+            37.2
+          ],
+          "worker_cpu_pct": 148.5,
+          "loadgen_cpu_pct": 10.9,
+          "nats_in_bytes_per_s": 2418530,
+          "nats_in_msgs_per_s": 7506,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            164.3,
+            160.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033638.2362971,
+          "pending": 0,
+          "stream_msgs": 302583,
+          "nats_cpu_pct": 123,
+          "nats_mem_mb": 105.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 344.1,
+          "worker_cpu_pct_by_replica": [
+            37.7,
+            34.3,
+            34.3,
+            33.8
+          ],
+          "worker_cpu_pct": 140.1,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2385121,
+          "nats_in_msgs_per_s": 31921,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            164.3,
+            160.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033640.2592406,
+          "pending": 0,
+          "stream_msgs": 309543,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 105.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 339.5,
+          "worker_cpu_pct_by_replica": [
+            38.1,
+            36.1,
+            37.1,
+            35.6
+          ],
+          "worker_cpu_pct": 146.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2216160,
+          "nats_in_msgs_per_s": 6878,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            164.3,
+            162.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033642.2776291,
+          "pending": 0,
+          "stream_msgs": 317367,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 105.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 328.3,
+          "worker_cpu_pct_by_replica": [
+            37.2,
+            35.7,
+            36.7,
+            35.2
+          ],
+          "worker_cpu_pct": 144.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2496443,
+          "nats_in_msgs_per_s": 7747,
+          "worker_rss_mb_by_replica": [
+            167.3,
+            156.1,
+            164.3,
+            162.1
+          ],
+          "worker_rss_mb": 167.3
+        },
+        {
+          "t": 1794033644.293618,
+          "pending": 4,
+          "stream_msgs": 324019,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 103.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 301.0,
+          "worker_cpu_pct_by_replica": [
+            37.2,
+            34.7,
+            35.7,
+            35.2
+          ],
+          "worker_cpu_pct": 142.8,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2124752,
+          "nats_in_msgs_per_s": 6594,
+          "worker_rss_mb_by_replica": [
+            163.9,
+            156.2,
+            164.3,
+            162.1
+          ],
+          "worker_rss_mb": 164.3
+        },
+        {
+          "t": 1794033646.3090823,
+          "pending": 0,
+          "stream_msgs": 331254,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 103.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 306.7,
+          "worker_cpu_pct_by_replica": [
+            35.7,
+            33.2,
+            33.7,
+            32.7
+          ],
+          "worker_cpu_pct": 135.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2315952,
+          "nats_in_msgs_per_s": 7188,
+          "worker_rss_mb_by_replica": [
+            167.9,
+            156.2,
+            162.4,
+            162.1
+          ],
+          "worker_rss_mb": 167.9
+        },
+        {
+          "t": 1794033648.3227115,
+          "pending": 0,
+          "stream_msgs": 338224,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 94.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 306.5,
+          "worker_cpu_pct_by_replica": [
+            34.8,
+            34.8,
+            33.8,
+            33.8
+          ],
+          "worker_cpu_pct": 137.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2230588,
+          "nats_in_msgs_per_s": 6921,
+          "worker_rss_mb_by_replica": [
+            167.9,
+            156.2,
+            164.1,
+            162.1
+          ],
+          "worker_rss_mb": 167.9
+        },
+        {
+          "t": 1794033650.3400428,
+          "pending": 0,
+          "stream_msgs": 345625,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 83.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 343.8,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            36.7,
+            34.2,
+            35.2
+          ],
+          "worker_cpu_pct": 144.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2374052,
+          "nats_in_msgs_per_s": 7368,
+          "worker_rss_mb_by_replica": [
+            167.9,
+            156.2,
+            164.4,
+            158.1
+          ],
+          "worker_rss_mb": 167.9
+        },
+        {
+          "t": 1794033652.3607557,
+          "pending": 0,
+          "stream_msgs": 353150,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 114.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 380.9,
+          "worker_cpu_pct_by_replica": [
+            39.1,
+            38.1,
+            37.1,
+            34.6
+          ],
+          "worker_cpu_pct": 148.9,
+          "loadgen_cpu_pct": 1.5,
+          "nats_in_bytes_per_s": 2492964,
+          "nats_in_msgs_per_s": 32173,
+          "worker_rss_mb_by_replica": [
+            167.9,
+            156.2,
+            164.4,
+            160.0
+          ],
+          "worker_rss_mb": 167.9
+        },
+        {
+          "t": 1794033654.3779259,
+          "pending": 0,
+          "stream_msgs": 360418,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 104.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 301.0,
+          "worker_cpu_pct_by_replica": [
+            37.2,
+            34.7,
+            35.7,
+            34.7
+          ],
+          "worker_cpu_pct": 142.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2322553,
+          "nats_in_msgs_per_s": 7208,
+          "worker_rss_mb_by_replica": [
+            167.9,
+            156.2,
+            164.4,
+            160.2
+          ],
+          "worker_rss_mb": 167.9
+        },
+        {
+          "t": 1794033656.3921928,
+          "pending": 0,
+          "stream_msgs": 367932,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 93.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 316.7,
+          "worker_cpu_pct_by_replica": [
+            36.7,
+            33.8,
+            35.2,
+            33.8
+          ],
+          "worker_cpu_pct": 139.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2410973,
+          "nats_in_msgs_per_s": 7483,
+          "worker_rss_mb_by_replica": [
+            167.9,
+            156.2,
+            164.4,
+            162.1
+          ],
+          "worker_rss_mb": 167.9
+        },
+        {
+          "t": 1794033658.392808,
+          "pending": 0,
+          "stream_msgs": 374987,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 100.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 314.7,
+          "worker_cpu_pct_by_replica": [
+            37.5,
+            34.5,
+            34.5,
+            34.5
+          ],
+          "worker_cpu_pct": 141.0,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2267478,
+          "nats_in_msgs_per_s": 7037,
+          "worker_rss_mb_by_replica": [
+            169.9,
+            156.2,
+            166.1,
+            162.1
+          ],
+          "worker_rss_mb": 169.9
+        },
+        {
+          "t": 1794033660.4112444,
+          "pending": 4,
+          "stream_msgs": 382032,
+          "nats_cpu_pct": 119,
+          "nats_mem_mb": 110.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 333.3,
+          "worker_cpu_pct_by_replica": [
+            36.2,
+            34.7,
+            36.2,
+            34.7
+          ],
+          "worker_cpu_pct": 141.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2261653,
+          "nats_in_msgs_per_s": 7024,
+          "worker_rss_mb_by_replica": [
+            166.0,
+            156.2,
+            166.4,
+            162.1
+          ],
+          "worker_rss_mb": 166.4
+        },
+        {
+          "t": 1794033662.4336286,
+          "pending": 0,
+          "stream_msgs": 389594,
+          "nats_cpu_pct": 133,
+          "nats_mem_mb": 106.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 331.4,
+          "worker_cpu_pct_by_replica": [
+            37.1,
+            36.1,
+            36.6,
+            35.1
+          ],
+          "worker_cpu_pct": 144.9,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2404469,
+          "nats_in_msgs_per_s": 7462,
+          "worker_rss_mb_by_replica": [
+            168.1,
+            156.2,
+            164.2,
+            162.1
+          ],
+          "worker_rss_mb": 168.1
+        },
+        {
+          "t": 1794033664.4468813,
+          "pending": 0,
+          "stream_msgs": 396483,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 99.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 313.2,
+          "worker_cpu_pct_by_replica": [
+            37.3,
+            34.8,
+            37.3,
+            35.8
+          ],
+          "worker_cpu_pct": 145.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2205537,
+          "nats_in_msgs_per_s": 6846,
+          "worker_rss_mb_by_replica": [
+            168.1,
+            156.2,
+            164.2,
+            162.1
+          ],
+          "worker_rss_mb": 168.1
+        },
+        {
+          "t": 1794033666.46457,
+          "pending": 0,
+          "stream_msgs": 403618,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 97.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 515.7,
+          "worker_cpu_pct_by_replica": [
+            54.5,
+            38.2,
+            56.5,
+            38.2
+          ],
+          "worker_cpu_pct": 187.4,
+          "loadgen_cpu_pct": 98.6,
+          "nats_in_bytes_per_s": 2375090,
+          "nats_in_msgs_per_s": 31844,
+          "worker_rss_mb_by_replica": [
+            168.3,
+            156.2,
+            164.7,
+            162.1
+          ],
+          "worker_rss_mb": 168.3
+        },
+        {
+          "t": 1794033668.478009,
+          "pending": 3,
+          "stream_msgs": 410687,
+          "nats_cpu_pct": 121,
+          "nats_mem_mb": 92.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 398.5,
+          "worker_cpu_pct_by_replica": [
+            41.7,
+            36.8,
+            47.2,
+            36.3
+          ],
+          "worker_cpu_pct": 162.0,
+          "loadgen_cpu_pct": 46.7,
+          "nats_in_bytes_per_s": 2272073,
+          "nats_in_msgs_per_s": 7051,
+          "worker_rss_mb_by_replica": [
+            168.5,
+            156.2,
+            165.9,
+            159.8
+          ],
+          "worker_rss_mb": 168.5
+        },
+        {
+          "t": 1794033670.5029256,
+          "pending": 0,
+          "stream_msgs": 417465,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 99.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 373.3,
+          "worker_cpu_pct_by_replica": [
+            45.4,
+            36.1,
+            35.1,
+            37.0
+          ],
+          "worker_cpu_pct": 153.6,
+          "loadgen_cpu_pct": 24.7,
+          "nats_in_bytes_per_s": 2150898,
+          "nats_in_msgs_per_s": 6674,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            156.2,
+            165.9,
+            160.1
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033672.518471,
+          "pending": 0,
+          "stream_msgs": 424738,
+          "nats_cpu_pct": 136,
+          "nats_mem_mb": 100.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 438.7,
+          "worker_cpu_pct_by_replica": [
+            40.2,
+            58.5,
+            39.7,
+            38.2
+          ],
+          "worker_cpu_pct": 176.6,
+          "loadgen_cpu_pct": 75.9,
+          "nats_in_bytes_per_s": 2329191,
+          "nats_in_msgs_per_s": 7228,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            156.6,
+            165.9,
+            162.1
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033674.542633,
+          "pending": 0,
+          "stream_msgs": 431861,
+          "nats_cpu_pct": 122,
+          "nats_mem_mb": 101.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 316.1,
+          "worker_cpu_pct_by_replica": [
+            36.6,
+            37.5,
+            34.1,
+            34.6
+          ],
+          "worker_cpu_pct": 142.8,
+          "loadgen_cpu_pct": 12.8,
+          "nats_in_bytes_per_s": 2269436,
+          "nats_in_msgs_per_s": 7043,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.0,
+            165.3,
+            162.1
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033676.5564232,
+          "pending": 0,
+          "stream_msgs": 439452,
+          "nats_cpu_pct": 132,
+          "nats_mem_mb": 96.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 392.6,
+          "worker_cpu_pct_by_replica": [
+            40.7,
+            44.7,
+            38.2,
+            47.7
+          ],
+          "worker_cpu_pct": 171.3,
+          "loadgen_cpu_pct": 46.2,
+          "nats_in_bytes_per_s": 2431338,
+          "nats_in_msgs_per_s": 7547,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033678.5829144,
+          "pending": 0,
+          "stream_msgs": 446725,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 112.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 325.7,
+          "worker_cpu_pct_by_replica": [
+            38.5,
+            38.0,
+            37.0,
+            33.1
+          ],
+          "worker_cpu_pct": 146.6,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2311364,
+          "nats_in_msgs_per_s": 7174,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033680.6027758,
+          "pending": 0,
+          "stream_msgs": 453727,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 97.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 372.0,
+          "worker_cpu_pct_by_replica": [
+            40.1,
+            38.1,
+            39.1,
+            32.2
+          ],
+          "worker_cpu_pct": 149.5,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2340098,
+          "nats_in_msgs_per_s": 31709,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033682.618779,
+          "pending": 8,
+          "stream_msgs": 460990,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 98.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 319.8,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            38.2,
+            37.7,
+            32.7
+          ],
+          "worker_cpu_pct": 147.3,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2324349,
+          "nats_in_msgs_per_s": 7213,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033684.6448202,
+          "pending": 0,
+          "stream_msgs": 468160,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 98.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 309.6,
+          "worker_cpu_pct_by_replica": [
+            40.0,
+            37.0,
+            37.0,
+            31.1
+          ],
+          "worker_cpu_pct": 145.1,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2280570,
+          "nats_in_msgs_per_s": 7076,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033686.6614897,
+          "pending": 0,
+          "stream_msgs": 474902,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 102.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 324.1,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            36.2,
+            39.7,
+            31.2
+          ],
+          "worker_cpu_pct": 145.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2149950,
+          "nats_in_msgs_per_s": 6671,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033688.661671,
+          "pending": 0,
+          "stream_msgs": 481617,
+          "nats_cpu_pct": 121,
+          "nats_mem_mb": 100.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 338.9,
+          "worker_cpu_pct_by_replica": [
+            38.0,
+            36.0,
+            37.0,
+            31.0
+          ],
+          "worker_cpu_pct": 142.0,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2165306,
+          "nats_in_msgs_per_s": 6721,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.2,
+            162.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033690.6791666,
+          "pending": 0,
+          "stream_msgs": 489440,
+          "nats_cpu_pct": 140,
+          "nats_mem_mb": 97.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 338.0,
+          "worker_cpu_pct_by_replica": [
+            42.6,
+            38.2,
+            42.6,
+            33.7
+          ],
+          "worker_cpu_pct": 157.1,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2502649,
+          "nats_in_msgs_per_s": 7771,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.3,
+            162.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033692.6988733,
+          "pending": 0,
+          "stream_msgs": 496716,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 111.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 354.4,
+          "worker_cpu_pct_by_replica": [
+            39.6,
+            37.6,
+            38.6,
+            31.7
+          ],
+          "worker_cpu_pct": 147.5,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2322217,
+          "nats_in_msgs_per_s": 7206,
+          "worker_rss_mb_by_replica": [
+            169.2,
+            157.7,
+            166.7,
+            159.8
+          ],
+          "worker_rss_mb": 169.2
+        },
+        {
+          "t": 1794033694.7148278,
+          "pending": 0,
+          "stream_msgs": 503960,
+          "nats_cpu_pct": 138,
+          "nats_mem_mb": 104.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 360.5,
+          "worker_cpu_pct_by_replica": [
+            41.2,
+            39.2,
+            39.2,
+            32.7
+          ],
+          "worker_cpu_pct": 152.3,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2417388,
+          "nats_in_msgs_per_s": 31997,
+          "worker_rss_mb_by_replica": [
+            169.2,
+            157.7,
+            166.7,
+            160.2
+          ],
+          "worker_rss_mb": 169.2
+        },
+        {
+          "t": 1794033696.7327838,
+          "pending": 0,
+          "stream_msgs": 510987,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 101.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 307.3,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            37.2,
+            37.2,
+            30.2
+          ],
+          "worker_cpu_pct": 143.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2243722,
+          "nats_in_msgs_per_s": 6963,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            157.7,
+            166.7,
+            160.3
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033698.7478945,
+          "pending": 0,
+          "stream_msgs": 518203,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 109.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 350.0,
+          "worker_cpu_pct_by_replica": [
+            41.7,
+            39.7,
+            39.7,
+            32.8
+          ],
+          "worker_cpu_pct": 153.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2309069,
+          "nats_in_msgs_per_s": 7166,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            166.7,
+            160.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033700.7742338,
+          "pending": 0,
+          "stream_msgs": 525420,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 97.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 330.0,
+          "worker_cpu_pct_by_replica": [
+            40.5,
+            38.5,
+            40.0,
+            32.1
+          ],
+          "worker_cpu_pct": 151.1,
+          "loadgen_cpu_pct": 1.5,
+          "nats_in_bytes_per_s": 2300146,
+          "nats_in_msgs_per_s": 7138,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.1,
+            160.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033702.7861378,
+          "pending": 0,
+          "stream_msgs": 532272,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 107.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 321.1,
+          "worker_cpu_pct_by_replica": [
+            38.8,
+            36.3,
+            36.3,
+            29.8
+          ],
+          "worker_cpu_pct": 141.2,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2196181,
+          "nats_in_msgs_per_s": 6815,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.1,
+            160.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033704.7982855,
+          "pending": 0,
+          "stream_msgs": 539140,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 103.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 324.9,
+          "worker_cpu_pct_by_replica": [
+            40.3,
+            37.8,
+            37.8,
+            32.3
+          ],
+          "worker_cpu_pct": 148.2,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2204980,
+          "nats_in_msgs_per_s": 6842,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            157.7,
+            167.1,
+            160.3
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033706.8184206,
+          "pending": 0,
+          "stream_msgs": 546140,
+          "nats_cpu_pct": 132,
+          "nats_mem_mb": 89.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 347.0,
+          "worker_cpu_pct_by_replica": [
+            45.0,
+            40.6,
+            40.6,
+            35.1
+          ],
+          "worker_cpu_pct": 161.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2227086,
+          "nats_in_msgs_per_s": 6911,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            157.7,
+            165.7,
+            160.3
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033708.8354394,
+          "pending": 0,
+          "stream_msgs": 553053,
+          "nats_cpu_pct": 139,
+          "nats_mem_mb": 107.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 409.7,
+          "worker_cpu_pct_by_replica": [
+            40.7,
+            38.7,
+            40.2,
+            32.2
+          ],
+          "worker_cpu_pct": 151.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2312577,
+          "nats_in_msgs_per_s": 31658,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            157.7,
+            165.8,
+            160.3
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033710.8496504,
+          "pending": 0,
+          "stream_msgs": 560144,
+          "nats_cpu_pct": 123,
+          "nats_mem_mb": 105.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 316.1,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            37.2,
+            36.7,
+            31.8
+          ],
+          "worker_cpu_pct": 143.9,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2270091,
+          "nats_in_msgs_per_s": 7044,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            157.7,
+            165.8,
+            160.3
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033712.8627653,
+          "pending": 0,
+          "stream_msgs": 567473,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 108.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 340.3,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            38.2,
+            37.8,
+            31.3
+          ],
+          "worker_cpu_pct": 146.0,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2347530,
+          "nats_in_msgs_per_s": 7285,
+          "worker_rss_mb_by_replica": [
+            169.4,
+            157.7,
+            165.8,
+            160.3
+          ],
+          "worker_rss_mb": 169.4
+        },
+        {
+          "t": 1794033714.876684,
+          "pending": 3,
+          "stream_msgs": 574707,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 110.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 386.6,
+          "worker_cpu_pct_by_replica": [
+            40.7,
+            37.7,
+            51.6,
+            33.3
+          ],
+          "worker_cpu_pct": 163.3,
+          "loadgen_cpu_pct": 46.7,
+          "nats_in_bytes_per_s": 2313056,
+          "nats_in_msgs_per_s": 7177,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            157.7,
+            165.8,
+            160.3
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033716.9026093,
+          "pending": 0,
+          "stream_msgs": 581890,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 101.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 444.4,
+          "worker_cpu_pct_by_replica": [
+            59.7,
+            39.0,
+            43.4,
+            33.1
+          ],
+          "worker_cpu_pct": 175.2,
+          "loadgen_cpu_pct": 83.4,
+          "nats_in_bytes_per_s": 2283480,
+          "nats_in_msgs_per_s": 7086,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            157.7,
+            166.0,
+            160.3
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033718.902018,
+          "pending": 0,
+          "stream_msgs": 588702,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 97.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 418.2,
+          "worker_cpu_pct_by_replica": [
+            48.0,
+            41.0,
+            45.5,
+            34.0
+          ],
+          "worker_cpu_pct": 168.5,
+          "loadgen_cpu_pct": 41.5,
+          "nats_in_bytes_per_s": 2203321,
+          "nats_in_msgs_per_s": 6842,
+          "worker_rss_mb_by_replica": [
+            171.3,
+            157.9,
+            166.0,
+            160.3
+          ],
+          "worker_rss_mb": 171.3
+        },
+        {
+          "t": 1794033720.9238849,
+          "pending": 20,
+          "stream_msgs": 596052,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 98.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 347.7,
+          "worker_cpu_pct_by_replica": [
+            40.6,
+            37.1,
+            40.6,
+            37.1
+          ],
+          "worker_cpu_pct": 155.4,
+          "loadgen_cpu_pct": 11.9,
+          "nats_in_bytes_per_s": 2341919,
+          "nats_in_msgs_per_s": 7270,
+          "worker_rss_mb_by_replica": [
+            167.4,
+            157.9,
+            162.0,
+            160.3
+          ],
+          "worker_rss_mb": 167.4
+        },
+        {
+          "t": 1794033722.9532497,
+          "pending": 0,
+          "stream_msgs": 602577,
+          "nats_cpu_pct": 138,
+          "nats_mem_mb": 103.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 511.9,
+          "worker_cpu_pct_by_replica": [
+            43.9,
+            59.1,
+            41.4,
+            40.4
+          ],
+          "worker_cpu_pct": 184.8,
+          "loadgen_cpu_pct": 97.1,
+          "nats_in_bytes_per_s": 2174347,
+          "nats_in_msgs_per_s": 31080,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.9,
+            165.9,
+            160.2
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033724.967268,
+          "pending": 0,
+          "stream_msgs": 610071,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 93.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 336.7,
+          "worker_cpu_pct_by_replica": [
+            39.7,
+            41.2,
+            37.7,
+            32.3
+          ],
+          "worker_cpu_pct": 150.9,
+          "loadgen_cpu_pct": 9.4,
+          "nats_in_bytes_per_s": 2399459,
+          "nats_in_msgs_per_s": 7446,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.9,
+            165.9,
+            160.3
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033726.9842045,
+          "pending": 0,
+          "stream_msgs": 617198,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 93.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 368.1,
+          "worker_cpu_pct_by_replica": [
+            41.2,
+            45.1,
+            40.7,
+            33.2
+          ],
+          "worker_cpu_pct": 160.2,
+          "loadgen_cpu_pct": 21.3,
+          "nats_in_bytes_per_s": 2275783,
+          "nats_in_msgs_per_s": 7063,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.9,
+            165.9,
+            160.4
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033729.0034025,
+          "pending": 0,
+          "stream_msgs": 624700,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 101.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 353.0,
+          "worker_cpu_pct_by_replica": [
+            41.6,
+            39.6,
+            39.1,
+            32.2
+          ],
+          "worker_cpu_pct": 152.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2392663,
+          "nats_in_msgs_per_s": 7424,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.9,
+            165.9,
+            160.4
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033731.0177505,
+          "pending": 0,
+          "stream_msgs": 631621,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 110.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 334.7,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            35.2,
+            38.2,
+            31.3
+          ],
+          "worker_cpu_pct": 142.9,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2221613,
+          "nats_in_msgs_per_s": 6895,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            157.9,
+            165.9,
+            160.4
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033733.0342584,
+          "pending": 0,
+          "stream_msgs": 638913,
+          "nats_cpu_pct": 133,
+          "nats_mem_mb": 91.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 354.0,
+          "worker_cpu_pct_by_replica": [
+            45.1,
+            39.7,
+            41.7,
+            34.2
+          ],
+          "worker_cpu_pct": 160.7,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2331097,
+          "nats_in_msgs_per_s": 7233,
+          "worker_rss_mb_by_replica": [
+            170.0,
+            157.9,
+            165.9,
+            160.4
+          ],
+          "worker_rss_mb": 170.0
+        },
+        {
+          "t": 1794033735.053348,
+          "pending": 0,
+          "stream_msgs": 645891,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 103.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 316.3,
+          "worker_cpu_pct_by_replica": [
+            42.1,
+            39.6,
+            40.1,
+            31.7
+          ],
+          "worker_cpu_pct": 153.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2223222,
+          "nats_in_msgs_per_s": 6899,
+          "worker_rss_mb_by_replica": [
+            166.1,
+            158.2,
+            166.8,
+            160.4
+          ],
+          "worker_rss_mb": 166.8
+        },
+        {
+          "t": 1794033737.0689528,
+          "pending": 0,
+          "stream_msgs": 652472,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 85.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 340.2,
+          "worker_cpu_pct_by_replica": [
+            39.2,
+            36.2,
+            37.7,
+            33.7
+          ],
+          "worker_cpu_pct": 146.8,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2204641,
+          "nats_in_msgs_per_s": 31340,
+          "worker_rss_mb_by_replica": [
+            170.1,
+            158.2,
+            166.4,
+            161.0
+          ],
+          "worker_rss_mb": 170.1
+        },
+        {
+          "t": 1794033739.094037,
+          "pending": 0,
+          "stream_msgs": 659306,
+          "nats_cpu_pct": 123,
+          "nats_mem_mb": 88.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 330.0,
+          "worker_cpu_pct_by_replica": [
+            40.5,
+            39.0,
+            37.5,
+            32.6
+          ],
+          "worker_cpu_pct": 149.6,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2181264,
+          "nats_in_msgs_per_s": 6769,
+          "worker_rss_mb_by_replica": [
+            170.1,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 170.1
+        },
+        {
+          "t": 1794033741.111347,
+          "pending": 0,
+          "stream_msgs": 666215,
+          "nats_cpu_pct": 121,
+          "nats_mem_mb": 100.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 332.5,
+          "worker_cpu_pct_by_replica": [
+            39.7,
+            37.2,
+            38.2,
+            32.2
+          ],
+          "worker_cpu_pct": 147.3,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2201407,
+          "nats_in_msgs_per_s": 6831,
+          "worker_rss_mb_by_replica": [
+            170.1,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 170.1
+        },
+        {
+          "t": 1794033743.129305,
+          "pending": 0,
+          "stream_msgs": 673320,
+          "nats_cpu_pct": 123,
+          "nats_mem_mb": 106.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 308.0,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            36.2,
+            36.7,
+            30.7
+          ],
+          "worker_cpu_pct": 141.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2275483,
+          "nats_in_msgs_per_s": 7062,
+          "worker_rss_mb_by_replica": [
+            170.1,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 170.1
+        },
+        {
+          "t": 1794033745.1444046,
+          "pending": 0,
+          "stream_msgs": 680819,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 90.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 313.3,
+          "worker_cpu_pct_by_replica": [
+            39.2,
+            37.2,
+            37.2,
+            31.8
+          ],
+          "worker_cpu_pct": 145.4,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2396794,
+          "nats_in_msgs_per_s": 7437,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033747.1576877,
+          "pending": 0,
+          "stream_msgs": 687509,
+          "nats_cpu_pct": 121,
+          "nats_mem_mb": 93.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 318.2,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            34.8,
+            36.8,
+            30.3
+          ],
+          "worker_cpu_pct": 140.1,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2142455,
+          "nats_in_msgs_per_s": 6648,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033749.1514008,
+          "pending": 0,
+          "stream_msgs": 694714,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 105.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 380.1,
+          "worker_cpu_pct_by_replica": [
+            42.6,
+            39.6,
+            40.6,
+            33.6
+          ],
+          "worker_cpu_pct": 156.4,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2337772,
+          "nats_in_msgs_per_s": 7258,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033751.1691544,
+          "pending": 1838,
+          "stream_msgs": 701838,
+          "nats_cpu_pct": 133,
+          "nats_mem_mb": 102.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 371.9,
+          "worker_cpu_pct_by_replica": [
+            40.6,
+            37.7,
+            39.2,
+            34.2
+          ],
+          "worker_cpu_pct": 151.7,
+          "loadgen_cpu_pct": 3.0,
+          "nats_in_bytes_per_s": 2338851,
+          "nats_in_msgs_per_s": 24432,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            158.2,
+            168.1,
+            161.0
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033753.1841435,
+          "pending": 0,
+          "stream_msgs": 709180,
+          "nats_cpu_pct": 132,
+          "nats_mem_mb": 95.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 398.9,
+          "worker_cpu_pct_by_replica": [
+            42.7,
+            39.7,
+            41.2,
+            33.7
+          ],
+          "worker_cpu_pct": 157.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2379492,
+          "nats_in_msgs_per_s": 14697,
+          "worker_rss_mb_by_replica": [
+            169.6,
+            158.2,
+            166.2,
+            160.6
+          ],
+          "worker_rss_mb": 169.6
+        },
+        {
+          "t": 1794033755.20413,
+          "pending": 0,
+          "stream_msgs": 716656,
+          "nats_cpu_pct": 119,
+          "nats_mem_mb": 106.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 323.3,
+          "worker_cpu_pct_by_replica": [
+            40.1,
+            37.1,
+            36.6,
+            31.2
+          ],
+          "worker_cpu_pct": 145.0,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2401784,
+          "nats_in_msgs_per_s": 7454,
+          "worker_rss_mb_by_replica": [
+            171.4,
+            158.2,
+            166.8,
+            160.7
+          ],
+          "worker_rss_mb": 171.4
+        },
+        {
+          "t": 1794033757.2259798,
+          "pending": 0,
+          "stream_msgs": 724248,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 109.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 322.9,
+          "worker_cpu_pct_by_replica": [
+            40.1,
+            36.6,
+            39.6,
+            31.7
+          ],
+          "worker_cpu_pct": 148.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2413263,
+          "nats_in_msgs_per_s": 7489,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.2,
+            166.9,
+            160.7
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033759.2391596,
+          "pending": 0,
+          "stream_msgs": 730903,
+          "nats_cpu_pct": 119,
+          "nats_mem_mb": 90.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 338.2,
+          "worker_cpu_pct_by_replica": [
+            40.7,
+            38.2,
+            39.2,
+            32.3
+          ],
+          "worker_cpu_pct": 150.4,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2129594,
+          "nats_in_msgs_per_s": 6607,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.2,
+            166.9,
+            160.8
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033761.2547295,
+          "pending": 0,
+          "stream_msgs": 738041,
+          "nats_cpu_pct": 127,
+          "nats_mem_mb": 102.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 326.6,
+          "worker_cpu_pct_by_replica": [
+            40.7,
+            37.2,
+            37.2,
+            32.2
+          ],
+          "worker_cpu_pct": 147.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2284863,
+          "nats_in_msgs_per_s": 7091,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.2,
+            166.5,
+            160.8
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033763.268094,
+          "pending": 0,
+          "stream_msgs": 745520,
+          "nats_cpu_pct": 137,
+          "nats_mem_mb": 99.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 420.3,
+          "worker_cpu_pct_by_replica": [
+            49.2,
+            39.7,
+            48.7,
+            33.8
+          ],
+          "worker_cpu_pct": 171.4,
+          "loadgen_cpu_pct": 62.6,
+          "nats_in_bytes_per_s": 2397830,
+          "nats_in_msgs_per_s": 7440,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.2,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033765.2862878,
+          "pending": 1844,
+          "stream_msgs": 751877,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 93.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 379.4,
+          "worker_cpu_pct_by_replica": [
+            40.1,
+            37.7,
+            39.1,
+            31.7
+          ],
+          "worker_cpu_pct": 148.6,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2128211,
+          "nats_in_msgs_per_s": 31071,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.4,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033767.30207,
+          "pending": 0,
+          "stream_msgs": 758919,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 99.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 405.2,
+          "worker_cpu_pct_by_replica": [
+            43.7,
+            37.2,
+            40.2,
+            39.2
+          ],
+          "worker_cpu_pct": 160.3,
+          "loadgen_cpu_pct": 42.7,
+          "nats_in_bytes_per_s": 2247843,
+          "nats_in_msgs_per_s": 6975,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.4,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033769.3175192,
+          "pending": 7,
+          "stream_msgs": 765973,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 111.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 358.7,
+          "worker_cpu_pct_by_replica": [
+            42.7,
+            38.2,
+            39.2,
+            33.7
+          ],
+          "worker_cpu_pct": 153.8,
+          "loadgen_cpu_pct": 6.5,
+          "nats_in_bytes_per_s": 2257533,
+          "nats_in_msgs_per_s": 7005,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.4,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033771.3328786,
+          "pending": 1,
+          "stream_msgs": 773444,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 105.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 314.9,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            37.7,
+            37.7,
+            32.3
+          ],
+          "worker_cpu_pct": 145.9,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2388099,
+          "nats_in_msgs_per_s": 7411,
+          "worker_rss_mb_by_replica": [
+            170.9,
+            158.4,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 170.9
+        },
+        {
+          "t": 1794033773.350919,
+          "pending": 22,
+          "stream_msgs": 780045,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 113.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 420.4,
+          "worker_cpu_pct_by_replica": [
+            40.6,
+            50.0,
+            39.1,
+            33.7
+          ],
+          "worker_cpu_pct": 163.4,
+          "loadgen_cpu_pct": 52.0,
+          "nats_in_bytes_per_s": 2109214,
+          "nats_in_msgs_per_s": 6545,
+          "worker_rss_mb_by_replica": [
+            168.7,
+            158.4,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 168.7
+        },
+        {
+          "t": 1794033775.367388,
+          "pending": 0,
+          "stream_msgs": 787410,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 113.9,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 314.4,
+          "worker_cpu_pct_by_replica": [
+            39.2,
+            36.2,
+            39.2,
+            31.7
+          ],
+          "worker_cpu_pct": 146.3,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2359929,
+          "nats_in_msgs_per_s": 7324,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            166.5,
+            160.9
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033777.3815084,
+          "pending": 0,
+          "stream_msgs": 794234,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 101.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 344.5,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            42.7,
+            37.2,
+            32.3
+          ],
+          "worker_cpu_pct": 150.9,
+          "loadgen_cpu_pct": 22.8,
+          "nats_in_bytes_per_s": 2180054,
+          "nats_in_msgs_per_s": 6764,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            166.4,
+            160.9
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033779.3793776,
+          "pending": 1262,
+          "stream_msgs": 801302,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 103.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 382.0,
+          "worker_cpu_pct_by_replica": [
+            42.5,
+            38.0,
+            39.5,
+            33.0
+          ],
+          "worker_cpu_pct": 153.0,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2319062,
+          "nats_in_msgs_per_s": 16036,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            166.7,
+            160.9
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033781.4232054,
+          "pending": 0,
+          "stream_msgs": 808159,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 111.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 315.4,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            35.2,
+            36.2,
+            30.3
+          ],
+          "worker_cpu_pct": 140.4,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2223969,
+          "nats_in_msgs_per_s": 22429,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            166.7,
+            160.9
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033783.4373484,
+          "pending": 0,
+          "stream_msgs": 815054,
+          "nats_cpu_pct": 120,
+          "nats_mem_mb": 113.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 299.4,
+          "worker_cpu_pct_by_replica": [
+            37.2,
+            34.8,
+            35.7,
+            30.8
+          ],
+          "worker_cpu_pct": 138.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2209529,
+          "nats_in_msgs_per_s": 6857,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033785.4519653,
+          "pending": 0,
+          "stream_msgs": 822503,
+          "nats_cpu_pct": 131,
+          "nats_mem_mb": 98.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 344.4,
+          "worker_cpu_pct_by_replica": [
+            41.2,
+            37.2,
+            39.7,
+            33.3
+          ],
+          "worker_cpu_pct": 151.4,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2389076,
+          "nats_in_msgs_per_s": 7414,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033787.4641762,
+          "pending": 0,
+          "stream_msgs": 829630,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 98.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 316.0,
+          "worker_cpu_pct_by_replica": [
+            38.8,
+            37.8,
+            38.3,
+            31.8
+          ],
+          "worker_cpu_pct": 146.7,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2278955,
+          "nats_in_msgs_per_s": 7071,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033789.4808059,
+          "pending": 0,
+          "stream_msgs": 837065,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 99.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 345.2,
+          "worker_cpu_pct_by_replica": [
+            42.1,
+            39.7,
+            41.2,
+            34.7
+          ],
+          "worker_cpu_pct": 157.7,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2376326,
+          "nats_in_msgs_per_s": 7374,
+          "worker_rss_mb_by_replica": [
+            169.0,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.0
+        },
+        {
+          "t": 1794033791.4929414,
+          "pending": 0,
+          "stream_msgs": 844754,
+          "nats_cpu_pct": 133,
+          "nats_mem_mb": 99.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 341.7,
+          "worker_cpu_pct_by_replica": [
+            42.7,
+            39.3,
+            40.3,
+            32.8
+          ],
+          "worker_cpu_pct": 155.1,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2467244,
+          "nats_in_msgs_per_s": 7656,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            166.6,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033793.511023,
+          "pending": 1775,
+          "stream_msgs": 851785,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 105.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 355.8,
+          "worker_cpu_pct_by_replica": [
+            39.1,
+            37.7,
+            37.7,
+            31.7
+          ],
+          "worker_cpu_pct": 146.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2291489,
+          "nats_in_msgs_per_s": 17777,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033795.5295687,
+          "pending": 0,
+          "stream_msgs": 859081,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 95.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 314.3,
+          "worker_cpu_pct_by_replica": [
+            39.6,
+            37.2,
+            37.7,
+            31.7
+          ],
+          "worker_cpu_pct": 146.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2380370,
+          "nats_in_msgs_per_s": 21187,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033797.5444236,
+          "pending": 1,
+          "stream_msgs": 866710,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 97.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 334.8,
+          "worker_cpu_pct_by_replica": [
+            41.7,
+            38.7,
+            39.2,
+            32.3
+          ],
+          "worker_cpu_pct": 151.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2445703,
+          "nats_in_msgs_per_s": 7589,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033799.5589437,
+          "pending": 0,
+          "stream_msgs": 873749,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 103.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 324.4,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            35.7,
+            38.2,
+            32.3
+          ],
+          "worker_cpu_pct": 144.9,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 2250336,
+          "nats_in_msgs_per_s": 6983,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            167.0,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033801.5715113,
+          "pending": 0,
+          "stream_msgs": 880935,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 112.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 328.4,
+          "worker_cpu_pct_by_replica": [
+            39.8,
+            37.3,
+            39.3,
+            32.3
+          ],
+          "worker_cpu_pct": 148.7,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2309870,
+          "nats_in_msgs_per_s": 7168,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            168.6,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033803.594045,
+          "pending": 0,
+          "stream_msgs": 887994,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 105.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 335.9,
+          "worker_cpu_pct_by_replica": [
+            40.0,
+            37.1,
+            38.1,
+            32.1
+          ],
+          "worker_cpu_pct": 147.3,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2245372,
+          "nats_in_msgs_per_s": 6968,
+          "worker_rss_mb_by_replica": [
+            169.5,
+            158.4,
+            168.6,
+            161.0
+          ],
+          "worker_rss_mb": 169.5
+        },
+        {
+          "t": 1794033805.6074843,
+          "pending": 3,
+          "stream_msgs": 894954,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 109.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 322.7,
+          "worker_cpu_pct_by_replica": [
+            39.7,
+            37.7,
+            39.2,
+            32.3
+          ],
+          "worker_cpu_pct": 148.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2226689,
+          "nats_in_msgs_per_s": 6910,
+          "worker_rss_mb_by_replica": [
+            170.1,
+            158.4,
+            164.7,
+            161.0
+          ],
+          "worker_rss_mb": 170.1
+        },
+        {
+          "t": 1794033807.625094,
+          "pending": 2,
+          "stream_msgs": 901931,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 99.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 354.6,
+          "worker_cpu_pct_by_replica": [
+            40.6,
+            39.2,
+            39.7,
+            31.7
+          ],
+          "worker_cpu_pct": 151.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2330207,
+          "nats_in_msgs_per_s": 31705,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.4,
+            166.9,
+            161.0
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033809.6268544,
+          "pending": 0,
+          "stream_msgs": 908494,
+          "nats_cpu_pct": 123,
+          "nats_mem_mb": 94.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 325.7,
+          "worker_cpu_pct_by_replica": [
+            39.5,
+            37.5,
+            39.5,
+            32.5
+          ],
+          "worker_cpu_pct": 149.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 2113815,
+          "nats_in_msgs_per_s": 6564,
+          "worker_rss_mb_by_replica": [
+            169.7,
+            158.5,
+            168.9,
+            161.0
+          ],
+          "worker_rss_mb": 169.7
+        },
+        {
+          "t": 1794033811.6397002,
+          "pending": 1,
+          "stream_msgs": 915435,
+          "nats_cpu_pct": 119,
+          "nats_mem_mb": 103.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 321.0,
+          "worker_cpu_pct_by_replica": [
+            40.2,
+            38.3,
+            40.2,
+            31.8
+          ],
+          "worker_cpu_pct": 150.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2226225,
+          "nats_in_msgs_per_s": 6911,
+          "worker_rss_mb_by_replica": [
+            169.7,
+            158.5,
+            168.9,
+            157.0
+          ],
+          "worker_rss_mb": 169.7
+        },
+        {
+          "t": 1794033813.6544037,
+          "pending": 0,
+          "stream_msgs": 922602,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 107.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 370.0,
+          "worker_cpu_pct_by_replica": [
+            40.2,
+            38.7,
+            39.2,
+            32.8
+          ],
+          "worker_cpu_pct": 150.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2296198,
+          "nats_in_msgs_per_s": 7126,
+          "worker_rss_mb_by_replica": [
+            169.7,
+            158.5,
+            168.9,
+            160.9
+          ],
+          "worker_rss_mb": 169.7
+        },
+        {
+          "t": 1794033815.6723416,
+          "pending": 0,
+          "stream_msgs": 929841,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 108.1,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 335.8,
+          "worker_cpu_pct_by_replica": [
+            39.1,
+            37.7,
+            39.6,
+            32.7
+          ],
+          "worker_cpu_pct": 149.1,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2310209,
+          "nats_in_msgs_per_s": 7170,
+          "worker_rss_mb_by_replica": [
+            169.7,
+            158.5,
+            168.9,
+            160.9
+          ],
+          "worker_rss_mb": 169.7
+        },
+        {
+          "t": 1794033817.6858425,
+          "pending": 0,
+          "stream_msgs": 937361,
+          "nats_cpu_pct": 130,
+          "nats_mem_mb": 105.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 354.9,
+          "worker_cpu_pct_by_replica": [
+            39.7,
+            37.7,
+            39.2,
+            32.3
+          ],
+          "worker_cpu_pct": 148.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2408968,
+          "nats_in_msgs_per_s": 7475,
+          "worker_rss_mb_by_replica": [
+            171.5,
+            158.5,
+            168.9,
+            162.9
+          ],
+          "worker_rss_mb": 171.5
+        },
+        {
+          "t": 1794033819.7023165,
+          "pending": 0,
+          "stream_msgs": 944157,
+          "nats_cpu_pct": 128,
+          "nats_mem_mb": 108.0,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 325.7,
+          "worker_cpu_pct_by_replica": [
+            38.7,
+            38.2,
+            37.2,
+            31.7
+          ],
+          "worker_cpu_pct": 145.8,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2173513,
+          "nats_in_msgs_per_s": 6745,
+          "worker_rss_mb_by_replica": [
+            171.5,
+            158.5,
+            168.9,
+            162.9
+          ],
+          "worker_rss_mb": 171.5
+        },
+        {
+          "t": 1794033821.7156937,
+          "pending": 1400,
+          "stream_msgs": 951428,
+          "nats_cpu_pct": 129,
+          "nats_mem_mb": 102.7,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 357.6,
+          "worker_cpu_pct_by_replica": [
+            40.7,
+            39.2,
+            41.2,
+            32.8
+          ],
+          "worker_cpu_pct": 153.9,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2333403,
+          "nats_in_msgs_per_s": 7241,
+          "worker_rss_mb_by_replica": [
+            171.5,
+            158.5,
+            167.1,
+            162.9
+          ],
+          "worker_rss_mb": 171.5
+        },
+        {
+          "t": 1794033823.7335873,
+          "pending": 0,
+          "stream_msgs": 958345,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 92.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 344.2,
+          "worker_cpu_pct_by_replica": [
+            40.6,
+            40.6,
+            39.1,
+            32.2
+          ],
+          "worker_cpu_pct": 152.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2304232,
+          "nats_in_msgs_per_s": 31622,
+          "worker_rss_mb_by_replica": [
+            171.5,
+            158.5,
+            167.1,
+            162.9
+          ],
+          "worker_rss_mb": 171.5
+        },
+        {
+          "t": 1794033825.7483678,
+          "pending": 0,
+          "stream_msgs": 965580,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 105.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 338.5,
+          "worker_cpu_pct_by_replica": [
+            41.2,
+            37.2,
+            38.2,
+            32.8
+          ],
+          "worker_cpu_pct": 149.4,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 2313840,
+          "nats_in_msgs_per_s": 7180,
+          "worker_rss_mb_by_replica": [
+            170.0,
+            158.5,
+            167.1,
+            162.9
+          ],
+          "worker_rss_mb": 170.0
+        },
+        {
+          "t": 1794033827.7669635,
+          "pending": 0,
+          "stream_msgs": 972874,
+          "nats_cpu_pct": 126,
+          "nats_mem_mb": 113.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 369.6,
+          "worker_cpu_pct_by_replica": [
+            43.6,
+            42.6,
+            42.6,
+            35.2
+          ],
+          "worker_cpu_pct": 164.0,
+          "loadgen_cpu_pct": 7.4,
+          "nats_in_bytes_per_s": 2330671,
+          "nats_in_msgs_per_s": 7238,
+          "worker_rss_mb_by_replica": [
+            170.1,
+            158.5,
+            167.2,
+            162.9
+          ],
+          "worker_rss_mb": 170.1
+        },
+        {
+          "t": 1794033829.7844963,
+          "pending": 0,
+          "stream_msgs": 979208,
+          "nats_cpu_pct": 124,
+          "nats_mem_mb": 100.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 376.5,
+          "worker_cpu_pct_by_replica": [
+            44.1,
+            51.1,
+            41.1,
+            40.1
+          ],
+          "worker_cpu_pct": 176.4,
+          "loadgen_cpu_pct": 1.5,
+          "nats_in_bytes_per_s": 2016401,
+          "nats_in_msgs_per_s": 6276,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.5,
+            167.2,
+            162.9
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033831.8011713,
+          "pending": 0,
+          "stream_msgs": 985404,
+          "nats_cpu_pct": 125,
+          "nats_mem_mb": 108.8,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 345.2,
+          "worker_cpu_pct_by_replica": [
+            38.2,
+            54.0,
+            19.3,
+            41.2
+          ],
+          "worker_cpu_pct": 152.7,
+          "loadgen_cpu_pct": 7.9,
+          "nats_in_bytes_per_s": 1976666,
+          "nats_in_msgs_per_s": 6143,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.5,
+            167.2,
+            162.9
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033833.8135755,
+          "pending": 0,
+          "stream_msgs": 991335,
+          "nats_cpu_pct": 118,
+          "nats_mem_mb": 105.5,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 305.4,
+          "worker_cpu_pct_by_replica": [
+            17.4,
+            54.7,
+            16.9,
+            41.2
+          ],
+          "worker_cpu_pct": 130.2,
+          "loadgen_cpu_pct": 1.0,
+          "nats_in_bytes_per_s": 1905528,
+          "nats_in_msgs_per_s": 5912,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.5,
+            167.2,
+            162.9
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033835.8314824,
+          "pending": 0,
+          "stream_msgs": 997524,
+          "nats_cpu_pct": 118,
+          "nats_mem_mb": 103.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 293.1,
+          "worker_cpu_pct_by_replica": [
+            17.3,
+            53.5,
+            16.8,
+            42.6
+          ],
+          "worker_cpu_pct": 130.2,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 1975583,
+          "nats_in_msgs_per_s": 6130,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.5,
+            167.2,
+            162.9
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033837.8295045,
+          "pending": 0,
+          "stream_msgs": 1003015,
+          "nats_cpu_pct": 114,
+          "nats_mem_mb": 107.6,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 300.4,
+          "worker_cpu_pct_by_replica": [
+            16.5,
+            51.6,
+            15.0,
+            29.0
+          ],
+          "worker_cpu_pct": 112.1,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 1871410,
+          "nats_in_msgs_per_s": 30523,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.5,
+            167.2,
+            162.9
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033839.840298,
+          "pending": 0,
+          "stream_msgs": 1007468,
+          "nats_cpu_pct": 93,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 228.2,
+          "worker_cpu_pct_by_replica": [
+            13.4,
+            56.2,
+            12.9,
+            12.9
+          ],
+          "worker_cpu_pct": 95.4,
+          "loadgen_cpu_pct": 1.5,
+          "nats_in_bytes_per_s": 1423111,
+          "nats_in_msgs_per_s": 4433,
+          "worker_rss_mb_by_replica": [
+            170.2,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.2
+        },
+        {
+          "t": 1794033841.8519645,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 92.1,
+          "worker_cpu_pct_by_replica": [
+            3.5,
+            15.9,
+            3.0,
+            2.5
+          ],
+          "worker_cpu_pct": 24.9,
+          "loadgen_cpu_pct": -2257.8,
+          "nats_in_bytes_per_s": 208922,
+          "nats_in_msgs_per_s": 658,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033843.8621113,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 14.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 32,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033845.8703873,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 8.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 65,
+          "nats_in_msgs_per_s": 1,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033847.8785353,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 18.4,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033849.8875117,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 15.5,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.5,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033851.8975859,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 16.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033853.9069312,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 14.4,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033855.9155312,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 11.5,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.5
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.4,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.4
+        },
+        {
+          "t": 1794033857.92342,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 17.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.5,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.5
+        },
+        {
+          "t": 1794033859.9325008,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 19.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.5,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.5,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.5
+        },
+        {
+          "t": 1794033861.9417496,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 14.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 32,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.5,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.5
+        },
+        {
+          "t": 1794033863.9508314,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 16.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.5,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.5
+        },
+        {
+          "t": 1794033865.9602566,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 14.5,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            170.5,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 170.5
+        },
+        {
+          "t": 1794033867.9562643,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 21.4,
+          "worker_cpu_pct_by_replica": [
+            0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 130,
+          "nats_in_msgs_per_s": 2,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            158.9
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033869.9654171,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 21.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.5,
+            0.0,
+            0.5
+          ],
+          "worker_cpu_pct": 1.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 259,
+          "nats_in_msgs_per_s": 4,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            159.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033871.974059,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 14.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 162,
+          "nats_in_msgs_per_s": 2,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033873.982474,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 34.5,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 32,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033875.9907758,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 13.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.5,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 65,
+          "nats_in_msgs_per_s": 1,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033877.998714,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 16.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033880.0077918,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 23.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033882.0159004,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 15.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.5
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 2.5,
+          "nats_in_bytes_per_s": 32,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033884.0259826,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0.5,
+          "nats_mem_mb": 112.2,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 9.5,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033886.0354033,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 14.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033888.0432491,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 17.5,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033890.052053,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.3,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 20.0,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.5,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033892.0607321,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 17.0,
+          "worker_cpu_pct_by_replica": [
+            0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 2.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033894.0692499,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 24.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033896.0777745,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 0,
+          "nats_mem_mb": 112.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 36.3,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.0,
+          "loadgen_cpu_pct": 0.0,
+          "nats_in_bytes_per_s": 0,
+          "nats_in_msgs_per_s": 0,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033898.0695255,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 17.5,
+          "worker_cpu_pct_by_replica": [
+            0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "worker_cpu_pct": 0.5,
+          "loadgen_cpu_pct": 2.0,
+          "nats_in_bytes_per_s": 131,
+          "nats_in_msgs_per_s": 2,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.0
+          ],
+          "worker_rss_mb": 171.0
+        },
+        {
+          "t": 1794033900.0788975,
+          "pending": 0,
+          "stream_msgs": 1008128,
+          "nats_cpu_pct": 1,
+          "nats_mem_mb": 112.4,
+          "nats_slow_consumers": 0,
+          "nats_connections": 5,
+          "host_cpu_pct": 20.9,
+          "worker_cpu_pct_by_replica": [
+            0.0,
+            1.0,
+            0.5,
+            1.0
+          ],
+          "worker_cpu_pct": 2.5,
+          "loadgen_cpu_pct": 0.5,
+          "nats_in_bytes_per_s": 421,
+          "nats_in_msgs_per_s": 6,
+          "worker_rss_mb_by_replica": [
+            171.0,
+            158.6,
+            167.2,
+            160.7
+          ],
+          "worker_rss_mb": 171.0
+        }
+      ]
+    }
+  ]
+}

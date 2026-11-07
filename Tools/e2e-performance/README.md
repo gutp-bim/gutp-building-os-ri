@@ -96,6 +96,11 @@ Three tools:
 - `s22_single_stream_dotnet.py` + `ingress-loadgen-dotnet/` — the single-stream ceiling with a native
   Grpc.Net.Client generator (one stream well past 10k frames/s). Build it once with
   `dotnet build -c Release Tools/e2e-performance/ingress-loadgen-dotnet`.
+- `s26_replica_scale.py` — the #626 replica-scaling cells: N streams round-robin over several `ingest`
+  replicas (`--ingress`, `--worker-pid`), each stream its own gateway and points, lake verified like S22
+  (compact objects win over parts, as on the read path). Waits for the lake writer's backlog to reach 0
+  before each cell. Worked orchestration (core pinning, fresh NATS/OxiGraph per replica set) is in
+  `docs/reference/ingest-throughput-sweep-data/s26-626/s26lib.sh`.
 - `nats_bench.py` — the NATS-only reference (publish-ack and publish-ack + KV put loops, pipelined
   publish) for the same server, to separate the worker's ceiling from the broker's.
 
