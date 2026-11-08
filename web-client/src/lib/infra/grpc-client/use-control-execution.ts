@@ -127,6 +127,7 @@ export function useControlExecution() {
           { controlId },
           { signal: abort.signal },
         )) {
+          if (abortRef.current !== abort) return; // superseded / dismissed
           clearTimers();
 
           if (event.result === ControlResult.SUCCESS) {
@@ -159,6 +160,7 @@ export function useControlExecution() {
           }
           break;
         }
+        if (abortRef.current !== abort) return;
         // The stream ended after a success without a confirmation (older API / bus expired): plain success.
         if (succeeded)
           setState((prev) =>
@@ -176,6 +178,7 @@ export function useControlExecution() {
             );
           }, AUTO_DISMISS_MS);
       } catch {
+        if (abortRef.current !== abort) return; // superseded / dismissed: leave the newer state alone
         if (succeeded) {
           // The write was accepted; only the confirmation is lost.
           setState((prev) =>
@@ -211,13 +214,23 @@ export function useControlExecution() {
     setState({ status: "cancelled" });
   }, [clearTimers]);
 
-  const dismiss = useCallback(() => {
+  /**
+   * #637: a stream now stays open after SUCCESS (for the confirmation), so dismissing or starting another result
+   * must end it — otherwise its late confirmation and timers would overwrite the newer state.
+   */
+  const stopCurrent = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     if (autoDismissRef.current) {
       clearTimeout(autoDismissRef.current);
       autoDismissRef.current = null;
     }
-    setState({ status: "idle" });
   }, []);
+
+  const dismiss = useCallback(() => {
+    stopCurrent();
+    setState({ status: "idle" });
+  }, [stopCurrent]);
 
   /** POST 失敗時にストリームなしで直接結果をセット（汎用失敗 / 権限不足 / gateway offline） */
   const setDirectResult = useCallback(
@@ -225,10 +238,11 @@ export function useControlExecution() {
       status: "failed" | "permission_denied" | "gateway_offline",
       message: string,
     ) => {
+      stopCurrent();
       clearTimers();
       setState({ status, message });
     },
-    [clearTimers],
+    [clearTimers, stopCurrent],
   );
 
   const isExecuting = state.status === "executing";
