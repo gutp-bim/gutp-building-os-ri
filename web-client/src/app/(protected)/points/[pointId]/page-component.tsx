@@ -135,6 +135,10 @@ export default function PointDetailPageComponent({
     if (live.sample === null) return;
     const pushed = live.sample;
     pushesApplied.current += 1;
+    // A pushed sample wins a timestamp tie (later arrival), snapshots included. That is self-correcting: the
+    // server sends a snapshot of what the KV held when the stream opened and then every change after it, so a
+    // snapshot that briefly shows an older equal-timestamp value is followed by the change that replaced it.
+    // (Only a REST read that a push overtook is held to a strictly later timestamp — see fetchHotData.)
     setHotData((current) => (isNewer(pushed, current) ? pushed : current));
   }, [live.sample]);
 
