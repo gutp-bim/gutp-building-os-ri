@@ -96,6 +96,21 @@ public class LatestValueFeedTest
     }
 
     [Fact]
+    public void Forget_BySanitizedKvKey_DropsThePointPublishedUnderItsRawId()
+    {
+        // A KV delete carries only the sanitized key; the value was published under the raw point id.
+        var feed = new LatestValueFeed();
+        const string raw = "AHU 1/temp";
+        var key = BuildingOS.Shared.Infrastructure.Oss.NatsKvLatestStore.SanitizeKey(raw);
+        Assert.NotEqual(raw, key);
+        feed.Publish(V(raw, 1));
+
+        feed.Forget(key);
+
+        Assert.False(feed.TryGetLatest(raw, out _));
+    }
+
+    [Fact]
     public async Task TwoSubscribersToOnePoint_BothReceiveIt()
     {
         var feed = new LatestValueFeed();

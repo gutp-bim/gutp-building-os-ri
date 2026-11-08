@@ -157,6 +157,38 @@ describe("PointDetailPageComponent latest-value push (#636)", () => {
     expect(screen.getByTestId("hot")).toHaveAttribute("data-live", "live");
   });
 
+  it("does not let a REST read that finishes late overwrite a newer pushed sample", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    let resolveRest: (v: unknown) => void = () => {};
+    (latestTelemetrySample as Mock).mockReturnValue(
+      new Promise((r) => {
+        resolveRest = r;
+      }),
+    );
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(1));
+    liveSample.current = {
+      t: "2026-11-08T00:00:10Z",
+      value: { kind: "number", value: 2 },
+    };
+
+    render(<PointDetailPageComponent pointId="p1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("hot")).toHaveTextContent(
+        "2026-11-08T00:00:10Z|2",
+      ),
+    );
+    resolveRest({
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    });
+
+    await waitFor(() => expect(latestTelemetrySample).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("hot")).toHaveTextContent(
+      "2026-11-08T00:00:10Z|2",
+    );
+  });
+
   it("keeps the REST value when the pushed sample is older", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
     (latestTelemetrySample as Mock).mockResolvedValue({

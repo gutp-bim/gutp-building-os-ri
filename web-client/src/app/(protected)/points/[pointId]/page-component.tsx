@@ -141,7 +141,10 @@ export default function PointDetailPageComponent({
       setHotError(null);
       // Raw latest sample (not the numeric-only series) so a string/boolean reading survives (#152).
       const latest = await latestTelemetrySample(pointDetail.point.id);
-      setHotData(latest);
+      // #636: a push may have landed while this read was in flight; never step back to an older reading.
+      setHotData((current) =>
+        latest !== null && isNewer(latest, current) ? latest : current,
+      );
     } catch (e) {
       console.error(e);
       setHotError("最新値の取得に失敗しました。");

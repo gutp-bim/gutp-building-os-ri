@@ -38,6 +38,9 @@ public sealed class LatestValueFeed
     private readonly object _gate = new();
     private readonly Dictionary<string, LatestValue> _latest = new(StringComparer.Ordinal);
     private readonly Dictionary<string, HashSet<Subscription>> _byPoint = new(StringComparer.Ordinal);
+    // A KV delete carries only the (lossily) sanitized key, so remember which point id each sanitized key
+    // stands for — the same reverse lookup PointLastSeenIndexStore keeps.
+    private readonly Dictionary<string, string> _pointBySanitizedKey = new(StringComparer.Ordinal);
     private readonly TimeProvider _clock;
 
     public LatestValueFeed(TimeProvider? clock = null) => _clock = clock ?? TimeProvider.System;
@@ -61,16 +64,27 @@ public sealed class LatestValueFeed
         lock (_gate)
         {
             _latest[value.PointId] = value;
+            var sanitized = Oss.NatsKvLatestStore.SanitizeKey(value.PointId);
+            if (!string.Equals(sanitized, value.PointId, StringComparison.Ordinal))
+                _pointBySanitizedKey[sanitized] = value.PointId;
             if (!_byPoint.TryGetValue(value.PointId, out var subs) || subs.Count == 0) return;
             targets = subs.ToArray();
         }
         foreach (var s in targets) s.Offer(value);
     }
 
-    /// <summary>The point left the bucket (deleted / purged): forget its value. Subscribers keep what they have.</summary>
-    public void Forget(string pointId)
+    /// <summary>
+    /// The point left the bucket (deleted / purged): forget its value. <paramref name="kvKey"/> is the KV key the
+    /// delete carried — the point id itself, or its sanitized form. Subscribers keep what they already have.
+    /// </summary>
+    public void Forget(string kvKey)
     {
-        lock (_gate) _latest.Remove(pointId);
+        lock (_gate)
+        {
+            if (!_latest.Remove(kvKey) && _pointBySanitizedKey.TryGetValue(kvKey, out var pointId))
+                _latest.Remove(pointId);
+            _pointBySanitizedKey.Remove(kvKey);
+        }
     }
 
     /// <summary>
