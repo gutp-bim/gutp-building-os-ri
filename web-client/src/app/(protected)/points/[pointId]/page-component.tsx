@@ -134,9 +134,12 @@ export default function PointDetailPageComponent({
   useEffect(() => {
     if (live.sample === null) return;
     const pushed = live.sample;
+    // A (re)connect snapshot replays what the server already had, so at an equal timestamp it is the older
+    // of the two and must not roll back a correction shown meanwhile; only a change event wins a tie.
+    const replaces = live.fromSnapshot ? isLaterReading : isNewer;
     pushesApplied.current += 1;
-    setHotData((current) => (isNewer(pushed, current) ? pushed : current));
-  }, [live.sample]);
+    setHotData((current) => (replaces(pushed, current) ? pushed : current));
+  }, [live.sample, live.fromSnapshot]);
 
   const fetchHotData = async () => {
     if (!pointDetail?.point.id) return;

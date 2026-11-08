@@ -30,8 +30,15 @@ const { liveSample } = vi.hoisted(() => ({
     },
   },
 }));
+const { liveFromSnapshot } = vi.hoisted(() => ({
+  liveFromSnapshot: { current: false },
+}));
 vi.mock("@/lib/infra/grpc-client/use-latest-value", () => ({
-  useLatestValue: () => ({ sample: liveSample.current, status: "live" }),
+  useLatestValue: () => ({
+    sample: liveSample.current,
+    fromSnapshot: liveFromSnapshot.current,
+    status: "live",
+  }),
 }));
 vi.mock("./components/telemetry-warm-data", () => ({
   // Expose the received data + a way to change the period so the out-of-order test can drive it.
@@ -132,6 +139,7 @@ const withState = (v: number) => ({
 afterEach(() => {
   vi.clearAllMocks();
   liveSample.current = null;
+  liveFromSnapshot.current = false;
 });
 
 describe("PointDetailPageComponent latest-value push (#636)", () => {
@@ -217,6 +225,33 @@ describe("PointDetailPageComponent latest-value push (#636)", () => {
       t: "2026-11-08T00:00:00Z",
       value: { kind: "number", value: 1 },
     });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByTestId("hot")).toHaveTextContent(
+      "2026-11-08T00:00:00Z|2",
+    );
+  });
+
+  it("a replayed snapshot at the same timestamp does not roll back the value on screen", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue({
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 2 },
+    });
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(2));
+
+    const { rerender } = render(<PointDetailPageComponent pointId="p1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("hot")).toHaveTextContent(
+        "2026-11-08T00:00:00Z|2",
+      ),
+    );
+    liveSample.current = {
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    };
+    liveFromSnapshot.current = true;
+    rerender(<PointDetailPageComponent pointId="p1" />);
     await new Promise((r) => setTimeout(r, 0));
 
     expect(screen.getByTestId("hot")).toHaveTextContent(
