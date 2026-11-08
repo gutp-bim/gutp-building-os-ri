@@ -70,8 +70,12 @@ public interface IHealthEventStore
         string subjectType, string subjectId, string kind, string severity, string detailJson,
         CancellationToken ct = default);
 
-    /// <summary>Closes the given events. Already-cleared ones are untouched. Returns how many were closed.</summary>
-    Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, CancellationToken ct = default);
+    /// <summary>
+    /// Closes the given events. Already-cleared ones are untouched. Returns how many were closed.
+    /// <paramref name="reason"/> is null for the normal "the condition went away", otherwise one of
+    /// <see cref="HealthEventClearReasons"/> (#635).
+    /// </summary>
+    Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, string? reason = null, CancellationToken ct = default);
 
     Task<HealthEventPage> QueryAsync(HealthEventQuery query, CancellationToken ct = default);
 

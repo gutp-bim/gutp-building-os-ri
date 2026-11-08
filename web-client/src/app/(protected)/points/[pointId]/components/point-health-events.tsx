@@ -78,6 +78,9 @@ export function PointHealthEvents({
               <div className="text-xs text-gray-500">
                 {when(e.raisedAt)} →{" "}
                 {e.isOpen ? <span className="text-amber-700">未解消</span> : when(e.clearedAt)}
+                {!e.isOpen && e.clearReason === "notMonitored" && (
+                  <span data-testid="point-event-clear-reason">（監視対象外になったため終了）</span>
+                )}
                 {e.acknowledgedAt && (
                   <span data-testid="point-event-ack"> ・ {e.acknowledgedBy ?? "確認済み"} が確認（{when(e.acknowledgedAt)}）</span>
                 )}

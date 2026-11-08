@@ -30,7 +30,11 @@ public sealed record PointHealthListResponse(
     bool DataComplete,
     PointLastSeenIndexState IndexState);
 
-/// <summary>データ健全性の軸別集計。<c>Suppressed</c> な警報は警報件数に数えない。</summary>
+/// <summary>
+/// データ健全性の軸別集計。<c>Suppressed</c> な警報は警報件数に数えない。<c>TotalPoints</c> 以下の件数は
+/// 判定対象の Point だけを数え、判定対象外（#635: リリース点・<c>bos:reportsTelemetry false</c>）は
+/// <c>NotMonitored</c> に別に数える。
+/// </summary>
 public sealed record PointHealthSummaryResponse(
     int TotalPoints,
     int Fresh,
@@ -40,7 +44,8 @@ public sealed record PointHealthSummaryResponse(
     int AlarmWarn,
     int AlarmCritical,
     bool DataComplete,
-    PointLastSeenIndexState IndexState);
+    PointLastSeenIndexState IndexState,
+    int NotMonitored = 0);
 
 /// <summary>
 /// データ健全性（#452）: <b>台帳（認可済み） × 最終受信インデックス × 閾値設定 × gateway 接続状態</b>
@@ -81,6 +86,7 @@ public class TelemetryHealthController : ControllerBase
     /// <param name="tag">customTags で絞り込み。複数指定は AND、大小無視</param>
     /// <param name="q">pointId / 名前の部分一致（大小無視）</param>
     /// <param name="sort">並べ替え（worst（既定）/ lastSeen / name）</param>
+    /// <param name="includeUnmonitored">判定対象外の Point（#635: リリース点・<c>bos:reportsTelemetry false</c>）も含めるか。既定 false。<c>healthStatus=NotMonitored</c> を指定したときも含まれる</param>
     /// <param name="limit">最大件数（1..500、既定 100）</param>
     /// <param name="offset">オフセット（既定 0）</param>
     /// <param name="ct">キャンセルトークン</param>
@@ -101,6 +107,7 @@ public class TelemetryHealthController : ControllerBase
         [FromQuery] string? sort,
         [FromQuery] int limit = DefaultLimit,
         [FromQuery] int offset = 0,
+        [FromQuery] bool includeUnmonitored = false,
         CancellationToken ct = default)
     {
         if (offset < 0) return BadRequest("offset must be >= 0");
@@ -115,6 +122,7 @@ public class TelemetryHealthController : ControllerBase
         query.HealthStatuses = ParseEnums<HealthStatus>(healthStatus);
         query.OlderThanSeconds = olderThan;
         query.Sort = ParseSort(sort);
+        query.IncludeUnmonitored = includeUnmonitored;
         query.Limit = limit;
         query.Offset = offset;
 
@@ -151,6 +159,8 @@ public class TelemetryHealthController : ControllerBase
         var query = BuildQuery(buildingDtId, floorDtId, deviceDtId, gatewayId, tag, q);
         query.Limit = int.MaxValue;
         var matched = PointHealthQueryFilter.Apply(items, query).Items;
+        query.HealthStatuses = [HealthStatus.NotMonitored];
+        var notMonitored = PointHealthQueryFilter.Apply(items, query).Total;
 
         return Ok(new PointHealthSummaryResponse(
             TotalPoints: matched.Count,
@@ -163,7 +173,8 @@ public class TelemetryHealthController : ControllerBase
             AlarmWarn: matched.Count(i => i.Alarm.Status == AlarmStatus.Warn),
             AlarmCritical: matched.Count(i => i.Alarm.Status == AlarmStatus.Critical),
             DataComplete: indexState == PointLastSeenIndexState.Ready,
-            IndexState: indexState));
+            IndexState: indexState,
+            NotMonitored: notMonitored));
     }
 
 

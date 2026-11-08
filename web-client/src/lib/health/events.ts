@@ -44,6 +44,11 @@ export type HealthEvent = {
   severity: HealthEventSeverity;
   raisedAt: string;
   clearedAt: string | null;
+  /**
+   * 解消の理由（#635）。条件が解消した通常の clear は null、Point が判定対象外になって閉じたものは
+   * `notMonitored`。「回復した」と「見るのをやめた」を同じ表示にしないために持つ。
+   */
+  clearReason: "notMonitored" | null;
   isOpen: boolean;
   acknowledgedAt: string | null;
   acknowledgedBy: string | null;
@@ -174,6 +179,8 @@ export function toHealthEvent(r: HealthEventResponse): HealthEvent {
     severity: oneOf(r.severity, ["warn", "critical"], "warn"),
     raisedAt: r.raisedAt ?? "",
     clearedAt: r.clearedAt ?? null,
+    // 未知の理由も「通常の解消」とは言い切れないので、既知の値だけを採り、それ以外は通常扱いにしない。
+    clearReason: r.clearReason === "not_monitored" ? "notMonitored" : null,
     isOpen: r.isOpen ?? r.clearedAt == null,
     acknowledgedAt: r.acknowledgedAt ?? null,
     acknowledgedBy: r.acknowledgedBy ?? null,

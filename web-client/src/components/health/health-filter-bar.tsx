@@ -212,6 +212,26 @@ export function HealthFilterBar({
           </select>
         </Field>
 
+        {/* #635: リリース点や値を送らない点は既定で隠す。件数は集計から出し、0 件なら出さない。 */}
+        {(query.includeUnmonitored || (summary?.notMonitored ?? 0) > 0) && (
+          <label className="flex items-center gap-1.5 pb-1 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              data-testid="health-include-unmonitored"
+              checked={query.includeUnmonitored === true}
+              onChange={(e) =>
+                onChange({ includeUnmonitored: e.target.checked || undefined })
+              }
+            />
+            監視対象外も表示
+            {summary !== null && (
+              <span className="text-gray-500">
+                （{summary.notMonitored} 件）
+              </span>
+            )}
+          </label>
+        )}
+
         <form
           className="flex items-end gap-2"
           onSubmit={(e) => {

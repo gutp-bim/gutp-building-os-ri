@@ -75,6 +75,11 @@ export interface TwinImportPreview {
   /** Ill-formed release points (#600); `releaseOfIssues` is a capped sample. Optional like the above. */
   releaseOfIssueCount?: number;
   releaseOfIssues?: TwinReleaseOfIssue[];
+  /**
+   * Points this import makes data health skip (#635: release points and `bos:reportsTelemetry false`).
+   * Observation only — never an issue, never blocks apply. Optional like the above.
+   */
+  notMonitoredPointCount?: number;
   valid: boolean;
 }
 
@@ -155,7 +160,11 @@ export function canApplyImport(
 
 /** Pure: short human summary of a preview for display. */
 export function previewSummary(preview: TwinImportPreview): string {
-  const base = `${preview.tripleCount} トリプル / ${preview.gatewayCount} ゲートウェイ`;
+  const notMonitored = preview.notMonitoredPointCount ?? 0;
+  // #635: 問題ではないが、宣言を誤ると実在の欠測が健全性から消えるので件数だけは見せる。
+  const base =
+    `${preview.tripleCount} トリプル / ${preview.gatewayCount} ゲートウェイ` +
+    (notMonitored > 0 ? ` / 監視対象外の Point ${notMonitored} 件` : "");
   const issues: string[] = [];
   if (preview.collisions.length > 0)
     issues.push(`gateway_id 重複 ${preview.collisions.length} 件`);

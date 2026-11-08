@@ -157,8 +157,12 @@ public sealed record TwinImportPreview(
     int ReleaseOfIssueCount = 0,
     IReadOnlyList<TwinReleaseOfIssue>? ReleaseOfIssues = null,
     int ClockIssueCount = 0,
-    IReadOnlyList<TwinClockIssue>? ClockIssues = null)
+    IReadOnlyList<TwinClockIssue>? ClockIssues = null,
+    int NotMonitoredPointCount = 0)
 {
+    // NotMonitoredPointCount (#635): points this import makes data health skip — release points and
+    // `bos:reportsTelemetry false`. Observation only (never affects Valid): it is there so a wrong declaration
+    // that would hide a real point from data health is noticed before apply.
     public IReadOnlyList<TwinIdCollision> IdCollisions { get; } = IdCollisions ?? [];
 
     /// <summary>

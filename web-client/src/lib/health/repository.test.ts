@@ -44,6 +44,7 @@ const BASE_ROW: HealthRow = {
   thresholdSeconds: 180,
   thresholdSource: "point",
   missingReason: null,
+  notMonitoredReason: null,
   value: null,
   violated: null,
   gatewayId: "GW-1",
@@ -216,6 +217,52 @@ describe("fetchPointHealth", () => {
     expect(page.rows[0].missingReason).toBe("gatewayDisconnected");
   });
 
+  it("#635: 監視対象外の行は monitoring.reason を写し、includeUnmonitored を送る", async () => {
+    listGet.mockResolvedValue({
+      ...wirePage,
+      items: [
+        {
+          ...wireItem,
+          healthStatus: "NotMonitored",
+          freshness: {
+            status: "NotMonitored",
+            lastSeen: null,
+            ageSeconds: null,
+          },
+          monitoring: { monitored: false, reason: "ReleasePoint" },
+        },
+      ],
+    });
+
+    const page = await fetchPointHealth({
+      ...DEFAULT_HEALTH_QUERY,
+      includeUnmonitored: true,
+    });
+
+    expect(listGet).toHaveBeenCalledWith({
+      query: { includeUnmonitored: true, sort: "worst", limit: 100, offset: 0 },
+    });
+    expect(page.rows[0].healthStatus).toBe("notMonitored");
+    expect(page.rows[0].freshnessStatus).toBe("notMonitored");
+    expect(page.rows[0].notMonitoredReason).toBe("releasePoint");
+  });
+
+  it("#635: 監視している行に理由が付いていても採らない", async () => {
+    listGet.mockResolvedValue({
+      ...wirePage,
+      items: [
+        {
+          ...wireItem,
+          monitoring: { monitored: true, reason: "ReleasePoint" },
+        },
+      ],
+    });
+
+    const page = await fetchPointHealth(DEFAULT_HEALTH_QUERY);
+
+    expect(page.rows[0].notMonitoredReason).toBeNull();
+  });
+
   it("3 軸のオブジェクトが丸ごと欠けていても既定値で埋める", async () => {
     listGet.mockResolvedValue({ items: [{ pointId: "PT002" }] });
 
@@ -314,6 +361,7 @@ describe("fetchPointHealthSummary", () => {
     unknown: 0,
     alarmWarn: 30,
     alarmCritical: 12,
+    notMonitored: 0,
     dataComplete: true,
     indexState: "Ready",
   };
@@ -361,6 +409,7 @@ describe("fetchPointHealthSummary", () => {
       unknown: 0,
       alarmWarn: 30,
       alarmCritical: 12,
+      notMonitored: 0,
       dataComplete: true,
       indexState: "ready",
     });
@@ -381,6 +430,7 @@ describe("fetchPointHealthSummary", () => {
       unknown: 0,
       alarmWarn: 0,
       alarmCritical: 0,
+      notMonitored: 0,
       dataComplete: false,
       indexState: "degraded",
     });

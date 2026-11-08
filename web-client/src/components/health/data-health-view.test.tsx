@@ -25,6 +25,7 @@ const staleRow: HealthRow = {
   thresholdSeconds: 900,
   thresholdSource: "point",
   missingReason: null,
+  notMonitoredReason: null,
   value: 23.4,
   violated: null,
   gatewayId: "GW-001",
@@ -48,6 +49,7 @@ const missingRow: HealthRow = {
   expectedIntervalSeconds: 60,
   thresholdSeconds: 180,
   missingReason: "gatewayDisconnected",
+  notMonitoredReason: null,
   value: null,
   deviceName: "AHU-01",
   gatewayConnected: false,
@@ -70,6 +72,7 @@ const summary: HealthSummary = {
   unknown: 0,
   alarmWarn: 30,
   alarmCritical: 12,
+  notMonitored: 0,
   dataComplete: true,
   indexState: "ready",
 };
@@ -517,5 +520,76 @@ describe("DataHealthView", () => {
     expect(screen.getByTestId("health-chip-missing").textContent).toContain(
       "—",
     );
+  });
+
+  describe("#635 監視対象外", () => {
+    const releaseRow: HealthRow = {
+      ...staleRow,
+      pointId: "REL-001",
+      name: "解除",
+      freshnessStatus: "notMonitored",
+      healthStatus: "notMonitored",
+      alarmStatus: "unknown",
+      lastSeen: null,
+      ageSeconds: null,
+      missingReason: null,
+      notMonitoredReason: "releasePoint",
+      value: null,
+    };
+    const declaredRow: HealthRow = {
+      ...releaseRow,
+      pointId: "WO-001",
+      name: "書込専用",
+      notMonitoredReason: "declaredNoTelemetry",
+      lastSeen: "2026-07-15T11:59:30Z",
+      ageSeconds: 30,
+    };
+
+    it("集計に監視対象外がなければ切り替えを出さない", async () => {
+      await renderView();
+      expect(
+        screen.queryByTestId("health-include-unmonitored"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("件数つきの切り替えを出し、URL に includeUnmonitored を写す", async () => {
+      const { onQueryChange } = await renderView({
+        loaders: makeLoaders({
+          loadSummary: vi
+            .fn()
+            .mockResolvedValue({ ...summary, notMonitored: 2 }),
+        }),
+      });
+
+      const toggle = await screen.findByTestId("health-include-unmonitored");
+      expect(toggle.closest("label")).toHaveTextContent(
+        "監視対象外も表示（2 件）",
+      );
+      toggle.click();
+
+      expect(lastUrl(onQueryChange)).toBe("includeUnmonitored=true");
+    });
+
+    it("行に理由を出し、宣言に反して受信している点は気づけるようにする", async () => {
+      await renderView({
+        loaders: makeLoaders({
+          loadHealth: vi.fn().mockResolvedValue({
+            ...page,
+            rows: [releaseRow, declaredRow],
+            total: 2,
+          }),
+        }),
+        query: { ...DEFAULT_HEALTH_QUERY, includeUnmonitored: true },
+      });
+
+      const reasons = screen.getAllByTestId("health-not-monitored-reason");
+      expect(reasons[0]).toHaveTextContent("リリース点（制御専用）");
+      expect(reasons[0]).not.toHaveTextContent("受信あり");
+      expect(reasons[1]).toHaveTextContent("値を送らない点（ツインで宣言）");
+      expect(reasons[1]).toHaveTextContent("ただし受信あり");
+      expect(
+        screen.getAllByTestId("health-freshness-notMonitored"),
+      ).toHaveLength(2);
+    });
   });
 });
