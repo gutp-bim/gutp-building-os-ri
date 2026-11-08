@@ -267,3 +267,80 @@ public class HealthEventReconcilerTest
         Assert.Empty(second.Clear);
     }
 }
+
+/// <summary>#635: points data health does not judge raise nothing, and events already open on them close at once.</summary>
+public class HealthEventReconcilerNotMonitoredTest
+{
+    private static PointHealthItem Unmonitored(string id, string? gateway = "GW-1", bool? connected = true) => new()
+    {
+        PointId = id,
+        Monitoring = new PointMonitoring(false, NotMonitoredReason.ReleasePoint),
+        HealthStatus = HealthStatus.NotMonitored,
+        Freshness = new PointFreshnessResult { Status = FreshnessStatus.NotMonitored },
+        Alarm = new PointAlarmResult { Status = AlarmStatus.Unknown },
+        Gateway = gateway is null ? null : new PointGatewayInfo(gateway, connected),
+    };
+
+    private static PointHealthItem Monitored(string id, string gateway = "GW-1", bool? connected = true) => new()
+    {
+        PointId = id,
+        Freshness = new PointFreshnessResult { Status = FreshnessStatus.Fresh, ThresholdSeconds = 300 },
+        Alarm = new PointAlarmResult { Status = AlarmStatus.Normal },
+        Gateway = new PointGatewayInfo(gateway, connected),
+    };
+
+    private static HealthEventEntry Open(string subject, string kind, string type = "point") => new()
+    {
+        Id = Guid.NewGuid(), SubjectType = type, SubjectId = subject, Kind = kind, Severity = "warn", RaisedAt = DateTime.UtcNow,
+    };
+
+    [Fact]
+    public void Unmonitored_RaisesNothing_EvenOverScans()
+    {
+        var r = new HealthEventReconciler(new HealthEventHysteresis(1, 1));
+
+        var first = r.Reconcile([Unmonitored("P-REL")], []);
+        var second = r.Reconcile([Unmonitored("P-REL")], []);
+
+        Assert.Empty(first.Raise);
+        Assert.Empty(second.Raise);
+    }
+
+    [Fact]
+    public void OpenEventOnAPointThatStoppedBeingMonitored_ClosesAtOnce_InItsOwnList()
+    {
+        // Deadband of 3: a normal clear would wait three scans; a declaration does not.
+        var r = new HealthEventReconciler(new HealthEventHysteresis(2, 3));
+        var missing = Open("P-REL", HealthEventKinds.Missing);
+
+        var plan = r.Reconcile([Unmonitored("P-REL")], [missing]);
+
+        Assert.Equal([missing.Id], plan.ClearNotMonitored);
+        Assert.Empty(plan.Clear);
+    }
+
+    [Fact]
+    public void GatewayOffline_CountsOnlyMonitoredPoints()
+    {
+        var r = new HealthEventReconciler(new HealthEventHysteresis(1, 1));
+
+        var plan = r.Reconcile(
+            [Monitored("P1", connected: false), Monitored("P2", connected: false), Unmonitored("P-REL", connected: false)], []);
+
+        var offline = plan.Raise.Single(c => c.Kind == HealthEventKinds.GatewayOffline);
+        Assert.Contains("\"pointCount\":2", offline.DetailJson);
+    }
+
+    [Fact]
+    public void GatewayEvent_IsNotTreatedAsAPoint()
+    {
+        // A gateway whose id happens to equal an unmonitored point's id is judged as a gateway.
+        var r = new HealthEventReconciler(new HealthEventHysteresis(1, 1));
+        var gw = Open("X", HealthEventKinds.GatewayOffline, type: "gateway");
+
+        var plan = r.Reconcile([Unmonitored("X", gateway: "X", connected: false)], [gw]);
+
+        Assert.Empty(plan.ClearNotMonitored);
+        Assert.Empty(plan.Clear);
+    }
+}

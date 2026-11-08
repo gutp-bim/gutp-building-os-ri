@@ -120,6 +120,7 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.Severity).HasColumnName("severity").IsRequired().HasMaxLength(20);
             entity.Property(e => e.RaisedAt).HasColumnName("raised_at").IsRequired();
             entity.Property(e => e.ClearedAt).HasColumnName("cleared_at");
+            entity.Property(e => e.ClearReason).HasColumnName("clear_reason").HasMaxLength(30);
             entity.Property(e => e.AcknowledgedAt).HasColumnName("acknowledged_at");
             entity.Property(e => e.AcknowledgedBy).HasColumnName("acknowledged_by").HasMaxLength(200);
             entity.Property(e => e.AcknowledgedByName).HasColumnName("acknowledged_by_name").HasMaxLength(200);

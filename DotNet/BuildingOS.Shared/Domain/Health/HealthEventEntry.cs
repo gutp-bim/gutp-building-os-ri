@@ -18,6 +18,15 @@ public static class HealthEventKinds
     public static readonly IReadOnlyList<string> All = [Stale, Missing, Alarm, GatewayOffline];
 }
 
+/// <summary>
+/// Why an event was closed other than "the condition went away" (#635). A normal clear has no reason (null).
+/// </summary>
+public static class HealthEventClearReasons
+{
+    /// <summary>The point stopped being judged at all (release point / <c>bos:reportsTelemetry false</c>).</summary>
+    public const string NotMonitored = "not_monitored";
+}
+
 public static class HealthEventSeverities
 {
     public const string Warn = "warn";
@@ -53,6 +62,12 @@ public sealed class HealthEventEntry
 
     /// <summary>Null while the condition holds (open).</summary>
     public DateTime? ClearedAt { get; set; }
+
+    /// <summary>
+    /// Null for a normal clear (the condition went away); otherwise one of <see cref="HealthEventClearReasons"/> —
+    /// so "the point recovered" and "the point stopped being monitored" never read alike (#635).
+    /// </summary>
+    public string? ClearReason { get; set; }
 
     public DateTime? AcknowledgedAt { get; set; }
 

@@ -31,6 +31,8 @@ export type Methods = DefineMethods<{
       limit?: number | undefined;
       /** オフセット（既定 0） */
       offset?: number | undefined;
+      /** 判定対象外の Point（#635: リリース点・`bos:reportsTelemetry false`）も含めるか。既定 false。`healthStatus=NotMonitored` を指定したときも含まれる */
+      includeUnmonitored?: boolean | undefined;
     } | undefined;
 
     status: 200;

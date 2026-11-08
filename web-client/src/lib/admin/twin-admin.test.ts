@@ -181,3 +181,30 @@ describe("controlSchemaIssueReasonLabel", () => {
     );
   });
 });
+
+describe("#635 previewSummary の監視対象外件数", () => {
+  const ok = {
+    tripleCount: 10,
+    gatewayCount: 1,
+    collisions: [],
+    orphanCount: 0,
+    orphans: [],
+    controlSchemaIssueCount: 0,
+    controlSchemaIssues: [],
+    valid: true,
+  };
+
+  it("件数を添えるが、問題としては扱わない", () => {
+    expect(previewSummary({ ...ok, notMonitoredPointCount: 3 })).toBe(
+      "10 トリプル / 1 ゲートウェイ / 監視対象外の Point 3 件 — 検証 OK",
+    );
+    expect(canApplyImport({ ...ok, notMonitoredPointCount: 3 })).toBe(true);
+  });
+
+  it("0 件や未送信（古い API）では何も足さない", () => {
+    expect(previewSummary(ok)).toBe("10 トリプル / 1 ゲートウェイ — 検証 OK");
+    expect(previewSummary({ ...ok, notMonitoredPointCount: 0 })).toBe(
+      "10 トリプル / 1 ゲートウェイ — 検証 OK",
+    );
+  });
+});

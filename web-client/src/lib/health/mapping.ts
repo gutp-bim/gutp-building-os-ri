@@ -21,12 +21,14 @@ import {
   normalizeFreshnessStatus,
   normalizeHealthStatus,
   normalizeMissingReason,
+  normalizeNotMonitoredReason,
   normalizeThresholdSource,
   type AlarmBound,
   type AlarmStatus,
   type FreshnessStatus,
   type HealthStatus,
   type MissingReason,
+  type NotMonitoredReason,
   type ThresholdSource,
 } from "./types";
 
@@ -47,6 +49,8 @@ export type HealthRow = {
   thresholdSource: ThresholdSource;
   /** 欠測の理由。欠測でない行は null。 */
   missingReason: MissingReason | null;
+  /** 判定対象外の理由（#635）。監視している行は null。 */
+  notMonitoredReason: NotMonitoredReason | null;
   value: number | null;
   violated: AlarmBound | null;
   gatewayId: string | null;
@@ -137,6 +141,10 @@ export function toHealthRow(wire: unknown): HealthRow {
       positiveNumber(w.thresholdSeconds) ?? DEFAULT_STALE_THRESHOLD_SECONDS,
     thresholdSource: normalizeThresholdSource(w.thresholdSource) ?? "system",
     missingReason,
+    notMonitoredReason:
+      freshnessStatus === "notMonitored"
+        ? normalizeNotMonitoredReason(w.notMonitoredReason)
+        : null,
     value: finiteNumber(w.value),
     violated: normalizeAlarmBound(w.violated),
     gatewayId: nullableText(w.gatewayId),
@@ -168,6 +176,8 @@ export function freshnessLabel(status: FreshnessStatus): string {
       return "欠測";
     case "unknown":
       return "判定不能";
+    case "notMonitored":
+      return "監視対象外";
   }
 }
 
@@ -204,6 +214,22 @@ export function healthStatusLabel(status: HealthStatus): string {
       return "判定不能";
     case "fresh":
       return "正常";
+    case "notMonitored":
+      return "監視対象外";
+  }
+}
+
+/** 判定対象外の理由（#635）。監視している行は {@link DASH}。 */
+export function notMonitoredReasonLabel(
+  reason: NotMonitoredReason | null,
+): string {
+  switch (reason) {
+    case "releasePoint":
+      return "リリース点（制御専用）";
+    case "declaredNoTelemetry":
+      return "値を送らない点（ツインで宣言）";
+    case null:
+      return DASH;
   }
 }
 

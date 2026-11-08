@@ -21,6 +21,7 @@ namespace BuildingOs.ApiServer.Controllers;
 /// <param name="Severity">warn | critical</param>
 /// <param name="RaisedAt">発生時刻（UTC）</param>
 /// <param name="ClearedAt">解消時刻（UTC）。null の間は open</param>
+/// <param name="ClearReason">解消の理由。条件が解消した通常の clear は null、監視対象外になった Point は <c>not_monitored</c>（#635）</param>
 /// <param name="IsOpen">未解消か</param>
 /// <param name="AcknowledgedAt">確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる</param>
 /// <param name="AcknowledgedBy">確認した人の表示名（無ければ sub）</param>
@@ -35,6 +36,7 @@ public sealed record HealthEventResponse(
     string Severity,
     DateTime RaisedAt,
     DateTime? ClearedAt,
+    string? ClearReason,
     bool IsOpen,
     DateTime? AcknowledgedAt,
     string? AcknowledgedBy,
@@ -297,7 +299,7 @@ public class HealthEventsController(
 
         return new HealthEventResponse(
             e.Id, e.SubjectType, e.SubjectId, name, building, e.Kind, e.Severity, Utc(e.RaisedAt), Utc(e.ClearedAt),
-            e.IsOpen, Utc(e.AcknowledgedAt), e.AcknowledgedByName ?? e.AcknowledgedBy, ParseDetail(e.Detail));
+            e.ClearReason, e.IsOpen, Utc(e.AcknowledgedAt), e.AcknowledgedByName ?? e.AcknowledgedBy, ParseDetail(e.Detail));
     }
 
     private static DateTime Utc(DateTime t) => DateTime.SpecifyKind(t, DateTimeKind.Utc);

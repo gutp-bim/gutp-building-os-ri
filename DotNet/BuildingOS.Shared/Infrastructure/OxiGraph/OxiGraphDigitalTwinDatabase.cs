@@ -730,7 +730,7 @@ ORDER BY ?gw";
     private const string PointVars =
         "?ptDt ?ptId ?ptName ?ptWritable ?ptSpec ?ptType ?ptGw ?devIdBac ?objType ?instNo ?ptInterval ?ptLocalId ?ptProtocol " +
         "?ptAlarmHigh ?ptAlarmLow ?ptWarnHigh ?ptWarnLow " +
-        "?ptUnit ?ptScale ?ptTargetArea ?ptInstallArea ?ptMinPres ?ptMaxPres";
+        "?ptUnit ?ptScale ?ptTargetArea ?ptInstallArea ?ptMinPres ?ptMaxPres ?ptIsRelease ?ptNoTelemetry";
 
     private static readonly string PointOptionals = $@"
   OPTIONAL {{ ?pt <{Prop_Writable}> ?ptWritable . }}
@@ -752,7 +752,9 @@ ORDER BY ?gw";
   OPTIONAL {{ ?pt <{Prop_TargetArea}> ?ptTargetArea . }}
   OPTIONAL {{ ?pt <{Prop_InstallationArea}> ?ptInstallArea . }}
   OPTIONAL {{ ?pt <{Prop_MinPresValue}> ?ptMinPres . }}
-  OPTIONAL {{ ?pt <{Prop_MaxPresValue}> ?ptMaxPres . }}";
+  OPTIONAL {{ ?pt <{Prop_MaxPresValue}> ?ptMaxPres . }}
+  BIND(EXISTS {{ ?pt <{Prop_ReleaseOf}> ?ptReleaseTarget . }} AS ?ptIsRelease)
+  BIND(EXISTS {{ ?pt <{Prop_ReportsTelemetry}> ?ptReports . FILTER(LCASE(STR(?ptReports)) IN (""false"", ""0"")) }} AS ?ptNoTelemetry)";
 
     /// <summary>
     /// Binds ?devTypeRaw / ?supplierRaw / ?ownerRaw / ?siteRaw for an already-bound ?dev (#298).
@@ -866,6 +868,10 @@ WHERE {{
             MinPresValue = min,
             MaxPresValue = max,
             HasUnrepresentableNativeBounds = (minRaw is not null && min is null) || (maxRaw is not null && max is null),
+            // #635: EXISTS rather than OPTIONAL so a (malformed) multi-valued bos:releaseOf cannot
+            // multiply the point's row. Both feed PointMonitoringPolicy.
+            IsReleasePoint = IsTrue(r.GetValueOrDefault("ptIsRelease")),
+            ReportsTelemetry = IsTrue(r.GetValueOrDefault("ptNoTelemetry")) ? false : null,
         };
     }
 
@@ -895,6 +901,8 @@ WHERE {{
         => rows.Select(r => r.GetValueOrDefault(key)).FirstOrDefault(v => !string.IsNullOrEmpty(v));
 
     private static string EscapeStringLiteral(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static bool IsTrue(string? value) => value is "true" or "1";
 
     private static int? TryParseNullableInt(string? value)
         => int.TryParse(value, out var parsed) ? parsed : null;

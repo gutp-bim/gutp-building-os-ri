@@ -145,6 +145,8 @@ public class OxiGraphDigitalTwinDatabaseTest
         // #298: present in the seeds all along, but no query asked for them.
         SbcoNs + "unit", SbcoNs + "scale", SbcoNs + "targetArea", SbcoNs + "installationArea",
         SbcoNs + "minPresValue", SbcoNs + "maxPresValue",
+        // #635: what data health needs to know whether to judge the point at all.
+        BosNs + "releaseOf", BosNs + "reportsTelemetry",
     };
 
     /// <summary>Equipment predicates every device read path is required to SELECT (#298).</summary>
@@ -286,6 +288,37 @@ public class OxiGraphDigitalTwinDatabaseTest
 
         Assert.Equal(0.1f, points[0].Scale);
         Assert.Equal("Room 201", points[0].TargetArea);
+    }
+
+    [Fact]
+    public async Task ListPoints_MapsTheTelemetryExpectation()
+    {
+        // #635: the EXISTS binds come back as xsd:boolean literals; absence is "false".
+        var db = BuildDb(@"{
+  ""results"": { ""bindings"": [
+    { ""ptDt"": {""type"":""uri"",""value"":""urn:dtid:rel""},
+      ""ptId"": {""type"":""literal"",""value"":""P-REL""},
+      ""ptName"": {""type"":""literal"",""value"":""release""},
+      ""ptIsRelease"": {""type"":""literal"",""datatype"":""http://www.w3.org/2001/XMLSchema#boolean"",""value"":""true""},
+      ""ptNoTelemetry"": {""type"":""literal"",""datatype"":""http://www.w3.org/2001/XMLSchema#boolean"",""value"":""false""} },
+    { ""ptDt"": {""type"":""uri"",""value"":""urn:dtid:wo""},
+      ""ptId"": {""type"":""literal"",""value"":""P-WO""},
+      ""ptName"": {""type"":""literal"",""value"":""write-only""},
+      ""ptIsRelease"": {""type"":""literal"",""datatype"":""http://www.w3.org/2001/XMLSchema#boolean"",""value"":""false""},
+      ""ptNoTelemetry"": {""type"":""literal"",""datatype"":""http://www.w3.org/2001/XMLSchema#boolean"",""value"":""true""} },
+    { ""ptDt"": {""type"":""uri"",""value"":""urn:dtid:ok""},
+      ""ptId"": {""type"":""literal"",""value"":""P-OK""},
+      ""ptName"": {""type"":""literal"",""value"":""ordinary""} }
+  ]}}");
+
+        var points = (await db.ListPoints("urn:dtid:dev4")).ToDictionary(p => p.Id);
+
+        Assert.True(points["P-REL"].IsReleasePoint);
+        Assert.Null(points["P-REL"].ReportsTelemetry);
+        Assert.False(points["P-WO"].IsReleasePoint);
+        Assert.False(points["P-WO"].ReportsTelemetry);
+        Assert.False(points["P-OK"].IsReleasePoint);
+        Assert.Null(points["P-OK"].ReportsTelemetry);
     }
 
     [Fact]

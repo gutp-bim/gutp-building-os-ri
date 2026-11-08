@@ -42,6 +42,7 @@ const healthSummary: HealthSummary = {
   unknown: 0,
   alarmWarn: 0,
   alarmCritical: 0,
+  notMonitored: 0,
   dataComplete: true,
   indexState: "ready",
 };
@@ -390,6 +391,7 @@ describe("OperatorHome", () => {
         unknown: 0,
         alarmWarn: 0,
         alarmCritical: 0,
+        notMonitored: 0,
         dataComplete: true,
         indexState: "ready",
       } satisfies HealthSummary),
@@ -426,6 +428,7 @@ describe("OperatorHome", () => {
         unknown: 0,
         alarmWarn: 0,
         alarmCritical: 0,
+        notMonitored: 0,
         dataComplete: true,
         indexState: "ready",
       } satisfies HealthSummary),

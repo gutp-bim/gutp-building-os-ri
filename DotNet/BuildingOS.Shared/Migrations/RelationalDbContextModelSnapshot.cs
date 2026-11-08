@@ -17,7 +17,7 @@ namespace BuildingOS.Shared.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.20")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -259,6 +259,11 @@ namespace BuildingOS.Shared.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("acknowledged_by_name");
+
+                    b.Property<string>("ClearReason")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("clear_reason");
 
                     b.Property<DateTime?>("ClearedAt")
                         .HasColumnType("timestamp with time zone")

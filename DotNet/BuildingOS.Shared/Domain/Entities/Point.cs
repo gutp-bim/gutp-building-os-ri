@@ -52,6 +52,15 @@ public class Point
     public string? ObjectTypeBacnet { get; set; }
     public string? DeviceIdBacnet { get; set; }
 
+    /// <summary>#600/#635: the point carries <c>bos:releaseOf</c> — a control target only, never a value source.</summary>
+    public bool IsReleasePoint { get; set; }
+
+    /// <summary>
+    /// #635: <c>false</c> when the twin declares <c>bos:reportsTelemetry false</c> (the point never reports a value);
+    /// <c>null</c> when undeclared, which means it does.
+    /// </summary>
+    public bool? ReportsTelemetry { get; set; }
+
     public Dictionary<string, string> Identifiers { get; set; } = new();
     public Dictionary<string, bool> CustomTags { get; set; } = new();
 }

@@ -192,10 +192,11 @@ public class TelemetryHealthControllerTest
         string? q = null,
         string? sort = null,
         int limit = 100,
-        int offset = 0) =>
+        int offset = 0,
+        bool includeUnmonitored = false) =>
         h.Controller.Get(
             buildingDtId, floorDtId, deviceDtId, gatewayId,
-            freshness, alarm, healthStatus, olderThan, tag, q, sort, limit, offset, default);
+            freshness, alarm, healthStatus, olderThan, tag, q, sort, limit, offset, includeUnmonitored, default);
 
     private static PointHealthListResponse Body(ActionResult<PointHealthListResponse> result) =>
         Assert.IsType<PointHealthListResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
@@ -718,5 +719,74 @@ public class TelemetryHealthControllerTest
         Assert.Null(item.Alarm.Value);
         // 到着そのものは起きているので鮮度は Fresh のまま（軸を混ぜない）。
         Assert.Equal(FreshnessStatus.Fresh, item.Freshness.Status);
+    }
+
+    // -------------------------------------------------------------------------
+    // #635 判定対象外（リリース点・bos:reportsTelemetry false）
+    // -------------------------------------------------------------------------
+
+    private static PointDetail ReleasePoint(string pointId) { var d = Detail(pointId, "解除"); d.Point!.IsReleasePoint = true; d.Point.Writable = true; return d; }
+    private static PointDetail NoTelemetry(string pointId) { var d = Detail(pointId, "書込専用"); d.Point!.ReportsTelemetry = false; d.Point.Writable = true; return d; }
+
+    [Fact]
+    public async Task ReleaseAndDeclaredPoints_AreNotListed_NorCountedAsMissing_ByDefault()
+    {
+        var h = Build(Detail("P-OK"), ReleasePoint("P-REL"), NoTelemetry("P-WO"));
+        h.Index.Set("P-OK", Now.AddSeconds(-10));
+
+        var list = Body(await Get(h));
+        var summary = Body(await h.Controller.Summary(null, null, null, null, null, null));
+
+        Assert.Equal(["P-OK"], list.Items.Select(i => i.PointId));
+        Assert.Equal(1, list.Total);
+        Assert.Equal(1, summary.TotalPoints);
+        Assert.Equal(0, summary.Missing);
+        Assert.Equal(2, summary.NotMonitored);
+    }
+
+    [Fact]
+    public async Task IncludeUnmonitored_ListsThem_WithReason_AndTheirLastReceipt()
+    {
+        var h = Build(Detail("P-OK"), ReleasePoint("P-REL"), NoTelemetry("P-WO"));
+        h.Index.Set("P-OK", Now.AddSeconds(-10));
+        // A declared write-only point that does report: the declaration is probably wrong, and the receipt shows it.
+        h.Index.Set("P-WO", Now.AddSeconds(-30));
+
+        var items = Body(await Get(h, includeUnmonitored: true)).Items.ToDictionary(i => i.PointId);
+
+        Assert.Equal(3, items.Count);
+        Assert.True(items["P-OK"].Monitoring.Monitored);
+        Assert.Equal(new PointMonitoring(false, NotMonitoredReason.ReleasePoint), items["P-REL"].Monitoring);
+        Assert.Equal(HealthStatus.NotMonitored, items["P-REL"].HealthStatus);
+        Assert.Equal(FreshnessStatus.NotMonitored, items["P-REL"].Freshness.Status);
+        Assert.Null(items["P-REL"].Freshness.LastSeen);
+        Assert.Equal(NotMonitoredReason.DeclaredNoTelemetry, items["P-WO"].Monitoring.Reason);
+        Assert.Equal(Now.AddSeconds(-30), items["P-WO"].Freshness.LastSeen);
+        Assert.Equal(30, items["P-WO"].Freshness.AgeSeconds);
+    }
+
+    [Fact]
+    public async Task HealthStatusNotMonitored_SelectsOnlyThem()
+    {
+        var h = Build(Detail("P-OK"), ReleasePoint("P-REL"));
+        h.Index.Set("P-OK", Now.AddSeconds(-10));
+
+        var body = Body(await Get(h, healthStatus: ["NotMonitored"]));
+
+        Assert.Equal(["P-REL"], body.Items.Select(i => i.PointId));
+    }
+
+    [Fact]
+    public async Task WritablePointWithoutDeclaration_IsStillMonitored()
+    {
+        // A BACnet AO is writable and reports its present value — writable alone must not hide it.
+        var d = Detail("P-AO");
+        d.Point!.Writable = true;
+        var h = Build(d);
+
+        var item = Body(await Get(h)).Items.Single();
+
+        Assert.True(item.Monitoring.Monitored);
+        Assert.Equal(FreshnessStatus.Missing, item.Freshness.Status);
     }
 }

@@ -38,11 +38,11 @@ public class HealthEvaluationCycleTest
             return Task.CompletedTask;
         }
 
-        public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, CancellationToken ct = default)
+        public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, string? reason = null, CancellationToken ct = default)
         {
             Calls++;
             var n = 0;
-            foreach (var r in Rows.Where(r => r.IsOpen && ids.Contains(r.Id))) { r.ClearedAt = now; n++; }
+            foreach (var r in Rows.Where(r => r.IsOpen && ids.Contains(r.Id))) { r.ClearedAt = now; r.ClearReason = reason; n++; }
             return Task.FromResult(n);
         }
 
@@ -102,6 +102,38 @@ public class HealthEvaluationCycleTest
         Assert.Empty(store.Rows.Where(e => e.IsOpen));
     }
 
+    [Fact]
+    public async Task PointThatStoppedBeingMonitored_ClosesItsEvent_WithTheNotMonitoredReason()
+    {
+        var store = new FakeStore();
+        var cycle = Cycle(clear: 3);
+        await Run(cycle, store, Snap(PointLastSeenIndexState.Ready, Item("P1", FreshnessStatus.Missing)));
+        Assert.Single(store.Rows, e => e.IsOpen);
+
+        // The twin now declares P1 a release point (#635): one scan closes it, without the 3-scan deadband.
+        var released = Item("P1");
+        released.Monitoring = new PointMonitoring(false, NotMonitoredReason.ReleasePoint);
+        released.HealthStatus = HealthStatus.NotMonitored;
+        var r = await Run(cycle, store, Snap(PointLastSeenIndexState.Ready, released));
+
+        Assert.Equal(1, r.ClearedNotMonitored);
+        Assert.Equal(0, r.Cleared);
+        var row = store.Rows.Single();
+        Assert.False(row.IsOpen);
+        Assert.Equal(HealthEventClearReasons.NotMonitored, row.ClearReason);
+    }
+
+    [Fact]
+    public async Task NormalClear_HasNoReason()
+    {
+        var store = new FakeStore();
+        var cycle = Cycle();
+        await Run(cycle, store, Snap(PointLastSeenIndexState.Ready, Item("P1", FreshnessStatus.Stale)));
+        await Run(cycle, store, Snap(PointLastSeenIndexState.Ready, Item("P1")));
+
+        Assert.Null(store.Rows.Single().ClearReason);
+    }
+
     private sealed class LosesTheRaceStore : FakeStore2
     {
         // Another replica opened the same condition between this scan's read and its write.
@@ -116,7 +148,7 @@ public class HealthEvaluationCycleTest
             Task.FromResult<IReadOnlyList<HealthEventEntry>>([]);
         public abstract Task<RaiseOutcome> RaiseAsync(HealthEventCandidate c, DateTime now, CancellationToken ct = default);
         public Task UpdateOpenAsync(string t, string s, string k, string sev, string d, CancellationToken ct = default) => Task.CompletedTask;
-        public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, string? reason = null, CancellationToken ct = default) => Task.FromResult(0);
         public Task<HealthEventPage> QueryAsync(HealthEventQuery q, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<HealthEventEntry?> GetAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<HealthEventAckResult?> AcknowledgeAsync(Guid id, string s, string? n, DateTime now, CancellationToken ct = default) => throw new NotSupportedException();
