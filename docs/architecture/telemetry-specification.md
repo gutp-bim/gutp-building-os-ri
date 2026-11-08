@@ -145,7 +145,11 @@ Hot KV への最新値反映は `HOT_STORE_COALESCE_MS` ごとの合体書込み
 です（#152・ADR-0006）。状態系ポイント（運転モード・列挙・ON/OFF・文字列ステータス）は**一級型として
 そのまま送れます**。
 
-- **number**（既定・主型）→ チャート／集計（avg/min/max）の対象。数値は全経路で完全後方互換。
+- **number**（既定・主型）→ チャート／集計（avg/min/max）の対象。数値は全経路で後方互換。ただし例外が 1 つある（#663）。
+  `value` の oneof が空の frame は、欠測として skip する（`result=no_value`、`accepted` に数えない）。
+  oneof 以前（#152 より前）の数値専用の gateway は、proto3 が既定値の `double` を省くため 0.0 を wire に載せられない。
+  その gateway は、ConnectorWorker に `GRPC_INGRESS_MISSING_VALUE_POLICY=zero` を設定しないと 0.0 の読み取りを失う。
+  いまの gateway は、0.0 を含めて毎回 oneof を設定するので影響はない。
 - **string**（状態ラベル・列挙ラベル）→ `TelemetryFrame` の `value_str`（proto oneof, field 6）。
   検証済みメッセージでは `value` が JSON 文字列になり、永続化層は `value_type="string"` + `value_text`
   で判別を運ぶ。集計は last-in-bucket（Phase B, D3）で「その区間の最新状態」を代表値にする（数値集計は null）。

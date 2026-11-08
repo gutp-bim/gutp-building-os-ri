@@ -1,3 +1,4 @@
+using Google.Protobuf;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
@@ -417,6 +418,41 @@ public class GatewayIngressServiceTest
         Assert.Equal(1L, accepted);
         using var doc = JsonDocument.Parse(Assert.Single(bus.Published).Message);
         Assert.Equal(0.0, doc.RootElement.GetProperty("telemetries")[0].GetProperty("value").GetDouble(), precision: 6);
+    }
+
+    [Fact]
+    public void TelemetryFrame_ExplicitDefaultValues_SurviveTheWire_AnUnsetOneofDoesNot()
+    {
+        // #663 relies on the oneof's presence: a set 0.0 / false / "" must still be set after the
+        // protobuf round trip (oneof members are always serialized), while an unset value stays None.
+        static TelemetryFrame RoundTrip(TelemetryFrame f) => TelemetryFrame.Parser.ParseFrom(f.ToByteArray());
+
+        Assert.Equal(TelemetryFrame.ValueOneofCase.ValueNum,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P", ValueNum = 0.0 }).ValueCase);
+        Assert.Equal(TelemetryFrame.ValueOneofCase.ValueBool,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P", ValueBool = false }).ValueCase);
+        Assert.Equal(TelemetryFrame.ValueOneofCase.ValueStr,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P", ValueStr = "" }).ValueCase);
+        Assert.Equal(TelemetryFrame.ValueOneofCase.None,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P" }).ValueCase);
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_ExplicitFalseAndEmptyString_AreAccepted()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Run", "DEV001", "GW001"),
+            new PointMetadata("PT002", "bldg-1", "Mode", "DEV001", "GW001"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueBool = false });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT002", ValueStr = "" });
+        reader.Complete();
+
+        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        Assert.Equal(2L, accepted);
+        Assert.Equal(2, bus.Published.Count);
     }
 
     [Theory]
