@@ -19,8 +19,9 @@ namespace BuildingOS.ConnectorWorker.Connectors;
 /// validated telemetry straight to <c>building-os.validated.telemetry</c> — no raw.{protocol} hop
 /// and no per-protocol connector needed for this path.
 ///
-/// A frame with an unknown <c>point_id</c>, whose <c>gateway_id</c> does not own that point in the
-/// twin, or (opt-in, #292) whose point is not connected to the building hierarchy, is skipped
+/// A frame with no value (by default, #663), an unknown <c>point_id</c>, whose <c>gateway_id</c> does
+/// not own that point in the twin, or (opt-in, #292) whose point is not connected to the building
+/// hierarchy, is skipped
 /// (logged + metered); the stream continues and <see cref="StreamAck"/>
 /// counts only successfully-enqueued frames. The service is stateless, so Ingress pods scale
 /// horizontally. Enabled only when GRPC_INGRESS_PORT is set (see Program.cs).
@@ -32,11 +33,14 @@ public sealed class GatewayIngressService(
     IngressHierarchyOptions hierarchy,
     ILogger<GatewayIngressService> logger,
     RunContextVerifier? runContext = null,
-    IngressPublishOptions? publish = null) : Protos.GatewayIngress.GatewayIngressBase
+    IngressPublishOptions? publish = null,
+    IngressMissingValueOptions? missingValue = null) : Protos.GatewayIngress.GatewayIngressBase
 {
     private const string ValidatedSubject = "building-os.validated.telemetry";
 
     private readonly int _window = Math.Max(1, (publish ?? new IngressPublishOptions()).Window);
+
+    private readonly IngressMissingValuePolicy _missingValue = (missingValue ?? new IngressMissingValueOptions()).Policy;
 
     /// <summary>A frame whose publish is in flight: its ack task plus what the result is tagged with.</summary>
     private readonly record struct PendingAck(string GatewayId, string PointId, string Message, Task Ack);
@@ -228,7 +232,7 @@ public sealed class GatewayIngressService(
     }
 
     /// <summary>
-    /// The pre-publish checks (ids, identity binding, run context, twin lookup, ownership, hierarchy):
+    /// The pre-publish checks (ids, identity binding, run context, value, twin lookup, ownership, hierarchy):
     /// returns the validated-telemetry message to publish, or null after counting the rejection.
     /// </summary>
     private async Task<string?> PrepareAsync(TelemetryFrame frame, string? trustedGatewayId, CancellationToken ct)
@@ -271,6 +275,18 @@ public sealed class GatewayIngressService(
             logger.LogWarning("Ingress: run context claim rejected ({Reason}) for gateway '{Gateway}' point '{PointId}', skipping",
                 runReason, frame.GatewayId, frame.PointId);
             Count(frame.GatewayId, runReason);
+            return null;
+        }
+
+        // Missing value (#663): a frame with no value case set is a missing reading. Publishing it as 0.0
+        // made it indistinguishable from a real 0 (a room temperature of "0 ℃" in history and the latest
+        // value), so by default it is dropped and counted. Checked before the twin lookup: it needs
+        // nothing from the twin. GRPC_INGRESS_MISSING_VALUE_POLICY=zero restores 0.0 for a legacy gateway.
+        if (frame.ValueCase == TelemetryFrame.ValueOneofCase.None && _missingValue == IngressMissingValuePolicy.Skip)
+        {
+            logger.LogWarning("Ingress: frame for point '{PointId}' from gateway '{Gateway}' has no value, skipping as missing",
+                frame.PointId, frame.GatewayId);
+            Count(frame.GatewayId, "no_value");
             return null;
         }
 
@@ -363,8 +379,9 @@ public sealed class GatewayIngressService(
     }
 
     // Maps the frame's discriminated value (#152) to the validated-telemetry union value. A frame with
-    // no value case set — e.g. a legacy numeric gateway that omitted its default-0.0 field-3 reading —
-    // falls through to numeric value_num (0.0), preserving the pre-#152 numeric-only wire behavior.
+    // no value case set reaches here only under GRPC_INGRESS_MISSING_VALUE_POLICY=zero (#663; the default
+    // skips it in PrepareAsync) and falls through to numeric value_num (0.0) — a legacy numeric gateway's
+    // omitted default-0.0 field-3 reading.
     private static ValidMessage.ValidTelemetryEntity.ValueEntity ToValueEntity(TelemetryFrame frame) =>
         frame.ValueCase switch
         {

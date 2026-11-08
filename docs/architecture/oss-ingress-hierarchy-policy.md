@@ -10,22 +10,26 @@ gRPC `GatewayIngress`（`DotNet/BuildingOS.ConnectorWorker/Connectors/GatewayIng
 > `docs/architecture/oss-gateway-pointlist-sync.md`（point list 同期）。CLAUDE.md の
 > `GRPC_INGRESS_REQUIRE_HIERARCHY` 環境変数表に技術的な詳細（判定ロジック、既定値）がある。
 
-## ゲート（TryIngestAsync の判定順）
+## ゲート（PrepareAsync の判定順）
 
-`GatewayIngressService.TryIngestAsync` は各フレームを以下の順に判定し、最初に該当したゲートで
+`GatewayIngressService.PrepareAsync` は各フレームを以下の順に判定し、最初に該当したゲートで
 拒否する（`building_os.ingress.messages` カウンター、`result` ラベルにゲート名が入る）。
 
 1. `missing_id` — `gateway_id` / `point_id` のいずれかが空。
 2. `identity_missing` / `identity_mismatch`（#296）— mTLS ingress が検証した gateway id と
    フレームの `gateway_id` が一致しない（`GRPC_INGRESS_REQUIRE_GATEWAY_IDENTITY` 有効時のみ強制）。
-3. `unknown_point` — twin に `point_id` が存在しない。
-4. `gateway_mismatch` — twin 上の所有 gateway と送信元 `gateway_id` が不一致。
-5. `no_building_path` / `no_device_link`（#292、本メモの対象）— `IngressHierarchyPolicy` が
+3. run context の検証（#613、`run_context_unconfigured` など）— run の claim が、運用者の置いた
+   lease と mTLS の gateway に合わない。
+4. `no_value`（#663）— `value` の oneof が設定されていない（欠測）。twin を引く前に判定する。
+   `GRPC_INGRESS_MISSING_VALUE_POLICY=zero` のときだけ、数値 0.0 として通す（oneof 以前の古い gateway 向け）。
+5. `unknown_point` — twin に `point_id` が存在しない。
+6. `gateway_mismatch` — twin 上の所有 gateway と送信元 `gateway_id` が不一致。
+7. `no_building_path` / `no_device_link`（#292、本メモの対象）— `IngressHierarchyPolicy` が
    `GRPC_INGRESS_REQUIRE_HIERARCHY` 有効時のみ判定。ポイントが building 階層（
    `locatedIn`→`Room`→`Level`→`Building` の空間チェーン、または `locatedIn`→`Level`→`Building`
    の直接配置のいずれか。トポロジーだけで辿り、`sbco:floor` リテラルは使わない）に到達できない、
    またはデバイスへリンクされていない場合に拒否。
-6. 上記いずれも通過 → NATS へ publish。publish 自体が失敗した場合のみ `publish_failed`。
+8. 上記いずれも通過 → NATS へ publish。publish 自体が失敗した場合のみ `publish_failed`。
 
 `GRPC_INGRESS_REQUIRE_HIERARCHY` は既定 off。ツインは段階的にモデリングされる（#118）ため、
 階層未確定のポイントを既定で全滴下すると初期構築中のデプロイでテレメトリーが全て消える。

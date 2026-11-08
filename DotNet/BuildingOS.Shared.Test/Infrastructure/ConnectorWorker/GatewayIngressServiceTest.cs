@@ -1,3 +1,4 @@
+using Google.Protobuf;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
@@ -23,14 +24,16 @@ public class GatewayIngressServiceTest
         FakePointMetadataCache cache,
         IngressIdentityOptions? identity = null,
         IngressHierarchyOptions? hierarchy = null,
-        int? window = null)
+        int? window = null,
+        IngressMissingValueOptions? missingValue = null)
         => new(
             bus,
             cache,
             identity ?? new IngressIdentityOptions(),
             hierarchy ?? new IngressHierarchyOptions(),
             NullLogger<GatewayIngressService>.Instance,
-            publish: window is { } w ? new IngressPublishOptions { Window = w } : null);
+            publish: window is { } w ? new IngressPublishOptions { Window = w } : null,
+            missingValue: missingValue);
 
     private static TelemetryFrame Frame(string gateway, string point, double value)
         => new() { GatewayId = gateway, PointId = point, ValueNum = value, Timestamp = "2026-11-07T00:00:00Z" };
@@ -335,10 +338,52 @@ public class GatewayIngressServiceTest
     }
 
     [Fact]
-    public async Task StreamTelemetry_NoValueCase_DefaultsToNumericZero()
+    public async Task StreamTelemetry_NoValueCase_IsSkippedAsMissing_ByDefault()
     {
-        // Wire back-compat: a legacy numeric gateway that omitted its default-0.0 field-3 reading
-        // deserializes as ValueCase.None → the server treats it as numeric 0.0 (not a dropped frame).
+        // #663: a frame with no value case set is a missing reading, not a 0.0 — storing 0.0 makes a
+        // missing room temperature read as 0 ℃ in history and the latest value. The default drops it
+        // and counts it as no_value; the stream continues with the next frame.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW-NOVAL"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-NOVAL", PointId = "PT001", Timestamp = "2026-11-07T00:00:00Z" }); // no value case set
+        reader.Push(Frame("GW-NOVAL", "PT001", 21.5));
+        reader.Complete();
+
+        var (accepted, results) = await RunCapturingResultsAsync("GW-NOVAL",
+            () => NewService(bus, cache).RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(1L, accepted);
+        Assert.Contains("no_value", results);
+        using var doc = JsonDocument.Parse(Assert.Single(bus.Published).Message);
+        Assert.Equal(21.5, doc.RootElement.GetProperty("telemetries")[0].GetProperty("value").GetDouble(), precision: 6);
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_NoValueCase_IsSkippedBeforeTheTwinLookup()
+    {
+        // The value check needs nothing from the twin, so a value-less frame for an unknown point is
+        // counted as no_value (the cheaper, more specific reason), not unknown_point.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache();
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW-NOVAL-ORDER", PointId = "PT-UNKNOWN" });
+        reader.Complete();
+
+        var (accepted, results) = await RunCapturingResultsAsync("GW-NOVAL-ORDER",
+            () => NewService(bus, cache).RunAsync(reader, CancellationToken.None));
+
+        Assert.Equal(0L, accepted);
+        Assert.Equal(["no_value"], results);
+        Assert.Empty(bus.Published);
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_NoValueCase_PublishesZero_UnderTheLegacyZeroPolicy()
+    {
+        // GRPC_INGRESS_MISSING_VALUE_POLICY=zero keeps the pre-#663 behaviour for a legacy numeric
+        // gateway (pre-#152, no oneof) whose 0.0 reading proto3 left off the wire.
         var bus = new FakeIngressTelemetryBus();
         var cache = new FakePointMetadataCache(
             new PointMetadata("PT001", "bldg-1", "Room Temp", "DEV001", "GW001"));
@@ -346,7 +391,9 @@ public class GatewayIngressServiceTest
         reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001" }); // no value case set
         reader.Complete();
 
-        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+        var accepted = await NewService(bus, cache,
+            missingValue: new IngressMissingValueOptions { Policy = IngressMissingValuePolicy.Zero })
+            .RunAsync(reader, CancellationToken.None);
 
         Assert.Equal(1L, accepted);
         using var doc = JsonDocument.Parse(Assert.Single(bus.Published).Message);
@@ -354,6 +401,70 @@ public class GatewayIngressServiceTest
         Assert.Equal(JsonValueKind.Number, value.ValueKind);
         Assert.Equal(0.0, value.GetDouble(), precision: 6);
     }
+
+    [Fact]
+    public async Task StreamTelemetry_ExplicitZero_IsAccepted()
+    {
+        // A real 0.0 set in the oneof (what current gateways send) is a reading, never a missing one.
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Valve", "DEV001", "GW001"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(Frame("GW001", "PT001", 0.0));
+        reader.Complete();
+
+        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        Assert.Equal(1L, accepted);
+        using var doc = JsonDocument.Parse(Assert.Single(bus.Published).Message);
+        Assert.Equal(0.0, doc.RootElement.GetProperty("telemetries")[0].GetProperty("value").GetDouble(), precision: 6);
+    }
+
+    [Fact]
+    public void TelemetryFrame_ExplicitDefaultValues_SurviveTheWire_AnUnsetOneofDoesNot()
+    {
+        // #663 relies on the oneof's presence: a set 0.0 / false / "" must still be set after the
+        // protobuf round trip (oneof members are always serialized), while an unset value stays None.
+        static TelemetryFrame RoundTrip(TelemetryFrame f) => TelemetryFrame.Parser.ParseFrom(f.ToByteArray());
+
+        Assert.Equal(TelemetryFrame.ValueOneofCase.ValueNum,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P", ValueNum = 0.0 }).ValueCase);
+        Assert.Equal(TelemetryFrame.ValueOneofCase.ValueBool,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P", ValueBool = false }).ValueCase);
+        Assert.Equal(TelemetryFrame.ValueOneofCase.ValueStr,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P", ValueStr = "" }).ValueCase);
+        Assert.Equal(TelemetryFrame.ValueOneofCase.None,
+            RoundTrip(new TelemetryFrame { GatewayId = "GW", PointId = "P" }).ValueCase);
+    }
+
+    [Fact]
+    public async Task StreamTelemetry_ExplicitFalseAndEmptyString_AreAccepted()
+    {
+        var bus = new FakeIngressTelemetryBus();
+        var cache = new FakePointMetadataCache(
+            new PointMetadata("PT001", "bldg-1", "Run", "DEV001", "GW001"),
+            new PointMetadata("PT002", "bldg-1", "Mode", "DEV001", "GW001"));
+        var reader = new FakeStreamReader<TelemetryFrame>();
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT001", ValueBool = false });
+        reader.Push(new TelemetryFrame { GatewayId = "GW001", PointId = "PT002", ValueStr = "" });
+        reader.Complete();
+
+        var accepted = await NewService(bus, cache).RunAsync(reader, CancellationToken.None);
+
+        Assert.Equal(2L, accepted);
+        Assert.Equal(2, bus.Published.Count);
+    }
+
+    [Theory]
+    [InlineData(null, IngressMissingValuePolicy.Skip)]
+    [InlineData("", IngressMissingValuePolicy.Skip)]
+    [InlineData("skip", IngressMissingValuePolicy.Skip)]
+    [InlineData("zero", IngressMissingValuePolicy.Zero)]
+    [InlineData(" ZERO ", IngressMissingValuePolicy.Zero)]
+    [InlineData("0", IngressMissingValuePolicy.Skip)] // unknown → the safe default
+    [InlineData("null", IngressMissingValuePolicy.Skip)]
+    public void IngressMissingValueOptions_Parse(string? raw, IngressMissingValuePolicy expected)
+        => Assert.Equal(expected, IngressMissingValueOptions.Parse(raw).Policy);
 
     [Fact]
     public async Task StreamTelemetry_Attributes_MergedIntoData()

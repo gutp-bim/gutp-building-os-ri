@@ -67,7 +67,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   {
     term: "Rejected レート",
     definition:
-      "拒否されたメッセージ数（毎秒, 直近1分）と拒否率（rejected ÷ ingress）。取込口が拒否した分（ingress の result≠published）と、取込口は受け付けたがコネクターが破棄した分（MQTT / Hono でデバイス・ポイントを解決できない等: connector:skipped / connector:error）を直接数えた合計で、Ingress − Validated の差ではありません。ツールチップに理由別の内訳が出ます（bad_payload は MQTT / AMQP、bad_topic は MQTT、unknown_point / gateway_mismatch / no_building_path などは gRPC gateway-ingress 固有。MQTT / Hono でポイントが解決できない場合は connector:skipped に入ります）。gRPC gateway-ingress の累計件数は取込拒否件数画面に出ます。",
+      "拒否されたメッセージ数（毎秒, 直近1分）と拒否率（rejected ÷ ingress）。取込口が拒否した分（ingress の result≠published）と、取込口は受け付けたがコネクターが破棄した分（MQTT / Hono でデバイス・ポイントを解決できない等: connector:skipped / connector:error）を直接数えた合計で、Ingress − Validated の差ではありません。ツールチップに理由別の内訳が出ます（bad_payload は MQTT / AMQP、bad_topic は MQTT、unknown_point / gateway_mismatch / no_building_path、値の無いフレームの no_value などは gRPC gateway-ingress 固有。MQTT / Hono でポイントが解決できない場合は connector:skipped に入ります）。gRPC gateway-ingress の累計件数は取込拒否件数画面に出ます。",
     category: "metric",
   },
   {

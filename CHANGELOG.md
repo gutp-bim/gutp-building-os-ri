@@ -10,6 +10,17 @@ publishes images for (`v*.*.*`).
 
 ## [Unreleased]
 
+### Changed
+
+- **gRPC ingress no longer stores a value-less frame as 0.0 (#663, breaking for pre-oneof gateways).** A
+  `TelemetryFrame` whose `value` oneof is unset is now skipped as a missing reading and counted as
+  `building_os.ingress.messages{result="no_value"}` (it is not in `StreamAck.accepted`). Before, it was
+  published as numeric 0.0, so a missing reading looked like a real 0 in history and the latest value.
+  Gateways that set the oneof for every reading (nexus-gateway does, 0.0 included) are unaffected. A
+  legacy numeric gateway from before the oneof (#152) cannot put 0.0 on the wire — proto3 omits a
+  default-valued `double` — so its 0.0 readings would now be dropped: set
+  `GRPC_INGRESS_MISSING_VALUE_POLICY=zero` on the ConnectorWorker to keep the old behaviour.
+
 ## [1.0.0-rc.3] - 2026-10-03
 
 Third release candidate. Adds persisted health events (#455) and the `/api/v1` REST versioning
