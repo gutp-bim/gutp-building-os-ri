@@ -51,8 +51,17 @@ Gateway が切れたときは配下の Point ごとではなく 1 件に集約�
 
 ![Point 詳細 — 値異常のイベントと直近イベント](docs/screenshots/demo-walkthrough-9-point-events.png)
 
+開いている画面が**今の値を追いかけ**、送った制御が**本当に効いたか**まで確かめられます:
+
+![ポイント詳細 — 最新値がプッシュで更新される（「自動更新中」）](docs/screenshots/point-live-value.png)
+
+![制御の 2 段階の結果 — ゲートウェイの受付に続いて「値の反映を確認しました」、制御履歴には反映の列（確認 / 不一致）](docs/screenshots/control-feedback-matched.png)
+
+![データ品質 — リリース点や値を送らない点は「監視対象外」として欠測・鮮度切れから外し、必要なときだけ表示](docs/screenshots/health-not-monitored.png)
+
 > 最初の 3 枚は route-mock した実 UI をブラウザ（Playwright）で撮影したものです（サンプルツイン相当のデータ、
-> `web-client/e2e/capture-readme-screenshots.spec.ts` で再生成可能）。異常の追跡の 2 枚は `make demo`
+> `web-client/e2e/capture-readme-screenshots.spec.ts` で再生成可能）。最新値・制御確認・監視対象外の 3 枚も同じく
+> route-mock（REST と gRPC-web の応答を差し替え）で、`web-client/e2e/capture-new-features.spec.ts` で再生成できます。異常の追跡の 2 枚は `make demo`
 > （東京デモビル、`DEMO_SCENARIO=degraded`）の実スタックから撮影しています
 > （`web-client/e2e/capture-demo-walkthrough.spec.ts`、手順は [5 分デモ台本](docs/guides/demo-walkthrough.md)）。実データでの動作は `make demo`
 > 後にブラウザで確認できます。
@@ -76,8 +85,12 @@ make demo
 ## ✨ 主要機能
 
 - 🌳 **リソースエクスプローラ** — 建物→フロア→空間→機器→ポイントの階層を辿る（`/resources`）＋横断検索
-- 📈 **テレメトリ可視化** — 最新値（Hot=NATS KV）と履歴（Warm/Cold=Parquet レイク）を層自動選択で表示
-- 🎛️ **ポイント制御** — 確認付きの書き込み制御（gRPC ストリーミング）＋監査ログ
+- 📈 **テレメトリ可視化** — 最新値（Hot=NATS KV）と履歴（Warm/Cold=Parquet レイク）を層自動選択で表示。
+  ポイント詳細の最新値は gRPC-web のプッシュで追従（再読み込み不要、閲覧権限を確認したうえで配信）
+- 🎛️ **ポイント制御** — 確認付きの書き込み制御（gRPC ストリーミング）＋監査ログ。ツインで確認用ポイント
+  （`bos:feedbackPoint`）を宣言すれば、ゲートウェイの受付だけでなく**値が実際に変わったか**まで照合して記録
+- 🩺 **データ品質** — 鮮度切れ・欠測・値異常・Gateway 切断をポイント単位で判定し、イベントとして追跡。
+  リリース点や値を送らない点（`bos:reportsTelemetry false`）は「監視対象外」として誤検知から外す
 - 🔌 **ゲートウェイ連携** — `(gateway_id, point_id)` 契約の gRPC ingress/egress ＋ Point List 同期（ETag）
 - 🧭 **デジタルツイン** — OxiGraph（SPARQL/SBCO）でビル階層を管理、point list の正本
 - 🔐 **認証・認可** — Keycloak（OIDC/JWT）＋リソース単位の権限モデル
@@ -635,7 +648,10 @@ now lives on the project site:* **[index-en.html](https://gutp-bim.github.io/gut
 **tl;dr:** Building OS is an open-source IoT platform for smart building management. It collects
 telemetry from building equipment (HVAC, power meters, environmental sensors) over gRPC / MQTT /
 NATS, stores it in a Parquet lake on MinIO (latest value cached in NATS KV), and serves it via a
-REST + gRPC API and a Next.js dashboard, with point-level control and a full audit trail.
+REST + gRPC API and a Next.js dashboard, with point-level control and a full audit trail. The point page
+follows the latest value over a gRPC-web push stream, a control can be confirmed against a feedback point
+(did the value actually change, not just "the gateway accepted it"), and write-only / release points are kept
+out of the data-health alarms as "not monitored".
 
 ```bash
 docker compose -f docker-compose.oss.yaml up -d
