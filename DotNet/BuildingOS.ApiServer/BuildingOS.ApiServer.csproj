@@ -28,6 +28,7 @@
     <ItemGroup>
         <Protobuf Include="..\..\proto\greet.proto" GrpcServices="Server" Link="Protos\greet.proto" />
         <Protobuf Include="..\..\proto\point_control.proto" GrpcServices="Server" Link="Protos\point_control.proto" />
+        <Protobuf Include="..\..\proto\telemetry_notification.proto" GrpcServices="Server" Link="Protos\telemetry_notification.proto" />
     </ItemGroup>
 
     <ItemGroup>

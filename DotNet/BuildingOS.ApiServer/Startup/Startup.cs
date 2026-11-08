@@ -95,6 +95,8 @@ namespace BuildingOs.ApiServer
             // NOT a new data store — it is a process-local projection of the existing telemetry-latest KV,
             // so the health endpoint answers thousands of points from memory instead of N hot-store gets.
             services.AddSingleton<PointLastSeenIndexStore>();
+            // #636: fed by the same KV watch; serves TelemetryNotificationGrpcService.
+            services.AddSingleton<LatestValueFeed>();
             services.AddSingleton<IPointLastSeenIndex>(sp => sp.GetRequiredService<PointLastSeenIndexStore>());
             services.AddHostedService<NatsKvPointLastSeenIndexWorker>();
             services.AddScoped<BuildingOs.ApiServer.Health.PointHealthLedger>(); // scoped: it reads the per-request authorized twin view and settings
@@ -505,6 +507,11 @@ namespace BuildingOs.ApiServer
                     .EnableGrpcWeb()
                     .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
                 endpoints.MapGrpcService<Services.PointControlGrpcService>()
+                    .EnableGrpcWeb()
+                    .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
+                // #636: authenticates in the service itself (Unauthenticated / PermissionDenied as gRPC
+                // statuses) rather than via RequireAuthorization, so gRPC-web clients get a status, not a 401 page.
+                endpoints.MapGrpcService<Services.TelemetryNotificationGrpcService>()
                     .EnableGrpcWeb()
                     .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
 

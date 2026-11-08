@@ -35,16 +35,21 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
     private readonly ILogger<NatsKvPointLastSeenIndexWorker> _logger;
     private readonly TimeProvider _clock;
     private readonly TimeSpan _emptyBucketReadyGrace;
+    private readonly LatestValueFeed? _feed;
 
     public NatsKvPointLastSeenIndexWorker(
         INatsJSContext js,
         PointLastSeenIndexStore store,
         ILogger<NatsKvPointLastSeenIndexWorker> logger,
         TimeProvider? clock = null,
-        TimeSpan? emptyBucketReadyGrace = null)
+        TimeSpan? emptyBucketReadyGrace = null,
+        LatestValueFeed? feed = null)
     {
         _js = js;
         _store = store;
+        // #636: the same watch also feeds the browser push of latest values, so the API server keeps one KV
+        // watch rather than one per open point page.
+        _feed = feed;
         _logger = logger;
         _clock = clock ?? TimeProvider.System;
         _emptyBucketReadyGrace = emptyBucketReadyGrace is { } g && g > TimeSpan.Zero
@@ -110,10 +115,12 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
                 if (entry.Operation is NatsKVOperation.Del or NatsKVOperation.Purge)
                 {
                     _store.Remove(entry.Key, observedAt);
+                    _feed?.Forget(entry.Key);
                 }
-                else if (TryMap(entry, out var mapped))
+                else if (TryMap(entry, observedAt, out var mapped, out var latest))
                 {
                     _store.Apply(mapped, observedAt);
+                    _feed?.Publish(latest);
                 }
 
                 // 初期リプレイの残りが 0 になった時点で「エントリが無い Point は本当に来ていない」と言える。
@@ -186,7 +193,8 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
     /// <c>NatsKvLatestStore.SanitizeKey</c> による非可逆変換なので、そこから pointId は復元できない。
     /// 値に pointId が無い（古いエントリ）ときだけ KV キーで代用する。
     /// </summary>
-    private bool TryMap(NatsKVEntry<byte[]> entry, out PointLastSeenEntry mapped)
+    private bool TryMap(
+        NatsKVEntry<byte[]> entry, DateTimeOffset observedAt, out PointLastSeenEntry mapped, out LatestValue latest)
     {
         ValidTelemetryData? data = null;
         if (entry.Value is { Length: > 0 } bytes)
@@ -205,10 +213,13 @@ public sealed class NatsKvPointLastSeenIndexWorker : BackgroundService
         if (string.IsNullOrEmpty(pointId))
         {
             mapped = null!;
+            latest = null!;
             return false;
         }
 
         mapped = new PointLastSeenEntry(pointId, ParseTimestamp(data?.Datetime), data?.Value, data?.ValueType);
+        latest = new LatestValue(
+            pointId, data?.Value, data?.ValueText, data?.ValueBool, data?.ValueType, data?.Datetime, observedAt);
         return true;
     }
 
