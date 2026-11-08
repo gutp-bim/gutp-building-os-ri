@@ -49,8 +49,18 @@ public sealed class ControlFeedbackCoordinator(
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
-    /// <summary>How long to wait for the gateway's answer before giving up on confirming.</summary>
-    internal static readonly TimeSpan ResultWait = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// How long to wait for the gateway's answer before giving up on confirming: at least the control's own result
+    /// timeout (<c>CONTROL_RESULT_TIMEOUT_SEC</c>) plus slack, so a SUCCESS that the operator's stream still accepts
+    /// is always confirmed — and never less than a minute, since the audit takes a late answer too.
+    /// </summary>
+    internal static readonly TimeSpan ResultWait = ResultWaitFor(PointControlGrpcService.Timeout);
+
+    internal static TimeSpan ResultWaitFor(TimeSpan controlResultTimeout)
+    {
+        var withSlack = controlResultTimeout + TimeSpan.FromSeconds(30);
+        return withSlack > TimeSpan.FromSeconds(60) ? withSlack : TimeSpan.FromSeconds(60);
+    }
 
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
 

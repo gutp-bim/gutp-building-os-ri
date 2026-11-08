@@ -99,4 +99,12 @@ public class PointControlGrpcServiceTest
         Assert.Equal(expected, r.Value);
         Assert.Equal(new DateTimeOffset(2026, 11, 8, 0, 0, 0, TimeSpan.Zero), r.At);
     }
+
+    [Theory]
+    [InlineData(10, 60)]
+    [InlineData(120, 150)]
+    public void TheConfirmationWaitsAtLeastAsLongAsTheControlResultTimeout(int timeoutSec, int expectedSec)
+    {
+        Assert.Equal(TimeSpan.FromSeconds(expectedSec), ControlFeedbackCoordinator.ResultWaitFor(TimeSpan.FromSeconds(timeoutSec)));
+    }
 }

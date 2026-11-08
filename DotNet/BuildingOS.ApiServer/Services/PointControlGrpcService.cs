@@ -16,7 +16,7 @@ public class PointControlGrpcService : PointControlService.PointControlServiceBa
     // result round-trip. Default 10s; ops can override via CONTROL_RESULT_TIMEOUT_SEC without a rebuild.
     // (Offline gateways already fail fast with 503 via NATS no-responders, #186 — this only bounds the
     // "connected but slow" case.)
-    private static readonly TimeSpan Timeout = ResolveTimeout();
+    internal static readonly TimeSpan Timeout = ResolveTimeout();
 
     /// <summary>#637: longest wait for the confirmation after a success — the longest window plus some slack.</summary>
     private static readonly TimeSpan FeedbackTimeout =
