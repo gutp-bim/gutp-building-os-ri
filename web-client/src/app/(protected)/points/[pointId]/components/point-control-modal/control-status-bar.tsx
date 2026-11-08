@@ -149,6 +149,7 @@ const UNAVAILABLE_REASON: Record<string, string> = {
   release_point: "解除の制御は値で確認できません",
   no_expected_value: "期待する値を決められません",
   interrupted: "確認が中断されました",
+  connection_lost: "確認中に接続が切れました（制御は受け付けられています）",
 };
 
 /** #637: the second stage — did the value actually change after the gateway accepted the write. */

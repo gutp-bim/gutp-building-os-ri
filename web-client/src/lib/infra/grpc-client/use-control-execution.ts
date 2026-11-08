@@ -119,8 +119,10 @@ export function useControlExecution() {
 
       // Start gRPC stream
       const client = createClient(PointControlService, grpcTransport);
+      // Outside the try: a connection lost while waiting for the confirmation must not turn an accepted write
+      // into "failed" (the operator might send it again).
+      let succeeded = false;
       try {
-        let succeeded = false;
         for await (const event of client.waitForResult(
           { controlId },
           { signal: abort.signal },
@@ -174,6 +176,18 @@ export function useControlExecution() {
             );
           }, AUTO_DISMISS_MS);
       } catch {
+        if (succeeded) {
+          // The write was accepted; only the confirmation is lost.
+          setState((prev) =>
+            prev.status === "success"
+              ? {
+                  ...prev,
+                  feedback: { kind: "unavailable", reason: "connection_lost" },
+                }
+              : prev,
+          );
+          return;
+        }
         if (abort.signal.aborted) {
           // timeout handler が既に state を設定済みか判定
           if (!timedOut) {

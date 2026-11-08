@@ -99,6 +99,31 @@ public class ControlFeedbackNatsTest(NatsFixture fixture) : IntegrationTestBase
     }
 
     [Fact]
+    public async Task AMatchBeforeTheGatewayAnswers_IsKept_EvenIfAnotherValueFollows()
+    {
+        // The feed keeps only the newest unread value per point; correlation must already be reading.
+        var (nats, bus) = await Connect();
+        await using var _ = nats;
+        await using var __ = bus;
+        var feed = new LatestValueFeed();
+        var coordinator = new ControlFeedbackCoordinator(
+            nats, feed, Config("PV-5", TimeSpan.FromSeconds(10)), new FakeAudit(), NullLogger<ControlFeedbackCoordinator>.Instance);
+        var controlId = Guid.NewGuid().ToString();
+
+        await bus.PrepareAsync(controlId, CancellationToken.None);
+        await coordinator.BeginAsync(
+            new ControlFeedbackRequest(controlId, Sp("SP-5"), new ControlSchema { DataType = "number" }, 24, DateTimeOffset.UtcNow), default);
+        var waiting = ReadAll(bus, controlId, 2);
+        var now = DateTimeOffset.UtcNow;
+        feed.Publish(V("PV-5", 24, now.AddSeconds(1)));
+        await Task.Delay(200);
+        feed.Publish(V("PV-5", 23, now.AddSeconds(2)));
+        await GatewayAnswers(nats, controlId, success: true);
+
+        Assert.Equal(ControlResult.FeedbackMatched, (await waiting)[1].Result);
+    }
+
+    [Fact]
     public async Task NoValueWithinTheWindow_IsTimeout()
     {
         var (nats, bus) = await Connect();

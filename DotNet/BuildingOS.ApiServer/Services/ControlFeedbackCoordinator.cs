@@ -57,36 +57,68 @@ public sealed class ControlFeedbackCoordinator(
     public async Task<IControlFeedbackHandle> BeginAsync(ControlFeedbackRequest request, CancellationToken ct)
     {
         var abandon = new CancellationTokenSource();
+        INatsSub<byte[]>? resultSub = null;
+        ILatestValueSubscription? values = null;
         try
         {
             var config = await configResolver.ResolveAsync(request.Point.Id, ct).ConfigureAwait(false);
-            var result = await nats.SubscribeCoreAsync<byte[]>(EgressSubjects.Result(request.ControlId), cancellationToken: abandon.Token)
+            resultSub = await nats.SubscribeCoreAsync<byte[]>(EgressSubjects.Result(request.ControlId), cancellationToken: abandon.Token)
                 .ConfigureAwait(false);
             await nats.PingAsync(ct).ConfigureAwait(false); // fence the SUB before the command is published
-            var values = config.FeedbackPointId is { } fb ? feed.Subscribe([fb]).Subscription : null;
+            values = config.FeedbackPointId is { } fb ? feed.Subscribe([fb]).Subscription : null;
 
-            _ = Task.Run(() => RunAsync(request, config, result, values, abandon), CancellationToken.None);
+            // The window and the stale-reading filter count from here — the command is published right after this
+            // returns — not from before the config lookup and the fence.
+            var sentAt = _clock.GetUtcNow();
+            var run = new Run(request with { SentAt = sentAt }, config, resultSub, values, abandon);
+            _ = Task.Run(() => RunAsync(run), CancellationToken.None);
             return new Handle(abandon);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        catch (Exception ex)
         {
-            logger.LogWarning(ex, "Control feedback could not start for {ControlId}; the control is not confirmed", request.ControlId);
+            // Nothing owns these yet: release them on every failed start, including a cancelled request.
+            values?.Dispose();
+            if (resultSub is not null)
+            {
+                try { await resultSub.UnsubscribeAsync().ConfigureAwait(false); } catch { /* already closed */ }
+            }
+            abandon.Cancel();
             abandon.Dispose();
+            if (ex is OperationCanceledException && ct.IsCancellationRequested) throw;
+            logger.LogWarning(ex, "Control feedback could not start for {ControlId}; the control is not confirmed", request.ControlId);
             return Handle.Noop;
         }
     }
 
-    private async Task RunAsync(
-        ControlFeedbackRequest request, ControlFeedbackConfig config, INatsSub<byte[]> resultSub,
-        ILatestValueSubscription? values, CancellationTokenSource abandon)
+    private sealed record Run(
+        ControlFeedbackRequest Request, ControlFeedbackConfig Config, INatsSub<byte[]> ResultSub,
+        ILatestValueSubscription? Values, CancellationTokenSource Abandon);
+
+    private async Task RunAsync(Run run)
     {
+        var (request, config, resultSub, values, abandon) = run;
         var started = _clock.GetUtcNow();
+        using var window = CancellationTokenSource.CreateLinkedTokenSource(abandon.Token);
         try
         {
-            if (!await WaitForSuccessAsync(resultSub, abandon.Token).ConfigureAwait(false)) return; // failed / abandoned: nothing to confirm
+            // Correlate from the moment the command goes out, while the gateway's answer is still on its way: the
+            // feed keeps only the newest unread value per point, so a matching reading followed by another one would
+            // otherwise be lost before we started looking.
+            var (correlation, unavailable) = Prepare(request, config, values);
+            var observing = correlation is null
+                ? Task.CompletedTask
+                : ObserveAsync(values!, correlation, request.SentAt + config.Window, window.Token);
+
+            if (!await WaitForSuccessAsync(resultSub, abandon.Token).ConfigureAwait(false))
+            {
+                window.Cancel(); // failed / abandoned: nothing to confirm
+                await observing.ConfigureAwait(false);
+                return;
+            }
 
             await audit.RecordFeedbackAsync(request.ControlId, ControlFeedbackStatuses.Pending, null, null).ConfigureAwait(false);
-            var outcome = await DecideAsync(request, config, values, abandon.Token).ConfigureAwait(false);
+            await observing.ConfigureAwait(false);
+            var outcome = correlation is null ? unavailable! : correlation.Result ?? correlation.Finish();
             await FinishAsync(request.ControlId, outcome, started).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (abandon.IsCancellationRequested)
@@ -108,6 +140,41 @@ public sealed class ControlFeedbackCoordinator(
         }
     }
 
+    /// <summary>The correlation to run, or — when the control cannot be confirmed — the unavailable result.</summary>
+    private static (ControlFeedbackCorrelation? Correlation, ControlFeedbackResult? Unavailable) Prepare(
+        ControlFeedbackRequest request, ControlFeedbackConfig config, ILatestValueSubscription? values)
+    {
+        if (values is null || config.FeedbackPointId is null)
+            return (null, new(ControlFeedbackOutcome.Unavailable, null, ControlFeedbackUnavailableReasons.NoFeedbackPoint));
+        if (request.Point.IsReleasePoint)
+            return (null, new(ControlFeedbackOutcome.Unavailable, null, ControlFeedbackUnavailableReasons.ReleasePoint));
+        var expected = ControlExpectedValueResolver.Resolve(
+            request.Schema, request.RequestedValue, config.Tolerance, request.Point.IsReleasePoint);
+        return expected is null
+            ? (null, new(ControlFeedbackOutcome.Unavailable, null, ControlFeedbackUnavailableReasons.NoExpectedValue))
+            : (new ControlFeedbackCorrelation(expected, request.SentAt), null);
+    }
+
+    /// <summary>Feeds the correlation until it matches or the window (counted from the command) ends.</summary>
+    private async Task ObserveAsync(
+        ILatestValueSubscription values, ControlFeedbackCorrelation correlation, DateTimeOffset windowEnd, CancellationToken ct)
+    {
+        using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var remaining = windowEnd - _clock.GetUtcNow();
+        window.CancelAfter(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
+        try
+        {
+            await foreach (var v in values.ReadAllAsync(window.Token).ConfigureAwait(false))
+            {
+                if (correlation.Observe(ToReading(v)) is not null) return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The window ended (or the control failed / was abandoned).
+        }
+    }
+
     private async Task<bool> WaitForSuccessAsync(INatsSub<byte[]> resultSub, CancellationToken abandon)
     {
         using var wait = CancellationTokenSource.CreateLinkedTokenSource(abandon);
@@ -126,36 +193,6 @@ public sealed class ControlFeedbackCoordinator(
             // No answer from the gateway: the control's own timeout reports that; there is nothing to confirm.
         }
         return false;
-    }
-
-    private async Task<ControlFeedbackResult> DecideAsync(
-        ControlFeedbackRequest request, ControlFeedbackConfig config, ILatestValueSubscription? values, CancellationToken abandon)
-    {
-        if (values is null || config.FeedbackPointId is null)
-            return new(ControlFeedbackOutcome.Unavailable, null, ControlFeedbackUnavailableReasons.NoFeedbackPoint);
-        if (request.Point.IsReleasePoint)
-            return new(ControlFeedbackOutcome.Unavailable, null, ControlFeedbackUnavailableReasons.ReleasePoint);
-        var expected = ControlExpectedValueResolver.Resolve(
-            request.Schema, request.RequestedValue, config.Tolerance, request.Point.IsReleasePoint);
-        if (expected is null)
-            return new(ControlFeedbackOutcome.Unavailable, null, ControlFeedbackUnavailableReasons.NoExpectedValue);
-
-        var correlation = new ControlFeedbackCorrelation(expected, request.SentAt);
-        var remaining = request.SentAt + config.Window - _clock.GetUtcNow();
-        using var window = CancellationTokenSource.CreateLinkedTokenSource(abandon);
-        window.CancelAfter(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
-        try
-        {
-            await foreach (var v in values.ReadAllAsync(window.Token).ConfigureAwait(false))
-            {
-                if (correlation.Observe(ToReading(v)) is { } decided) return decided;
-            }
-        }
-        catch (OperationCanceledException) when (!abandon.IsCancellationRequested)
-        {
-            // The window ended.
-        }
-        return correlation.Finish();
     }
 
     /// <summary>The feedback point's reading as a number: ADR-0006's discriminator decides which half is meant.</summary>
