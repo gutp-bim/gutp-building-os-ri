@@ -3,7 +3,7 @@
 import { InlineBanner } from "@/components/ui/inline-banner";
 import type { HealthRow } from "@/lib/health/mapping";
 import { fetchPointHealthRow } from "@/lib/health/repository";
-import { isNewer } from "@/lib/infra/grpc-client/latest-value";
+import { isLaterReading, isNewer } from "@/lib/infra/grpc-client/latest-value";
 import { useLatestValue } from "@/lib/infra/grpc-client/use-latest-value";
 import { getPointDetail } from "@/lib/resources/repository";
 import type { PointDetailResource } from "@/lib/resources/types";
@@ -149,8 +149,11 @@ export default function PointDetailPageComponent({
       // An empty answer still clears the card (the telemetry may have been purged) — unless a push arrived
       // during the read, which is newer than anything this read could say.
       setHotData((current) => {
-        if (latest === null)
-          return lastPushAppliedAt.current > startedAt ? current : null;
+        const pushedMeanwhile = lastPushAppliedAt.current > startedAt;
+        if (latest === null) return pushedMeanwhile ? current : null;
+        // A push that overtook this read is the later arrival: only a strictly later reading beats it.
+        if (pushedMeanwhile)
+          return isLaterReading(latest, current) ? latest : current;
         return isNewer(latest, current) ? latest : current;
       });
     } catch (e) {

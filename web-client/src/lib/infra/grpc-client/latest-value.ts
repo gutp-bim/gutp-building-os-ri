@@ -63,6 +63,22 @@ export function isNewer(
   return a > b || (a === b && !sameValue(next.value, current.value));
 }
 
+/**
+ * Strictly later timestamp only. For a REST read that a push overtook while it was in flight: an equal timestamp
+ * there is the older of the two arrivals, so it must not replace a pushed correction.
+ */
+export function isLaterReading(
+  next: TelemetryLatestSample,
+  current: TelemetryLatestSample | null,
+): boolean {
+  if (current === null) return true;
+  if (next.t === null) return false;
+  if (current.t === null) return true;
+  const a = Date.parse(next.t);
+  const b = Date.parse(current.t);
+  return !Number.isNaN(a) && !Number.isNaN(b) && a > b;
+}
+
 export const MIN_BACKOFF_MS = 1_000;
 export const MAX_BACKOFF_MS = 30_000;
 

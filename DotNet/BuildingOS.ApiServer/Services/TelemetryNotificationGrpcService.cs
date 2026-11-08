@@ -67,25 +67,28 @@ public sealed class TelemetryNotificationGrpcService(
             throw new RpcException(new Status(StatusCode.Unauthenticated, "Access token expired"));
 
         var ct = context.CancellationToken;
-        foreach (var id in pointIds)
-        {
-            var read = await twinView.GetPointAsync(auth, id, ct).ConfigureAwait(false);
-            if (read is not TwinGetResult<Point>.Ok)
-                throw new RpcException(new Status(StatusCode.PermissionDenied, "Not allowed to watch the requested points"));
-        }
-
-        var (subscription, snapshot) = feed.Subscribe(pointIds);
-        using var _ = subscription;
-        logger.LogDebug("WatchLatest opened for {PointCount} point(s)", pointIds.Length);
-
-        // The last reading sent per point (time *and* value): the watch can re-deliver an unchanged value (a reconnect
-        // replays the bucket), which is not a change — but a different value with the same timestamp is one (the hot
-        // store keeps the later arrival for an equal timestamp, #625).
-        var sent = new Dictionary<string, string>(StringComparer.Ordinal);
+        // The deadline starts now, before the point lookups: a token about to expire must not outlive its exp
+        // because authorizing 100 points took a while.
         using var expiry = CancellationTokenSource.CreateLinkedTokenSource(ct);
         expiry.CancelAfter(lifetime);
         try
         {
+            foreach (var id in pointIds)
+            {
+                var read = await twinView.GetPointAsync(auth, id, expiry.Token).ConfigureAwait(false);
+                if (read is not TwinGetResult<Point>.Ok)
+                    throw new RpcException(new Status(StatusCode.PermissionDenied, "Not allowed to watch the requested points"));
+            }
+
+            var (subscription, snapshot) = feed.Subscribe(pointIds);
+            using var _ = subscription;
+            logger.LogDebug("WatchLatest opened for {PointCount} point(s)", pointIds.Length);
+
+            // The last reading sent per point (time *and* value): the watch can re-deliver an unchanged value (a
+            // reconnect replays the bucket), which is not a change — but a different value with the same timestamp is
+            // one (the hot store keeps the later arrival for an equal timestamp, #625).
+            var sent = new Dictionary<string, string>(StringComparer.Ordinal);
+
             // Every write is bounded by the lifetime too, so a slow client cannot hold the stream past it.
             foreach (var v in snapshot)
             {
@@ -113,7 +116,8 @@ public sealed class TelemetryNotificationGrpcService(
         }
         catch (OperationCanceledException) when (expiry.IsCancellationRequested)
         {
-            // The lifetime is up: end cleanly so the client reconnects and is authorized afresh.
+            // The lifetime is up (possibly while still authorizing): end cleanly so the client reconnects and is
+            // authenticated and authorized afresh.
             logger.LogDebug("WatchLatest reached its lifetime of {Lifetime}; client will reconnect", lifetime);
         }
     }

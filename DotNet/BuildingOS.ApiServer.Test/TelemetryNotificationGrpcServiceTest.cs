@@ -203,6 +203,29 @@ public class TelemetryNotificationGrpcServiceTest
         Assert.Equal(0, feed.SubscriberCount);
     }
 
+    [Fact]
+    public async Task ATokenThatExpiresWhileAuthorizing_GetsNoSnapshot()
+    {
+        var feed = new LatestValueFeed();
+        feed.Publish(V("P1", 1, "2026-11-08T00:00:00Z"));
+        var view = new Mock<IAuthorizedTwinView>();
+        // A slow twin: the lookup takes longer than the token has left, and honours cancellation.
+        view.Setup(v => v.GetPointAsync(It.IsAny<AuthorizationContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(async (AuthorizationContext _, string id, CancellationToken token) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), token);
+                return (TwinGetResult<Point>)new TwinGetResult<Point>.Ok(new Point { DtId = "urn:" + id, Id = id, Name = id });
+            });
+        var collector = new Collector();
+
+        var call = Service(feed, view).WatchLatest(
+            Req("P1"), collector, new FakeCallContext(Http(exp: DateTimeOffset.UtcNow.AddSeconds(2)), default));
+
+        await call.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Empty(collector.Events);
+        Assert.Equal(0, feed.SubscriberCount);
+    }
+
     /// <summary>A client that never reads: every write blocks until its token is cancelled.</summary>
     private sealed class StuckWriter : IServerStreamWriter<LatestValueEvent>
     {
