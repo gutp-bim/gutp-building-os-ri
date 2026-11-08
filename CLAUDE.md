@@ -613,6 +613,6 @@ This is a single-context repository. Read the root domain documentation and rele
 ## Environment Requirements
 
 - .NET SDK 10.0+ (`DotNet/global.json` pins 10.0.100, `rollForward: latestFeature`)
-- Node.js 22.12.0+ minimum (`web-client/.node-version` + `package.json` `engines`; Node 20 is EOL and `@testing-library/jest-dom` 7 requires 22, #407); CI and the web Docker image run 22.x
+- Node.js 22.22.2+ (or 24.15.0+) minimum (`web-client/.node-version` + `package.json` `engines`; Node 20 is EOL and `@testing-library/jest-dom` 7 requires 22, #407; jsdom 30.1.3 requires `^22.22.2 || ^24.15.0`, #618); CI and the web Docker image run 22.x
 - Docker Desktop (for local development)
 - Buf CLI (for proto → TypeScript generation)
