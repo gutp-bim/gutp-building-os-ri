@@ -85,9 +85,11 @@ public sealed class TelemetryNotificationGrpcService(
         expiry.CancelAfter(lifetime);
         try
         {
+            // Every write is bounded by the lifetime too, so a slow client cannot hold the stream past it.
             foreach (var v in snapshot)
             {
-                await responseStream.WriteAsync(ToEvent(v, snapshot: true), ct).ConfigureAwait(false);
+                expiry.Token.ThrowIfCancellationRequested();
+                await responseStream.WriteAsync(ToEvent(v, snapshot: true), expiry.Token).ConfigureAwait(false);
                 sent[v.PointId] = v.Datetime;
                 Count("snapshot");
             }
@@ -96,7 +98,7 @@ public sealed class TelemetryNotificationGrpcService(
             {
                 if (sent.TryGetValue(v.PointId, out var last) && string.Equals(last, v.Datetime, StringComparison.Ordinal))
                     continue;
-                await responseStream.WriteAsync(ToEvent(v, snapshot: false), ct).ConfigureAwait(false);
+                await responseStream.WriteAsync(ToEvent(v, snapshot: false), expiry.Token).ConfigureAwait(false);
                 sent[v.PointId] = v.Datetime;
                 Count("change");
             }

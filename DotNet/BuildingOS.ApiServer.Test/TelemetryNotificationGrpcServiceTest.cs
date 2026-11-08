@@ -184,6 +184,27 @@ public class TelemetryNotificationGrpcServiceTest
         Assert.Equal(0, feed.SubscriberCount);
     }
 
+    /// <summary>A client that never reads: every write blocks until its token is cancelled.</summary>
+    private sealed class StuckWriter : IServerStreamWriter<LatestValueEvent>
+    {
+        public WriteOptions? WriteOptions { get; set; }
+        public Task WriteAsync(LatestValueEvent message) => Task.Delay(Timeout.Infinite);
+        public Task WriteAsync(LatestValueEvent message, CancellationToken cancellationToken) =>
+            Task.Delay(Timeout.Infinite, cancellationToken);
+    }
+
+    [Fact]
+    public async Task ASlowClient_CannotHoldTheStreamPastItsLifetime()
+    {
+        var feed = new LatestValueFeed();
+        feed.Publish(V("P1", 1, "2026-11-08T00:00:00Z")); // the snapshot write will block
+        var call = Service(feed, View("P1")).WatchLatest(
+            Req("P1"), new StuckWriter(), new FakeCallContext(Http(exp: DateTimeOffset.UtcNow.AddSeconds(2)), default));
+
+        await call.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(0, feed.SubscriberCount);
+    }
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow.AddSeconds(5);
