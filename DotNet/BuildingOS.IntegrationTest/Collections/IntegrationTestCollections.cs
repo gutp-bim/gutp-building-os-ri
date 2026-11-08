@@ -9,6 +9,9 @@ public static class Names
     public const string Minio = "Minio";
     public const string Postgres = "Postgres";
     public const string PgBouncer = "PgBouncer";
+
+    /// <summary>Optional TimescaleDB warm store; its tests skip unless INTEGRATION_TIMESCALE is set.</summary>
+    public const string Timescale = "Timescale";
 }
 
 [CollectionDefinition(Names.Nats)]
@@ -22,3 +25,6 @@ public class PostgresCollection : ICollectionFixture<PostgresFixture> { }
 
 [CollectionDefinition(Names.PgBouncer)]
 public class PgBouncerCollection : ICollectionFixture<PgBouncerFixture> { }
+
+[CollectionDefinition(Names.Timescale)]
+public class TimescaleCollection : ICollectionFixture<TimescaleFixture> { }

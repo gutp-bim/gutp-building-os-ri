@@ -8,13 +8,14 @@ using Xunit;
 
 namespace BuildingOS.IntegrationTest.Tests;
 
-[Collection("Postgres")]
+/// <summary>The optional TimescaleDB warm store (WARM_STORE=timescale). Skipped unless INTEGRATION_TIMESCALE is set.</summary>
+[Collection(Names.Timescale)]
 public class NpgsqlWarmTelemetryStoreTest : IntegrationTestBase
 {
-    private readonly PostgresFixture _fixture;
+    private readonly TimescaleFixture _fixture;
     private NpgsqlWarmTelemetryStore Sut => new(_fixture.ConnectionString);
 
-    public NpgsqlWarmTelemetryStoreTest(PostgresFixture fixture)
+    public NpgsqlWarmTelemetryStoreTest(TimescaleFixture fixture)
     {
         _fixture = fixture;
     }
@@ -44,7 +45,7 @@ public class NpgsqlWarmTelemetryStoreTest : IntegrationTestBase
         await cmd.ExecuteNonQueryAsync();
     }
 
-    [Fact]
+    [TimescaleFact]
     public async Task QueryAsync_ReturnsRowsInRange()
     {
         await SetupSchemaAsync();
@@ -59,7 +60,7 @@ public class NpgsqlWarmTelemetryStoreTest : IntegrationTestBase
         Assert.All(result, r => Assert.Equal("p-warm-1", r.PointId));
     }
 
-    [Fact]
+    [TimescaleFact]
     public async Task QueryAsync_ReturnsEmpty_WhenNoData()
     {
         await SetupSchemaAsync();
@@ -67,7 +68,7 @@ public class NpgsqlWarmTelemetryStoreTest : IntegrationTestBase
         Assert.Empty(result);
     }
 
-    [Fact]
+    [TimescaleFact]
     public async Task QueryLatestAsync_ReturnsNewestRow()
     {
         await SetupSchemaAsync();
@@ -81,7 +82,7 @@ public class NpgsqlWarmTelemetryStoreTest : IntegrationTestBase
         Assert.Equal(99.0, result!.Value);
     }
 
-    [Fact]
+    [TimescaleFact]
     public async Task QueryAsync_OrdersByTime()
     {
         await SetupSchemaAsync();

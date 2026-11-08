@@ -8,7 +8,7 @@ using Xunit;
 namespace BuildingOS.IntegrationTest.Common.Fixtures;
 
 /// <summary>
-/// pgBouncer (transaction pool) + TimescaleDB fixture.
+/// pgBouncer (transaction pool) + PostgreSQL fixture (plain postgres:16 — nothing here needs TimescaleDB).
 /// Tests Npgsql compatibility with pgBouncer in transaction pool mode.
 /// </summary>
 public class PgBouncerFixture : IAsyncLifetime
@@ -35,7 +35,7 @@ public class PgBouncerFixture : IAsyncLifetime
         await _network.CreateAsync();
 
         _postgres = new PostgreSqlBuilder()
-            .WithImage("timescale/timescaledb:latest-pg16")
+            .WithImage(Environment.GetEnvironmentVariable("POSTGRES_TEST_IMAGE") is { Length: > 0 } image ? image : "postgres:16")
             .WithDatabase(DbName)
             .WithUsername(DbUser)
             .WithPassword(DbPassword)
