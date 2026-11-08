@@ -72,7 +72,7 @@ NATS JetStream  building-os.validated.telemetry
 ## 1. 前提
 
 - Docker Desktop（ローカル開発の全サービスを compose で起動）
-- .NET SDK 8.0.126 以上の 8.0.x（API Server / ConnectorWorker をホストで動かす場合。`DotNet/global.json` と一致が必要）
+- .NET SDK 10.0.100 以上の 10.0.x（API Server / ConnectorWorker をホストで動かす場合。`DotNet/global.json` と一致が必要）
 - Node.js 22.12.0 以上（`web-client/.node-version`・`engines` の最低要件。CI と同じ 22.x）（Web Client をホストで動かす場合）
 - Yarn 1.22+（または Corepack 経由で有効化。Web Client をホストで動かす場合）
 - 任意: `uv`（Python）+ k6（E2E 性能ハーネスを動かす場合）
@@ -144,8 +144,8 @@ yarn install && yarn dev
 # → http://localhost:3000
 ```
 
-> `DotNet/global.json` は SDK `8.0.126` + `rollForward: latestPatch` を指定しています。
-> そのため `dotnet run` は 8.0.x SDK が必要で、10.x SDK のみでは起動できません。
+> `DotNet/global.json` は SDK `10.0.100` + `rollForward: latestFeature` を指定しています。
+> そのため `dotnet run` には 10.0.x SDK（10.0.100 以上）が必要で、8.x SDK では起動できません（#634）。
 
 **認証は既定で Keycloak に統一されています（#161）。** 既定の OSS スタック
 (`docker compose -f docker-compose.oss.yaml up`)では **API Server も JWT 必須**で、Web Client と
