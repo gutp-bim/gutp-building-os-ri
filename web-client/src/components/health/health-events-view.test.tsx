@@ -6,7 +6,7 @@ import { HealthEventsView, type HealthEventsLoaders } from "./health-events-view
 
 const base: HealthEvent = {
   id: "e1", subjectType: "point", subjectId: "P1", subjectName: "給気温度", buildingName: "本館",
-  kind: "stale", severity: "warn", raisedAt: "2026-10-02T12:00:00Z", clearedAt: null, isOpen: true,
+  kind: "stale", severity: "warn", raisedAt: "2026-10-02T12:00:00Z", clearedAt: null, clearReason: null, isOpen: true,
   acknowledgedAt: null, acknowledgedBy: null,
   detail: { ageSeconds: 900, thresholdSeconds: 300, lastSeen: null, reason: null, value: null, violated: null, pointCount: null },
 };
@@ -47,6 +47,17 @@ describe("HealthEventsView (#455)", () => {
     expect(within(row).getByTestId("event-cleared")).not.toHaveTextContent("未解消");
     expect(within(row).getByTestId("event-ack")).toHaveTextContent("山田");
     expect(within(row).queryByTestId("event-ack-button")).toBeNull();
+  });
+
+  it("#635: tells a closure by 'no longer monitored' apart from a recovery", async () => {
+    setup([
+      { ...base, id: "e1", isOpen: false, clearedAt: "2026-10-02T13:00:00Z", clearReason: "notMonitored" },
+      { ...base, id: "e2", isOpen: false, clearedAt: "2026-10-02T13:00:00Z" },
+    ]);
+    const stopped = await screen.findByTestId("event-row-e1");
+    const recovered = await screen.findByTestId("event-row-e2");
+    expect(within(stopped).getByTestId("event-clear-reason")).toHaveTextContent("監視対象外になったため終了");
+    expect(within(recovered).queryByTestId("event-clear-reason")).not.toBeInTheDocument();
   });
 
   it("acknowledging replaces the row with the server's answer", async () => {

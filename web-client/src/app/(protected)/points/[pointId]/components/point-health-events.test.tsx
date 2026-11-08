@@ -5,7 +5,7 @@ import { PointHealthEvents } from "./point-health-events";
 
 const ev: HealthEvent = {
   id: "e1", subjectType: "point", subjectId: "P1", subjectName: "給気温度", buildingName: null,
-  kind: "stale", severity: "warn", raisedAt: "2026-10-02T12:00:00Z", clearedAt: null, isOpen: true,
+  kind: "stale", severity: "warn", raisedAt: "2026-10-02T12:00:00Z", clearedAt: null, clearReason: null, isOpen: true,
   acknowledgedAt: null, acknowledgedBy: null,
   detail: { ageSeconds: 900, thresholdSeconds: 300, lastSeen: null, reason: null, value: null, violated: null, pointCount: null },
 };

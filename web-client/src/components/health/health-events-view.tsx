@@ -356,6 +356,11 @@ function EventRow({
       <td className="px-3 py-2 whitespace-nowrap">{formatTime(e.raisedAt)}</td>
       <td className="px-3 py-2 whitespace-nowrap" data-testid="event-cleared">
         {e.isOpen ? <span className="text-amber-700">未解消</span> : formatTime(e.clearedAt)}
+        {!e.isOpen && e.clearReason === "notMonitored" && (
+          <span className="block text-xs text-gray-500" data-testid="event-clear-reason">
+            監視対象外になったため終了（回復ではない）
+          </span>
+        )}
       </td>
       <td className="px-3 py-2" data-testid="event-ack">
         {e.acknowledgedAt ? (

@@ -11,7 +11,7 @@ import {
 type Over = Partial<Omit<HealthEvent, "detail">> & { detail?: Partial<HealthEvent["detail"]> };
 const ev = (over: Over): HealthEvent => ({
   id: "e1", subjectType: "point", subjectId: "P1", subjectName: "給気温度", buildingName: "本館",
-  kind: "stale", severity: "warn", raisedAt: "2026-10-02T12:00:00Z", clearedAt: null, isOpen: true,
+  kind: "stale", severity: "warn", raisedAt: "2026-10-02T12:00:00Z", clearedAt: null, clearReason: null, isOpen: true,
   acknowledgedAt: null, acknowledgedBy: null,
   ...over,
   detail: {
@@ -74,6 +74,12 @@ describe("toHealthEvent", () => {
     });
     expect(e).toMatchObject({ isOpen: false, acknowledgedBy: "山田", kind: "gateway_offline" });
     expect(e.detail.pointCount).toBe(3);
+  });
+
+  it("#635: maps clearReason not_monitored, and anything else to a normal clear", () => {
+    expect(toHealthEvent({ id: "x", clearedAt: "2026-10-02T13:00:00Z", isOpen: false, clearReason: "not_monitored" }).clearReason).toBe("notMonitored");
+    expect(toHealthEvent({ id: "x", clearedAt: "2026-10-02T13:00:00Z", isOpen: false, clearReason: null }).clearReason).toBeNull();
+    expect(toHealthEvent({ id: "x", clearedAt: "2026-10-02T13:00:00Z", isOpen: false }).clearReason).toBeNull();
   });
 
   it("falls back for unknown enum values instead of throwing", () => {
