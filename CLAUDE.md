@@ -51,7 +51,8 @@ dotnet restore
 dotnet build
 dotnet test --filter "FullyQualifiedName!~IntegrationTest"   # unit tests only
 dotnet test BuildingOS.IntegrationTest                        # integration tests (Docker required)
-#   PostgreSQL tests use plain postgres:16 (POSTGRES_TEST_IMAGE overrides). TimescaleDB is an optional warm store, so
+#   PostgreSQL tests use plain postgres:16 (POSTGRES_TEST_IMAGE overrides); pgBouncer is pinned to
+#   edoburu/pgbouncer:v1.26.1-p0 (PGBOUNCER_TEST_IMAGE overrides, e.g. a mirror). TimescaleDB is an optional warm store, so
 #   its tests ([TimescaleFact], collection "Timescale") skip unless INTEGRATION_TIMESCALE=true.
 dotnet test --filter "FullyQualifiedName~TestName"            # run a specific test
 
