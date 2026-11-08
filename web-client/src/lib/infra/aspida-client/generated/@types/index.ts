@@ -595,6 +595,12 @@ export type PointControlAuditResponse = {
   actorSub?: string | undefined;
   /** principal の表示名（無ければ null）。 */
   actorName?: string | null | undefined;
+  /** #637: 値が実際に変わったかの照合結果。"pending" / "matched" / "mismatch" / "timeout" / "unavailable"。照合しなかった制御は null */
+  feedbackStatus?: string | null | undefined;
+  /** #637: 判定に使った確認用ポイントの値。unavailable のときはその理由 */
+  feedbackValue?: string | null | undefined;
+  /** #637: 照合が確定した時刻 */
+  feedbackCompletedAt?: string | null | undefined;
 }
 
 export type PointControllerControlAcceptedResponse = {
@@ -945,6 +951,11 @@ export type TwinControlSchemaIssue = {
   reason?: string | undefined;
 }
 
+export type TwinFeedbackPointIssue = {
+  pointId?: string | undefined;
+  reason?: string | undefined;
+}
+
 export type TwinIdCollision = {
   resourceType?: string | undefined;
   id?: string | undefined;
@@ -963,6 +974,8 @@ export type TwinImportPreview = {
   releaseOfIssueCount?: number | undefined;
   clockIssueCount?: number | undefined;
   notMonitoredPointCount?: number | undefined;
+  feedbackPointIssueCount?: number | undefined;
+  feedbackPointIssues?: TwinFeedbackPointIssue[] | undefined;
   idCollisions?: TwinIdCollision[] | undefined;
   releaseOfIssues?: TwinReleaseOfIssue[] | undefined;
   clockIssues?: TwinClockIssue[] | undefined;

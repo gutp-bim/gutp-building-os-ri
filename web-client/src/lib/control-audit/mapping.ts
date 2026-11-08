@@ -1,4 +1,16 @@
-import type { ControlAuditEntry, ControlAuditStatus } from "./types";
+import type {
+  ControlAuditEntry,
+  ControlAuditFeedback,
+  ControlAuditStatus,
+} from "./types";
+
+const KNOWN_FEEDBACK: readonly ControlAuditFeedback[] = [
+  "pending",
+  "matched",
+  "mismatch",
+  "timeout",
+  "unavailable",
+];
 
 const KNOWN_STATUSES: readonly ControlAuditStatus[] = ["success", "failed", "pending"];
 
@@ -25,7 +37,36 @@ export function toControlAuditEntry(raw: Record<string, unknown>): ControlAuditE
         ? raw.actorSub
         : UNKNOWN_ACTOR_SUB,
     actorName: typeof raw.actorName === "string" ? raw.actorName : null,
+    // #637: an unknown future outcome is shown as "not confirmed" rather than guessed.
+    feedback:
+      typeof raw.feedbackStatus === "string" &&
+      (KNOWN_FEEDBACK as readonly string[]).includes(raw.feedbackStatus)
+        ? (raw.feedbackStatus as ControlAuditFeedback)
+        : null,
+    feedbackValue:
+      typeof raw.feedbackValue === "string" ? raw.feedbackValue : null,
   };
+}
+
+/** #637: Japanese label for a confirmation outcome; null (not confirmed) is a dash. */
+export function controlFeedbackLabel(
+  feedback: ControlAuditFeedback | null,
+  value: string | null,
+): string {
+  switch (feedback) {
+    case "pending":
+      return "確認中";
+    case "matched":
+      return value ? `反映を確認（${value}）` : "反映を確認";
+    case "mismatch":
+      return value ? `不一致（実際の値: ${value}）` : "不一致";
+    case "timeout":
+      return "値が届かず未確認";
+    case "unavailable":
+      return "照合不可";
+    case null:
+      return "—";
+  }
 }
 
 /**

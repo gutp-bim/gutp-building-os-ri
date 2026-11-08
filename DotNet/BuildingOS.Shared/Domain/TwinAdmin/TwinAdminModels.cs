@@ -127,6 +127,28 @@ public static class ReleaseOfIssueReasons
 public sealed record TwinReleaseOfIssue(string PointId, string Reason);
 
 /// <summary>
+/// Why a <c>bos:feedbackPoint</c> declaration cannot confirm a control (#637). Refused at import: a wrong feedback
+/// point would report every control on that point as not having taken effect.
+/// </summary>
+public static class FeedbackPointIssueReasons
+{
+    /// <summary><c>bos:feedbackPoint</c> names more than one point.</summary>
+    public const string MultipleTargets = "multiple_targets";
+
+    /// <summary>The named feedback point is not a <c>sbco:PointExt</c> in the twin.</summary>
+    public const string TargetMissing = "target_missing";
+
+    /// <summary>The feedback point has no <c>sbco:id</c>, so its telemetry cannot be found.</summary>
+    public const string TargetNoId = "target_no_id";
+
+    /// <summary>The feedback point belongs to a different gateway (or none).</summary>
+    public const string TargetOtherGateway = "target_other_gateway";
+}
+
+/// <summary>A feedback declaration that cannot work (<see cref="Reason"/> is one of <see cref="FeedbackPointIssueReasons"/>).</summary>
+public sealed record TwinFeedbackPointIssue(string PointId, string Reason);
+
+/// <summary>
 /// Two or more nodes of one resource type sharing a business id (#517). Authorization identifies a node
 /// by its <c>sbco:id</c> (#504), so they would share every grant. <see cref="ResourceType"/> is the API
 /// vocabulary (building / floor / space / device / point).
@@ -158,8 +180,13 @@ public sealed record TwinImportPreview(
     IReadOnlyList<TwinReleaseOfIssue>? ReleaseOfIssues = null,
     int ClockIssueCount = 0,
     IReadOnlyList<TwinClockIssue>? ClockIssues = null,
-    int NotMonitoredPointCount = 0)
+    int NotMonitoredPointCount = 0,
+    int FeedbackPointIssueCount = 0,
+    IReadOnlyList<TwinFeedbackPointIssue>? FeedbackPointIssues = null)
 {
+    /// <summary>#637: feedback declarations that cannot work. Block apply like release-point issues; list capped.</summary>
+    public IReadOnlyList<TwinFeedbackPointIssue> FeedbackPointIssues { get; } = FeedbackPointIssues ?? [];
+
     // NotMonitoredPointCount (#635): points this import makes data health skip — release points and
     // `bos:reportsTelemetry false`. Observation only (never affects Valid): it is there so a wrong declaration
     // that would hide a real point from data health is noticed before apply.
@@ -174,7 +201,7 @@ public sealed record TwinImportPreview(
 
     public IReadOnlyList<TwinClockIssue> ClockIssues { get; } = ClockIssues ?? [];
 
-    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0 && ReleaseOfIssueCount == 0 && ClockIssueCount == 0;
+    public bool Valid => Collisions.Count == 0 && OrphanCount == 0 && IdCollisionCount == 0 && ReleaseOfIssueCount == 0 && ClockIssueCount == 0 && FeedbackPointIssueCount == 0;
 }
 
 /// <summary>Result of a read-only SPARQL query: columns + rows (capped) + timing.</summary>

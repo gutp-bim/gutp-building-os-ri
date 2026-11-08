@@ -18,7 +18,9 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
         PropertyNameCaseInsensitive = true,
     };
 
-    private static readonly TimeSpan DefaultRetention = TimeSpan.FromMinutes(1);
+    // Covers the gateway's answer and, after it, the confirmation window (#637, at most
+    // ControlFeedbackConfig.MaxWindow) — the subscription must still be there when the feedback event arrives.
+    private static readonly TimeSpan DefaultRetention = TimeSpan.FromMinutes(6);
 
     private readonly INatsConnection _nats;
     private readonly ILogger<NatsControlResultBus> _logger;
@@ -89,6 +91,10 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
         state.Subscription = await _nats.SubscribeCoreAsync<byte[]>(
             subject,
             cancellationToken: state.Cancellation.Token).ConfigureAwait(false);
+        // #637: subscribed before the command is published too, so a confirmation decided quickly is not missed.
+        state.FeedbackSubscription = await _nats.SubscribeCoreAsync<byte[]>(
+            BuildingOS.Shared.Infrastructure.ControlRouting.EgressSubjects.Feedback(controlId),
+            cancellationToken: state.Cancellation.Token).ConfigureAwait(false);
 
         // Fence the SUB command before the control request is published. A PONG confirms
         // the server processed all commands sent on this connection before the PING.
@@ -115,7 +121,9 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
                     Result = dto.Success ? ControlResult.Success : ControlResult.Failed,
                     Response = dto.Response ?? string.Empty,
                 };
-                state.Channel.Writer.TryWrite(evt);
+                await state.Channel.Writer.WriteAsync(evt, state.Cancellation.Token).ConfigureAwait(false);
+                // #637: after a success, one confirmation follows on its own subject; a failure is final.
+                if (dto.Success) await ConsumeFeedbackAsync(controlId, state).ConfigureAwait(false);
                 break;
             }
         }
@@ -130,6 +138,32 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
         {
             state.Channel.Writer.TryComplete();
             await UnsubscribeFromNatsAsync(state).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ConsumeFeedbackAsync(string controlId, SubscriptionState state)
+    {
+        await foreach (var msg in state.FeedbackSubscription!.Msgs.ReadAllAsync(state.Cancellation.Token))
+        {
+            if (msg.Data == null) continue;
+            ControlFeedbackMessage? dto;
+            try
+            {
+                dto = JsonSerializer.Deserialize<ControlFeedbackMessage>(Encoding.UTF8.GetString(msg.Data), JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Malformed control feedback for {ControlId}", controlId);
+                continue;
+            }
+            if (dto is null) continue;
+            await state.Channel.Writer.WriteAsync(new ControlResultEvent
+            {
+                ControlId = controlId,
+                Result = ControlFeedbackMessage.ToResult(dto.Status),
+                FeedbackValue = dto.Value ?? string.Empty,
+            }, state.Cancellation.Token).ConfigureAwait(false);
+            return;
         }
     }
 
@@ -190,6 +224,8 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
         try
         {
             await state.Subscription.UnsubscribeAsync().ConfigureAwait(false);
+            if (state.FeedbackSubscription is not null)
+                await state.FeedbackSubscription.UnsubscribeAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -207,9 +243,10 @@ public sealed class NatsControlResultBus : IControlResultBus, IAsyncDisposable
     {
         public object Gate { get; } = new();
         public Channel<ControlResultEvent> Channel { get; } =
-            System.Threading.Channels.Channel.CreateBounded<ControlResultEvent>(1);
+            System.Threading.Channels.Channel.CreateBounded<ControlResultEvent>(2);
         public CancellationTokenSource Cancellation { get; } = new();
         public INatsSub<byte[]>? Subscription { get; set; }
+        public INatsSub<byte[]>? FeedbackSubscription { get; set; }
         public Task? StartTask { get; set; }
         public Task? ConsumeTask { get; set; }
         public Task? ExpiryTask { get; set; }

@@ -50,10 +50,18 @@ public class NatsControlResultBusTest
             .Callback(() => unsubscribed.TrySetResult())
             .Returns(ValueTask.CompletedTask);
 
+        // #637: the bus also subscribes to the feedback subject; that subscription is released too.
+        var feedback = new Mock<INatsSub<byte[]>>();
+        feedback.SetupGet(s => s.Msgs).Returns(Channel.CreateUnbounded<NatsMsg<byte[]>>().Reader);
+        feedback.Setup(s => s.UnsubscribeAsync()).Returns(ValueTask.CompletedTask);
+
         var nats = new Mock<INatsConnection>();
         nats.Setup(n => n.SubscribeCoreAsync<byte[]>(
-                It.IsAny<string>(), null, null, null, It.IsAny<CancellationToken>()))
+                "building-os.control.result.control-1", null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(subscription.Object);
+        nats.Setup(n => n.SubscribeCoreAsync<byte[]>(
+                "building-os.control.feedback.control-1", null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(feedback.Object);
         nats.Setup(n => n.PingAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(TimeSpan.Zero);
 
@@ -65,5 +73,6 @@ public class NatsControlResultBusTest
         await bus.PrepareAsync("control-1", CancellationToken.None);
         await unsubscribed.Task.WaitAsync(TimeSpan.FromSeconds(1));
         subscription.Verify(s => s.UnsubscribeAsync(), Times.Once);
+        feedback.Verify(s => s.UnsubscribeAsync(), Times.Once);
     }
 }

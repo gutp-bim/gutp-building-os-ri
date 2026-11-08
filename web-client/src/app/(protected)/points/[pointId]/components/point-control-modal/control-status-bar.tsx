@@ -1,4 +1,7 @@
-import type { ControlExecutionState } from "@/lib/infra/grpc-client/use-control-execution";
+import type {
+  ControlExecutionState,
+  ControlFeedbackState,
+} from "@/lib/infra/grpc-client/use-control-execution";
 import { CONTROL_AUDIT_ANCHOR_ID } from "../control-audit-anchor";
 
 export function ControlStatusBar({
@@ -36,7 +39,10 @@ export function ControlStatusBar({
         {state.status === "success" && (
           <>
             <CheckIcon />
-            <span>制御が正常に完了しました</span>
+            <div>
+              <p>制御が正常に完了しました</p>
+              {state.feedback && <FeedbackLine feedback={state.feedback} />}
+            </div>
           </>
         )}
         {state.status === "failed" && (
@@ -135,6 +141,51 @@ export function ControlStatusBar({
         )}
       </div>
     </div>
+  );
+}
+
+const UNAVAILABLE_REASON: Record<string, string> = {
+  no_feedback_point: "確認用ポイントが設定されていません",
+  release_point: "解除の制御は値で確認できません",
+  no_expected_value: "期待する値を決められません",
+  interrupted: "確認が中断されました",
+};
+
+/** #637: the second stage — did the value actually change after the gateway accepted the write. */
+function FeedbackLine({ feedback }: { feedback: ControlFeedbackState }) {
+  const line = (() => {
+    switch (feedback.kind) {
+      case "confirming":
+        return { text: "値の反映を確認中…", tone: "text-blue-800" };
+      case "matched":
+        return {
+          text: `値の反映を確認しました${feedback.value ? `（${feedback.value}）` : ""}`,
+          tone: "text-green-800",
+        };
+      case "mismatch":
+        return {
+          text: `値が期待どおりに変わっていません${feedback.value ? `（実際の値: ${feedback.value}）` : ""}`,
+          tone: "text-red-700",
+        };
+      case "timeout":
+        return {
+          text: "確認用の値が届かず、反映を確認できませんでした",
+          tone: "text-amber-800",
+        };
+      case "unavailable":
+        return {
+          text: `反映は確認していません（${UNAVAILABLE_REASON[feedback.reason ?? ""] ?? "照合不可"}）`,
+          tone: "text-gray-600",
+        };
+    }
+  })();
+  return (
+    <p
+      data-testid={`control-feedback-${feedback.kind}`}
+      className={`text-xs mt-0.5 ${line.tone}`}
+    >
+      {line.text}
+    </p>
   );
 }
 

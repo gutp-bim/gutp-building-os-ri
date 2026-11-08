@@ -18,6 +18,10 @@ public class PointControlGrpcService : PointControlService.PointControlServiceBa
     // "connected but slow" case.)
     private static readonly TimeSpan Timeout = ResolveTimeout();
 
+    /// <summary>#637: longest wait for the confirmation after a success — the longest window plus some slack.</summary>
+    private static readonly TimeSpan FeedbackTimeout =
+        BuildingOS.Shared.Domain.ControlFeedback.ControlFeedbackConfig.MaxWindow + TimeSpan.FromSeconds(30);
+
     private static TimeSpan ResolveTimeout()
     {
         var raw = Environment.GetEnvironmentVariable("CONTROL_RESULT_TIMEOUT_SEC");
@@ -57,6 +61,30 @@ public class PointControlGrpcService : PointControlService.PointControlServiceBa
             _logger.LogInformation(
                 "WaitForResult completed: controlId={ControlId}, result={Result}",
                 controlId, evt.Result);
+
+            // #637: after a success, wait for the one confirmation (did the value actually change?) and send it.
+            // Its own deadline — the confirmation window, not the gateway round-trip. If none comes (a replica that
+            // predates #637 handled the POST, or the confirmer stopped), the stream just ends after the success.
+            if (evt.Result == ControlResult.Success)
+            {
+                using var feedbackCts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
+                feedbackCts.CancelAfter(FeedbackTimeout);
+                try
+                {
+                    var feedback = await reader.ReadAsync(feedbackCts.Token).ConfigureAwait(false);
+                    await responseStream.WriteAsync(feedback).ConfigureAwait(false);
+                    _logger.LogInformation(
+                        "WaitForResult feedback: controlId={ControlId}, result={Result}", controlId, feedback.Result);
+                }
+                catch (OperationCanceledException) when (!context.CancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation("WaitForResult: no feedback for controlId={ControlId}", controlId);
+                }
+                catch (System.Threading.Channels.ChannelClosedException)
+                {
+                    // The bus closed without a confirmation (expired): end after the success.
+                }
+            }
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {

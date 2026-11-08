@@ -8,10 +8,22 @@ import { createClient } from "@connectrpc/connect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { grpcTransport } from "./index";
 
+/**
+ * #637: whether the value actually changed after the gateway accepted the write. `confirming` while the server
+ * watches the feedback point; then the outcome. Absent when the server sends no confirmation (an API that predates
+ * #637), so the plain success is shown as before.
+ */
+export type ControlFeedbackState =
+  | { kind: "confirming" }
+  | { kind: "matched"; value?: string }
+  | { kind: "mismatch"; value?: string }
+  | { kind: "timeout" }
+  | { kind: "unavailable"; reason?: string };
+
 export type ControlExecutionState =
   | { status: "idle" }
   | { status: "executing"; controlId: string; elapsedSeconds: number }
-  | { status: "success"; message?: string }
+  | { status: "success"; message?: string; feedback?: ControlFeedbackState }
   | { status: "failed"; message?: string }
   // 制御 POST が 403/503 で弾かれたときの説明つき失敗（#162）。ストリーム前に確定するため
   // setDirectResult 経由でのみ設定される。
@@ -22,6 +34,26 @@ export type ControlExecutionState =
 
 const TIMEOUT_MS = 30_000;
 const AUTO_DISMISS_MS = 5_000;
+
+/** #637: a FEEDBACK_* result as the modal's confirmation state; null for any other result. */
+export function toFeedbackState(
+  result: ControlResult,
+  value: string,
+): ControlFeedbackState | null {
+  const v = value.trim() === "" ? undefined : value;
+  switch (result) {
+    case ControlResult.FEEDBACK_MATCHED:
+      return { kind: "matched", value: v };
+    case ControlResult.FEEDBACK_MISMATCH:
+      return { kind: "mismatch", value: v };
+    case ControlResult.FEEDBACK_TIMEOUT:
+      return { kind: "timeout" };
+    case ControlResult.FEEDBACK_UNAVAILABLE:
+      return { kind: "unavailable", reason: v };
+    default:
+      return null;
+  }
+}
 
 export function useControlExecution() {
   const [state, setState] = useState<ControlExecutionState>({ status: "idle" });
@@ -88,6 +120,7 @@ export function useControlExecution() {
       // Start gRPC stream
       const client = createClient(PointControlService, grpcTransport);
       try {
+        let succeeded = false;
         for await (const event of client.waitForResult(
           { controlId },
           { signal: abort.signal },
@@ -95,13 +128,25 @@ export function useControlExecution() {
           clearTimers();
 
           if (event.result === ControlResult.SUCCESS) {
+            // #637: the confirmation follows on the same stream; keep reading for it.
+            succeeded = true;
             setState({
               status: "success",
               message: event.response || undefined,
+              feedback: { kind: "confirming" },
             });
-            autoDismissRef.current = setTimeout(() => {
-              setState({ status: "idle" });
-            }, AUTO_DISMISS_MS);
+            continue;
+          }
+          const feedback = succeeded ? toFeedbackState(event.result, event.feedbackValue) : null;
+          if (feedback !== null) {
+            setState((prev) =>
+              prev.status === "success" ? { ...prev, feedback } : prev,
+            );
+            // A confirmed change can go away by itself; a value that did not change stays until dismissed.
+            if (feedback.kind === "matched" || feedback.kind === "unavailable")
+              autoDismissRef.current = setTimeout(() => {
+                setState({ status: "idle" });
+              }, AUTO_DISMISS_MS);
           } else if (event.result === ControlResult.FAILED) {
             setState({
               status: "failed",
@@ -110,8 +155,24 @@ export function useControlExecution() {
           } else {
             setState({ status: "failed", message: "不明な結果を受信しました" });
           }
-          break; // 1件のみ
+          break;
         }
+        // The stream ended after a success without a confirmation (older API / bus expired): plain success.
+        if (succeeded)
+          setState((prev) =>
+            prev.status === "success" && prev.feedback?.kind === "confirming"
+              ? { status: "success", message: prev.message }
+              : prev,
+          );
+        if (succeeded && !autoDismissRef.current)
+          autoDismissRef.current = setTimeout(() => {
+            setState((prev) =>
+              prev.status === "success" &&
+              (prev.feedback === undefined || prev.feedback.kind === "matched" || prev.feedback.kind === "unavailable")
+                ? { status: "idle" }
+                : prev,
+            );
+          }, AUTO_DISMISS_MS);
       } catch {
         if (abort.signal.aborted) {
           // timeout handler が既に state を設定済みか判定

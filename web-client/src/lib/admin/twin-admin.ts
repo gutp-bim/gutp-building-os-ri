@@ -80,6 +80,8 @@ export interface TwinImportPreview {
    * Observation only — never an issue, never blocks apply. Optional like the above.
    */
   notMonitoredPointCount?: number;
+  /** Ill-formed `bos:feedbackPoint` declarations (#637). Block apply like release-point issues. */
+  feedbackPointIssueCount?: number;
   valid: boolean;
 }
 
@@ -155,6 +157,7 @@ export function canApplyImport(
   if (preview.collisions.length > 0) return false;
   if ((preview.idCollisionCount ?? 0) > 0) return false;
   if ((preview.releaseOfIssueCount ?? 0) > 0) return false;
+  if ((preview.feedbackPointIssueCount ?? 0) > 0) return false;
   return preview.orphanCount === 0 || allowOrphans;
 }
 
@@ -172,6 +175,10 @@ export function previewSummary(preview: TwinImportPreview): string {
     issues.push(`sbco:id 重複 ${preview.idCollisionCount} 件`);
   if ((preview.releaseOfIssueCount ?? 0) > 0)
     issues.push(`release 点の不整合 ${preview.releaseOfIssueCount} 件`);
+  if ((preview.feedbackPointIssueCount ?? 0) > 0)
+    issues.push(
+      `反映確認ポイントの不整合 ${preview.feedbackPointIssueCount} 件`,
+    );
   if (preview.orphanCount > 0)
     issues.push(`階層未接続 ${preview.orphanCount} 件`);
   if (preview.controlSchemaIssueCount > 0)

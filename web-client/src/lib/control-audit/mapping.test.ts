@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   controlActorLabel,
+  controlFeedbackLabel,
   controlStatusLabel,
   formatControlRequest,
   toControlAuditEntry,
@@ -27,7 +28,21 @@ describe("toControlAuditEntry", () => {
       completedAt: "2026-07-15T00:00:01Z",
       actorSub: "kc-sub-42",
       actorName: "Yamada",
+      feedback: null,
+      feedbackValue: null,
     });
+  });
+
+  it("#637: maps the confirmation outcome, and an unknown one to not confirmed", () => {
+    const base = { controlId: "c1", status: "success" };
+    expect(toControlAuditEntry({ ...base, feedbackStatus: "mismatch", feedbackValue: "22" })).toMatchObject({
+      feedback: "mismatch",
+      feedbackValue: "22",
+    });
+    expect(toControlAuditEntry({ ...base, feedbackStatus: "future" }).feedback).toBeNull();
+    expect(controlFeedbackLabel("mismatch", "22")).toBe("不一致（実際の値: 22）");
+    expect(controlFeedbackLabel("matched", "24")).toBe("反映を確認（24）");
+    expect(controlFeedbackLabel(null, null)).toBe("—");
   });
 
   it("falls back to the unknown sentinel for a row written before the actor column (#461)", () => {

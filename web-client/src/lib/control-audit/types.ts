@@ -5,6 +5,10 @@
 
 export type ControlAuditStatus = "success" | "failed" | "pending";
 
+/** #637: whether the value actually changed after the write. Null when the control was not confirmed. */
+export type ControlAuditFeedback =
+  "pending" | "matched" | "mismatch" | "timeout" | "unavailable";
+
 /** One recorded device-control command (`point_control_audit` row). */
 export type ControlAuditEntry = {
   controlId: string;
@@ -23,4 +27,7 @@ export type ControlAuditEntry = {
    */
   actorSub: string;
   actorName: string | null;
+  /** #637: confirmation outcome, and the value it was decided on (or the reason when unavailable). */
+  feedback: ControlAuditFeedback | null;
+  feedbackValue: string | null;
 };

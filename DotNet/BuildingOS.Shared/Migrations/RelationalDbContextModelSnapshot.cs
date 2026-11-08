@@ -347,6 +347,20 @@ namespace BuildingOS.Shared.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTime?>("FeedbackCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("feedback_completed_at");
+
+                    b.Property<string>("FeedbackStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("feedback_status");
+
+                    b.Property<string>("FeedbackValue")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("feedback_value");
+
                     b.Property<string>("PointId")
                         .HasColumnType("text")
                         .HasColumnName("point_id");

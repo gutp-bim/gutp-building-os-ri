@@ -84,6 +84,13 @@ internal static class OxiGraphOntology
     // no declaration.
     internal const string Prop_ReportsTelemetry = BosNs + "reportsTelemetry";
 
+    // Control feedback (#637). bos:feedbackPoint names the point whose value confirms a control took effect (the
+    // controlled point itself when it reports its own present value — RDF allows the self-reference, so no
+    // separate flag); bos:feedbackWindowSec / bos:feedbackTolerance tune the confirmation.
+    internal const string Prop_FeedbackPoint = BosNs + "feedbackPoint";
+    internal const string Prop_FeedbackWindowSec = BosNs + "feedbackWindowSec";
+    internal const string Prop_FeedbackTolerance = BosNs + "feedbackTolerance";
+
     // Opt-in per-point alarm thresholds on PointExt (#158 Phase 2a, ADR-0005). Distinct from the control
     // bounds above: these are the normal-operation value range, not the valid setpoint-write range.
     // alarm* = critical (outer) limits; warn* = the earlier inner limits. All optional/independent.
