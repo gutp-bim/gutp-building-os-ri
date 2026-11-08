@@ -3400,6 +3400,12 @@ paths:
             type: integer
             format: int32
             default: 0
+        - name: includeUnmonitored
+          in: query
+          description: '判定対象外の Point（#635: リリース点・`bos:reportsTelemetry false`）も含めるか。既定 false。`healthStatus=NotMonitored` を指定したときも含まれる'
+          schema:
+            type: boolean
+            default: false
       responses:
         '401':
           description: Unauthorized
@@ -4354,6 +4360,7 @@ components:
         - Stale
         - Missing
         - Unknown
+        - NotMonitored
       type: string
     GatewayAdminView:
       type: object
@@ -4685,6 +4692,10 @@ components:
           description: 解消時刻（UTC）。null の間は open
           format: date-time
           nullable: true
+        clearReason:
+          type: string
+          description: 解消の理由。条件が解消した通常の clear は null、監視対象外になった Point は `not_monitored`（#635）
+          nullable: true
         isOpen:
           type: boolean
           description: 未解消か
@@ -4709,6 +4720,7 @@ components:
         - Stale
         - Unknown
         - Fresh
+        - NotMonitored
       type: string
     IngressRejectionCount:
       type: object
@@ -4823,6 +4835,11 @@ components:
           type: string
       additionalProperties: false
       description: A v1 read response was refused because its native bounds cannot be represented.
+    NotMonitoredReason:
+      enum:
+        - ReleasePoint
+        - DeclaredNoTelemetry
+      type: string
     OidcClientDetail:
       type: object
       properties:
@@ -5026,6 +5043,11 @@ components:
         deviceIdBacnet:
           type: string
           nullable: true
+        isReleasePoint:
+          type: boolean
+        reportsTelemetry:
+          type: boolean
+          nullable: true
         identifiers:
           type: object
           additionalProperties:
@@ -5174,6 +5196,8 @@ components:
           $ref: '#/components/schemas/PointGatewayInfo'
         healthStatus:
           $ref: '#/components/schemas/HealthStatus'
+        monitoring:
+          $ref: '#/components/schemas/PointMonitoring'
         deviceDtId:
           type: string
           nullable: true
@@ -5258,14 +5282,25 @@ components:
           type: boolean
         indexState:
           $ref: '#/components/schemas/PointLastSeenIndexState'
+        notMonitored:
+          type: integer
+          format: int32
       additionalProperties: false
-      description: データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。
+      description: "データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。`TotalPoints` 以下の件数は\n判定対象の Point だけを数え、判定対象外（#635: リリース点・`bos:reportsTelemetry false`）は\n`NotMonitored` に別に数える。"
     PointLastSeenIndexState:
       enum:
         - Warming
         - Ready
         - Degraded
       type: string
+    PointMonitoring:
+      type: object
+      properties:
+        monitored:
+          type: boolean
+        reason:
+          $ref: '#/components/schemas/NotMonitoredReason'
+      additionalProperties: false
     ProblemDetails:
       type: object
       properties:
@@ -5757,6 +5792,9 @@ components:
           type: integer
           format: int32
         clockIssueCount:
+          type: integer
+          format: int32
+        notMonitoredPointCount:
           type: integer
           format: int32
         idCollisions:

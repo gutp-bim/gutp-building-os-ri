@@ -355,6 +355,10 @@ Aspida client is auto-generated from Swagger. After API changes, run `./sync-typ
 > event is listed only to a caller who can read its point (or a point behind its gateway); one they cannot
 > read is a 404 on ack, not a 403. UI: `lib/health/events.ts` (+ `components/health/health-events-view.tsx`,
 > and "この Point の直近イベント" on the point page). Design: ADR-0005 "Phase 2b 設計".
+> **Not-monitored points (#635):** release points (`bos:releaseOf`) and points the twin declares
+> `bos:reportsTelemetry false` are not classified (`healthStatus: NotMonitored`, hidden unless
+> `includeUnmonitored=true`, counted apart as `summary.notMonitored`); the evaluator raises nothing for them and
+> closes an event already open on one at once with `clearReason: "not_monitored"`. `writable` alone never excludes a point.
 
 > **`/resources` facets (#454):** the explorer's search box filters by q / type / customTags and by
 > structured attributes — `deviceType` / `pointType` / `unit` / `gatewayId` (values within a group are

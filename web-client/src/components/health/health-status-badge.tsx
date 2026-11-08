@@ -28,6 +28,8 @@ const FRESHNESS_STYLES: Record<FreshnessStatus, string> = {
   stale: "bg-amber-100 text-amber-800",
   missing: "bg-gray-200 text-gray-700",
   unknown: "bg-gray-100 text-gray-600",
+  // #635: 異常でも欠測でもない「見ていない」。枠線だけの淡い表示にして、欠測のグレーと区別する。
+  notMonitored: "border border-gray-300 bg-white text-gray-500",
 };
 
 // 「評価対象外」「未評価」は正常ではないが警告でもないので、緑にも赤にもしない。
@@ -46,6 +48,7 @@ const HEALTH_STYLES: Record<HealthStatus, string> = {
   stale: "bg-amber-100 text-amber-800",
   unknown: "bg-gray-100 text-gray-600",
   fresh: "bg-green-100 text-green-800",
+  notMonitored: "border border-gray-300 bg-white text-gray-500",
 };
 
 /** 鮮度（到着軸）のバッジ。 */

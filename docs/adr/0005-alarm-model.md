@@ -164,4 +164,28 @@ Phase 2a（derived-on-read）が答えられない「いつ始まり、いつ終
   clear しない（復旧してから、通常の hysteresis で解消する）。
 - **severity**: `gateway_offline` と値 alarm の critical は critical、それ以外は warn。alarm の severity が変わったら
   新しいイベントではなく open の行を更新する（raise 時刻と ACK は保つ）。
+- **判定対象外の Point（#635）**: 構造的に値を送らない Point は分類しない。対象は **リリース点**（`bos:releaseOf`、#600）と、
+  ツインで **`bos:reportsTelemetry false`** と宣言された Point（ゲートウェイが現在値を返さない書き込み専用点など）。
+  `writable` だけでは外さない — BACnet の AO/BO は書き込めて現在値も返すので、外すと本物の欠測が消える。
+  - 台帳には `monitoring: { monitored: false, reason }`・`healthStatus = NotMonitored`（worst 順で最後）として残し、
+    最終受信があればそれも載せる（宣言が誤っていれば一覧で気づける）。`GET /api/v1/telemetry/health` は既定で除き、
+    `includeUnmonitored=true` か `healthStatus=NotMonitored` で含める。`/summary` は判定対象だけを数え、
+    対象外は `notMonitored` に別に数える。インポートのプレビューは対象外になる Point 数を出す（観測のみ、apply は止めない）。
+  - 評価器は対象外の Point に raise しない。既に open のイベントは**次のスキャンで、hysteresis を待たずに** clear し、
+    `clear_reason = not_monitored` を記録する（宣言による変化であって観測ではないので deadband は不要。通常の clear は
+    `clear_reason` が null で、「回復した」と「見るのをやめた」が混ざらない）。メトリクスは
+    `building_os.health_events{action="cleared_not_monitored"}`。`gateway_offline` の接続判定は全 Point から見るが、
+    その `pointCount` は判定対象の Point だけを数える。
+- **判定対象外の Point（#635）**: 構造的に値を送らない Point は分類しない。対象は **リリース点**（`bos:releaseOf`、#600）と、
+  ツインで **`bos:reportsTelemetry false`** と宣言された Point（ゲートウェイが現在値を返さない書き込み専用点など）。
+  `writable` だけでは外さない — BACnet の AO/BO は書き込めて現在値も返すので、外すと本物の欠測が消える。
+  - 台帳には `monitoring: { monitored: false, reason }`・`healthStatus = NotMonitored`（worst 順で最後）として残し、
+    最終受信があればそれも載せる（宣言が誤っていれば一覧で気づける）。`GET /api/v1/telemetry/health` は既定で除き、
+    `includeUnmonitored=true` か `healthStatus=NotMonitored` で含める。`/summary` は判定対象だけを数え、
+    対象外は `notMonitored` に別に数える。インポートのプレビューは対象外になる Point 数を出す（観測のみ、apply は止めない）。
+  - 評価器は対象外の Point に raise しない。既に open のイベントは**次のスキャンで、hysteresis を待たずに** clear し、
+    `clear_reason = not_monitored` を記録する（宣言による変化であって観測ではないので deadband は不要。通常の clear は
+    `clear_reason` が null で、「回復した」と「見るのをやめた」が混ざらない）。メトリクスは
+    `building_os.health_events{action="cleared_not_monitored"}`。`gateway_offline` の接続判定は全 Point から見るが、
+    その `pointCount` は判定対象の Point だけを数える。
 - 通知（メール / Webhook）は #162 の範囲。ここは「イベントが生まれ・消え・ACK できる」まで。

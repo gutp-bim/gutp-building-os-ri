@@ -76,6 +76,29 @@ public sealed class PointHealthLedger(
                 }
 
                 var hasEntry = _index.TryGet(point.Id, out var entry);
+
+                // #635: a point that structurally never reports a value is not classified at all — it would
+                // read as Missing forever. Its last receipt is still shown, so a wrong declaration is visible.
+                var monitoring = PointMonitoringPolicy.Resolve(point);
+                if (!monitoring.Monitored)
+                {
+                    items.Add(Describe(new PointHealthItem
+                    {
+                        Monitoring = monitoring,
+                        HealthStatus = HealthStatus.NotMonitored,
+                        Freshness = new PointFreshnessResult
+                        {
+                            Status = FreshnessStatus.NotMonitored,
+                            LastSeen = hasEntry ? entry.LastSeen : null,
+                            AgeSeconds = hasEntry && entry.LastSeen is { } seen
+                                ? Math.Max(0, (long)Math.Floor((now - seen).TotalSeconds))
+                                : null,
+                        },
+                        Alarm = new PointAlarmResult { Status = AlarmStatus.Unknown },
+                    }, point, detail, building, gatewayId, gatewayState));
+                    continue;
+                }
+
                 var input = new PointHealthInput
                 {
                     PointId = point.Id,
@@ -93,37 +116,43 @@ public sealed class PointHealthLedger(
 
                 var result = PointHealthClassifier.Classify(input, thresholds, indexReady, now);
 
-                items.Add(new PointHealthItem
+                items.Add(Describe(new PointHealthItem
                 {
-                    PointId = point.Id,
-                    PointDtId = point.DtId,
-                    Name = point.Name,
-                    Unit = point.Unit,
                     Freshness = result.Freshness,
                     Alarm = result.Alarm,
-                    Gateway = gatewayId is null
-                        ? null
-                        : new PointGatewayInfo(gatewayId, gatewayState.ToConnectedFlag()),
                     HealthStatus = result.HealthStatus,
-                    DeviceDtId = detail.Device?.DtId,
-                    DeviceName = detail.Device?.Name,
-                    SpaceDtId = detail.Space?.DtId,
-                    SpaceName = detail.Space?.Name,
-                    FloorDtId = detail.Floor?.DtId,
-                    FloorName = detail.Floor?.Name,
-                    BuildingDtId = building.DtId,
-                    // 建物名は PointDetail 側（Device.BuildingName）が正本。無ければ列挙した建物の名前。
-                    BuildingName = detail.Device?.BuildingName ?? building.Name,
-                    Tags = point.CustomTags
-                        .Where(t => t.Value)
-                        .Select(t => t.Key)
-                        .OrderBy(t => t, StringComparer.Ordinal)
-                        .ToArray(),
-                });
+                }, point, detail, building, gatewayId, gatewayState));
             }
         }
 
         return new PointHealthSnapshot(items, indexState);
+    }
+
+    /// <summary>台帳の静的メタデータ（名前・単位・階層・gateway・タグ）を判定済みの行に載せる。</summary>
+    private static PointHealthItem Describe(
+        PointHealthItem item, Point point, PointDetail detail, (string DtId, string? Name) building,
+        string? gatewayId, GatewayConnectionState gatewayState)
+    {
+        item.PointId = point.Id;
+        item.PointDtId = point.DtId;
+        item.Name = point.Name;
+        item.Unit = point.Unit;
+        item.Gateway = gatewayId is null ? null : new PointGatewayInfo(gatewayId, gatewayState.ToConnectedFlag());
+        item.DeviceDtId = detail.Device?.DtId;
+        item.DeviceName = detail.Device?.Name;
+        item.SpaceDtId = detail.Space?.DtId;
+        item.SpaceName = detail.Space?.Name;
+        item.FloorDtId = detail.Floor?.DtId;
+        item.FloorName = detail.Floor?.Name;
+        item.BuildingDtId = building.DtId;
+        // 建物名は PointDetail 側（Device.BuildingName）が正本。無ければ列挙した建物の名前。
+        item.BuildingName = detail.Device?.BuildingName ?? building.Name;
+        item.Tags = point.CustomTags
+            .Where(t => t.Value)
+            .Select(t => t.Key)
+            .OrderBy(t => t, StringComparer.Ordinal)
+            .ToArray();
+        return item;
     }
 
     /// <summary>

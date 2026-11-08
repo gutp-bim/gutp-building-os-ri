@@ -78,6 +78,12 @@ internal static class OxiGraphOntology
     // target's priority slot. bos: rather than sbco: — SBCO has no such vocabulary.
     internal const string Prop_ReleaseOf = BosNs + "releaseOf";
 
+    // Telemetry expectation (#635). `bos:reportsTelemetry false` declares that a point never reports a
+    // value (a write-only setpoint whose gateway returns no present value), so data health does not
+    // count it as missing. Absent = true. Release points (bos:releaseOf) are never monitored and need
+    // no declaration.
+    internal const string Prop_ReportsTelemetry = BosNs + "reportsTelemetry";
+
     // Opt-in per-point alarm thresholds on PointExt (#158 Phase 2a, ADR-0005). Distinct from the control
     // bounds above: these are the normal-operation value range, not the valid setpoint-write range.
     // alarm* = critical (outer) limits; warn* = the earlier inner limits. All optional/independent.

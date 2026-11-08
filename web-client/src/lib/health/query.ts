@@ -42,6 +42,11 @@ export type HealthQuery = {
   tags: string[];
   /** 名前・Point ID の部分一致。 */
   q?: string;
+  /**
+   * 判定対象外の Point（#635: リリース点・値を送らないと宣言された点）も一覧に出すか。
+   * 既定は出さない（欠測に見える行で一覧が埋まらないように）。
+   */
+  includeUnmonitored?: boolean;
   sort: HealthSort;
   limit: number;
   offset: number;
@@ -167,6 +172,8 @@ export function parseHealthQuery(params: URLSearchParams): HealthQuery {
     gatewayId: readScalar(params, "gatewayId"),
     tags: normalizeTags(params.getAll("tag")),
     q: readScalar(params, "q"),
+    includeUnmonitored:
+      params.get("includeUnmonitored") === "true" || undefined,
     sort: normalizeSort(params.get("sort")),
     limit: clampLimit(readNumber(params, "limit")),
     offset: clampOffset(readNumber(params, "offset")),
@@ -201,6 +208,7 @@ export function normalizeHealthQuery(query: HealthQuery): HealthQuery {
     gatewayId: trimToUndefined(query.gatewayId),
     tags: normalizeTags(query.tags),
     q: trimToUndefined(query.q),
+    includeUnmonitored: query.includeUnmonitored === true || undefined,
     sort: normalizeSort(query.sort),
     limit: clampLimit(query.limit),
     offset: clampOffset(query.offset),
@@ -228,6 +236,7 @@ export function serializeHealthQuery(query: HealthQuery): URLSearchParams {
   // tag はカンマを含みうるので繰り返しパラメータで出す（連結すると分解時に壊れる）。
   for (const tag of q.tags) params.append("tag", tag);
   if (q.q !== undefined) params.set("q", q.q);
+  if (q.includeUnmonitored) params.set("includeUnmonitored", "true");
   if (q.sort !== DEFAULT_HEALTH_QUERY.sort) params.set("sort", q.sort);
   if (q.limit !== DEFAULT_HEALTH_QUERY.limit)
     params.set("limit", String(q.limit));

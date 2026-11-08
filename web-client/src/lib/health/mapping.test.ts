@@ -26,6 +26,7 @@ const wire = {
   thresholdSeconds: 900,
   thresholdSource: "Point",
   missingReason: null,
+  notMonitoredReason: null,
   value: 23.4,
   violated: null,
   gatewayId: "GW-001",
@@ -52,6 +53,7 @@ describe("toHealthRow", () => {
       thresholdSeconds: 900,
       thresholdSource: "point",
       missingReason: null,
+      notMonitoredReason: null,
       value: 23.4,
       violated: null,
       gatewayId: "GW-001",
@@ -69,6 +71,7 @@ describe("toHealthRow", () => {
       ...wire,
       freshnessStatus: "Missing",
       missingReason: "GatewayDisconnected",
+      notMonitoredReason: null,
       alarmStatus: "Critical",
       violated: "AlarmHigh",
     });
@@ -106,6 +109,7 @@ describe("toHealthRow", () => {
       ...wire,
       freshnessStatus: "Fresh",
       missingReason: "NeverReceived",
+      notMonitoredReason: null,
     });
 
     expect(row.missingReason).toBeNull();
@@ -116,6 +120,7 @@ describe("toHealthRow", () => {
       ...wire,
       freshnessStatus: "Missing",
       missingReason: "SomethingNew",
+      notMonitoredReason: null,
     });
 
     expect(row.missingReason).toBe("unknown");
@@ -134,6 +139,7 @@ describe("toHealthRow", () => {
       thresholdSeconds: 300,
       thresholdSource: "system",
       missingReason: null,
+      notMonitoredReason: null,
       value: null,
       violated: null,
       gatewayId: null,

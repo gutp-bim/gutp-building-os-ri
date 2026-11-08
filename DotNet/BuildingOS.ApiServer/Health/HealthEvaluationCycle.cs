@@ -5,7 +5,8 @@ using BuildingOS.Shared.Infrastructure.Telemetry;
 namespace BuildingOs.ApiServer.Health;
 
 /// <summary>What one evaluation cycle did (for the log and the tests).</summary>
-public sealed record HealthEvaluationResult(bool Skipped, int Raised, int AlreadyOpen, int Updated, int Cleared)
+public sealed record HealthEvaluationResult(
+    bool Skipped, int Raised, int AlreadyOpen, int Updated, int Cleared, int ClearedNotMonitored = 0)
 {
     public static readonly HealthEvaluationResult SkippedIndexNotReady = new(true, 0, 0, 0, 0);
 }
@@ -50,15 +51,24 @@ public sealed class HealthEvaluationCycle(HealthEventReconciler reconciler)
             Count("updated", u.Key.Kind);
         }
 
-        var cleared = await store.ClearAsync(plan.Clear.ToArray(), now, ct).ConfigureAwait(false);
+        var kindById = open.ToDictionary(e => e.Id, e => e.Kind);
+        var cleared = await store.ClearAsync(plan.Clear.ToArray(), now, reason: null, ct).ConfigureAwait(false);
         if (cleared > 0)
         {
-            var kindById = open.ToDictionary(e => e.Id, e => e.Kind);
             foreach (var id in plan.Clear) Count("cleared", kindById.GetValueOrDefault(id, "unknown"));
             logger.LogInformation("Health events cleared: {Count}", cleared);
         }
 
-        return new HealthEvaluationResult(false, raised, already, plan.Update.Count, cleared);
+        // #635: closed because the point is no longer judged, not because it recovered — its own action label.
+        var clearedNotMonitored = await store.ClearAsync(
+            plan.ClearNotMonitored.ToArray(), now, HealthEventClearReasons.NotMonitored, ct).ConfigureAwait(false);
+        if (clearedNotMonitored > 0)
+        {
+            foreach (var id in plan.ClearNotMonitored) Count("cleared_not_monitored", kindById.GetValueOrDefault(id, "unknown"));
+            logger.LogInformation("Health events cleared (point not monitored): {Count}", clearedNotMonitored);
+        }
+
+        return new HealthEvaluationResult(false, raised, already, plan.Update.Count, cleared, clearedNotMonitored);
     }
 
     private static void Count(string action, string kind) =>

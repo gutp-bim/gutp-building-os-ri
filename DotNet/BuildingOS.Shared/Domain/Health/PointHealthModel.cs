@@ -14,6 +14,9 @@ public enum FreshnessStatus
     Stale,
     Missing,
     Unknown,
+
+    /// <summary>#635: 判定対象外（リリース点・<c>bos:reportsTelemetry false</c>）。欠測ではない。</summary>
+    NotMonitored,
 }
 
 /// <summary>
@@ -43,6 +46,9 @@ public enum HealthStatus
     Stale,
     Unknown,
     Fresh,
+
+    /// <summary>#635: 判定対象外。深刻度は最も低い（worst 順で最後）。</summary>
+    NotMonitored,
 }
 
 /// <summary>鮮度閾値をどの階層の期待間隔から導いたか。<c>System</c> は期待間隔が無く既定値を使った場合。</summary>
@@ -186,6 +192,9 @@ public sealed class PointHealthItem
     public PointAlarmResult Alarm { get; set; } = new();
     public PointGatewayInfo? Gateway { get; set; }
     public HealthStatus HealthStatus { get; set; }
+
+    /// <summary>#635: 判定対象か。対象外なら鮮度・警報・総合はいずれも NotMonitored / Unknown で、health event も出ない。</summary>
+    public PointMonitoring Monitoring { get; set; } = PointMonitoring.Yes;
     public string? DeviceDtId { get; set; }
     public string? DeviceName { get; set; }
     public string? SpaceDtId { get; set; }
@@ -210,6 +219,9 @@ public sealed class PointHealthQuery
     public IReadOnlyList<FreshnessStatus> Freshness { get; set; } = Array.Empty<FreshnessStatus>();
     public IReadOnlyList<AlarmStatus> Alarm { get; set; } = Array.Empty<AlarmStatus>();
     public IReadOnlyList<HealthStatus> HealthStatuses { get; set; } = Array.Empty<HealthStatus>();
+
+    /// <summary>#635: 判定対象外の Point も含めるか。既定は含めない（一覧が誤検知で埋まらないように）。</summary>
+    public bool IncludeUnmonitored { get; set; }
 
     /// <summary>「この秒数以上来ていない」で絞る。**未受信（齢が無い）Point は齢 ∞ として必ず一致する**。</summary>
     public double? OlderThanSeconds { get; set; }
