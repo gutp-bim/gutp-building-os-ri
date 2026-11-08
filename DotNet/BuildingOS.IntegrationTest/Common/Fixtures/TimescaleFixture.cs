@@ -5,21 +5,25 @@ using Xunit;
 namespace BuildingOS.IntegrationTest.Common.Fixtures;
 
 /// <summary>
-/// TimescaleDB, for the optional <c>WARM_STORE=timescale</c> path only (#216/#234). Not started in the default run:
-/// every test in <see cref="Collections.Names.Timescale"/> is a <see cref="TimescaleFactAttribute"/>, which skips
-/// unless <c>INTEGRATION_TIMESCALE</c> is truthy, and xUnit does not create a collection fixture whose tests are all
-/// skipped. Override the image with <c>TIMESCALE_TEST_IMAGE</c>.
+/// TimescaleDB, for the optional <c>WARM_STORE=timescale</c> path only (#216/#234). Every test in
+/// <see cref="Collections.Names.Timescale"/> is a <see cref="TimescaleFactAttribute"/>, which skips unless
+/// <c>INTEGRATION_TIMESCALE</c> is truthy — and since xUnit may still create the collection fixture for skipped
+/// tests, the fixture itself builds and starts nothing unless the flag is set. Override the image with
+/// <c>TIMESCALE_TEST_IMAGE</c>.
 /// </summary>
 public class TimescaleFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage(Environment.GetEnvironmentVariable("TIMESCALE_TEST_IMAGE") is { Length: > 0 } image ? image : "timescale/timescaledb:latest-pg16")
-        .WithDatabase("buildingos_test")
-        .WithUsername("buildingos")
-        .WithPassword("buildingos")
-        .Build();
+    private readonly PostgreSqlContainer? _container = TimescaleFactAttribute.Enabled
+        ? new PostgreSqlBuilder()
+            .WithImage(Environment.GetEnvironmentVariable("TIMESCALE_TEST_IMAGE") is { Length: > 0 } image ? image : "timescale/timescaledb:latest-pg16")
+            .WithDatabase("buildingos_test")
+            .WithUsername("buildingos")
+            .WithPassword("buildingos")
+            .Build()
+        : null;
 
-    public string ConnectionString => _container.GetConnectionString();
+    public string ConnectionString => (_container ?? throw new InvalidOperationException(
+        "TimescaleDB tests are disabled; set INTEGRATION_TIMESCALE=true")).GetConnectionString();
 
     public async Task<NpgsqlConnection> OpenConnectionAsync()
     {
@@ -30,13 +34,14 @@ public class TimescaleFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        if (_container is null) return; // opt-in: nothing is pulled or started by default
         await _container.StartAsync();
         await using var conn = await OpenConnectionAsync();
         await using var cmd = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS timescaledb;", conn);
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    public Task DisposeAsync() => _container?.DisposeAsync().AsTask() ?? Task.CompletedTask;
 
     public async Task ApplyMigrationAsync(string sql)
     {
