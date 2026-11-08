@@ -17,8 +17,8 @@ public interface IControlFeedbackConfigResolver
 /// controlled <c>sbco:PointExt</c> (#637). Control-path only, like <see cref="OssControlSchemaResolver"/>, so it is
 /// its own short query rather than part of the shared point projection every read path pays for. A failure
 /// (OxiGraph down / slow) degrades to "no feedback" — confirmation is an aid, never a reason to block control.
-/// The import check (<c>FeedbackPointIssueDetection</c>) refuses a twin that names more than one feedback point,
-/// so taking one sample here is not a silent choice.
+/// The import check (<c>FeedbackPointIssueDetection</c>) refuses a twin that names more than one feedback point —
+/// including one an append would create against the existing twin — so taking one sample here is not a silent choice.
 /// </summary>
 public sealed class OssControlFeedbackConfigResolver(OxiGraphClient client, ILogger<OssControlFeedbackConfigResolver> logger)
     : IControlFeedbackConfigResolver

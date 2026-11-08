@@ -324,7 +324,10 @@ backstop).
 > so a client reading only the first event is unaffected. A FAILED control is not confirmed. The actual value is
 > recorded and sent **only when the point confirms itself** — a separate feedback point's value is another point's
 > telemetry, and reading this control's history (a read of the controlled point) does not imply reading that point,
-> so only the outcome is kept. Correlation reads every value (`LatestValueFeed.SubscribeEveryValue`), from dispatch. `ControlFeedbackSweeper`
+> so only the outcome is kept. Correlation reads every value the hot store keeps (`LatestValueFeed.SubscribeEveryValue`),
+> from dispatch — at `HOT_STORE_COALESCE_MS` (#625, default 100 ms) granularity: a value that is replaced within one
+> coalescing interval is never seen, so a device that touches the setpoint and leaves it within 100 ms reads as a
+> mismatch. Set `HOT_STORE_COALESCE_MS=0` if that matters more than ingest throughput. `ControlFeedbackSweeper`
 > closes confirmations a stopped replica left `pending` as unavailable / `interrupted`. The import refuses an ill-formed
 > `bos:feedbackPoint` (`FeedbackPointIssueDetection`: several targets, missing / id-less target, another gateway).
 > Metrics: `building_os.control.feedback{result}`, `building_os.control.feedback_duration`.

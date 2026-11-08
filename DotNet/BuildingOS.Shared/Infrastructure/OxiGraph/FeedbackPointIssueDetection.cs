@@ -17,11 +17,14 @@ internal static class FeedbackPointIssueDetection
     public static string BuildQuery(string? graph, TwinImportMode? mode)
     {
         var sbco = OxiGraphTwinAdminService.Sbco;
+        string L(string triple) => graph is null ? triple : OxiGraphTwinAdminService.Link(graph, mode!.Value, triple);
+
+        // The import judges the points it touches (a staged bos:feedbackPoint edge), but against the merged graph:
+        // an append may add a second target to a point that already has one, or add only the edge to a point whose
+        // type lives in the existing twin — both must still be caught.
         var candidate = graph is null
             ? $"?pt a <{sbco}PointExt> ; <{Bos}feedbackPoint> ?target ."
-            : $"GRAPH <{graph}> {{ ?pt a <{sbco}PointExt> ; <{Bos}feedbackPoint> ?target . }}";
-
-        string L(string triple) => graph is null ? triple : OxiGraphTwinAdminService.Link(graph, mode!.Value, triple);
+            : $"GRAPH <{graph}> {{ ?pt <{Bos}feedbackPoint> ?staged . }}\n{L($"?pt a <{sbco}PointExt> .")}\n{L($"?pt <{Bos}feedbackPoint> ?target .")}";
 
         return $@"SELECT DISTINCT ?pt ?target ?targetIsPoint ?targetId ?targetGw ?gw WHERE {{
 {candidate}
