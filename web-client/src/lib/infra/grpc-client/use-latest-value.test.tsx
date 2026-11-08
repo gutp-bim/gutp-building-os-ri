@@ -59,7 +59,6 @@ describe("useLatestValue (#636)", () => {
     act(() => s.push(num(1, "2026-11-08T00:00:00Z", true)));
     await waitFor(() => expect(result.current.status).toBe("live"));
     expect(result.current.sample?.value).toEqual({ kind: "number", value: 1 });
-    expect(result.current.fromSnapshot).toBe(true);
 
     act(() => s.push(num(2, "2026-11-08T00:00:10Z")));
     await waitFor(() =>
@@ -68,7 +67,6 @@ describe("useLatestValue (#636)", () => {
         value: 2,
       }),
     );
-    expect(result.current.fromSnapshot).toBe(false);
     expect(watch).toHaveBeenCalledWith(["P1"], expect.any(AbortSignal));
   });
 

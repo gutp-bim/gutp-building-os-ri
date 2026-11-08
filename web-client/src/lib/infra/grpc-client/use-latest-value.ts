@@ -53,22 +53,14 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export function useLatestValue(
   pointId: string | null | undefined,
   { watch = defaultWatch }: { watch?: WatchLatest } = {},
-): {
-  sample: TelemetryLatestSample | null;
-  /** The sample came from a (re)connect snapshot — a replay of what the server had, not a change. */
-  fromSnapshot: boolean;
-  status: LatestValueStatus;
-} {
-  const [pushed, setPushed] = useState<{
-    sample: TelemetryLatestSample;
-    fromSnapshot: boolean;
-  } | null>(null);
+): { sample: TelemetryLatestSample | null; status: LatestValueStatus } {
+  const [sample, setSample] = useState<TelemetryLatestSample | null>(null);
   const [status, setStatus] = useState<LatestValueStatus>("connecting");
 
   useEffect(() => {
     if (!pointId) return;
     const abort = new AbortController();
-    setPushed(null);
+    setSample(null);
     setStatus("connecting");
 
     (async () => {
@@ -79,11 +71,7 @@ export function useLatestValue(
         try {
           for await (const e of watch([pointId], abort.signal)) {
             setStatus("live");
-            if (e.pointId === pointId)
-              setPushed({
-                sample: toLatestSample(e),
-                fromSnapshot: e.snapshot,
-              });
+            if (e.pointId === pointId) setSample(toLatestSample(e));
           }
         } catch (err) {
           if (abort.signal.aborted) return;
@@ -111,9 +99,5 @@ export function useLatestValue(
     return () => abort.abort();
   }, [pointId, watch]);
 
-  return {
-    sample: pushed?.sample ?? null,
-    fromSnapshot: pushed?.fromSnapshot ?? false,
-    status,
-  };
+  return { sample, status };
 }
