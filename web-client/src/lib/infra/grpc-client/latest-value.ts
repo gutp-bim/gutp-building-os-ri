@@ -35,10 +35,19 @@ export function toLatestSample(e: LatestValueEventLike): TelemetryLatestSample {
   }
 }
 
+function sameValue(
+  a: TelemetryLatestSample["value"],
+  b: TelemetryLatestSample["value"],
+): boolean {
+  if (a.kind !== b.kind) return false;
+  return a.kind === "none" || ("value" in b && a.value === b.value);
+}
+
 /**
- * Whether a pushed sample should replace the one on screen. Older readings never win: the page may have just
- * refreshed over REST, and a snapshot from a reconnect can trail it. Samples without a timestamp only replace
- * nothing.
+ * Whether a sample (pushed, or read over REST) should replace the one on screen. Older readings never win: the
+ * page may have just refreshed over REST, and a snapshot from a reconnect can trail it. A **different value with
+ * the same timestamp does** win — the hot store keeps the later arrival for an equal timestamp (#625), so this
+ * follows it. Samples without a timestamp only replace nothing.
  */
 export function isNewer(
   next: TelemetryLatestSample,
@@ -49,8 +58,9 @@ export function isNewer(
   if (current.t === null) return true;
   const a = Date.parse(next.t);
   const b = Date.parse(current.t);
-  if (Number.isNaN(a) || Number.isNaN(b)) return next.t !== current.t;
-  return a > b;
+  if (Number.isNaN(a) || Number.isNaN(b))
+    return next.t !== current.t || !sameValue(next.value, current.value);
+  return a > b || (a === b && !sameValue(next.value, current.value));
 }
 
 export const MIN_BACKOFF_MS = 1_000;

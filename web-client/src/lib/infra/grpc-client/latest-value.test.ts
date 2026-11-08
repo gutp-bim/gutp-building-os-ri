@@ -59,6 +59,22 @@ describe("isNewer", () => {
     ).toBe(false);
   });
 
+  it("a different value at the same time wins (later arrival), the same reading does not", () => {
+    const one = {
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number" as const, value: 1 },
+    };
+    const two = {
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number" as const, value: 2 },
+    };
+    expect(isNewer(two, one)).toBe(true);
+    expect(isNewer({ ...one }, one)).toBe(false);
+    expect(
+      isNewer({ t: one.t, value: { kind: "string", value: "on" } }, one),
+    ).toBe(true);
+  });
+
   it("a sample without a time never replaces one with a time", () => {
     expect(isNewer(at(null), at("2026-11-08T00:00:00Z"))).toBe(false);
     expect(isNewer(at("2026-11-08T00:00:00Z"), at(null))).toBe(true);

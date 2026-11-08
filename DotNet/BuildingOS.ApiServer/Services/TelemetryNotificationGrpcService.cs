@@ -78,9 +78,10 @@ public sealed class TelemetryNotificationGrpcService(
         using var _ = subscription;
         logger.LogDebug("WatchLatest opened for {PointCount} point(s)", pointIds.Length);
 
-        // The last datetime sent per point: the watch can re-deliver an unchanged value (a reconnect replays the
-        // bucket), and a value equal to the snapshot is not a change.
-        var sent = new Dictionary<string, string?>(StringComparer.Ordinal);
+        // The last reading sent per point (time *and* value): the watch can re-deliver an unchanged value (a reconnect
+        // replays the bucket), which is not a change — but a different value with the same timestamp is one (the hot
+        // store keeps the later arrival for an equal timestamp, #625).
+        var sent = new Dictionary<string, string>(StringComparer.Ordinal);
         using var expiry = CancellationTokenSource.CreateLinkedTokenSource(ct);
         expiry.CancelAfter(lifetime);
         try
@@ -89,17 +90,20 @@ public sealed class TelemetryNotificationGrpcService(
             foreach (var v in snapshot)
             {
                 expiry.Token.ThrowIfCancellationRequested();
-                await responseStream.WriteAsync(ToEvent(v, snapshot: true), expiry.Token).ConfigureAwait(false);
-                sent[v.PointId] = v.Datetime;
+                var e = ToEvent(v, snapshot: true);
+                await responseStream.WriteAsync(e, expiry.Token).ConfigureAwait(false);
+                sent[v.PointId] = ReadingKey(e);
                 Count("snapshot");
             }
 
             await foreach (var v in subscription.ReadAllAsync(expiry.Token).ConfigureAwait(false))
             {
-                if (sent.TryGetValue(v.PointId, out var last) && string.Equals(last, v.Datetime, StringComparison.Ordinal))
+                var e = ToEvent(v, snapshot: false);
+                var key = ReadingKey(e);
+                if (sent.TryGetValue(v.PointId, out var last) && string.Equals(last, key, StringComparison.Ordinal))
                     continue;
-                await responseStream.WriteAsync(ToEvent(v, snapshot: false), expiry.Token).ConfigureAwait(false);
-                sent[v.PointId] = v.Datetime;
+                await responseStream.WriteAsync(e, expiry.Token).ConfigureAwait(false);
+                sent[v.PointId] = key;
                 Count("change");
             }
         }
@@ -133,6 +137,15 @@ public sealed class TelemetryNotificationGrpcService(
         }
         return e;
     }
+
+    /// <summary>Identity of a reading as the browser sees it: its timestamp and its value.</summary>
+    internal static string ReadingKey(LatestValueEvent e) => e.ValueCase switch
+    {
+        LatestValueEvent.ValueOneofCase.NumberValue => $"{e.Datetime}\u0001n\u0001{e.NumberValue.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}",
+        LatestValueEvent.ValueOneofCase.StringValue => $"{e.Datetime}\u0001s\u0001{e.StringValue}",
+        LatestValueEvent.ValueOneofCase.BoolValue => $"{e.Datetime}\u0001b\u0001{e.BoolValue}",
+        _ => $"{e.Datetime}\u0001-",
+    };
 
     private static void Count(string kind) =>
         BuildingOsMetrics.TelemetryFeedEventsSent.Add(1, new KeyValuePair<string, object?>("kind", kind));

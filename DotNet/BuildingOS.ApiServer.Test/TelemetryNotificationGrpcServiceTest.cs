@@ -136,6 +136,25 @@ public class TelemetryNotificationGrpcServiceTest
         Assert.Equal(0, feed.SubscriberCount);
     }
 
+    [Fact]
+    public async Task ADifferentValueWithTheSameTimestamp_IsAChange()
+    {
+        // The hot store keeps the later arrival for an equal timestamp, so the browser must see it too.
+        var feed = new LatestValueFeed();
+        feed.Publish(V("P1", 1, "2026-11-08T00:00:00Z"));
+        using var cts = new CancellationTokenSource();
+        var collector = new Collector { Target = 2, WhenCount = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+
+        var call = Service(feed, View("P1")).WatchLatest(Req("P1"), collector, new FakeCallContext(Http(), cts.Token));
+        await WaitUntil(() => feed.SubscriberCount == 1);
+        feed.Publish(V("P1", 2, "2026-11-08T00:00:00Z"));
+        await collector.WhenCount.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cts.CancelAsync();
+        await call.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([1d, 2d], collector.Events.Select(e => e.NumberValue));
+    }
+
     [Theory]
     [InlineData("string", null, "on", null, LatestValueEvent.ValueOneofCase.StringValue)]
     [InlineData("boolean", 1.0, null, true, LatestValueEvent.ValueOneofCase.BoolValue)]
