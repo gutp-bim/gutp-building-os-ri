@@ -1,5 +1,6 @@
 import { FreshnessBadge } from "@/components/telemetry/freshness-badge";
 import { Button } from "@/components/ui/button";
+import type { LatestValueStatus } from "@/lib/infra/grpc-client/use-latest-value";
 import {
   DEFAULT_STALE_THRESHOLD_SECONDS,
   classifyPointFreshness,
@@ -11,6 +12,12 @@ import { resolveUnitLabel } from "@/lib/utils/helper/telemetry-helper";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useMemo } from "react";
 
+const LIVE_LABEL: Record<Exclude<LatestValueStatus, "unavailable">, string> = {
+  connecting: "自動更新に接続中…",
+  live: "自動更新中",
+  reconnecting: "自動更新が途切れています（再接続中）",
+};
+
 export function TelemetryHotData({
   hotData,
   hotLoading,
@@ -21,8 +28,11 @@ export function TelemetryHotData({
   expectedIntervalSeconds,
   staleThresholdSeconds = DEFAULT_STALE_THRESHOLD_SECONDS,
   staleIntervalMultiplier,
+  liveStatus,
 }: {
   hotData: TelemetryLatestSample | null;
+  /** #636: state of the latest-value push stream; omitted = no live indicator. */
+  liveStatus?: LatestValueStatus;
   hotLoading: boolean;
   onRefresh: () => void;
   onDownloadClick: () => void;
@@ -92,6 +102,20 @@ export function TelemetryHotData({
             {freshness && (
               <div className="mt-2 flex justify-center">
                 <FreshnessBadge freshness={freshness} />
+              </div>
+            )}
+            {liveStatus && liveStatus !== "unavailable" && (
+              <div
+                data-testid="hot-live-status"
+                className="mt-2 flex items-center justify-center gap-1 text-xs text-gray-500"
+              >
+                <span
+                  aria-hidden
+                  className={`inline-block h-2 w-2 rounded-full ${
+                    liveStatus === "live" ? "bg-green-500" : "bg-gray-300"
+                  }`}
+                />
+                {LIVE_LABEL[liveStatus]}
               </div>
             )}
           </div>

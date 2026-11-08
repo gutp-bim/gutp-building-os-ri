@@ -3,6 +3,8 @@
 import { InlineBanner } from "@/components/ui/inline-banner";
 import type { HealthRow } from "@/lib/health/mapping";
 import { fetchPointHealthRow } from "@/lib/health/repository";
+import { isNewer } from "@/lib/infra/grpc-client/latest-value";
+import { useLatestValue } from "@/lib/infra/grpc-client/use-latest-value";
 import { getPointDetail } from "@/lib/resources/repository";
 import type { PointDetailResource } from "@/lib/resources/types";
 import { toTelemetryCsv } from "@/lib/telemetry/csv";
@@ -122,6 +124,15 @@ export default function PointDetailPageComponent({
     };
     fetchPointDetail();
   }, [pointId]);
+
+  // #636: follow the latest value over the push stream once the business id is known. The REST read above
+  // stays the first paint and the manual refresh; a pushed sample replaces it only when it is newer.
+  const live = useLatestValue(pointDetail?.point.id);
+  useEffect(() => {
+    if (live.sample === null) return;
+    const pushed = live.sample;
+    setHotData((current) => (isNewer(pushed, current) ? pushed : current));
+  }, [live.sample]);
 
   const fetchHotData = async () => {
     if (!pointDetail?.point.id) return;
@@ -342,6 +353,7 @@ export default function PointDetailPageComponent({
           <TelemetryHotData
             hotData={hotData}
             hotLoading={hotLoading}
+            liveStatus={live.status}
             onRefresh={() => {
               fetchHotData();
               fetchCoverage();

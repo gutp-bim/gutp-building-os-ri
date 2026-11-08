@@ -172,6 +172,7 @@ web-client/src/
 proto/
 ├── greet.proto                  # Greeter service + server-streaming notifications
 ├── point_control.proto          # PointControlService for device control streaming
+├── telemetry_notification.proto # TelemetryNotificationService — latest-value push to the browser (#636)
 ├── gateway_egress.proto         # GatewayEgress (bidi) — BOWS control plane (GatewayBridge)
 └── gateway_ingress.proto        # GatewayIngress (client-stream telemetry) — hosted in ConnectorWorker
 
@@ -328,6 +329,7 @@ the web client (the web client calls only `/api/v1`).
 |--------|-------------|
 | Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) — the only generated REST client |
 | gRPC client via `useControlExecution()` (`src/lib/infra/grpc-client/`) | device control streaming (point_control) |
+| gRPC client via `useLatestValue(pointId)` (`src/lib/infra/grpc-client/`) | latest-value push on the point page (#636, `telemetry_notification`) |
 | bespoke authenticated fetch (`src/lib/admin/http.ts`) | the few endpoints still outside the Aspida schema — resource-metadata writes and telemetry/control-audit reads that need custom response handling |
 | resource/telemetry façade (`src/lib/resources/`, `src/lib/telemetry/`) | resource hierarchy + telemetry reads — **UI calls these, not aspida directly** |
 
@@ -364,6 +366,18 @@ Aspida client is auto-generated from Swagger. After API changes, run `./sync-typ
 > answered by `GET /api/v1/telemetry/health`, not by these** — `lib/resources/search-dispatch.ts` routes a
 > health condition to the health API alone (the two are never joined in the UI), so choosing health clears
 > the asset attributes and vice versa. The whole form is mirrored to the URL (`search-filters.ts`).
+
+> **Latest-value push (#636):** the point page follows its latest value over the gRPC-web server stream
+> `TelemetryNotificationService.WatchLatest(point_ids)` instead of reading it once. The API server keeps its **one**
+> `telemetry-latest` KV watch (`NatsKvPointLastSeenIndexWorker`, the same one behind data health) and fans it out in
+> process (`LatestValueFeed`: a snapshot first, then the newest value per point — a slow reader skips to the newest
+> rather than working through a backlog); each replica serves its own streams. Unlike the control-result stream it is
+> **authorized**: `authenticatedGrpcTransport` sends the `oidc.access_token` bearer, and the service refuses the call
+> (`Unauthenticated` / `PermissionDenied`, without naming the point) unless the caller can read every requested point
+> (`IAuthorizedTwinView.GetPointAsync`); 1..100 points per stream. The REST read stays the first paint and the manual
+> refresh; a pushed sample replaces it only when newer. `useLatestValue` reconnects with 1s→30s backoff and stops on
+> Unauthenticated/PermissionDenied/InvalidArgument/Unimplemented. Metrics: `building_os.telemetry_feed.{subscribers,
+> events_sent{kind},dropped,delivery_latency}`. Latency is the KV write (≤ `HOT_STORE_COALESCE_MS`, #625) plus the push.
 
 ### Help content (content-as-code, #149)
 
