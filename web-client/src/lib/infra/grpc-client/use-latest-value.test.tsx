@@ -2,7 +2,11 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LatestValueEventLike } from "./latest-value";
-import { useLatestValue, type WatchLatest } from "./use-latest-value";
+import {
+  HEALTHY_STREAM_MS,
+  useLatestValue,
+  type WatchLatest,
+} from "./use-latest-value";
 
 const num = (
   value: number,
@@ -88,6 +92,44 @@ describe("useLatestValue (#636)", () => {
     await waitFor(() => expect(result.current.status).toBe("live"));
     expect(result.current.sample?.value).toEqual({ kind: "number", value: 3 });
     expect(watch).toHaveBeenCalledTimes(2);
+  });
+
+  it("reconnects at once, staying live, when a long-lived stream ends on purpose", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const first = controllableStream();
+    const second = controllableStream();
+    const streams = [first, second];
+    const watch: WatchLatest = vi.fn((_ids, signal) =>
+      streams.shift()!.iterate(signal),
+    );
+    const seen: string[] = [];
+    const { result } = renderHook(() => {
+      const r = useLatestValue("P1", { watch });
+      seen.push(r.status);
+      return r;
+    });
+
+    act(() => first.push(num(1, "2026-11-08T00:00:00Z", true)));
+    await waitFor(() => expect(result.current.status).toBe("live"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HEALTHY_STREAM_MS);
+    });
+    act(() => first.push("end")); // the server's lifetime is up
+
+    await waitFor(() => expect(watch).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe("live");
+    expect(seen).not.toContain("reconnecting");
+  });
+
+  it("treats a stream that ends right away as a failure (no tight loop)", async () => {
+    const s = controllableStream();
+    const watch: WatchLatest = vi.fn((_ids, signal) => s.iterate(signal));
+    const { result } = renderHook(() => useLatestValue("P1", { watch }));
+
+    act(() => s.push("end"));
+
+    await waitFor(() => expect(result.current.status).toBe("reconnecting"));
+    expect(watch).toHaveBeenCalledTimes(1);
   });
 
   it("stops for good when the server refuses", async () => {

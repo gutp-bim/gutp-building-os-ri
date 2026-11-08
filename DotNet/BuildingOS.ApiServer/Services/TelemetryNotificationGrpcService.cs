@@ -13,17 +13,36 @@ namespace BuildingOs.ApiServer.Services;
 /// caller cannot read refuses the whole call, without saying which (an unreadable point and a missing one look
 /// the same, as in <see cref="IAuthorizedTwinView"/>).
 ///
-/// <para>The authorization is decided when the stream opens. A permission revoked meanwhile takes effect at the
-/// client's next reconnect — the same window the 5-minute authorization-context cache already gives every REST
-/// read.</para>
+/// <para><b>Authorization is decided when the stream opens, so a stream does not live forever.</b> It ends cleanly
+/// after <see cref="MaxLifetime"/> (the 5-minute authorization-context cache every REST read already lives with),
+/// or at the access token's <c>exp</c> if that comes first; the client then reconnects, which re-authenticates and
+/// re-authorizes. A revoked permission or an expired token therefore stops the values within that bound.</para>
 /// </summary>
 public sealed class TelemetryNotificationGrpcService(
     LatestValueFeed feed,
     IAuthorizedTwinView twinView,
-    ILogger<TelemetryNotificationGrpcService> logger) : TelemetryNotificationService.TelemetryNotificationServiceBase
+    ILogger<TelemetryNotificationGrpcService> logger,
+    TimeProvider? clock = null) : TelemetryNotificationService.TelemetryNotificationServiceBase
 {
     /// <summary>Most points one stream may watch, so one client cannot hold the feed for a whole building.</summary>
     public const int MaxPoints = 100;
+
+    /// <summary>Longest a stream runs before the client must reconnect (and be authorized again).</summary>
+    public static readonly TimeSpan MaxLifetime = TimeSpan.FromMinutes(5);
+
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+
+    /// <summary>How long this stream may run: <see cref="MaxLifetime"/>, cut short by the token's <c>exp</c>.</summary>
+    internal static TimeSpan Lifetime(System.Security.Claims.ClaimsPrincipal user, DateTimeOffset now)
+    {
+        var exp = user.FindFirst("exp")?.Value;
+        if (long.TryParse(exp, out var seconds))
+        {
+            var untilExpiry = DateTimeOffset.FromUnixTimeSeconds(seconds) - now;
+            if (untilExpiry < MaxLifetime) return untilExpiry < TimeSpan.Zero ? TimeSpan.Zero : untilExpiry;
+        }
+        return MaxLifetime;
+    }
 
     public override async Task WatchLatest(
         WatchLatestRequest request, IServerStreamWriter<LatestValueEvent> responseStream, ServerCallContext context)
@@ -43,6 +62,10 @@ public sealed class TelemetryNotificationGrpcService(
         if (pointIds.Length > MaxPoints)
             throw new RpcException(new Status(StatusCode.InvalidArgument, $"point_ids may name at most {MaxPoints} points"));
 
+        var lifetime = Lifetime(http.User, _clock.GetUtcNow());
+        if (lifetime <= TimeSpan.Zero)
+            throw new RpcException(new Status(StatusCode.Unauthenticated, "Access token expired"));
+
         var ct = context.CancellationToken;
         foreach (var id in pointIds)
         {
@@ -58,6 +81,8 @@ public sealed class TelemetryNotificationGrpcService(
         // The last datetime sent per point: the watch can re-deliver an unchanged value (a reconnect replays the
         // bucket), and a value equal to the snapshot is not a change.
         var sent = new Dictionary<string, string?>(StringComparer.Ordinal);
+        using var expiry = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        expiry.CancelAfter(lifetime);
         try
         {
             foreach (var v in snapshot)
@@ -67,7 +92,7 @@ public sealed class TelemetryNotificationGrpcService(
                 Count("snapshot");
             }
 
-            await foreach (var v in subscription.ReadAllAsync(ct).ConfigureAwait(false))
+            await foreach (var v in subscription.ReadAllAsync(expiry.Token).ConfigureAwait(false))
             {
                 if (sent.TryGetValue(v.PointId, out var last) && string.Equals(last, v.Datetime, StringComparison.Ordinal))
                     continue;
@@ -79,6 +104,11 @@ public sealed class TelemetryNotificationGrpcService(
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // The browser closed the stream (navigated away, tab closed): the normal end.
+        }
+        catch (OperationCanceledException) when (expiry.IsCancellationRequested)
+        {
+            // The lifetime is up: end cleanly so the client reconnects and is authorized afresh.
+            logger.LogDebug("WatchLatest reached its lifetime of {Lifetime}; client will reconnect", lifetime);
         }
     }
 

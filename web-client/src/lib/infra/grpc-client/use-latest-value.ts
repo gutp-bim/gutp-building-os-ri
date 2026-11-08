@@ -26,6 +26,9 @@ export type WatchLatest = (
   signal: AbortSignal,
 ) => AsyncIterable<LatestValueEventLike>;
 
+/** A stream that ran at least this long before ending cleanly was a planned end, not a failure. */
+export const HEALTHY_STREAM_MS = 10_000;
+
 const defaultWatch: WatchLatest = (pointIds, signal) =>
   createClient(
     TelemetryNotificationService,
@@ -63,6 +66,8 @@ export function useLatestValue(
     (async () => {
       let failures = 0;
       while (!abort.signal.aborted) {
+        const openedAt = Date.now();
+        let failed = false;
         try {
           for await (const e of watch([pointId], abort.signal)) {
             failures = 0;
@@ -75,9 +80,13 @@ export function useLatestValue(
             setStatus("unavailable");
             return;
           }
+          failed = true;
         }
         if (abort.signal.aborted) return;
-        // The stream ended or failed: show that the value may be old, then try again.
+        // The server ends a healthy stream on purpose after a while (so the caller is authorized again):
+        // reconnect at once, without flashing "reconnecting". A stream that ends almost immediately is
+        // treated as a failure so a misbehaving server cannot make this spin.
+        if (!failed && Date.now() - openedAt >= HEALTHY_STREAM_MS) continue;
         failures += 1;
         setStatus("reconnecting");
         await sleep(backoffMs(failures), abort.signal);

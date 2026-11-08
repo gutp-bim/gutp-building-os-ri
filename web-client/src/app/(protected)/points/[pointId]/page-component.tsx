@@ -128,9 +128,12 @@ export default function PointDetailPageComponent({
   // #636: follow the latest value over the push stream once the business id is known. The REST read above
   // stays the first paint and the manual refresh; a pushed sample replaces it only when it is newer.
   const live = useLatestValue(pointDetail?.point.id);
+  // When the last pushed sample was applied, so a REST read can tell whether a push landed while it ran.
+  const lastPushAppliedAt = useRef(0);
   useEffect(() => {
     if (live.sample === null) return;
     const pushed = live.sample;
+    lastPushAppliedAt.current = Date.now();
     setHotData((current) => (isNewer(pushed, current) ? pushed : current));
   }, [live.sample]);
 
@@ -140,11 +143,16 @@ export default function PointDetailPageComponent({
       setHotLoading(true);
       setHotError(null);
       // Raw latest sample (not the numeric-only series) so a string/boolean reading survives (#152).
+      const startedAt = Date.now();
       const latest = await latestTelemetrySample(pointDetail.point.id);
       // #636: a push may have landed while this read was in flight; never step back to an older reading.
-      setHotData((current) =>
-        latest !== null && isNewer(latest, current) ? latest : current,
-      );
+      // An empty answer still clears the card (the telemetry may have been purged) — unless a push arrived
+      // during the read, which is newer than anything this read could say.
+      setHotData((current) => {
+        if (latest === null)
+          return lastPushAppliedAt.current > startedAt ? current : null;
+        return isNewer(latest, current) ? latest : current;
+      });
     } catch (e) {
       console.error(e);
       setHotError("最新値の取得に失敗しました。");

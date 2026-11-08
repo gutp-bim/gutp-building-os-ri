@@ -56,12 +56,14 @@ public class TelemetryNotificationGrpcServiceTest
         }
     }
 
-    private static HttpContext Http(bool authenticated = true)
+    private static HttpContext Http(bool authenticated = true, DateTimeOffset? exp = null)
     {
+        var claims = new List<Claim> { new("sub", "u1") };
+        if (exp is { } e) claims.Add(new Claim("exp", e.ToUnixTimeSeconds().ToString()));
         var http = new DefaultHttpContext
         {
             User = authenticated
-                ? new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "u1")], "test"))
+                ? new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))
                 : new ClaimsPrincipal(new ClaimsIdentity()),
         };
         http.Items["AuthorizationContext"] = new AuthorizationContext { UserId = "u1", Role = "operator", Permissions = [] };
@@ -146,6 +148,40 @@ public class TelemetryNotificationGrpcServiceTest
     {
         var e = TelemetryNotificationGrpcService.ToEvent(new LatestValue("P1", number, text, flag, type, "t", T), snapshot: false);
         Assert.Equal(expected, e.ValueCase);
+    }
+
+    [Fact]
+    public void Lifetime_IsFiveMinutes_CutShortByTheTokensExpiry()
+    {
+        var now = DateTimeOffset.UtcNow;
+        ClaimsPrincipal User(DateTimeOffset? exp) => Http(exp: exp).User;
+
+        Assert.Equal(TelemetryNotificationGrpcService.MaxLifetime, TelemetryNotificationGrpcService.Lifetime(User(null), now));
+        Assert.Equal(TelemetryNotificationGrpcService.MaxLifetime, TelemetryNotificationGrpcService.Lifetime(User(now.AddHours(1)), now));
+        var soon = TelemetryNotificationGrpcService.Lifetime(User(now.AddSeconds(60)), now);
+        Assert.InRange(soon.TotalSeconds, 59, 60);
+        Assert.Equal(TimeSpan.Zero, TelemetryNotificationGrpcService.Lifetime(User(now.AddSeconds(-1)), now));
+    }
+
+    [Fact]
+    public async Task AnExpiredToken_IsRefused()
+    {
+        var ex = await Assert.ThrowsAsync<RpcException>(() =>
+            Service(new LatestValueFeed(), View("P1")).WatchLatest(
+                Req("P1"), new Collector(), new FakeCallContext(Http(exp: DateTimeOffset.UtcNow.AddMinutes(-1)), default)));
+        Assert.Equal(StatusCode.Unauthenticated, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheStreamEndsCleanly_WhenTheTokenExpires_SoTheClientMustReauthorize()
+    {
+        // A permission revoked (or a token expired) after the stream opened must stop the values within a bound.
+        var feed = new LatestValueFeed();
+        var call = Service(feed, View("P1")).WatchLatest(
+            Req("P1"), new Collector(), new FakeCallContext(Http(exp: DateTimeOffset.UtcNow.AddSeconds(2)), default));
+
+        await call.WaitAsync(TimeSpan.FromSeconds(10)); // returns, does not throw
+        Assert.Equal(0, feed.SubscriberCount);
     }
 
     private static async Task WaitUntil(Func<bool> condition)

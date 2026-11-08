@@ -189,6 +189,17 @@ describe("PointDetailPageComponent latest-value push (#636)", () => {
     );
   });
 
+  it("an empty REST answer still clears the card when nothing was pushed", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue(null);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(1));
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    await waitFor(() => expect(latestTelemetrySample).toHaveBeenCalled());
+    expect(screen.getByTestId("hot")).toHaveTextContent("none");
+  });
+
   it("keeps the REST value when the pushed sample is older", async () => {
     (getPointDetail as Mock).mockResolvedValue(detail);
     (latestTelemetrySample as Mock).mockResolvedValue({

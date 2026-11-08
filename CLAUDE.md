@@ -378,7 +378,9 @@ Aspida client is auto-generated from Swagger. After API changes, run `./sync-typ
 > rather than working through a backlog); each replica serves its own streams. Unlike the control-result stream it is
 > **authorized**: `authenticatedGrpcTransport` sends the `oidc.access_token` bearer, and the service refuses the call
 > (`Unauthenticated` / `PermissionDenied`, without naming the point) unless the caller can read every requested point
-> (`IAuthorizedTwinView.GetPointAsync`); 1..100 points per stream. The REST read stays the first paint and the manual
+> (`IAuthorizedTwinView.GetPointAsync`); 1..100 points per stream. A stream ends cleanly after 5 minutes, or at the
+> token's `exp` if sooner, and the client reconnects silently — so a revoked permission or expired token stops it
+> within that bound. The REST read stays the first paint and the manual
 > refresh; a pushed sample replaces it only when newer. `useLatestValue` reconnects with 1s→30s backoff and stops on
 > Unauthenticated/PermissionDenied/InvalidArgument/Unimplemented. Metrics: `building_os.telemetry_feed.{subscribers,
 > events_sent{kind},dropped,delivery_latency}`. Latency is the KV write (≤ `HOT_STORE_COALESCE_MS`, #625) plus the push.
