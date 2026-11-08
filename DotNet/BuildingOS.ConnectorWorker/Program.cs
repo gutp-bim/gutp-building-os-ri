@@ -114,10 +114,12 @@ void LogStartup(IServiceProvider services, WorkerRole role, int? ingressGrpcPort
     var identity = services.GetService<IngressIdentityOptions>();
     var hierarchy = services.GetService<IngressHierarchyOptions>();
     var publish = services.GetService<IngressPublishOptions>();
+    var missingValue = services.GetService<IngressMissingValueOptions>();
     var grpcDesc = ingressGrpcPort is int p
         ? $"enabled port={p}, identity-binding={(identity?.Enforce == true ? $"enforced(header={identity.HeaderName})" : "off")}" +
           $", hierarchy-check={(hierarchy?.Enforce == true ? "enforced" : "off")}" +
-          $", publish-window={publish?.Window ?? IngressPublishOptions.DefaultWindow}"
+          $", publish-window={publish?.Window ?? IngressPublishOptions.DefaultWindow}" +
+          $", missing-value={(missingValue?.Policy ?? IngressMissingValuePolicy.Skip).ToString().ToLowerInvariant()}"
         : role.RunsTelemetryIngress()
             ? "disabled (GRPC_INGRESS_PORT unset)"
             : $"disabled (role={role.ToString().ToLowerInvariant()})";

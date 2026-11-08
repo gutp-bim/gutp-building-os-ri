@@ -221,6 +221,9 @@ public static class ConnectorWorkerServiceCollectionExtensions
         // Publish window (#625 slice B): in-flight publish-acks per stream (1 = serial, pre-#625).
         builder.Services.AddSingleton(IngressPublishOptions.Parse(
             builder.Configuration["GRPC_INGRESS_PUBLISH_WINDOW"]));
+        // Missing value (#663): skip a frame with no value (default) or publish it as 0.0 (legacy gateways).
+        builder.Services.AddSingleton(IngressMissingValueOptions.Parse(
+            builder.Configuration[IngressMissingValueOptions.EnvironmentVariable]));
         // Unsigned run context (opt-in): load the operator-placed file at startup so a bad scope or
         // schema fails fast. When unset, run claims are rejected (fail closed) by GatewayIngressService.
         var runContextTrust = builder.Configuration["GRPC_INGRESS_RUN_CONTEXT_TRUST_FILE"]?.Trim();

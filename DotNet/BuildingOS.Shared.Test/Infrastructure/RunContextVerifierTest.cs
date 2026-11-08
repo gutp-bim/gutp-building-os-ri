@@ -33,7 +33,7 @@ public sealed class RunContextVerifierTest
             {
                 new { gatewayId = "GW-EXAMPLE", clockId = "urn:clock:test", envelopeFile = EnvelopePath }
             }));
-            Frame = new TelemetryFrame { GatewayId = "GW-EXAMPLE", PointId = "BPT-0002", Timestamp = "2026-01-01T00:00:05.000001Z" };
+            Frame = new TelemetryFrame { GatewayId = "GW-EXAMPLE", PointId = "BPT-0002", ValueNum = 21.5, Timestamp = "2026-01-01T00:00:05.000001Z" };
             foreach (var (name, value) in new Dictionary<string,string>
             {
                 ["sim_clock_id"] = "urn:clock:test", ["sim_config_revision"] = "rev-a", ["sim_run_id"] = "run-a",
@@ -148,7 +148,7 @@ public sealed class RunContextVerifierTest
     public async Task UnconfiguredWithoutClaim_StillPublishes()
     {
         using var fixture = new Fixture();
-        var plain = new TelemetryFrame { GatewayId = "GW-EXAMPLE", PointId = "BPT-0002", Timestamp = fixture.Frame.Timestamp };
+        var plain = new TelemetryFrame { GatewayId = "GW-EXAMPLE", PointId = "BPT-0002", ValueNum = 21.5, Timestamp = fixture.Frame.Timestamp };
         var absent = plain.Clone(); absent.Attributes["sim_run_status"] = "absent";
         var (service, bus) = NewService(null);
         Assert.Equal(2, await RunAsync(service, plain, absent));

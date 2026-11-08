@@ -34,8 +34,10 @@ message TelemetryFrame {
   // Discriminated telemetry value (#152, ADR-0006). Numeric is the primary type (charts/aggregation);
   // string and boolean are first-class state/status values. Field number 3 stays `double value_num`, so
   // existing numeric gateways remain wire-compatible: a bare double on field 3 deserializes into
-  // value_num, and an omitted field-3 value (a legacy gateway's default-0.0 reading) is read back as
-  // numeric 0.0 by the server. String/boolean readings use new field numbers.
+  // value_num. Set the oneof for every reading, 0.0 included. A frame with no value case set is a
+  // missing reading: the server skips it (result=no_value, #663) unless GRPC_INGRESS_MISSING_VALUE_POLICY=zero,
+  // which reads it back as numeric 0.0 for a legacy pre-oneof gateway whose 0.0 proto3 left off the wire.
+  // String/boolean readings use new field numbers.
   oneof value {
     double value_num = 3;  // numeric reading (primary; field 3 preserved for wire compat)
     string value_str = 6;  // string/status/enum-label reading

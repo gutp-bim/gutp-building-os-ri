@@ -578,6 +578,8 @@ services:
       # GRPC_INGRESS_PUBLISH_WINDOW=1 HOT_STORE_COALESCE_MS=0 restores the pre-#625 serial behaviour.
       GRPC_INGRESS_PUBLISH_WINDOW: ${GRPC_INGRESS_PUBLISH_WINDOW:-}
       HOT_STORE_COALESCE_MS: ${HOT_STORE_COALESCE_MS:-}
+      # #663: a frame with no value is skipped as missing (result=no_value); `zero` stores it as 0.0 (legacy gateways).
+      GRPC_INGRESS_MISSING_VALUE_POLICY: ${GRPC_INGRESS_MISSING_VALUE_POLICY:-}
       HOT_STORE_COALESCE_MAX_POINTS: ${HOT_STORE_COALESCE_MAX_POINTS:-}
       # Per-observation validated JSON limits, in UTF-8 bytes (not an envelope or KV bucket limit).
       TELEMETRY_MAX_DATA_BYTES: ${TELEMETRY_MAX_DATA_BYTES:-1024}

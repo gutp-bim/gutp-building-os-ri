@@ -38,7 +38,7 @@ bounded number of series, unlike an identifier. The ingest signals below use onl
 | Metric | Tag | Values |
 |--------|-----|--------|
 | `building_os.ingress.messages` | `source` | `mqtt`, `amqp`, `gateway-grpc` |
-| `building_os.ingress.messages` | `result` | transports: `published`, `bad_topic` (MQTT only), `bad_payload`; gRPC ingress: `published`, `missing_id`, `identity_missing`, `identity_mismatch`, `unknown_point`, `gateway_mismatch`, `no_building_path`, `no_device_link`, `publish_failed` |
+| `building_os.ingress.messages` | `result` | transports: `published`, `bad_topic` (MQTT only), `bad_payload`; gRPC ingress: `published`, `missing_id`, `no_value` (#663), `identity_missing`, `identity_mismatch`, `unknown_point`, `gateway_mismatch`, `no_building_path`, `no_device_link`, `publish_failed` |
 | `building_os.ingress.messages` | `gateway` | gateway id, `source=gateway-grpc` only — bounded by the number of gateways, not points |
 | `building_os.ingress.event_lag` | `source` | `connector`, `gateway-grpc` |
 | `building_os.ingestion.lag` | `subject` | the `building-os.raw.*` subject the consumer reads |
@@ -137,7 +137,7 @@ Notes:
   which the ingress counter never saw, so their drops would inflate the percentage. Rejected % stays rejected ÷ ingress. The ingress
   rows of the breakdown use the same counter and label as `/platform/ingress-rejections`, which shows
   the cumulative `source="gateway-grpc"` counts; the status page shows rates across all sources. Which
-  `result` comes from where: `bad_payload` (MQTT / AMQP), `bad_topic` (MQTT), `missing_id` /
+  `result` comes from where: `bad_payload` (MQTT / AMQP), `bad_topic` (MQTT), `missing_id` / `no_value` /
   `unknown_point` / `gateway_mismatch` / `no_building_path` / `no_device_link` / `identity_*` /
   `publish_failed` (gRPC GatewayIngress only), `connector:skipped` / `connector:error` (MQTT / Hono
   connectors). The rejection selectors return nothing until the first rejection, so the query ends in
@@ -218,7 +218,7 @@ Notes:
 |-----|-----|--------------|
 | Ingress drops to 0 | Platform operator | Check ingress transports and gateway connectivity ([runbook §5](oss-incident-runbook.md#5-ゲートウェイの大量切断), §1 if NATS is down). |
 | Validated ≪ Ingress (sustained) | Platform operator | Read Consumer lag and NATS pending: backlog means connectors are behind; check ConnectorWorker readiness ([runbook §0](oss-incident-runbook.md#0-最初に見るところトリアージ)). |
-| Rejected % high | Twin / gateway owner | Use the tooltip's `result` breakdown and `/platform/ingress-rejections`. `unknown_point` / `gateway_mismatch` / `no_building_path` (gRPC gateways) or `connector:skipped` (MQTT / Hono devices whose device or point does not resolve) mean fix the twin or point list; `bad_payload` / `bad_topic` mean fix the device or gateway payload; `connector:error` means read the ConnectorWorker logs. |
+| Rejected % high | Twin / gateway owner | Use the tooltip's `result` breakdown and `/platform/ingress-rejections`. `unknown_point` / `gateway_mismatch` / `no_building_path` (gRPC gateways) or `connector:skipped` (MQTT / Hono devices whose device or point does not resolve) mean fix the twin or point list; `no_value` (gRPC gateways, #663) means the gateway sent a frame with no value — fix the gateway, or set `GRPC_INGRESS_MISSING_VALUE_POLICY=zero` for a legacy pre-oneof gateway; `bad_payload` / `bad_topic` mean fix the device or gateway payload; `connector:error` means read the ConnectorWorker logs. |
 | Event lag high, Consumer lag normal | Gateway / device / network owner | The delay is upstream of Building OS. Check gateway buffers, device clocks, and the network. Read `timestamp_fallbacks` next to it ([oss-sla-freshness.md](oss-sla-freshness.md) §5–§6). |
 | Event lag high, Consumer lag high | Platform operator | Suspect internal queueing or backpressure. Check NATS pending and ConnectorWorker capacity ([runbook §1](oss-incident-runbook.md#1-nats-が落ちた), [oss-sla-freshness.md](oss-sla-freshness.md) §6). |
 | Parquet freshness high / dropped > 0 / "flush 停止の可能性" | Platform operator | Check the lake writer and MinIO (a stall means no flush at all in the window — check ConnectorWorker `lake` role readiness and its logs first) ([runbook §2](oss-incident-runbook.md#2-minioparquet-レイクが落ちた)). Dropped rows mean a producer sent unparseable timestamps, so find the source in Loki. |

@@ -38,6 +38,14 @@
   [onboarding-e2e-gateway.md](onboarding-e2e-gateway.md)の「Step D — nexus-gateway を Building OS に
   つなぐ」節。
 
+- [ ] **3-1. 値は毎回 `TelemetryFrame` の `value` の oneof に入れて送る（#663）**
+  0.0 や `false`、空文字も含めて、`value_num` / `value_str` / `value_bool` のどれかを必ず設定します。
+  oneof が空の frame は欠測とみなされ、`result=no_value` として捨てられます（`accepted` に数えません）。
+  以前は数値 0.0 として保存していたため、欠測と本当の 0 を区別できませんでした。値が取れなかった読み取りは、
+  0 や前回値で埋めずに送らないでください。データ健全性（stale / missing）が欠測として扱います。
+  oneof 以前（#152 より前）の数値専用の gateway は 0.0 を wire に載せられないため、ConnectorWorker に
+  `GRPC_INGRESS_MISSING_VALUE_POLICY=zero` を設定して、従来どおり 0.0 として受けてください。
+
 - [ ] **4. ゲートウェイ側で Point List 同期を配線する**
   `GET /gateways/{gatewayId}/pointlist` を `If-None-Match` 付きでポーリングします(twin が
   正本、content-hash ETag、`?since={etag}` で差分取得も可)。twin 更新時は

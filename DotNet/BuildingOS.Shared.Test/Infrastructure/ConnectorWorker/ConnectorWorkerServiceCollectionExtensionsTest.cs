@@ -83,6 +83,20 @@ public class ConnectorWorkerServiceCollectionExtensionsTest
     }
 
     [Fact]
+    public void TelemetryIngress_RegistersTheMissingValuePolicy()
+    {
+        var unset = NewBuilder(new());
+        unset.AddTelemetryIngress(5051);
+        Assert.Equal(IngressMissingValuePolicy.Skip, Assert.IsType<IngressMissingValueOptions>(
+            Assert.Single(unset.Services, d => d.ServiceType == typeof(IngressMissingValueOptions)).ImplementationInstance).Policy);
+
+        var zero = NewBuilder(new() { ["GRPC_INGRESS_MISSING_VALUE_POLICY"] = "zero" });
+        zero.AddTelemetryIngress(5051);
+        Assert.Equal(IngressMissingValuePolicy.Zero, Assert.IsType<IngressMissingValueOptions>(
+            Assert.Single(zero.Services, d => d.ServiceType == typeof(IngressMissingValueOptions)).ImplementationInstance).Policy);
+    }
+
+    [Fact]
     public void Messaging_HotStoreCoalescingDisabledByZero()
     {
         var b = NewBuilder(new() { ["HOT_STORE_COALESCE_MS"] = "0" });
