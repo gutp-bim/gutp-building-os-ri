@@ -13,6 +13,8 @@ const entries: ControlAuditEntry[] = [
     completedAt: "2026-07-15T00:00:01Z",
     actorSub: "kc-sub-42",
     actorName: "Yamada",
+    feedback: null,
+    feedbackValue: null,
   },
   {
     controlId: "c2",
@@ -23,6 +25,8 @@ const entries: ControlAuditEntry[] = [
     completedAt: "2026-07-14T00:00:02Z",
     actorSub: "kc-sub-7",
     actorName: null,
+    feedback: null,
+    feedbackValue: null,
   },
   {
     controlId: "c3",
@@ -33,6 +37,8 @@ const entries: ControlAuditEntry[] = [
     completedAt: null,
     actorSub: "unknown",
     actorName: null,
+    feedback: null,
+    feedbackValue: null,
   },
 ];
 

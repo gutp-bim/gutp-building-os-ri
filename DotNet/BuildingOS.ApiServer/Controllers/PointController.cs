@@ -31,7 +31,8 @@ public class PointController(
     IPointControlCommandPublisher commandPublisher,
     IPointControlRepository pointControlRepository,
     IControlAuditWriter auditWriter,
-    ControlSafetyOptions controlSafety) : ControllerBase
+    ControlSafetyOptions controlSafety,
+    IControlFeedbackCoordinator? feedbackCoordinator = null) : ControllerBase
 {
     /// <summary>
     /// ポイント情報の一括取得
@@ -127,6 +128,7 @@ public class PointController(
         }
 
         string? preparedControlId = null;
+        IControlFeedbackHandle? feedback = null;
         try
         {
             var pointControlInfo = new PointControlInfo
@@ -150,9 +152,18 @@ public class PointController(
                 .RecordRequestAsync(pointControlInfo, ControlActor.From(auth.UserId), ct)
                 .ConfigureAwait(false);
 
+            // #637: start listening for the gateway's answer and the feedback point before the command goes out,
+            // so a fast confirmation cannot be missed. Best-effort: it never fails the control.
+            feedback = feedbackCoordinator is null
+                ? null
+                : await feedbackCoordinator.BeginAsync(
+                    new ControlFeedbackRequest(controlId, detail.Point, schema, request.Value.Value, DateTimeOffset.UtcNow),
+                    ct).ConfigureAwait(false);
+
             var delivery = await commandPublisher.PublishAsync(pointControlInfo, ct).ConfigureAwait(false);
             if (delivery == ControlDeliveryStatus.GatewayOffline)
             {
+                feedback?.Abandon();
                 await controlResultBus.UnsubscribeAsync(controlId).ConfigureAwait(false);
                 preparedControlId = null;
                 // The target gateway has no live egress stream → fail fast instead of letting the
@@ -178,6 +189,7 @@ public class PointController(
         }
         catch (Exception ex)
         {
+            feedback?.Abandon();
             if (preparedControlId is not null)
             {
                 await controlResultBus.UnsubscribeAsync(preparedControlId).ConfigureAwait(false);
@@ -302,6 +314,9 @@ public class PointController(
 /// <param name="CompletedAt">結果が確定した時刻（未確定なら null）。</param>
 /// <param name="ActorSub">制御を実行した principal の識別子（JWT sub）。</param>
 /// <param name="ActorName">principal の表示名（無ければ null）。</param>
+/// <param name="FeedbackStatus">#637: 値が実際に変わったかの照合結果。"pending" / "matched" / "mismatch" / "timeout" / "unavailable"。照合しなかった制御は null</param>
+/// <param name="FeedbackValue">#637: 判定に使った確認用ポイントの値。unavailable のときはその理由</param>
+/// <param name="FeedbackCompletedAt">#637: 照合が確定した時刻</param>
 public sealed record PointControlAuditResponse(
     Guid ControlId,
     string? PointId,
@@ -310,7 +325,10 @@ public sealed record PointControlAuditResponse(
     DateTime CreatedAt,
     DateTime? CompletedAt,
     string ActorSub,
-    string? ActorName)
+    string? ActorName,
+    string? FeedbackStatus = null,
+    string? FeedbackValue = null,
+    DateTime? FeedbackCompletedAt = null)
 {
     /// <summary>監査エントリをレスポンス DTO に写像する。</summary>
     public static PointControlAuditResponse From(PointControlAuditEntry e) => new(
@@ -321,5 +339,8 @@ public sealed record PointControlAuditResponse(
         e.CreatedAt,
         e.CompletedAt,
         e.ActorSub,
-        e.ActorName);
+        e.ActorName,
+        e.FeedbackStatus,
+        e.FeedbackValue,
+        e.FeedbackCompletedAt);
 }

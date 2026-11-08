@@ -10,8 +10,12 @@
  * `"unknown"` に倒す — 新しい状態値がサーバに増えても画面が壊れないようにするため。
  */
 
-/** 到着（鮮度）軸。判定不能（index が温まっていない）は `unknown`。 */
-export type FreshnessStatus = "fresh" | "stale" | "missing" | "unknown";
+/**
+ * 到着（鮮度）軸。判定不能（index が温まっていない）は `unknown`。`notMonitored`（#635）は
+ * 「値を送らない Point なので判定しない」— 欠測ではない。
+ */
+export type FreshnessStatus =
+  "fresh" | "stale" | "missing" | "unknown" | "notMonitored";
 
 /**
  * 値アラーム軸。`suppressed` は「鮮度切れ/欠測なので届いていない値で異常判定しない」抑止状態、
@@ -25,7 +29,16 @@ export type AlarmStatus =
  * この順序をそのまま severity として使う（サーバ側 `HealthStatus` の enum 順と一致）。
  */
 export type HealthStatus =
-  "critical" | "warn" | "missing" | "stale" | "unknown" | "fresh";
+  | "critical"
+  | "warn"
+  | "missing"
+  | "stale"
+  | "unknown"
+  | "fresh"
+  | "notMonitored";
+
+/** 判定対象外の理由（#635）。リリース点か、ツインで `bos:reportsTelemetry false` と宣言された点か。 */
+export type NotMonitoredReason = "releasePoint" | "declaredNoTelemetry";
 
 /** 鮮度閾値の由来（Point 個別 → 機器 → ゲートウェイ → システム既定 の解決順）。 */
 export type ThresholdSource = "point" | "device" | "gateway" | "system";
@@ -44,6 +57,7 @@ export const HEALTH_STATUS_ORDER: readonly HealthStatus[] = [
   "stale",
   "unknown",
   "fresh",
+  "notMonitored",
 ];
 
 export const FRESHNESS_STATUSES: readonly FreshnessStatus[] = [
@@ -51,6 +65,12 @@ export const FRESHNESS_STATUSES: readonly FreshnessStatus[] = [
   "stale",
   "missing",
   "unknown",
+  "notMonitored",
+];
+
+export const NOT_MONITORED_REASONS: readonly NotMonitoredReason[] = [
+  "releasePoint",
+  "declaredNoTelemetry",
 ];
 
 export const ALARM_STATUSES: readonly AlarmStatus[] = [
@@ -103,3 +123,4 @@ export const normalizeHealthStatus = normalizerFor(HEALTH_STATUS_ORDER);
 export const normalizeThresholdSource = normalizerFor(THRESHOLD_SOURCES);
 export const normalizeMissingReason = normalizerFor(MISSING_REASONS);
 export const normalizeAlarmBound = normalizerFor(ALARM_BOUNDS);
+export const normalizeNotMonitoredReason = normalizerFor(NOT_MONITORED_REASONS);

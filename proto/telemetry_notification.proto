@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+option csharp_namespace = "BuildingOs.ApiServer.Protos";
+
+package telemetrynotification;
+
+// Pushes a point's latest value to the browser as it changes (#636), instead of the point page
+// reading it once on load. Served over gRPC-web by the API server, fed by its one watch on the
+// `telemetry-latest` KV bucket. Authorized as a point read: the caller must be able to read every
+// requested point, or the call is refused as a whole (PERMISSION_DENIED, without naming which).
+service TelemetryNotificationService {
+  // Starts with one snapshot event per requested point that has a value, then sends an event each
+  // time a point's latest value changes. A slow reader is sent the newest value per point (older
+  // ones it has not read yet are skipped), since this is a latest-value view, not a history.
+  rpc WatchLatest (WatchLatestRequest) returns (stream LatestValueEvent);
+}
+
+message WatchLatestRequest {
+  // Business point ids (sbco:id). 1..100 distinct ids; more is INVALID_ARGUMENT.
+  repeated string point_ids = 1;
+}
+
+message LatestValueEvent {
+  string point_id = 1;
+  // ADR-0006: numeric stays primary; string/boolean readings travel as such. Unset = no value.
+  oneof value {
+    double number_value = 2;
+    string string_value = 3;
+    bool bool_value = 4;
+  }
+  // The reading's own timestamp (ISO-8601, as stored); empty when unknown.
+  string datetime = 5;
+  // true for the initial snapshot events, false for changes.
+  bool snapshot = 6;
+}

@@ -13,6 +13,7 @@ public static class EgressSubjects
 
     private const string PerGatewayRequestPrefix = "building-os.control.request.gw.";
     private const string ResultPrefix = "building-os.control.result.";
+    private const string FeedbackPrefix = "building-os.control.feedback.";
     private const string PointListUpdatePrefix = "building-os.pointlist.updated.gw.";
 
     /// <summary>Per-gateway request subject: <c>building-os.control.request.gw.{gatewayId}</c>.</summary>
@@ -20,6 +21,13 @@ public static class EgressSubjects
 
     /// <summary>Result subject consumed by the existing result bus / WaitForResult.</summary>
     public static string Result(string controlId) => ResultPrefix + controlId;
+
+    /// <summary>
+    /// #637: whether control <paramref name="controlId"/> took effect, published by the API replica confirming it.
+    /// A subject of its own so the audit subscriber on <c>building-os.control.result.&gt;</c> never reads it as a
+    /// gateway outcome.
+    /// </summary>
+    public static string Feedback(string controlId) => FeedbackPrefix + controlId;
 
     /// <summary>
     /// Per-gateway point-list update subject: <c>building-os.pointlist.updated.gw.{gatewayId}</c>

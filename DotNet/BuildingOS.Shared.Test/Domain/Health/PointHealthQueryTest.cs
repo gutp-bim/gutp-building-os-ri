@@ -459,3 +459,53 @@ public class PointHealthQueryTest
         Assert.Equal(2, page.Total);
     }
 }
+
+/// <summary>#635: points data health does not judge stay out unless asked for, and sort last when included.</summary>
+public class PointHealthQueryNotMonitoredTest
+{
+    private static PointHealthItem Item(string id, bool monitored, HealthStatus status, long? age = null) => new()
+    {
+        PointId = id,
+        Name = id,
+        Monitoring = monitored ? PointMonitoring.Yes : new PointMonitoring(false, NotMonitoredReason.ReleasePoint),
+        HealthStatus = status,
+        Freshness = new PointFreshnessResult
+        {
+            Status = monitored ? (status == HealthStatus.Missing ? FreshnessStatus.Missing : FreshnessStatus.Fresh) : FreshnessStatus.NotMonitored,
+            AgeSeconds = age,
+        },
+    };
+
+    private static readonly PointHealthItem[] Items =
+    [
+        Item("P-REL", false, HealthStatus.NotMonitored),
+        Item("P-MISS", true, HealthStatus.Missing),
+        Item("P-OK", true, HealthStatus.Fresh, age: 5),
+    ];
+
+    [Fact]
+    public void ExcludedByDefault_AndTotalDoesNotCountThem()
+    {
+        var page = PointHealthQueryFilter.Apply(Items, new PointHealthQuery());
+
+        Assert.Equal(["P-MISS", "P-OK"], page.Items.Select(i => i.PointId));
+        Assert.Equal(2, page.Total);
+    }
+
+    [Fact]
+    public void IncludeUnmonitored_SortsThemAfterEverythingElse_UnderWorst()
+    {
+        var page = PointHealthQueryFilter.Apply(Items, new PointHealthQuery { IncludeUnmonitored = true });
+
+        Assert.Equal(["P-MISS", "P-OK", "P-REL"], page.Items.Select(i => i.PointId));
+    }
+
+    [Fact]
+    public void OlderThan_DoesNotPullThemIn()
+    {
+        // An unmonitored point has no age, which olderThan treats as "infinitely old" — it must still stay out.
+        var page = PointHealthQueryFilter.Apply(Items, new PointHealthQuery { OlderThanSeconds = 60 });
+
+        Assert.Equal(["P-MISS"], page.Items.Select(i => i.PointId));
+    }
+}

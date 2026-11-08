@@ -5,7 +5,33 @@ import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 // Stub the heavy children so the test isolates the page's own telemetry wiring (#196 / #197).
 vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn() }) }));
 vi.mock("./components/telemetry-hot-data", () => ({
-  TelemetryHotData: () => <div data-testid="hot" />,
+  // #636: expose what the card was given, so the push wiring can be checked.
+  TelemetryHotData: ({
+    hotData,
+    liveStatus,
+  }: {
+    hotData: {
+      t: string | null;
+      value: { kind: string; value?: unknown };
+    } | null;
+    liveStatus?: string;
+  }) => (
+    <div data-testid="hot" data-live={liveStatus ?? ""}>
+      {hotData ? `${hotData.t}|${String(hotData.value.value)}` : "none"}
+    </div>
+  ),
+}));
+// #636: the push stream is driven by the test instead of opening a real gRPC-web connection.
+const { liveSample } = vi.hoisted(() => ({
+  liveSample: {
+    current: null as null | {
+      t: string | null;
+      value: { kind: "number"; value: number };
+    },
+  },
+}));
+vi.mock("@/lib/infra/grpc-client/use-latest-value", () => ({
+  useLatestValue: () => ({ sample: liveSample.current, status: "live" }),
 }));
 vi.mock("./components/telemetry-warm-data", () => ({
   // Expose the received data + a way to change the period so the out-of-order test can drive it.
@@ -103,7 +129,133 @@ const withState = (v: number) => ({
   state: { pointId: "p1", points: [] as { t: string; state: string }[] },
 });
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  liveSample.current = null;
+});
+
+describe("PointDetailPageComponent latest-value push (#636)", () => {
+  it("shows a pushed sample that is newer than the REST read, and the live state", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue({
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    });
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(1));
+    liveSample.current = {
+      t: "2026-11-08T00:00:10Z",
+      value: { kind: "number", value: 2 },
+    };
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("hot")).toHaveTextContent(
+        "2026-11-08T00:00:10Z|2",
+      ),
+    );
+    expect(screen.getByTestId("hot")).toHaveAttribute("data-live", "live");
+  });
+
+  it("does not let a REST read that finishes late overwrite a newer pushed sample", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    let resolveRest: (v: unknown) => void = () => {};
+    (latestTelemetrySample as Mock).mockReturnValue(
+      new Promise((r) => {
+        resolveRest = r;
+      }),
+    );
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(1));
+    liveSample.current = {
+      t: "2026-11-08T00:00:10Z",
+      value: { kind: "number", value: 2 },
+    };
+
+    render(<PointDetailPageComponent pointId="p1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("hot")).toHaveTextContent(
+        "2026-11-08T00:00:10Z|2",
+      ),
+    );
+    resolveRest({
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    });
+
+    await waitFor(() => expect(latestTelemetrySample).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("hot")).toHaveTextContent(
+      "2026-11-08T00:00:10Z|2",
+    );
+  });
+
+  it("a REST read overtaken by a pushed correction at the same timestamp does not restore the old value", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    let resolveRest: (v: unknown) => void = () => {};
+    (latestTelemetrySample as Mock).mockReturnValue(
+      new Promise((r) => {
+        resolveRest = r;
+      }),
+    );
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(1));
+
+    const { rerender } = render(<PointDetailPageComponent pointId="p1" />);
+    await waitFor(() => expect(latestTelemetrySample).toHaveBeenCalled());
+
+    // The correction is pushed while the REST read is still in flight.
+    liveSample.current = {
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 2 },
+    };
+    rerender(<PointDetailPageComponent pointId="p1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("hot")).toHaveTextContent(
+        "2026-11-08T00:00:00Z|2",
+      ),
+    );
+    resolveRest({
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 1 },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByTestId("hot")).toHaveTextContent(
+      "2026-11-08T00:00:00Z|2",
+    );
+  });
+
+  it("an empty REST answer still clears the card when nothing was pushed", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue(null);
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(1));
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    await waitFor(() => expect(latestTelemetrySample).toHaveBeenCalled());
+    expect(screen.getByTestId("hot")).toHaveTextContent("none");
+  });
+
+  it("keeps the REST value when the pushed sample is older", async () => {
+    (getPointDetail as Mock).mockResolvedValue(detail);
+    (latestTelemetrySample as Mock).mockResolvedValue({
+      t: "2026-11-08T00:00:10Z",
+      value: { kind: "number", value: 5 },
+    });
+    (queryTelemetryWithState as Mock).mockResolvedValue(withState(5));
+    liveSample.current = {
+      t: "2026-11-08T00:00:00Z",
+      value: { kind: "number", value: 4 },
+    };
+
+    render(<PointDetailPageComponent pointId="p1" />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("hot")).toHaveTextContent(
+        "2026-11-08T00:00:10Z|5",
+      ),
+    );
+  });
+});
 
 describe("PointDetailPageComponent telemetry-error surfacing (#196)", () => {
   it("shows inline banners when the hot and warm reads fail instead of failing silently", async () => {

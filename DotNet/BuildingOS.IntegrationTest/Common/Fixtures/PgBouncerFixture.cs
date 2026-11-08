@@ -8,12 +8,19 @@ using Xunit;
 namespace BuildingOS.IntegrationTest.Common.Fixtures;
 
 /// <summary>
-/// pgBouncer (transaction pool) + TimescaleDB fixture.
+/// pgBouncer (transaction pool) + PostgreSQL fixture (plain postgres:16 — nothing here needs TimescaleDB).
 /// Tests Npgsql compatibility with pgBouncer in transaction pool mode.
 /// </summary>
 public class PgBouncerFixture : IAsyncLifetime
 {
     private const int PgBouncerPort = 5432;
+
+    /// <summary>
+    /// Pinned, not <c>latest</c>: an upstream release must not change what these tests run against without a commit.
+    /// <c>PGBOUNCER_TEST_IMAGE</c> overrides it (another version, or a mirror for a machine that cannot reach Docker Hub).
+    /// </summary>
+    private static readonly string PgBouncerImage =
+        Environment.GetEnvironmentVariable("PGBOUNCER_TEST_IMAGE") is { Length: > 0 } image ? image : "edoburu/pgbouncer:v1.26.1-p0";
     private const string DbUser = "buildingos";
     private const string DbPassword = "buildingos";
     private const string DbName = "buildingos_test";
@@ -35,7 +42,7 @@ public class PgBouncerFixture : IAsyncLifetime
         await _network.CreateAsync();
 
         _postgres = new PostgreSqlBuilder()
-            .WithImage("timescale/timescaledb:latest-pg16")
+            .WithImage(Environment.GetEnvironmentVariable("POSTGRES_TEST_IMAGE") is { Length: > 0 } image ? image : "postgres:16")
             .WithDatabase(DbName)
             .WithUsername(DbUser)
             .WithPassword(DbPassword)
@@ -50,7 +57,7 @@ public class PgBouncerFixture : IAsyncLifetime
         await _postgres.StartAsync();
 
         _pgbouncer = new ContainerBuilder()
-            .WithImage("edoburu/pgbouncer:latest")
+            .WithImage(PgBouncerImage)
             .WithEnvironment("DB_USER", DbUser)
             .WithEnvironment("DB_PASSWORD", DbPassword)
             .WithEnvironment("DB_HOST", "postgres")

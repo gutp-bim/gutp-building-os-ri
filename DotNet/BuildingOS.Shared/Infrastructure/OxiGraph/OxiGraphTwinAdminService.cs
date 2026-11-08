@@ -126,10 +126,27 @@ HAVING (COUNT(DISTINCT ?b) > 1)", ct).ConfigureAwait(false);
             var previousClockRows = await _client.QueryAsync(ClockConfigurationGraph.BuildQuery(), ct).ConfigureAwait(false);
             var clockIssues = clockProjection.Validate().Concat(clockProjection.ValidateOwnership(new(previousClockRows))).Distinct().ToArray();
 
+            // #635: points data health will not judge (observation only — shown so a wrong declaration is caught).
+            var notMonitored = await ScalarCountAsync($@"
+SELECT (COUNT(DISTINCT ?pt) AS ?n) WHERE {{
+  GRAPH <{materializedGraph}> {{
+    ?pt a <{Sbco}PointExt> .
+    {{ ?pt <{OxiGraphOntology.Prop_ReleaseOf}> ?target . }}
+    UNION
+    {{ ?pt <{OxiGraphOntology.Prop_ReportsTelemetry}> ?reports . FILTER(LCASE(STR(?reports)) IN (""false"", ""0"")) }}
+  }}
+}}", ct).ConfigureAwait(false);
+
+            // #637: feedback declarations that would decide every confirmation on the wrong value. Blocks apply.
+            var feedbackRows = await _client.QueryAsync(
+                FeedbackPointIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
+            var (feedbackCount, feedbackIssues) = FeedbackPointIssueDetection.Classify(feedbackRows, MaxOrphans);
+
             return new TwinImportPreview(
                 triples, (int)gateways, collisions, (int)orphanTotal, orphans,
                 schemaIssueCount, schemaIssues, (int)idCollisionTotal, idCollisions,
-                releaseOfCount, releaseOfIssues, clockIssues.Length, clockIssues.Take(MaxOrphans).ToArray());
+                releaseOfCount, releaseOfIssues, clockIssues.Length, clockIssues.Take(MaxOrphans).ToArray(),
+                (int)notMonitored, feedbackCount, feedbackIssues);
         }
         finally
         {

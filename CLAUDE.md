@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Building OS is an open-source IoT platform for smart building management. Built with .NET 8.0 backend and Next.js 16 frontend. Collects data from building equipment (HVAC, power meters, environmental sensors) via MQTT / NATS, stores telemetry in a Parquet lake on MinIO, and provides REST + gRPC APIs with a Next.js dashboard.
+Building OS is an open-source IoT platform for smart building management. Built with .NET 10 backend and Next.js 16 frontend. Collects data from building equipment (HVAC, power meters, environmental sensors) via MQTT / NATS, stores telemetry in a Parquet lake on MinIO, and provides REST + gRPC APIs with a Next.js dashboard.
 
 ## Architecture
 
@@ -51,6 +51,9 @@ dotnet restore
 dotnet build
 dotnet test --filter "FullyQualifiedName!~IntegrationTest"   # unit tests only
 dotnet test BuildingOS.IntegrationTest                        # integration tests (Docker required)
+#   PostgreSQL tests use plain postgres:16 (POSTGRES_TEST_IMAGE overrides); pgBouncer is pinned to
+#   edoburu/pgbouncer:v1.26.1-p0 (PGBOUNCER_TEST_IMAGE overrides, e.g. a mirror). TimescaleDB is an optional warm store, so
+#   its tests ([TimescaleFact], collection "Timescale") skip unless INTEGRATION_TIMESCALE=true.
 dotnet test --filter "FullyQualifiedName~TestName"            # run a specific test
 
 # API Server
@@ -172,6 +175,7 @@ web-client/src/
 proto/
 ├── greet.proto                  # Greeter service + server-streaming notifications
 ├── point_control.proto          # PointControlService for device control streaming
+├── telemetry_notification.proto # TelemetryNotificationService — latest-value push to the browser (#636)
 ├── gateway_egress.proto         # GatewayEgress (bidi) — BOWS control plane (GatewayBridge)
 └── gateway_ingress.proto        # GatewayIngress (client-stream telemetry) — hosted in ConnectorWorker
 
@@ -309,6 +313,28 @@ backstop).
    `docs/project/oss-egress-gateway-bridge-plan.md`, `docs/architecture/gateway-bridge-ingress-egress-split.md` and
    `DotNet/BuildingOS.GatewayBridge/README.md`.
 
+> **Control confirmation (#637):** a gateway's SUCCESS only says the write was accepted. The twin can declare
+> `bos:feedbackPoint` on a writable point (the point whose value shows the write took effect — itself when it reports
+> its own present value), with optional `bos:feedbackWindowSec` (default 60, max 300) and `bos:feedbackTolerance`
+> (numbers only). `PointController.Control` calls `ControlFeedbackCoordinator.BeginAsync` **before** publishing the
+> command; after the gateway's SUCCESS it watches the feedback point through `LatestValueFeed` (#636) and decides
+> `matched` (a value equal to the expected one in the window; readings timestamped before the command are ignored) /
+> `mismatch` (decided only at the window's end, on the last reading) / `timeout` (none arrived) / `unavailable`
+> (no feedback point, a release point, no expected value, interrupted). The expected value comes from the ControlSchema
+> (`ControlExpectedValueResolver`). The outcome goes to `point_control_audit.feedback_*` and to
+> `building-os.control.feedback.{controlId}` (its own subject, so the audit subscriber never reads it as a gateway
+> outcome); `WaitForResult` sends it as a second event (`CONTROL_RESULT_FEEDBACK_*`, `feedback_value`) after SUCCESS,
+> so a client reading only the first event is unaffected. A FAILED control is not confirmed. The actual value is
+> recorded and sent **only when the point confirms itself** — a separate feedback point's value is another point's
+> telemetry, and reading this control's history (a read of the controlled point) does not imply reading that point,
+> so only the outcome is kept. Correlation reads every value the hot store keeps (`LatestValueFeed.SubscribeEveryValue`),
+> from dispatch — at `HOT_STORE_COALESCE_MS` (#625, default 100 ms) granularity: a value that is replaced within one
+> coalescing interval is never seen, so a device that touches the setpoint and leaves it within 100 ms reads as a
+> mismatch. Set `HOT_STORE_COALESCE_MS=0` if that matters more than ingest throughput. `ControlFeedbackSweeper`
+> closes confirmations a stopped replica left `pending` as unavailable / `interrupted`. The import refuses an ill-formed
+> `bos:feedbackPoint` (`FeedbackPointIssueDetection`: several targets, missing / id-less target, another gateway).
+> Metrics: `building_os.control.feedback{result}`, `building_os.control.feedback_duration`.
+
 ### REST API versioning (#507, ADR-0008)
 
 Every REST controller is mounted under **`/api/v1/…`** (`ApiRoutes.V1`); OpenAPI lists only `/api/v1` paths.
@@ -328,6 +354,7 @@ the web client (the web client calls only `/api/v1`).
 |--------|-------------|
 | Aspida client (`src/lib/infra/aspida-client/`) | standard REST endpoints (type-safe, generated from Swagger) — the only generated REST client |
 | gRPC client via `useControlExecution()` (`src/lib/infra/grpc-client/`) | device control streaming (point_control) |
+| gRPC client via `useLatestValue(pointId)` (`src/lib/infra/grpc-client/`) | latest-value push on the point page (#636, `telemetry_notification`) |
 | bespoke authenticated fetch (`src/lib/admin/http.ts`) | the few endpoints still outside the Aspida schema — resource-metadata writes and telemetry/control-audit reads that need custom response handling |
 | resource/telemetry façade (`src/lib/resources/`, `src/lib/telemetry/`) | resource hierarchy + telemetry reads — **UI calls these, not aspida directly** |
 
@@ -353,6 +380,10 @@ Aspida client is auto-generated from Swagger. After API changes, run `./sync-typ
 > event is listed only to a caller who can read its point (or a point behind its gateway); one they cannot
 > read is a 404 on ack, not a 403. UI: `lib/health/events.ts` (+ `components/health/health-events-view.tsx`,
 > and "この Point の直近イベント" on the point page). Design: ADR-0005 "Phase 2b 設計".
+> **Not-monitored points (#635):** release points (`bos:releaseOf`) and points the twin declares
+> `bos:reportsTelemetry false` are not classified (`healthStatus: NotMonitored`, hidden unless
+> `includeUnmonitored=true`, counted apart as `summary.notMonitored`); the evaluator raises nothing for them and
+> closes an event already open on one at once with `clearReason: "not_monitored"`. `writable` alone never excludes a point.
 
 > **`/resources` facets (#454):** the explorer's search box filters by q / type / customTags and by
 > structured attributes — `deviceType` / `pointType` / `unit` / `gatewayId` (values within a group are
@@ -364,6 +395,20 @@ Aspida client is auto-generated from Swagger. After API changes, run `./sync-typ
 > answered by `GET /api/v1/telemetry/health`, not by these** — `lib/resources/search-dispatch.ts` routes a
 > health condition to the health API alone (the two are never joined in the UI), so choosing health clears
 > the asset attributes and vice versa. The whole form is mirrored to the URL (`search-filters.ts`).
+
+> **Latest-value push (#636):** the point page follows its latest value over the gRPC-web server stream
+> `TelemetryNotificationService.WatchLatest(point_ids)` instead of reading it once. The API server keeps its **one**
+> `telemetry-latest` KV watch (`NatsKvPointLastSeenIndexWorker`, the same one behind data health) and fans it out in
+> process (`LatestValueFeed`: a snapshot first, then the newest value per point — a slow reader skips to the newest
+> rather than working through a backlog); each replica serves its own streams. Unlike the control-result stream it is
+> **authorized**: `authenticatedGrpcTransport` sends the `oidc.access_token` bearer, and the service refuses the call
+> (`Unauthenticated` / `PermissionDenied`, without naming the point) unless the caller can read every requested point
+> (`IAuthorizedTwinView.GetPointAsync`); 1..100 points per stream. A stream ends cleanly after 5 minutes, or at the
+> token's `exp` if sooner, and the client reconnects silently — so a revoked permission or expired token stops it
+> within that bound. The REST read stays the first paint and the manual
+> refresh; a pushed sample replaces it only when newer. `useLatestValue` reconnects with 1s→30s backoff and stops on
+> Unauthenticated/PermissionDenied/InvalidArgument/Unimplemented. Metrics: `building_os.telemetry_feed.{subscribers,
+> events_sent{kind},dropped,delivery_latency}`. Latency is the KV write (≤ `HOT_STORE_COALESCE_MS`, #625) plus the push.
 
 ### Help content (content-as-code, #149)
 
@@ -456,8 +501,8 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | .NET 8.0, ASP.NET Core |
-| Workers | .NET 8.0, `BackgroundService` (ConnectorWorker) |
+| Backend | .NET 10, ASP.NET Core |
+| Workers | .NET 10, `BackgroundService` (ConnectorWorker) |
 | Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 (web-client; `(admin)` workspace at `/admin`) |
 | UI Components | Radix UI, Recharts, React Hook Form |
 | Authentication | Keycloak (OIDC / JWT), `JwtBearerDefaults` in ASP.NET Core |
@@ -612,7 +657,7 @@ This is a single-context repository. Read the root domain documentation and rele
 
 ## Environment Requirements
 
-- .NET SDK 8.0+
-- Node.js 22.12.0+ minimum (`web-client/.node-version` + `package.json` `engines`; Node 20 is EOL and `@testing-library/jest-dom` 7 requires 22, #407); CI and the web Docker image run 22.x
+- .NET SDK 10.0+ (`DotNet/global.json` pins 10.0.100, `rollForward: latestFeature`)
+- Node.js 22.22.2+ (or 24.15.0+) minimum (`web-client/.node-version` + `package.json` `engines`; Node 20 is EOL and `@testing-library/jest-dom` 7 requires 22, #407; jsdom 30.1.3 requires `^22.22.2 || ^24.15.0`, #618); CI and the web Docker image run 22.x
 - Docker Desktop (for local development)
 - Buf CLI (for proto → TypeScript generation)

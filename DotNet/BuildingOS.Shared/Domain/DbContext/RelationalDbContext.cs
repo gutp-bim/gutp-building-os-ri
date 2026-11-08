@@ -106,6 +106,10 @@ public class RelationalDbContext : DbContext
             // #461: same column names / types as admin_audit below, so the two audit trails join.
             entity.Property(e => e.ActorSub).HasColumnName("actor_sub").IsRequired().HasMaxLength(200);
             entity.Property(e => e.ActorName).HasColumnName("actor_name").HasMaxLength(200);
+            // #637: control confirmation.
+            entity.Property(e => e.FeedbackStatus).HasColumnName("feedback_status").HasMaxLength(20);
+            entity.Property(e => e.FeedbackValue).HasColumnName("feedback_value").HasMaxLength(200);
+            entity.Property(e => e.FeedbackCompletedAt).HasColumnName("feedback_completed_at");
             entity.HasIndex(e => new { e.PointId, e.CreatedAt }).HasDatabaseName("IX_point_control_audit_point_id_created_at");
         });
 
@@ -120,6 +124,7 @@ public class RelationalDbContext : DbContext
             entity.Property(e => e.Severity).HasColumnName("severity").IsRequired().HasMaxLength(20);
             entity.Property(e => e.RaisedAt).HasColumnName("raised_at").IsRequired();
             entity.Property(e => e.ClearedAt).HasColumnName("cleared_at");
+            entity.Property(e => e.ClearReason).HasColumnName("clear_reason").HasMaxLength(30);
             entity.Property(e => e.AcknowledgedAt).HasColumnName("acknowledged_at");
             entity.Property(e => e.AcknowledgedBy).HasColumnName("acknowledged_by").HasMaxLength(200);
             entity.Property(e => e.AcknowledgedByName).HasColumnName("acknowledged_by_name").HasMaxLength(200);

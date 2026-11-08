@@ -255,3 +255,23 @@ describe("parseDuration", () => {
     expect(parseDuration("Infinity")).toBeNull();
   });
 });
+
+describe("#635 includeUnmonitored", () => {
+  it("true のときだけ URL に出し、round-trip する", () => {
+    const q = { ...DEFAULT_HEALTH_QUERY, includeUnmonitored: true };
+    const url = serializeHealthQuery(q).toString();
+
+    expect(url).toBe("includeUnmonitored=true");
+    expect(parseHealthQuery(new URLSearchParams(url)).includeUnmonitored).toBe(
+      true,
+    );
+    expect(serializeHealthQuery(DEFAULT_HEALTH_QUERY).toString()).toBe("");
+  });
+
+  it("true 以外の値は既定（出さない）に倒す", () => {
+    expect(
+      parseHealthQuery(new URLSearchParams("includeUnmonitored=1"))
+        .includeUnmonitored,
+    ).toBeUndefined();
+  });
+});

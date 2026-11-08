@@ -99,7 +99,7 @@ dotnet test DotNet/BuildingOS.IntegrationTest --filter FullyQualifiedName~Teleme
 dotnet test DotNet/BuildingOS.IntegrationTest --filter FullyQualifiedName~TelemetryDataContractTest
 ```
 
-テストの計測出力: `DotNet/BuildingOS.IntegrationTest/bin/Debug/net8.0/TelemetryContractArtifacts/`。
+テストの計測出力: `DotNet/BuildingOS.IntegrationTest/bin/Debug/net10.0/TelemetryContractArtifacts/`。
 実行ログ・TRXはGit管理外の `out/ri607/`。fixture取得エラーも保持する。
 
 ## レビュー

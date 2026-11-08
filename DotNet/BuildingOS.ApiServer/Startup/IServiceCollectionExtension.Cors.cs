@@ -19,6 +19,12 @@ public static partial class IServiceCollectionExtension
         // A legacy path's deprecation notice (#507, ADR-0008).
         "Deprecation",
         "Link",
+        // gRPC-web (#636): a refusal before the first message comes back as HTTP 200 with the status in the
+        // headers. Hidden cross-origin, the client sees "missing trailer" instead of PermissionDenied /
+        // Unauthenticated and keeps retrying a call that can never succeed.
+        "grpc-status",
+        "grpc-message",
+        "grpc-status-details-bin",
     };
 
     public static IServiceCollection AddCorsForAll(

@@ -21,4 +21,16 @@ public class PointControlAuditEntry
     /// which every current writer also leaves null.
     /// </summary>
     public string? ActorName { get; set; }
+
+    /// <summary>
+    /// #637: whether the control took effect — <c>pending</c> while it is being confirmed, then <c>matched</c> /
+    /// <c>mismatch</c> / <c>timeout</c> / <c>unavailable</c> (<see cref="ControlFeedback.ControlFeedbackStatuses"/>).
+    /// Null for a control that was never confirmed (it failed, or predates #637).
+    /// </summary>
+    public string? FeedbackStatus { get; set; }
+
+    /// <summary>#637: the feedback point's value the outcome was decided on (invariant text), or the reason when unavailable.</summary>
+    public string? FeedbackValue { get; set; }
+
+    public DateTime? FeedbackCompletedAt { get; set; }
 }

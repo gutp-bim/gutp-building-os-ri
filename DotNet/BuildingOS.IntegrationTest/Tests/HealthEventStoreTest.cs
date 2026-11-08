@@ -111,6 +111,27 @@ public class HealthEventStoreTest(PostgresFixture postgres) : IntegrationTestBas
     }
 
     [Fact]
+    public async Task Clear_RecordsTheReason_AndANormalClearHasNone()
+    {
+        // #635: "the point stopped being monitored" is persisted apart from "the condition went away".
+        var (store, db) = await NewStoreAsync();
+        await using var _ = db;
+        var released = Id("REL");
+        var recovered = Id("OK");
+        await store.RaiseAsync(Cand("point", released, "missing"), T0);
+        await store.RaiseAsync(Cand("point", recovered, "stale"), T0);
+        var open = await store.ListOpenAsync();
+        var releasedId = open.Single(e => e.SubjectId == released).Id;
+        var recoveredId = open.Single(e => e.SubjectId == recovered).Id;
+
+        await store.ClearAsync([releasedId], T0.AddMinutes(1), HealthEventClearReasons.NotMonitored);
+        await store.ClearAsync([recoveredId], T0.AddMinutes(1));
+
+        Assert.Equal(HealthEventClearReasons.NotMonitored, (await store.GetAsync(releasedId))!.ClearReason);
+        Assert.Null((await store.GetAsync(recoveredId))!.ClearReason);
+    }
+
+    [Fact]
     public async Task UpdateOpen_ChangesSeverityAndDetail_ButNotRaiseTimeOrAck()
     {
         var (store, db) = await NewStoreAsync();

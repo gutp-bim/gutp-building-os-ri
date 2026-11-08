@@ -23,6 +23,7 @@ import {
   explainRowThreshold,
   formatAge,
   missingReasonLabel,
+  notMonitoredReasonLabel,
   type HealthRow,
 } from "@/lib/health/mapping";
 import {
@@ -291,6 +292,21 @@ function HealthTableRow({ row }: { row: HealthRow }) {
         {row.missingReason !== null && (
           <span className="mt-0.5 block text-xs text-gray-600">
             {missingReasonLabel(row.missingReason)}
+          </span>
+        )}
+        {row.notMonitoredReason !== null && (
+          <span
+            data-testid="health-not-monitored-reason"
+            className="mt-0.5 block text-xs text-gray-600"
+          >
+            {notMonitoredReasonLabel(row.notMonitoredReason)}
+            {/* 値を送らないと宣言したのに届いている — 宣言の誤りに気づけるようにする。 */}
+            {row.notMonitoredReason === "declaredNoTelemetry" &&
+              row.lastSeen !== null && (
+                <span className="block text-amber-700">
+                  ただし受信あり（{formatAge(row.ageSeconds)}）
+                </span>
+              )}
           </span>
         )}
       </td>

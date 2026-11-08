@@ -174,7 +174,7 @@ export type Floor = {
   } | undefined;
 }
 
-export type FreshnessStatus = 'Fresh' | 'Stale' | 'Missing' | 'Unknown'
+export type FreshnessStatus = 'Fresh' | 'Stale' | 'Missing' | 'Unknown' | 'NotMonitored'
 
 /**
  * Admin view of one gateway: binding + masked settings + pointlist sync status (#323), a derived
@@ -359,6 +359,8 @@ export type HealthEventResponse = {
   raisedAt?: string | undefined;
   /** 解消時刻（UTC）。null の間は open */
   clearedAt?: string | null | undefined;
+  /** 解消の理由。条件が解消した通常の clear は null、監視対象外になった Point は `not_monitored`（#635） */
+  clearReason?: string | null | undefined;
   /** 未解消か */
   isOpen?: boolean | undefined;
   /** 確認応答の時刻（UTC）。未確認なら null。解消後の確認応答もありうる */
@@ -368,7 +370,7 @@ export type HealthEventResponse = {
   detail?: HealthEventDetail | undefined;
 }
 
-export type HealthStatus = 'Critical' | 'Warn' | 'Missing' | 'Stale' | 'Unknown' | 'Fresh'
+export type HealthStatus = 'Critical' | 'Warn' | 'Missing' | 'Stale' | 'Unknown' | 'Fresh' | 'NotMonitored'
 
 export type IngressRejectionCount = {
   reason?: string | undefined;
@@ -464,6 +466,8 @@ export type NativeBoundsV1Error = {
   message?: string | undefined;
 }
 
+export type NotMonitoredReason = 'ReleasePoint' | 'DeclaredNoTelemetry'
+
 export type OidcClientDetail = {
   id?: string | undefined;
   clientId?: string | undefined;
@@ -551,6 +555,8 @@ export type Point = {
   instanceNoBacnet?: number | null | undefined;
   objectTypeBacnet?: string | null | undefined;
   deviceIdBacnet?: string | null | undefined;
+  isReleasePoint?: boolean | undefined;
+  reportsTelemetry?: boolean | null | undefined;
 
   identifiers?: {
     [key: string]: string;
@@ -589,6 +595,12 @@ export type PointControlAuditResponse = {
   actorSub?: string | undefined;
   /** principal の表示名（無ければ null）。 */
   actorName?: string | null | undefined;
+  /** #637: 値が実際に変わったかの照合結果。"pending" / "matched" / "mismatch" / "timeout" / "unavailable"。照合しなかった制御は null */
+  feedbackStatus?: string | null | undefined;
+  /** #637: 判定に使った確認用ポイントの値。unavailable のときはその理由 */
+  feedbackValue?: string | null | undefined;
+  /** #637: 照合が確定した時刻 */
+  feedbackCompletedAt?: string | null | undefined;
 }
 
 export type PointControllerControlAcceptedResponse = {
@@ -632,6 +644,7 @@ export type PointHealthItem = {
   alarm?: PointAlarmResult | undefined;
   gateway?: PointGatewayInfo | undefined;
   healthStatus?: HealthStatus | undefined;
+  monitoring?: PointMonitoring | undefined;
   deviceDtId?: string | null | undefined;
   deviceName?: string | null | undefined;
   spaceDtId?: string | null | undefined;
@@ -658,7 +671,11 @@ export type PointHealthListResponse = {
   indexState?: PointLastSeenIndexState | undefined;
 }
 
-/** データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。 */
+/**
+ * データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。`TotalPoints` 以下の件数は
+ * 判定対象の Point だけを数え、判定対象外（#635: リリース点・`bos:reportsTelemetry false`）は
+ * `NotMonitored` に別に数える。
+ */
 export type PointHealthSummaryResponse = {
   totalPoints?: number | undefined;
   fresh?: number | undefined;
@@ -669,9 +686,15 @@ export type PointHealthSummaryResponse = {
   alarmCritical?: number | undefined;
   dataComplete?: boolean | undefined;
   indexState?: PointLastSeenIndexState | undefined;
+  notMonitored?: number | undefined;
 }
 
 export type PointLastSeenIndexState = 'Warming' | 'Ready' | 'Degraded'
+
+export type PointMonitoring = {
+  monitored?: boolean | undefined;
+  reason?: NotMonitoredReason | undefined;
+}
 
 export type ProblemDetails = {
   type?: string | null | undefined;
@@ -928,6 +951,11 @@ export type TwinControlSchemaIssue = {
   reason?: string | undefined;
 }
 
+export type TwinFeedbackPointIssue = {
+  pointId?: string | undefined;
+  reason?: string | undefined;
+}
+
 export type TwinIdCollision = {
   resourceType?: string | undefined;
   id?: string | undefined;
@@ -945,6 +973,9 @@ export type TwinImportPreview = {
   idCollisionCount?: number | undefined;
   releaseOfIssueCount?: number | undefined;
   clockIssueCount?: number | undefined;
+  notMonitoredPointCount?: number | undefined;
+  feedbackPointIssueCount?: number | undefined;
+  feedbackPointIssues?: TwinFeedbackPointIssue[] | undefined;
   idCollisions?: TwinIdCollision[] | undefined;
   releaseOfIssues?: TwinReleaseOfIssue[] | undefined;
   clockIssues?: TwinClockIssue[] | undefined;

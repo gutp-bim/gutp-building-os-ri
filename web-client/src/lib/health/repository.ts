@@ -54,6 +54,8 @@ export type HealthSummary = {
   unknown: number;
   alarmWarn: number;
   alarmCritical: number;
+  /** 判定対象外の Point 数（#635）。`totalPoints` 以下の件数には含まれない。 */
+  notMonitored: number;
   dataComplete: boolean;
   indexState: HealthIndexState;
 };
@@ -78,6 +80,7 @@ function listParams(q: HealthQuery) {
     olderThan: q.olderThanSeconds,
     tag: q.tags.length > 0 ? [...q.tags] : undefined,
     q: q.q,
+    includeUnmonitored: q.includeUnmonitored ? true : undefined,
     sort: q.sort,
     limit: q.limit,
     offset: q.offset,
@@ -127,6 +130,7 @@ function flattenItem(wire: unknown): Record<string, unknown> {
   const freshness = asRecord(item.freshness);
   const alarm = asRecord(item.alarm);
   const gateway = asRecord(item.gateway);
+  const monitoring = asRecord(item.monitoring);
 
   return {
     pointId: item.pointId,
@@ -141,6 +145,7 @@ function flattenItem(wire: unknown): Record<string, unknown> {
     thresholdSeconds: freshness.thresholdSeconds,
     thresholdSource: freshness.thresholdSource,
     missingReason: freshness.reason,
+    notMonitoredReason: monitoring.reason,
     value: alarm.value,
     violated: alarm.violated,
     gatewayId: gateway.id,
@@ -226,6 +231,7 @@ export async function fetchPointHealthSummary(
     unknown: countOf(body.unknown),
     alarmWarn: countOf(body.alarmWarn),
     alarmCritical: countOf(body.alarmCritical),
+    notMonitored: countOf(body.notMonitored),
     dataComplete: body.dataComplete !== false,
     indexState: indexStateOf(body.indexState),
   };

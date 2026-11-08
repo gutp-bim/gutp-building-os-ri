@@ -118,4 +118,17 @@ public class CorsConfigurationTest
         Assert.Contains("Deprecation", policy.ExposedHeaders); // #507
         Assert.Contains("Link", policy.ExposedHeaders);
     }
+
+    [Theory]
+    [InlineData(null, "Development")]
+    [InlineData("https://portal.example", "Production")]
+    public void Policy_ExposesTheGrpcStatusHeaders(string? origins, string environment)
+    {
+        // #636: a gRPC-web refusal before the first message carries its status in headers; hidden cross-origin,
+        // the browser cannot tell PermissionDenied from a dropped connection and retries forever.
+        var policy = GetPolicy(origins, environment);
+
+        Assert.Contains("grpc-status", policy.ExposedHeaders);
+        Assert.Contains("grpc-message", policy.ExposedHeaders);
+    }
 }

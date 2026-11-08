@@ -3400,6 +3400,12 @@ paths:
             type: integer
             format: int32
             default: 0
+        - name: includeUnmonitored
+          in: query
+          description: '判定対象外の Point（#635: リリース点・`bos:reportsTelemetry false`）も含めるか。既定 false。`healthStatus=NotMonitored` を指定したときも含まれる'
+          schema:
+            type: boolean
+            default: false
       responses:
         '401':
           description: Unauthorized
@@ -4354,6 +4360,7 @@ components:
         - Stale
         - Missing
         - Unknown
+        - NotMonitored
       type: string
     GatewayAdminView:
       type: object
@@ -4685,6 +4692,10 @@ components:
           description: 解消時刻（UTC）。null の間は open
           format: date-time
           nullable: true
+        clearReason:
+          type: string
+          description: 解消の理由。条件が解消した通常の clear は null、監視対象外になった Point は `not_monitored`（#635）
+          nullable: true
         isOpen:
           type: boolean
           description: 未解消か
@@ -4709,6 +4720,7 @@ components:
         - Stale
         - Unknown
         - Fresh
+        - NotMonitored
       type: string
     IngressRejectionCount:
       type: object
@@ -4823,6 +4835,11 @@ components:
           type: string
       additionalProperties: false
       description: A v1 read response was refused because its native bounds cannot be represented.
+    NotMonitoredReason:
+      enum:
+        - ReleasePoint
+        - DeclaredNoTelemetry
+      type: string
     OidcClientDetail:
       type: object
       properties:
@@ -5026,6 +5043,11 @@ components:
         deviceIdBacnet:
           type: string
           nullable: true
+        isReleasePoint:
+          type: boolean
+        reportsTelemetry:
+          type: boolean
+          nullable: true
         identifiers:
           type: object
           additionalProperties:
@@ -5079,6 +5101,19 @@ components:
         actorName:
           type: string
           description: principal の表示名（無ければ null）。
+          nullable: true
+        feedbackStatus:
+          type: string
+          description: '#637: 値が実際に変わったかの照合結果。"pending" / "matched" / "mismatch" / "timeout" / "unavailable"。照合しなかった制御は null'
+          nullable: true
+        feedbackValue:
+          type: string
+          description: '#637: 判定に使った確認用ポイントの値。unavailable のときはその理由'
+          nullable: true
+        feedbackCompletedAt:
+          type: string
+          description: '#637: 照合が確定した時刻'
+          format: date-time
           nullable: true
       additionalProperties: false
       description: "制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`\n（\"success\" / \"failed\" / \"pending\"）に正規化して返す。`Request` は送信時のコマンド JSON。\n`ActorSub` / `ActorName` は制御を実行した principal（#461）で、`admin_audit` と同じ形。"
@@ -5174,6 +5209,8 @@ components:
           $ref: '#/components/schemas/PointGatewayInfo'
         healthStatus:
           $ref: '#/components/schemas/HealthStatus'
+        monitoring:
+          $ref: '#/components/schemas/PointMonitoring'
         deviceDtId:
           type: string
           nullable: true
@@ -5258,14 +5295,25 @@ components:
           type: boolean
         indexState:
           $ref: '#/components/schemas/PointLastSeenIndexState'
+        notMonitored:
+          type: integer
+          format: int32
       additionalProperties: false
-      description: データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。
+      description: "データ健全性の軸別集計。`Suppressed` な警報は警報件数に数えない。`TotalPoints` 以下の件数は\n判定対象の Point だけを数え、判定対象外（#635: リリース点・`bos:reportsTelemetry false`）は\n`NotMonitored` に別に数える。"
     PointLastSeenIndexState:
       enum:
         - Warming
         - Ready
         - Degraded
       type: string
+    PointMonitoring:
+      type: object
+      properties:
+        monitored:
+          type: boolean
+        reason:
+          $ref: '#/components/schemas/NotMonitoredReason'
+      additionalProperties: false
     ProblemDetails:
       type: object
       properties:
@@ -5712,6 +5760,14 @@ components:
         reason:
           type: string
       additionalProperties: false
+    TwinFeedbackPointIssue:
+      type: object
+      properties:
+        pointId:
+          type: string
+        reason:
+          type: string
+      additionalProperties: false
     TwinIdCollision:
       type: object
       properties:
@@ -5759,6 +5815,16 @@ components:
         clockIssueCount:
           type: integer
           format: int32
+        notMonitoredPointCount:
+          type: integer
+          format: int32
+        feedbackPointIssueCount:
+          type: integer
+          format: int32
+        feedbackPointIssues:
+          type: array
+          items:
+            $ref: '#/components/schemas/TwinFeedbackPointIssue'
         idCollisions:
           type: array
           items:

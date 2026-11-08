@@ -18,5 +18,19 @@ public interface IPointControlRepository
     /// </summary>
     Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(
         BuildingOS.Shared.Infrastructure.PointControlRepository.ControlAuditQuery query, CancellationToken ct);
+
+    /// <summary>
+    /// #637: records the confirmation state of control <paramref name="id"/>. A final outcome is only written over
+    /// <c>pending</c> (or nothing), so a late duplicate cannot replace a decided result.
+    /// </summary>
+    Task RecordFeedbackAsync(Guid id, string status, string? value, DateTime? completedAt, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    /// <summary>
+    /// #637: closes confirmations left <c>pending</c> by a process that stopped (restart, crash) as
+    /// <c>unavailable</c> / interrupted, for controls created before <paramref name="createdBefore"/>. Returns how many.
+    /// </summary>
+    Task<int> CloseInterruptedFeedbackAsync(DateTime createdBefore, DateTime now, CancellationToken ct = default)
+        => Task.FromResult(0);
 }
 

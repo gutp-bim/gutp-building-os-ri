@@ -17,7 +17,7 @@ namespace BuildingOS.Shared.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.20")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -260,6 +260,11 @@ namespace BuildingOS.Shared.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("acknowledged_by_name");
 
+                    b.Property<string>("ClearReason")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("clear_reason");
+
                     b.Property<DateTime?>("ClearedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("cleared_at");
@@ -341,6 +346,20 @@ namespace BuildingOS.Shared.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("FeedbackCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("feedback_completed_at");
+
+                    b.Property<string>("FeedbackStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("feedback_status");
+
+                    b.Property<string>("FeedbackValue")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("feedback_value");
 
                     b.Property<string>("PointId")
                         .HasColumnType("text")

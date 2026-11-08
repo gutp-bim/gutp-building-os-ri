@@ -40,6 +40,26 @@ public static class BuildingOsMetrics
         "building_os.hot_store.coalesce_flush_latency", unit: "s",
         description: "Age of the oldest pending hot-store put at the start of each coalesced flush.");
 
+    /// <summary>#636: live latest-value push subscriptions (one per open browser stream). No tags.</summary>
+    public static readonly UpDownCounter<long> TelemetryFeedSubscribers = Meter.CreateUpDownCounter<long>(
+        "building_os.telemetry_feed.subscribers", unit: "{subscription}",
+        description: "Open latest-value push subscriptions.");
+
+    /// <summary>#636: latest-value push events written to a stream. Tags: kind (snapshot|change).</summary>
+    public static readonly Counter<long> TelemetryFeedEventsSent = Meter.CreateCounter<long>(
+        "building_os.telemetry_feed.events_sent", unit: "{event}",
+        description: "Latest-value events written to push streams.");
+
+    /// <summary>#636: values a slow subscriber skipped because a newer one for the same point arrived first. No tags.</summary>
+    public static readonly Counter<long> TelemetryFeedDropped = Meter.CreateCounter<long>(
+        "building_os.telemetry_feed.dropped", unit: "{event}",
+        description: "Latest values superseded before a slow push subscriber read them.");
+
+    /// <summary>#636: time from the KV watch delivering a value to the push stream reading it. No tags.</summary>
+    public static readonly Histogram<double> TelemetryFeedDeliveryLatency = Meter.CreateHistogram<double>(
+        "building_os.telemetry_feed.delivery_latency", unit: "s",
+        description: "Delay between the KV watch observing a latest value and a push stream picking it up.");
+
     /// <summary>#625: points written per coalesced hot-store flush (how many puts collapsed into one). No tags.</summary>
     public static readonly Histogram<long> HotStoreCoalescedPoints = Meter.CreateHistogram<long>(
         "building_os.hot_store.coalesced_points", unit: "{point}",
@@ -136,6 +156,16 @@ public static class BuildingOsMetrics
             "building_os.ingress.event_lag",
             unit: "s",
             description: "Seconds between a reading's own event time and its arrival in the hot store.");
+
+    /// <summary>#637: control confirmations decided. Tags: result (matched|mismatch|timeout|unavailable).</summary>
+    public static readonly Counter<long> ControlFeedback = Meter.CreateCounter<long>(
+        "building_os.control.feedback", unit: "{control}",
+        description: "Control confirmations by outcome (did the value actually change).");
+
+    /// <summary>#637: time from starting a confirmation to its decision. Tags: result.</summary>
+    public static readonly Histogram<double> ControlFeedbackDuration = Meter.CreateHistogram<double>(
+        "building_os.control.feedback_duration", unit: "s",
+        description: "Time to decide a control confirmation.");
 
     /// <summary>Device control requests handled. Tags: handler, result.</summary>
     public static readonly Counter<long> ControlRequests =

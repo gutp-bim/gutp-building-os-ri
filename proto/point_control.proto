@@ -17,10 +17,24 @@ message ControlResultEvent {
   ControlResult result = 2;
   string response = 3;
   string timestamp = 4;
+  // #637: for a FEEDBACK_* result, the feedback point's value it was decided on (invariant text), or for
+  // FEEDBACK_UNAVAILABLE the reason (no_feedback_point / release_point / no_expected_value / interrupted).
+  string feedback_value = 5;
 }
 
+// WaitForResult first sends the gateway's answer (SUCCESS / FAILED). After a SUCCESS it then sends one
+// FEEDBACK_* event (#637) saying whether the value actually changed, and closes. A client that only reads the
+// first event keeps working; values are added, never renumbered.
 enum ControlResult {
   CONTROL_RESULT_UNSPECIFIED = 0;
   CONTROL_RESULT_SUCCESS = 1;
   CONTROL_RESULT_FAILED = 2;
+  // A value equal to the expected one arrived within the confirmation window.
+  CONTROL_RESULT_FEEDBACK_MATCHED = 3;
+  // At the end of the window the latest value differs from the expected one.
+  CONTROL_RESULT_FEEDBACK_MISMATCH = 4;
+  // No value of the feedback point arrived within the window.
+  CONTROL_RESULT_FEEDBACK_TIMEOUT = 5;
+  // The control cannot be confirmed (no feedback point, no expected value, interrupted).
+  CONTROL_RESULT_FEEDBACK_UNAVAILABLE = 6;
 }

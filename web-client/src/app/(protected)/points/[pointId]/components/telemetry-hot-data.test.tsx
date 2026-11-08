@@ -99,3 +99,43 @@ describe("TelemetryHotData non-numeric value display (#152)", () => {
     expect(screen.queryByText(/auto\s*℃/)).not.toBeInTheDocument();
   });
 });
+
+describe("TelemetryHotData live indicator (#636)", () => {
+  const renderLive = (
+    liveStatus?: "connecting" | "live" | "reconnecting" | "unavailable",
+  ) =>
+    render(
+      <TelemetryHotData
+        hotData={numeric(1)}
+        hotLoading={false}
+        onRefresh={vi.fn()}
+        onDownloadClick={vi.fn()}
+        liveStatus={liveStatus}
+      />,
+    );
+
+  it("says when the value follows the point, and when the stream is down", () => {
+    const { rerender } = renderLive("live");
+    expect(screen.getByTestId("hot-live-status")).toHaveTextContent(
+      "自動更新中",
+    );
+    rerender(
+      <TelemetryHotData
+        hotData={numeric(1)}
+        hotLoading={false}
+        onRefresh={vi.fn()}
+        onDownloadClick={vi.fn()}
+        liveStatus="reconnecting"
+      />,
+    );
+    expect(screen.getByTestId("hot-live-status")).toHaveTextContent("再接続中");
+  });
+
+  it("shows nothing when there is no stream or the server refused it (manual refresh still works)", () => {
+    const { unmount } = renderLive(undefined);
+    expect(screen.queryByTestId("hot-live-status")).not.toBeInTheDocument();
+    unmount();
+    renderLive("unavailable");
+    expect(screen.queryByTestId("hot-live-status")).not.toBeInTheDocument();
+  });
+});

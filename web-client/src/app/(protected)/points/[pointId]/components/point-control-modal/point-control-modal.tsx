@@ -4,12 +4,12 @@ import {
   type ControlExecutionState,
 } from "@/lib/infra/grpc-client/use-control-execution";
 import type { PointDetailResource } from "@/lib/resources/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnalogOutputControlModal } from "./analog-output-control-modal";
 import { BinaryOutputControlModal } from "./binary-output-control-modal";
 import { controlPostErrorResult } from "./control-post-error";
 import { ControlStatusBar } from "./control-status-bar";
-import { getControlProtocol } from "./get-control-protocol";
+import { getControlModalKind } from "./get-control-protocol";
 import { leavesAuditTrail } from "./leaves-audit-trail";
 import { MultiStateOutputControlModal } from "./multi-state-output-control-modal";
 import { toControlValue } from "./to-control-value";
@@ -55,15 +55,11 @@ export function PointControlModal({
     onControlSettled?.();
   }, [executionState, dispatched, onControlSettled]);
 
-  const controlProtocol = getControlProtocol(pointDetail);
-  const controlSchema = pointDetail.controlSchema;
-
-  // 制御可能性の判定: BACnet は controlSchema が必須
-  // （dataType に応じたモーダルがないと操作不能になるため）
-  const canControl = useMemo(() => {
-    if (controlProtocol === null) return false;
-    return controlSchema != null;
-  }, [controlProtocol, controlSchema]);
+  // 制御可能性の判定（#638）: 開けるモーダルがあり、サーバーが拒否しない点だけボタンを出す。
+  // 以前は「BACnet かつ controlSchema がある」だけで判定していたため、writable=false の点や、
+  // dataType がモーダルの無い値・表記ゆれの点にもボタンが出て、押しても何も開かないか 400 になった。
+  const modalKind = getControlModalKind(pointDetail);
+  const canControl = modalKind !== null;
 
   // BACnet制御ハンドラー（Kandt ゲートウェイ経由の制御も含む）
   // ControlTypeResolver がゲートウェイ/BACnetアドレス指定をサーバー側で解決するため、
@@ -132,7 +128,7 @@ export function PointControlModal({
         ))}
 
       {/* BACnet制御モーダル */}
-      {controlProtocol === "BACnet" && controlSchema?.dataType === "number" && (
+      {modalKind === "number" && (
         <AnalogOutputControlModal
           isOpen={isOpen}
           onClose={handleClose}
@@ -141,16 +137,15 @@ export function PointControlModal({
           isLoading={isLoading}
         />
       )}
-      {controlProtocol === "BACnet" &&
-        controlSchema?.dataType === "boolean" && (
-          <BinaryOutputControlModal
-            isOpen={isOpen}
-            onClose={handleClose}
-            onControl={handleBacnetControl}
-            isLoading={isLoading}
-          />
-        )}
-      {controlProtocol === "BACnet" && controlSchema?.dataType === "enum" && (
+      {modalKind === "boolean" && (
+        <BinaryOutputControlModal
+          isOpen={isOpen}
+          onClose={handleClose}
+          onControl={handleBacnetControl}
+          isLoading={isLoading}
+        />
+      )}
+      {modalKind === "enum" && (
         <MultiStateOutputControlModal
           isOpen={isOpen}
           onClose={handleClose}

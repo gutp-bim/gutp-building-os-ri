@@ -9,7 +9,7 @@ const assetFacets: ResourceFacetsResult = {
   deviceTypes: [{ value: "AHU", count: 5 }], pointTypes: [], units: [], gateways: [],
 };
 const summary: HealthSummary = {
-  totalPoints: 10, fresh: 7, stale: 2, missing: 1, unknown: 0, alarmWarn: 3, alarmCritical: 1,
+  totalPoints: 10, fresh: 7, stale: 2, missing: 1, unknown: 0, alarmWarn: 3, alarmCritical: 1, notMonitored: 0,
   dataComplete: true, indexState: "ready",
 };
 const hit: SearchHit = { type: "point", dtId: "urn:p", id: "P1", name: "p", buildingDtId: null };

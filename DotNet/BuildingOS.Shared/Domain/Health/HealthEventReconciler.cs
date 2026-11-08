@@ -9,12 +9,18 @@ public readonly record struct HealthEventKey(string SubjectType, string SubjectI
 /// <summary>An open event whose severity should change (its raise time and acknowledgement are kept).</summary>
 public sealed record HealthEventUpdate(HealthEventKey Key, string Severity, string DetailJson);
 
-/// <summary>What one scan decided: events to open, to re-grade, and to close.</summary>
+/// <summary>
+/// What one scan decided: events to open, to re-grade, and to close. <c>ClearNotMonitored</c> (#635) are events on
+/// points that are no longer judged at all; they close at once, with <see cref="HealthEventClearReasons.NotMonitored"/>.
+/// </summary>
 public sealed record HealthEventPlan(
     IReadOnlyList<HealthEventCandidate> Raise,
     IReadOnlyList<HealthEventUpdate> Update,
-    IReadOnlyList<Guid> Clear)
+    IReadOnlyList<Guid> Clear,
+    IReadOnlyList<Guid>? ClearNotMonitored = null)
 {
+    public IReadOnlyList<Guid> ClearNotMonitored { get; } = ClearNotMonitored ?? [];
+
     public static readonly HealthEventPlan Empty = new([], [], []);
 }
 
@@ -56,14 +62,24 @@ public sealed class HealthEventReconciler(HealthEventHysteresis? hysteresis = nu
         var byPoint = new Dictionary<string, PointHealthItem>(StringComparer.Ordinal);
         foreach (var item in items) byPoint[item.PointId] = item;
 
-        // Gateways seen in the ledger, with their connection state (null = could not be read).
+        // #635: points the twin says never report a value are not judged. Events already open on them close at
+        // once (a declaration, not an observation, so no deadband) and with their own reason.
+        var notMonitored = new HashSet<string>(
+            items.Where(i => !i.Monitoring.Monitored).Select(i => i.PointId), StringComparer.Ordinal);
+        var all = items;
+        items = items.Where(i => i.Monitoring.Monitored).ToArray();
+
+        // Gateways seen in the ledger, with their connection state (null = could not be read). The connection is a
+        // fact about the gateway, so every point counts toward seeing it; the point count in its event is only the
+        // points data health judges (#635).
         var gateways = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var gatewayPoints = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in items)
+        foreach (var item in all)
         {
             if (item.Gateway?.Id is not { Length: > 0 } id) continue;
             gateways[id] = item.Gateway.Connected;
-            gatewayPoints[id] = gatewayPoints.GetValueOrDefault(id) + 1;
+            if (item.Monitoring.Monitored) gatewayPoints[id] = gatewayPoints.GetValueOrDefault(id) + 1;
+            else gatewayPoints.TryAdd(id, 0);
         }
 
         // What is true now.
@@ -95,6 +111,7 @@ public sealed class HealthEventReconciler(HealthEventHysteresis? hysteresis = nu
         var raise = new List<HealthEventCandidate>();
         var update = new List<HealthEventUpdate>();
         var clear = new List<Guid>();
+        var clearNotMonitored = new List<Guid>();
 
         // Raise: the condition must hold for RaiseAfterScans consecutive scans.
         foreach (var (key, want) in desired)
@@ -122,6 +139,12 @@ public sealed class HealthEventReconciler(HealthEventHysteresis? hysteresis = nu
         foreach (var (key, e) in openByKey)
         {
             if (desired.ContainsKey(key)) continue;
+            if (e.SubjectType == HealthEventSubjects.Point && notMonitored.Contains(e.SubjectId))
+            {
+                clearNotMonitored.Add(e.Id);
+                _goneFor.Remove(key);
+                continue;
+            }
             var verdict = Judge(e, byPoint, gateways);
             if (verdict != Verdict.Gone) { _goneFor.Remove(key); continue; }
             var gone = _goneFor.GetValueOrDefault(key) + 1;
@@ -134,7 +157,7 @@ public sealed class HealthEventReconciler(HealthEventHysteresis? hysteresis = nu
         }
         foreach (var key in _goneFor.Keys.Where(k => !openByKey.ContainsKey(k)).ToArray()) _goneFor.Remove(key);
 
-        return new HealthEventPlan(raise, update, clear);
+        return new HealthEventPlan(raise, update, clear, clearNotMonitored);
     }
 
     private static bool IsBehindOfflineGateway(PointHealthItem item) => item.Gateway is { Connected: false };

@@ -37,6 +37,8 @@ public static class OtelSetup
         BuildingOsMetrics.IngestionLag.Name,
         BuildingOsMetrics.IngressEventLag.Name,
         BuildingOsMetrics.HotStoreCoalesceFlushLatency.Name,
+        BuildingOsMetrics.TelemetryFeedDeliveryLatency.Name,
+        BuildingOsMetrics.ControlFeedbackDuration.Name,
         BuildingOsMetrics.ParquetWriterFreshnessLag.Name,
     ];
 

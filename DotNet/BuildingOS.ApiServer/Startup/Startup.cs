@@ -67,6 +67,9 @@ namespace BuildingOs.ApiServer
             services.AddScoped<IDigitalTwinDatabase, OxiGraphDigitalTwinDatabase>();
             services.AddScoped<BuildingOS.Shared.Domain.GatewayProvisioning.IGatewayProvisioningSource, OxiGraphGatewayProvisioningSource>();
             services.AddScoped<IControlSchemaResolver, OssControlSchemaResolver>();
+            // #637: control confirmation (bos:feedbackPoint) — its own short twin query, singleton like the client.
+            services.AddSingleton<BuildingOS.Shared.Infrastructure.Oss.IControlFeedbackConfigResolver,
+                BuildingOS.Shared.Infrastructure.Oss.OssControlFeedbackConfigResolver>();
             // Control-write fail-closed switch (#481). Parsed once; the effective value is logged in Configure.
             services.AddSingleton(new BuildingOS.Shared.Domain.ControlSafetyOptions(
                 BuildingOS.Shared.Domain.ControlSafetyOptions.ParsePolicy(_envModule.ControlSchemaFailurePolicy, out _)));
@@ -95,6 +98,8 @@ namespace BuildingOs.ApiServer
             // NOT a new data store — it is a process-local projection of the existing telemetry-latest KV,
             // so the health endpoint answers thousands of points from memory instead of N hot-store gets.
             services.AddSingleton<PointLastSeenIndexStore>();
+            // #636: fed by the same KV watch; serves TelemetryNotificationGrpcService.
+            services.AddSingleton<LatestValueFeed>();
             services.AddSingleton<IPointLastSeenIndex>(sp => sp.GetRequiredService<PointLastSeenIndexStore>());
             services.AddHostedService<NatsKvPointLastSeenIndexWorker>();
             services.AddScoped<BuildingOs.ApiServer.Health.PointHealthLedger>(); // scoped: it reads the per-request authorized twin view and settings
@@ -390,6 +395,10 @@ namespace BuildingOs.ApiServer
             // per-command one above only lives while a caller waits, so it would miss late results.
             services.AddSingleton<Services.IControlAuditWriter, Services.ControlAuditWriter>();
             services.AddHostedService<Services.ControlAuditResultSubscriber>();
+            // #637: confirms each accepted control against its feedback point, and closes confirmations a stopped
+            // process left pending.
+            services.AddSingleton<Services.IControlFeedbackCoordinator, Services.ControlFeedbackCoordinator>();
+            services.AddHostedService<Services.ControlFeedbackSweeper>();
             services.AddSingleton<BuildingOS.Shared.Infrastructure.PointControl.IPointControlCommandPublisher,
                 Services.NatsPointControlCommandPublisher>();
 
@@ -505,6 +514,11 @@ namespace BuildingOs.ApiServer
                     .EnableGrpcWeb()
                     .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
                 endpoints.MapGrpcService<Services.PointControlGrpcService>()
+                    .EnableGrpcWeb()
+                    .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
+                // #636: authenticates in the service itself (Unauthenticated / PermissionDenied as gRPC
+                // statuses) rather than via RequireAuthorization, so gRPC-web clients get a status, not a 401 page.
+                endpoints.MapGrpcService<Services.TelemetryNotificationGrpcService>()
                     .EnableGrpcWeb()
                     .RequireCors(IServiceCollectionExtension.MyAllowSpecificOrigins);
 

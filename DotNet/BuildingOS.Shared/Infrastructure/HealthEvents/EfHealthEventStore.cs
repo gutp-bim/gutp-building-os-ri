@@ -49,12 +49,12 @@ public sealed class EfHealthEventStore(RelationalDbContext context) : IHealthEve
             .ExecuteUpdateAsync(
                 s => s.SetProperty(e => e.Severity, severity).SetProperty(e => e.Detail, detailJson), ct);
 
-    public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, CancellationToken ct = default) =>
+    public Task<int> ClearAsync(IReadOnlyCollection<Guid> ids, DateTime now, string? reason = null, CancellationToken ct = default) =>
         ids.Count == 0
             ? Task.FromResult(0)
             : context.HealthEvents
                 .Where(e => ids.Contains(e.Id) && e.ClearedAt == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(e => e.ClearedAt, now), ct);
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.ClearedAt, now).SetProperty(e => e.ClearReason, reason), ct);
 
     public async Task<HealthEventPage> QueryAsync(HealthEventQuery q, CancellationToken ct = default)
     {

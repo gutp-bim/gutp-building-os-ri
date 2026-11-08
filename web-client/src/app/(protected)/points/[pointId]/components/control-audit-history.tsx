@@ -2,6 +2,7 @@
 
 import {
   controlActorLabel,
+  controlFeedbackLabel,
   controlStatusLabel,
   formatControlRequest,
 } from "@/lib/control-audit/mapping";
@@ -117,6 +118,7 @@ export function ControlAuditHistory({
                 <th className="py-2 pr-4 font-medium">実行者</th>
                 <th className="py-2 pr-4 font-medium">コマンド</th>
                 <th className="py-2 pr-4 font-medium">状態</th>
+                <th className="py-2 pr-4 font-medium">反映</th>
                 <th className="py-2 font-medium">完了</th>
               </tr>
             </thead>
@@ -149,6 +151,12 @@ export function ControlAuditHistory({
                     >
                       {controlStatusLabel(e.status)}
                     </span>
+                  </td>
+                  <td
+                    data-testid="control-audit-feedback"
+                    className={`py-2 pr-4 ${e.feedback === "mismatch" ? "text-red-700" : "text-gray-700"}`}
+                  >
+                    {controlFeedbackLabel(e.feedback, e.feedbackValue)}
                   </td>
                   <td className="py-2 text-gray-600">
                     {e.completedAt

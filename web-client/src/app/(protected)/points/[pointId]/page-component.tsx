@@ -3,6 +3,8 @@
 import { InlineBanner } from "@/components/ui/inline-banner";
 import type { HealthRow } from "@/lib/health/mapping";
 import { fetchPointHealthRow } from "@/lib/health/repository";
+import { isLaterReading, isNewer } from "@/lib/infra/grpc-client/latest-value";
+import { useLatestValue } from "@/lib/infra/grpc-client/use-latest-value";
 import { getPointDetail } from "@/lib/resources/repository";
 import type { PointDetailResource } from "@/lib/resources/types";
 import { toTelemetryCsv } from "@/lib/telemetry/csv";
@@ -123,14 +125,42 @@ export default function PointDetailPageComponent({
     fetchPointDetail();
   }, [pointId]);
 
+  // #636: follow the latest value over the push stream once the business id is known. The REST read above
+  // stays the first paint and the manual refresh; a pushed sample replaces it only when it is newer.
+  const live = useLatestValue(pointDetail?.point.id);
+  // How many pushed samples have been applied: a REST read compares it before and after, to know whether a
+  // push landed while it ran (a counter, not a clock — both can happen within one millisecond).
+  const pushesApplied = useRef(0);
+  useEffect(() => {
+    if (live.sample === null) return;
+    const pushed = live.sample;
+    pushesApplied.current += 1;
+    // A pushed sample wins a timestamp tie (later arrival), snapshots included. That is self-correcting: the
+    // server sends a snapshot of what the KV held when the stream opened and then every change after it, so a
+    // snapshot that briefly shows an older equal-timestamp value is followed by the change that replaced it.
+    // (Only a REST read that a push overtook is held to a strictly later timestamp — see fetchHotData.)
+    setHotData((current) => (isNewer(pushed, current) ? pushed : current));
+  }, [live.sample]);
+
   const fetchHotData = async () => {
     if (!pointDetail?.point.id) return;
     try {
       setHotLoading(true);
       setHotError(null);
       // Raw latest sample (not the numeric-only series) so a string/boolean reading survives (#152).
+      const pushesBefore = pushesApplied.current;
       const latest = await latestTelemetrySample(pointDetail.point.id);
-      setHotData(latest);
+      // #636: a push may have landed while this read was in flight; never step back to an older reading.
+      // An empty answer still clears the card (the telemetry may have been purged) — unless a push arrived
+      // during the read, which is newer than anything this read could say.
+      setHotData((current) => {
+        const pushedMeanwhile = pushesApplied.current !== pushesBefore;
+        if (latest === null) return pushedMeanwhile ? current : null;
+        // A push that overtook this read is the later arrival: only a strictly later reading beats it.
+        if (pushedMeanwhile)
+          return isLaterReading(latest, current) ? latest : current;
+        return isNewer(latest, current) ? latest : current;
+      });
     } catch (e) {
       console.error(e);
       setHotError("最新値の取得に失敗しました。");
@@ -342,6 +372,7 @@ export default function PointDetailPageComponent({
           <TelemetryHotData
             hotData={hotData}
             hotLoading={hotLoading}
+            liveStatus={live.status}
             onRefresh={() => {
               fetchHotData();
               fetchCoverage();

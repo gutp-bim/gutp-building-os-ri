@@ -29,6 +29,12 @@ public static class PointHealthQueryFilter
 
     private static bool Matches(PointHealthItem item, PointHealthQuery query)
     {
+        // #635: 判定対象外は明示的に求められたとき（includeUnmonitored か healthStatus=NotMonitored）だけ載せる。
+        if (!item.Monitoring.Monitored
+            && !query.IncludeUnmonitored
+            && !query.HealthStatuses.Contains(HealthStatus.NotMonitored))
+            return false;
+
         // 階層スコープ。完全一致で、空白は「絞らない」。
         if (!MatchesScope(query.BuildingDtId, item.BuildingDtId)) return false;
         if (!MatchesScope(query.FloorDtId, item.FloorDtId)) return false;

@@ -49,6 +49,27 @@ public sealed class EfPointControlRepository : IPointControlRepository
         await _context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
+    public Task RecordFeedbackAsync(Guid id, string status, string? value, DateTime? completedAt, CancellationToken ct = default)
+    {
+        var rows = _context.PointControlAudits.Where(e => e.Id == id);
+        // pending may be written only on a row with no confirmation yet; a final outcome only over pending/none.
+        rows = status == BuildingOS.Shared.Domain.ControlFeedback.ControlFeedbackStatuses.Pending
+            ? rows.Where(e => e.FeedbackStatus == null)
+            : rows.Where(e => e.FeedbackStatus == null || e.FeedbackStatus == BuildingOS.Shared.Domain.ControlFeedback.ControlFeedbackStatuses.Pending);
+        return rows.ExecuteUpdateAsync(s => s
+            .SetProperty(e => e.FeedbackStatus, status)
+            .SetProperty(e => e.FeedbackValue, value)
+            .SetProperty(e => e.FeedbackCompletedAt, completedAt), ct);
+    }
+
+    public Task<int> CloseInterruptedFeedbackAsync(DateTime createdBefore, DateTime now, CancellationToken ct = default) =>
+        _context.PointControlAudits
+            .Where(e => e.FeedbackStatus == BuildingOS.Shared.Domain.ControlFeedback.ControlFeedbackStatuses.Pending && e.CreatedAt < createdBefore)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(e => e.FeedbackStatus, BuildingOS.Shared.Domain.ControlFeedback.ControlFeedbackStatuses.Unavailable)
+                .SetProperty(e => e.FeedbackValue, BuildingOS.Shared.Domain.ControlFeedback.ControlFeedbackUnavailableReasons.Interrupted)
+                .SetProperty(e => e.FeedbackCompletedAt, now), ct);
+
     public async Task<IReadOnlyList<PointControlAuditEntry>> ListAuditByPointAsync(
         ControlAuditQuery query, CancellationToken ct)
     {
