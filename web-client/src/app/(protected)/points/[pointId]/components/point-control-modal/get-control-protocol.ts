@@ -16,3 +16,26 @@ export const getControlProtocol = (
   // getCollectionProtocol は #320 以降 MQTT / OPC-UA も返す。ここは BACnet 制御フローの
   // 入口なので、BACnet 以外は null に潰して「制御できない」に倒す。
   getCollectionProtocol(pointDetail.point) === "BACnet" ? "BACnet" : null;
+
+/** The control modals that exist (#638). */
+export type ControlModalKind = "number" | "boolean" | "enum";
+
+/**
+ * Which control modal this point opens, or null when it cannot be controlled from this screen (#638). The button
+ * is offered only when one of these is true, so it never opens nothing or sends a write the server will refuse:
+ *
+ * - the point goes through the BACnet control flow (the only one with modals);
+ * - it is not `writable: false` — the server refuses exactly that (`ControlTypeResolver`), an unset value passes;
+ * - it has a ControlSchema whose `dataType`, spelled as the server reads it (trimmed, case-insensitive,
+ *   `ControlValueValidator`), is one of the three types a modal exists for.
+ */
+export const getControlModalKind = (
+  pointDetail: PointDetailResource,
+): ControlModalKind | null => {
+  if (getControlProtocol(pointDetail) === null) return null;
+  if (pointDetail.point.writable === false) return null;
+  const type = pointDetail.controlSchema?.dataType?.trim().toLowerCase();
+  return type === "number" || type === "boolean" || type === "enum"
+    ? type
+    : null;
+};
