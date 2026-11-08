@@ -122,6 +122,21 @@
 
       <div class="feature-row">
         <div class="feature-text">
+          <h3>開いている画面が、今の値を追いかける</h3>
+          <p>ポイント詳細を開いておけば、最新値は再読み込みしなくても更新されます。サーバーは最新値の変化を
+          gRPC-web のストリームで画面へ送り、画面には「自動更新中」と表示されます。接続が切れても自動で
+          つなぎ直し、つなぎ直した直後に今の値を受け取るので、切れている間の変化も取りこぼしません。</p>
+          <p>配信の前には、そのポイントを読む権限があるかを確認します。ストリームは最長 5 分(トークンの期限が
+          先ならそこまで)で区切り直すので、権限を外した人の画面も、その時間内に止まります。</p>
+        </div>
+        <figure class="shot">
+          <img src="screenshots/point-live-value.png" alt="ポイント詳細画面。最新値 24.5 ℃ の下に「自動更新中」の表示があり、データ健全性パネルも同じ値と受信時刻を示している。" width="1280" height="860" loading="lazy">
+          <figcaption>ポイント詳細 — 最新値がプッシュで更新される(自動更新中)</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
           <h3>制御は、確実に・追跡可能に</h3>
           <p>ポイント単位の制御はゲートウェイ別にルーティングされ、結果は非同期で返ります。
           オフラインのゲートウェイには待たされずに即時エラー(503)。すべての制御操作は
@@ -130,6 +145,21 @@
         <figure class="shot">
           <img src="ui-screenshots/07-admin-gateways.png" alt="ゲートウェイ管理画面。登録されたゲートウェイの一覧と接続状態が表示されている。" width="1440" height="900" loading="lazy">
           <figcaption>ゲートウェイ管理 — 接続状態とポイントリスト同期を一覧</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>制御が「効いたか」まで確かめる</h3>
+          <p>ゲートウェイの「成功」は、書き込みが受け付けられたという意味でしかありません。デジタルツインで
+          確認用ポイント(<code>bos:feedbackPoint</code>)を宣言しておくと、制御のあとにそのポイントの値を
+          見張り、期待した値になったかを照合します(既定 60 秒、最長 300 秒、数値は許容差も指定可)。</p>
+          <p>結果は「反映を確認」「不一致」「確認用の値が届かない」「照合できない」のいずれかとして、
+          画面に 2 段目の結果として表示され、制御履歴の「反映」列にも残ります。</p>
+        </div>
+        <figure class="shot">
+          <img src="screenshots/control-feedback-matched.png" alt="制御結果のバー。「制御が正常に完了しました」の下に「値の反映を確認しました(24)」と表示されている。下の制御履歴には反映の列があり、反映を確認した行と、不一致(実際の値: 26)の行が並んでいる。" width="1056" height="363" loading="lazy">
+          <figcaption>制御結果と制御履歴 — 受付に続いて、値の反映を照合</figcaption>
         </figure>
       </div>
 
@@ -158,6 +188,21 @@
         <figure class="shot">
           <img src="ui-screenshots/11-health-events.png" alt="データ品質のイベント画面。鮮度切れ・欠測・値異常・ゲートウェイ切断の未解消イベントが一覧され、確認応答のボタンと確認済みの行が表示されている。" width="1280" height="1500" loading="lazy">
           <figcaption>データ品質(イベント) — 異常の始まりと終わり、確認した人を記録</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-text">
+          <h3>値を送らないポイントを、異常に数えない</h3>
+          <p>書き込み専用のポイントや、BACnet の優先度を解除するためのリリース点は、そもそも値を送ってきません。
+          これらを「欠測」と判定すると、本当の異常が誤検知に埋もれてしまいます。</p>
+          <p>リリース点(<code>bos:releaseOf</code>)と、ツインで値を送らないと宣言したポイント
+          (<code>bos:reportsTelemetry false</code>)は「監視対象外」として判定から外し、件数だけを別に数えます。
+          一覧には「監視対象外も表示」を選んだときだけ、理由とともに現れます。</p>
+        </div>
+        <figure class="shot">
+          <img src="screenshots/health-not-monitored.png" alt="データ品質の一覧。「監視対象外も表示(2 件)」にチェックが入り、鮮度切れ・欠測の行に続いて、リリース点と値を送らない点が監視対象外として理由つきで表示されている。" width="1280" height="860" loading="lazy">
+          <figcaption>データ品質 — 監視対象外のポイントを理由つきで表示</figcaption>
         </figure>
       </div>
 
