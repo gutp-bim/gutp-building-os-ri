@@ -77,7 +77,7 @@ public class ControlFeedbackNatsTest(NatsFixture fixture) : IntegrationTestBase
         var feed = new LatestValueFeed();
         var audit = new FakeAudit();
         var coordinator = new ControlFeedbackCoordinator(
-            nats, feed, Config("PV-1", TimeSpan.FromSeconds(10)), audit, NullLogger<ControlFeedbackCoordinator>.Instance);
+            nats, feed, Config("SP-1", TimeSpan.FromSeconds(10)), audit, NullLogger<ControlFeedbackCoordinator>.Instance);
         var controlId = Guid.NewGuid().ToString();
         var sentAt = DateTimeOffset.UtcNow;
 
@@ -88,7 +88,7 @@ public class ControlFeedbackNatsTest(NatsFixture fixture) : IntegrationTestBase
 
         await GatewayAnswers(nats, controlId, success: true);
         await Task.Delay(200);
-        feed.Publish(V("PV-1", 24, sentAt.AddSeconds(1)));
+        feed.Publish(V("SP-1", 24, sentAt.AddSeconds(1)));
 
         var events = await waiting;
         Assert.Equal(ControlResult.Success, events[0].Result);
@@ -115,12 +115,60 @@ public class ControlFeedbackNatsTest(NatsFixture fixture) : IntegrationTestBase
             new ControlFeedbackRequest(controlId, Sp("SP-5"), new ControlSchema { DataType = "number" }, 24, DateTimeOffset.UtcNow), default);
         var waiting = ReadAll(bus, controlId, 2);
         var now = DateTimeOffset.UtcNow;
+        // Back to back, before the confirmation task has had a chance to read.
         feed.Publish(V("PV-5", 24, now.AddSeconds(1)));
-        await Task.Delay(200);
         feed.Publish(V("PV-5", 23, now.AddSeconds(2)));
         await GatewayAnswers(nats, controlId, success: true);
 
         Assert.Equal(ControlResult.FeedbackMatched, (await waiting)[1].Result);
+    }
+
+    [Fact]
+    public async Task ASeparateFeedbackPoint_ReportsTheOutcome_ButNeverItsValue()
+    {
+        // Reading the controlled point's history does not imply being allowed to read the feedback point.
+        var (nats, bus) = await Connect();
+        await using var _ = nats;
+        await using var __ = bus;
+        var feed = new LatestValueFeed();
+        var audit = new FakeAudit();
+        var coordinator = new ControlFeedbackCoordinator(
+            nats, feed, Config("PV-6", TimeSpan.FromSeconds(1)), audit, NullLogger<ControlFeedbackCoordinator>.Instance);
+        var controlId = Guid.NewGuid().ToString();
+
+        await bus.PrepareAsync(controlId, CancellationToken.None);
+        await coordinator.BeginAsync(
+            new ControlFeedbackRequest(controlId, Sp("SP-6"), new ControlSchema { DataType = "number" }, 24, DateTimeOffset.UtcNow), default);
+        var waiting = ReadAll(bus, controlId, 2);
+        await GatewayAnswers(nats, controlId, success: true);
+        feed.Publish(V("PV-6", 19, DateTimeOffset.UtcNow.AddMilliseconds(100)));
+
+        var feedback = (await waiting)[1];
+        Assert.Equal(ControlResult.FeedbackMismatch, feedback.Result);
+        Assert.Equal("", feedback.FeedbackValue);
+        await WaitUntil(() => audit.Writes.Count == 2);
+        Assert.Null(audit.Writes[1].Value);
+    }
+
+    [Fact]
+    public async Task APointThatConfirmsItself_ReportsItsValue()
+    {
+        var (nats, bus) = await Connect();
+        await using var _ = nats;
+        await using var __ = bus;
+        var feed = new LatestValueFeed();
+        var coordinator = new ControlFeedbackCoordinator(
+            nats, feed, Config("SP-7", TimeSpan.FromSeconds(1)), new FakeAudit(), NullLogger<ControlFeedbackCoordinator>.Instance);
+        var controlId = Guid.NewGuid().ToString();
+
+        await bus.PrepareAsync(controlId, CancellationToken.None);
+        await coordinator.BeginAsync(
+            new ControlFeedbackRequest(controlId, Sp("SP-7"), new ControlSchema { DataType = "number" }, 24, DateTimeOffset.UtcNow), default);
+        var waiting = ReadAll(bus, controlId, 2);
+        await GatewayAnswers(nats, controlId, success: true);
+        feed.Publish(V("SP-7", 19, DateTimeOffset.UtcNow.AddMilliseconds(100)));
+
+        Assert.Equal("19", (await waiting)[1].FeedbackValue);
     }
 
     [Fact]

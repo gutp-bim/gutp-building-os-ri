@@ -321,7 +321,10 @@ backstop).
 > (`ControlExpectedValueResolver`). The outcome goes to `point_control_audit.feedback_*` and to
 > `building-os.control.feedback.{controlId}` (its own subject, so the audit subscriber never reads it as a gateway
 > outcome); `WaitForResult` sends it as a second event (`CONTROL_RESULT_FEEDBACK_*`, `feedback_value`) after SUCCESS,
-> so a client reading only the first event is unaffected. A FAILED control is not confirmed. `ControlFeedbackSweeper`
+> so a client reading only the first event is unaffected. A FAILED control is not confirmed. The actual value is
+> recorded and sent **only when the point confirms itself** — a separate feedback point's value is another point's
+> telemetry, and reading this control's history (a read of the controlled point) does not imply reading that point,
+> so only the outcome is kept. Correlation reads every value (`LatestValueFeed.SubscribeEveryValue`), from dispatch. `ControlFeedbackSweeper`
 > closes confirmations a stopped replica left `pending` as unavailable / `interrupted`. The import refuses an ill-formed
 > `bos:feedbackPoint` (`FeedbackPointIssueDetection`: several targets, missing / id-less target, another gateway).
 > Metrics: `building_os.control.feedback{result}`, `building_os.control.feedback_duration`.

@@ -65,7 +65,8 @@ public sealed class ControlFeedbackCoordinator(
             resultSub = await nats.SubscribeCoreAsync<byte[]>(EgressSubjects.Result(request.ControlId), cancellationToken: abandon.Token)
                 .ConfigureAwait(false);
             await nats.PingAsync(ct).ConfigureAwait(false); // fence the SUB before the command is published
-            values = config.FeedbackPointId is { } fb ? feed.Subscribe([fb]).Subscription : null;
+            // Every reading, not only the newest: a match followed by another value must not be lost.
+            values = config.FeedbackPointId is { } fb ? feed.SubscribeEveryValue([fb]).Subscription : null;
 
             // The window and the stale-reading filter count from here — the command is published right after this
             // returns — not from before the config lookup and the fence.
@@ -119,6 +120,11 @@ public sealed class ControlFeedbackCoordinator(
             await audit.RecordFeedbackAsync(request.ControlId, ControlFeedbackStatuses.Pending, null, null).ConfigureAwait(false);
             await observing.ConfigureAwait(false);
             var outcome = correlation is null ? unavailable! : correlation.Result ?? correlation.Finish();
+            // The feedback value is another point's telemetry unless the point confirms itself. Whoever can read
+            // this control's history (a read of the controlled point) need not be allowed to read that point, so
+            // only the outcome is recorded and sent for a separate feedback point — never its value.
+            if (!string.Equals(config.FeedbackPointId, request.Point.Id, StringComparison.Ordinal))
+                outcome = outcome with { ActualValue = null };
             await FinishAsync(request.ControlId, outcome, started).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (abandon.IsCancellationRequested)

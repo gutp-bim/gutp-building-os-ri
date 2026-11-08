@@ -111,6 +111,21 @@ public class LatestValueFeedTest
     }
 
     [Fact]
+    public async Task AnEveryValueSubscription_KeepsEachReadingInOrder()
+    {
+        // #637: a confirmation must see a match even when another value follows before it reads.
+        var feed = new LatestValueFeed();
+        var (sub, _) = feed.SubscribeEveryValue(["P1"]);
+        using var subscription = sub;
+
+        feed.Publish(V("P1", 24));
+        feed.Publish(V("P1", 23));
+
+        var got = await TakeAsync(sub, 2);
+        Assert.Equal([24d, 23d], got.Select(v => v.Value!.Value));
+    }
+
+    [Fact]
     public async Task TwoSubscribersToOnePoint_BothReceiveIt()
     {
         var feed = new LatestValueFeed();
