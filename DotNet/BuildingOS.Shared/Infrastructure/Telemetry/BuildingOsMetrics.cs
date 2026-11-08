@@ -157,6 +157,16 @@ public static class BuildingOsMetrics
             unit: "s",
             description: "Seconds between a reading's own event time and its arrival in the hot store.");
 
+    /// <summary>#637: control confirmations decided. Tags: result (matched|mismatch|timeout|unavailable).</summary>
+    public static readonly Counter<long> ControlFeedback = Meter.CreateCounter<long>(
+        "building_os.control.feedback", unit: "{control}",
+        description: "Control confirmations by outcome (did the value actually change).");
+
+    /// <summary>#637: time from starting a confirmation to its decision. Tags: result.</summary>
+    public static readonly Histogram<double> ControlFeedbackDuration = Meter.CreateHistogram<double>(
+        "building_os.control.feedback_duration", unit: "s",
+        description: "Time to decide a control confirmation.");
+
     /// <summary>Device control requests handled. Tags: handler, result.</summary>
     public static readonly Counter<long> ControlRequests =
         Meter.CreateCounter<long>(

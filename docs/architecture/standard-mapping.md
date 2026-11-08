@@ -157,6 +157,8 @@ REC 由来の階層（`rec:hasPart` 等）と併用できるよう設計され�
 | `bos:dataType` | 制御値のデータ型（bos: 残存拡張） | `brick:Tag` | — | **独自**（ControlSchema 用） |
 | `bos:enumLabels` | 制御列挙値ラベル（bos: 残存拡張） | — | — | **独自**（ControlSchema 用） |
 | `bos:reportsTelemetry` | この点が値を報告するか（boolean、未指定 = true）。`false` の点はデータ健全性の判定対象外（#635） | — | — | **独自** |
+| `bos:feedbackPoint` | 制御が反映されたかを確かめる点（Point → Point、最大 1。自分自身も可）（#637） | `brick:hasPoint`（部分） | — | **独自** |
+| `bos:feedbackWindowSec` / `bos:feedbackTolerance` | 反映確認の窓（秒、既定 60・上限 300）と数値の許容幅（#637） | — | — | **独自** |
 
 > ノード URI = DtId を採用しているため、旧 `bos:dtId`（Azure Digital Twins 由来の元 DT 識別子を保持する独自プロパティ）は不要となり廃止された。
 
@@ -324,6 +326,7 @@ SBCO に等価語彙がないため `bos:` 名前空間に残している概念�
 | `bos:ControlSchema` | DTDL Command / Brick Tag | デバイス制御 API のペイロード検証と UI 生成に必要な `enumLabels` を保持する概念が SBCO・既存標準にないため |
 | `bos:dataType` | DTDL schema / Brick Tag | 制御値のデータ型（`boolean` / `number` / `enum`）を ControlSchema に保持するための拡張 |
 | `bos:enumLabels` | — | 制御列挙値のラベル（例: `{"1":"冷房","2":"暖房"}`）を保持する Building OS 固有概念 |
+| `bos:feedbackPoint` | Brick `brick:hasPoint` / 設定値と現在値の対応 | 制御（設定点）の結果を確かめる値の点（#637）。Brick に設定点とその実測点を結ぶ汎用の関係語彙がなく、`hasPoint` は機器→点で意味が違うため `bos:` に置く |
 | `bos:reportsTelemetry` | — | 値を報告しない点（書き込み専用の設定点など）をデータ健全性の判定から外すための宣言（#635）。`writable` は「書けるか」であって「値を返すか」ではないので代用できず、SBCO・既存標準に等価語彙がない |
 | `bos:adjacentZone` | BOT `bot:adjacentZone` | 部屋間隣接（空間トポロジー）。SBCO に等価語彙がなく、自分たちが管理していない `sbco:` へ新語を鋳造しないため `bos:` に置く。定義は BOT のものをそのまま採る（§2.5・§6、HITL レビュー未了） |
 

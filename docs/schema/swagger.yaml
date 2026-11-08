@@ -5102,6 +5102,19 @@ components:
           type: string
           description: principal の表示名（無ければ null）。
           nullable: true
+        feedbackStatus:
+          type: string
+          description: '#637: 値が実際に変わったかの照合結果。"pending" / "matched" / "mismatch" / "timeout" / "unavailable"。照合しなかった制御は null'
+          nullable: true
+        feedbackValue:
+          type: string
+          description: '#637: 判定に使った確認用ポイントの値。unavailable のときはその理由'
+          nullable: true
+        feedbackCompletedAt:
+          type: string
+          description: '#637: 照合が確定した時刻'
+          format: date-time
+          nullable: true
       additionalProperties: false
       description: "制御監査履歴の API レスポンス DTO（#162）。`Result` の生 JSON はそのまま露出せず、`Status`\n（\"success\" / \"failed\" / \"pending\"）に正規化して返す。`Request` は送信時のコマンド JSON。\n`ActorSub` / `ActorName` は制御を実行した principal（#461）で、`admin_audit` と同じ形。"
     PointControllerControlAcceptedResponse:
@@ -5747,6 +5760,14 @@ components:
         reason:
           type: string
       additionalProperties: false
+    TwinFeedbackPointIssue:
+      type: object
+      properties:
+        pointId:
+          type: string
+        reason:
+          type: string
+      additionalProperties: false
     TwinIdCollision:
       type: object
       properties:
@@ -5797,6 +5818,13 @@ components:
         notMonitoredPointCount:
           type: integer
           format: int32
+        feedbackPointIssueCount:
+          type: integer
+          format: int32
+        feedbackPointIssues:
+          type: array
+          items:
+            $ref: '#/components/schemas/TwinFeedbackPointIssue'
         idCollisions:
           type: array
           items:

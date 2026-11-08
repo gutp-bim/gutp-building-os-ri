@@ -310,6 +310,28 @@ backstop).
    `docs/project/oss-egress-gateway-bridge-plan.md`, `docs/architecture/gateway-bridge-ingress-egress-split.md` and
    `DotNet/BuildingOS.GatewayBridge/README.md`.
 
+> **Control confirmation (#637):** a gateway's SUCCESS only says the write was accepted. The twin can declare
+> `bos:feedbackPoint` on a writable point (the point whose value shows the write took effect — itself when it reports
+> its own present value), with optional `bos:feedbackWindowSec` (default 60, max 300) and `bos:feedbackTolerance`
+> (numbers only). `PointController.Control` calls `ControlFeedbackCoordinator.BeginAsync` **before** publishing the
+> command; after the gateway's SUCCESS it watches the feedback point through `LatestValueFeed` (#636) and decides
+> `matched` (a value equal to the expected one in the window; readings timestamped before the command are ignored) /
+> `mismatch` (decided only at the window's end, on the last reading) / `timeout` (none arrived) / `unavailable`
+> (no feedback point, a release point, no expected value, interrupted). The expected value comes from the ControlSchema
+> (`ControlExpectedValueResolver`). The outcome goes to `point_control_audit.feedback_*` and to
+> `building-os.control.feedback.{controlId}` (its own subject, so the audit subscriber never reads it as a gateway
+> outcome); `WaitForResult` sends it as a second event (`CONTROL_RESULT_FEEDBACK_*`, `feedback_value`) after SUCCESS,
+> so a client reading only the first event is unaffected. A FAILED control is not confirmed. The actual value is
+> recorded and sent **only when the point confirms itself** — a separate feedback point's value is another point's
+> telemetry, and reading this control's history (a read of the controlled point) does not imply reading that point,
+> so only the outcome is kept. Correlation reads every value the hot store keeps (`LatestValueFeed.SubscribeEveryValue`),
+> from dispatch — at `HOT_STORE_COALESCE_MS` (#625, default 100 ms) granularity: a value that is replaced within one
+> coalescing interval is never seen, so a device that touches the setpoint and leaves it within 100 ms reads as a
+> mismatch. Set `HOT_STORE_COALESCE_MS=0` if that matters more than ingest throughput. `ControlFeedbackSweeper`
+> closes confirmations a stopped replica left `pending` as unavailable / `interrupted`. The import refuses an ill-formed
+> `bos:feedbackPoint` (`FeedbackPointIssueDetection`: several targets, missing / id-less target, another gateway).
+> Metrics: `building_os.control.feedback{result}`, `building_os.control.feedback_duration`.
+
 ### REST API versioning (#507, ADR-0008)
 
 Every REST controller is mounted under **`/api/v1/…`** (`ApiRoutes.V1`); OpenAPI lists only `/api/v1` paths.

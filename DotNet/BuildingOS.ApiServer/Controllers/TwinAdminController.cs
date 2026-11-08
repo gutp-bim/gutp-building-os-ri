@@ -230,6 +230,8 @@ public class TwinAdminController : ControllerBase
         // #600: a release point that cannot work reaches the gateway as an ordinary enum point — never applied.
         if (preview.ReleaseOfIssueCount > 0) return "bos:releaseOf の宣言に不正があるため適用できません";
         if (preview.ClockIssueCount > 0) return "ClockSource の定義・設備参照に不正があるため適用できません";
+        // #637: a wrong feedback point would report every control on that point as not having taken effect.
+        if (preview.FeedbackPointIssueCount > 0) return "bos:feedbackPoint の宣言に不正があるため適用できません";
         if (preview.OrphanCount > 0 && !allowOrphans)
             return "階層に接続されていないリソースがあるため適用できません（allowOrphans で明示的に許可できます）";
         return null;
@@ -246,6 +248,7 @@ public class TwinAdminController : ControllerBase
         idCollisionCount = preview.IdCollisionCount,
         releaseOfIssueCount = preview.ReleaseOfIssueCount,
         clockIssueCount = preview.ClockIssueCount,
+        feedbackPointIssueCount = preview.FeedbackPointIssueCount,
         allowOrphans,
         controlSchemaIssueCount = preview.ControlSchemaIssueCount,
         valid = preview.Valid,

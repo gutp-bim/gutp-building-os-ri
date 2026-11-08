@@ -208,3 +208,22 @@ describe("#635 previewSummary の監視対象外件数", () => {
     );
   });
 });
+
+describe("#637 feedback point issues in the preview", () => {
+  const ok = {
+    tripleCount: 10,
+    gatewayCount: 1,
+    collisions: [],
+    orphanCount: 0,
+    orphans: [],
+    controlSchemaIssueCount: 0,
+    controlSchemaIssues: [],
+    valid: false,
+  };
+
+  it("blocks apply and is listed as an issue", () => {
+    const preview = { ...ok, feedbackPointIssueCount: 2 };
+    expect(canApplyImport(preview, true)).toBe(false);
+    expect(previewSummary(preview)).toContain("反映確認ポイントの不整合 2 件");
+  });
+});

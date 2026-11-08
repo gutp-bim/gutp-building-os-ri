@@ -37,6 +37,10 @@ public interface IControlAuditWriter
     /// recorded, it is the truth and must not be overwritten with our local failure.
     /// </summary>
     Task RecordFailureIfPendingAsync(string controlId, string? response, CancellationToken ct = default);
+
+    /// <summary>#637: records the confirmation state (pending, then the outcome) of a control. Best-effort like the rest.</summary>
+    Task RecordFeedbackAsync(string controlId, string status, string? value, DateTime? completedAt, CancellationToken ct = default)
+        => Task.CompletedTask;
 }
 
 public sealed class ControlAuditWriter(
@@ -90,6 +94,13 @@ public sealed class ControlAuditWriter(
                 .UpdatePointControlInfoAsync(Outcome(id, success: false, response), token)
                 .ConfigureAwait(false);
         }, ct);
+    }
+
+    public Task RecordFeedbackAsync(string controlId, string status, string? value, DateTime? completedAt, CancellationToken ct = default)
+    {
+        if (!TryParse(controlId, out var id)) return Task.CompletedTask;
+        return WriteAsync(controlId, ResultWriteTimeout,
+            (repository, token) => repository.RecordFeedbackAsync(id, status, value, completedAt, token), ct);
     }
 
     private static PointControlInfo Outcome(Guid id, bool success, string? response) => new()

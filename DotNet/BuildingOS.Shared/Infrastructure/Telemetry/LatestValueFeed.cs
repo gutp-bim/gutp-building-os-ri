@@ -92,9 +92,23 @@ public sealed class LatestValueFeed
     /// values are returned as the snapshot so the caller can send them first.
     /// </summary>
     public (ILatestValueSubscription Subscription, IReadOnlyList<LatestValue> Snapshot) Subscribe(
-        IReadOnlyCollection<string> pointIds)
+        IReadOnlyCollection<string> pointIds) => Subscribe(pointIds, keepEveryValue: false);
+
+    /// <summary>
+    /// Like <see cref="Subscribe(IReadOnlyCollection{string})"/>, but every published value is kept in order (up to
+    /// <see cref="MaxQueuedValues"/>, oldest dropped) instead of only the newest per point. For a reader that must
+    /// see each reading — the control confirmation (#637), where a match followed by another value must not be lost.
+    /// </summary>
+    public (ILatestValueSubscription Subscription, IReadOnlyList<LatestValue> Snapshot) SubscribeEveryValue(
+        IReadOnlyCollection<string> pointIds) => Subscribe(pointIds, keepEveryValue: true);
+
+    /// <summary>Most values an every-value subscription buffers before dropping the oldest.</summary>
+    public const int MaxQueuedValues = 1024;
+
+    private (ILatestValueSubscription Subscription, IReadOnlyList<LatestValue> Snapshot) Subscribe(
+        IReadOnlyCollection<string> pointIds, bool keepEveryValue)
     {
-        var sub = new Subscription(this, pointIds, _clock);
+        var sub = new Subscription(this, pointIds, _clock, keepEveryValue);
         var snapshot = new List<LatestValue>();
         lock (_gate)
         {
@@ -123,7 +137,8 @@ public sealed class LatestValueFeed
         BuildingOsMetrics.TelemetryFeedSubscribers.Add(-1);
     }
 
-    private sealed class Subscription(LatestValueFeed feed, IReadOnlyCollection<string> pointIds, TimeProvider clock)
+    private sealed class Subscription(
+        LatestValueFeed feed, IReadOnlyCollection<string> pointIds, TimeProvider clock, bool keepEveryValue)
         : ILatestValueSubscription
     {
         public IReadOnlyCollection<string> PointIds { get; } = pointIds.Distinct(StringComparer.Ordinal).ToArray();
@@ -132,6 +147,7 @@ public sealed class LatestValueFeed
         // Insertion order = the order points changed; a re-offered point keeps its place and takes the new value.
         private readonly Dictionary<string, LatestValue> _pending = new(StringComparer.Ordinal);
         private readonly List<string> _order = [];
+        private readonly Queue<LatestValue> _queue = new();
         private readonly Channel<bool> _signal = Channel.CreateBounded<bool>(
             new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
         private int _disposed;
@@ -141,9 +157,21 @@ public sealed class LatestValueFeed
             lock (_gate)
             {
                 if (_disposed != 0) return;
-                if (_pending.ContainsKey(value.PointId)) BuildingOsMetrics.TelemetryFeedDropped.Add(1);
-                else _order.Add(value.PointId);
-                _pending[value.PointId] = value;
+                if (keepEveryValue)
+                {
+                    if (_queue.Count >= MaxQueuedValues)
+                    {
+                        _queue.Dequeue();
+                        BuildingOsMetrics.TelemetryFeedDropped.Add(1);
+                    }
+                    _queue.Enqueue(value);
+                }
+                else
+                {
+                    if (_pending.ContainsKey(value.PointId)) BuildingOsMetrics.TelemetryFeedDropped.Add(1);
+                    else _order.Add(value.PointId);
+                    _pending[value.PointId] = value;
+                }
             }
             _signal.Writer.TryWrite(true);
         }
@@ -157,9 +185,17 @@ public sealed class LatestValueFeed
                 LatestValue[] batch;
                 lock (_gate)
                 {
-                    batch = _order.Select(id => _pending[id]).ToArray();
-                    _pending.Clear();
-                    _order.Clear();
+                    if (keepEveryValue)
+                    {
+                        batch = _queue.ToArray();
+                        _queue.Clear();
+                    }
+                    else
+                    {
+                        batch = _order.Select(id => _pending[id]).ToArray();
+                        _pending.Clear();
+                        _order.Clear();
+                    }
                 }
                 foreach (var v in batch)
                 {

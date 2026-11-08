@@ -137,11 +137,16 @@ SELECT (COUNT(DISTINCT ?pt) AS ?n) WHERE {{
   }}
 }}", ct).ConfigureAwait(false);
 
+            // #637: feedback declarations that would decide every confirmation on the wrong value. Blocks apply.
+            var feedbackRows = await _client.QueryAsync(
+                FeedbackPointIssueDetection.BuildQuery(materializedGraph, mode), ct).ConfigureAwait(false);
+            var (feedbackCount, feedbackIssues) = FeedbackPointIssueDetection.Classify(feedbackRows, MaxOrphans);
+
             return new TwinImportPreview(
                 triples, (int)gateways, collisions, (int)orphanTotal, orphans,
                 schemaIssueCount, schemaIssues, (int)idCollisionTotal, idCollisions,
                 releaseOfCount, releaseOfIssues, clockIssues.Length, clockIssues.Take(MaxOrphans).ToArray(),
-                (int)notMonitored);
+                (int)notMonitored, feedbackCount, feedbackIssues);
         }
         finally
         {
