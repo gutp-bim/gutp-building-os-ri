@@ -7,10 +7,15 @@ using Xunit;
 
 namespace BuildingOS.IntegrationTest.Common.Fixtures;
 
+/// <summary>
+/// Plain PostgreSQL — what the OSS stack runs (<c>postgres:16</c>, #216/#234). TimescaleDB is an optional warm store
+/// and is not part of the default test run; its tests use <see cref="TimescaleFixture"/> and run only on request
+/// (<see cref="TimescaleFactAttribute"/>). Override the image with <c>POSTGRES_TEST_IMAGE</c>.
+/// </summary>
 public class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("timescale/timescaledb:latest-pg15")
+        .WithImage(Environment.GetEnvironmentVariable("POSTGRES_TEST_IMAGE") is { Length: > 0 } image ? image : "postgres:16")
         .WithDatabase("buildingos_test")
         .WithUsername("buildingos")
         .WithPassword("buildingos")
@@ -25,21 +30,9 @@ public class PostgresFixture : IAsyncLifetime
         return conn;
     }
 
-    public async Task InitializeAsync()
-    {
-        await _container.StartAsync();
-        await EnableTimescaleDbAsync();
-    }
+    public Task InitializeAsync() => _container.StartAsync();
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
-
-    private async Task EnableTimescaleDbAsync()
-    {
-        await using var conn = new NpgsqlConnection(ConnectionString);
-        await conn.OpenAsync();
-        await using var cmd = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS timescaledb;", conn);
-        await cmd.ExecuteNonQueryAsync();
-    }
 
     public async Task ApplyMigrationAsync(string sql)
     {
