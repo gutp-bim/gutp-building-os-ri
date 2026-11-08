@@ -132,6 +132,33 @@ describe("useLatestValue (#636)", () => {
     expect(watch).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps backing off when every connection drops right after its snapshot", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const delays: number[] = [];
+    const realSetTimeout = globalThis.setTimeout;
+    const spy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      fn: () => void,
+      ms?: number,
+    ) => {
+      if (typeof ms === "number" && ms >= 1000) delays.push(ms);
+      return realSetTimeout(fn, ms);
+    }) as typeof setTimeout);
+    const watch: WatchLatest = vi.fn(async function* () {
+      yield num(1, "2026-11-08T00:00:00Z", true);
+      throw new ConnectError("dropped", Code.Unavailable);
+    });
+    renderHook(() => useLatestValue("P1", { watch }));
+
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+    }
+    spy.mockRestore();
+
+    expect(delays.slice(0, 3)).toEqual([1000, 2000, 4000]);
+  });
+
   it("stops for good when the server refuses", async () => {
     const watch: WatchLatest = vi.fn(async function* () {
       throw new ConnectError("no", Code.PermissionDenied);

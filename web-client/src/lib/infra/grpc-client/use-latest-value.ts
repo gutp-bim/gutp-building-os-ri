@@ -70,7 +70,6 @@ export function useLatestValue(
         let failed = false;
         try {
           for await (const e of watch([pointId], abort.signal)) {
-            failures = 0;
             setStatus("live");
             if (e.pointId === pointId) setSample(toLatestSample(e));
           }
@@ -83,10 +82,14 @@ export function useLatestValue(
           failed = true;
         }
         if (abort.signal.aborted) return;
+        // Only a stream that stayed up a while resets the backoff — receiving the snapshot does not, or a
+        // connection that drops right after every snapshot would retry every second forever.
+        const healthy = Date.now() - openedAt >= HEALTHY_STREAM_MS;
+        if (healthy) failures = 0;
         // The server ends a healthy stream on purpose after a while (so the caller is authorized again):
         // reconnect at once, without flashing "reconnecting". A stream that ends almost immediately is
         // treated as a failure so a misbehaving server cannot make this spin.
-        if (!failed && Date.now() - openedAt >= HEALTHY_STREAM_MS) continue;
+        if (!failed && healthy) continue;
         failures += 1;
         setStatus("reconnecting");
         await sleep(backoffMs(failures), abort.signal);
