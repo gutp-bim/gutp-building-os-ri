@@ -16,10 +16,10 @@ cd $repository_root/DotNet
 dotnet build BuildingOS.ApiServer/BuildingOS.ApiServer.csproj -c Release
 
 # GitHub ActionsとローカルでDLLの出力先が異なるため、両方をチェック
-if [ -f "$repository_root/DotNet/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll" ]; then
-    DLL_PATH="$repository_root/DotNet/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll"
-elif [ -f "$repository_root/out/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll" ]; then
-    DLL_PATH="$repository_root/out/BuildingOS.ApiServer/bin/Release/net8.0/BuildingOS.ApiServer.dll"
+if [ -f "$repository_root/DotNet/BuildingOS.ApiServer/bin/Release/net10.0/BuildingOS.ApiServer.dll" ]; then
+    DLL_PATH="$repository_root/DotNet/BuildingOS.ApiServer/bin/Release/net10.0/BuildingOS.ApiServer.dll"
+elif [ -f "$repository_root/out/BuildingOS.ApiServer/bin/Release/net10.0/BuildingOS.ApiServer.dll" ]; then
+    DLL_PATH="$repository_root/out/BuildingOS.ApiServer/bin/Release/net10.0/BuildingOS.ApiServer.dll"
 else
     echo "Error: BuildingOS.ApiServer.dll not found"
     exit 1

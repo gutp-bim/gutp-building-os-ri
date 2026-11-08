@@ -34,7 +34,7 @@ sys.path.insert(0, HERE)
 import s10_pointlist_integrity as s10  # noqa: E402
 import s22_ingest_rate_sweep as s22  # noqa: E402
 
-LOADGEN_DLL = os.path.join(HERE, "ingress-loadgen-dotnet", "bin", "Release", "net8.0", "IngressLoadGen.dll")
+LOADGEN_DLL = os.path.join(HERE, "ingress-loadgen-dotnet", "bin", "Release", "net10.0", "IngressLoadGen.dll")
 
 
 class CompactionAwareLakeCounter(s22.LakeCounter):

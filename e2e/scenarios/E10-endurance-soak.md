@@ -113,7 +113,7 @@ managed heap / native / GC が commit したまま OS に返していない領�
 | (c) | 本当のリーク | 同上 |
 
 ### 計測経路が Prometheus 一択である理由
-runtime image は `mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled` で shell も coreutils も
+runtime image は `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled` で shell も coreutils も
 dotnet-counters も無いため `docker exec ... cat /proc/1/status` が成立しない（イメージにツールを
 足すのは被測定系を変えることになるので不可）。一方
 `DotNet/BuildingOS.Shared/Infrastructure/Telemetry/OtelSetup.cs` は既に

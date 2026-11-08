@@ -78,7 +78,7 @@ Actions tab when the change warrants it.
 
 See [README.md](./README.md) for setup instructions. The OSS local stack requires:
 - Docker Desktop (WSL2 on Windows / native on Linux/macOS)
-- .NET SDK 8.0+
+- .NET SDK 10.0+
 - Node.js 22.22.2+ または 24.15.0+（`.node-version`/`engines` の最低要件。CI と Web の Docker イメージも 22.x）
 
 ```bash

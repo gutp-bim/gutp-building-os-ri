@@ -12,10 +12,10 @@ updates:
         update-types: ["minor"]
     ignore:
       # Corvus.Json.ExtendedTypes 5.x (and its matching dotnet-tools.json CLI companion,
-      # corvus.json.jsonschema.typegeneratortool) require System.Text.Json >= 10.0.7, which
-      # conflicts (NU1605 downgrade error) with the rest of the net8.0 solution pinned to
-      # System.Text.Json >= 9.0.3. Re-evaluate once the solution moves to a TFM whose default
-      # System.Text.Json is >= 10.
+      # corvus.json.jsonschema.typegeneratortool) require System.Text.Json >= 10.0.7. That used to
+      # NU1605-conflict with the net8.0 solution; since #634 the solution is net10.0 (System.Text.Json
+      # 10 from the shared framework), so that conflict no longer applies. The major is still held
+      # back: the CLI regenerates Defines/Entities, so take it as its own change and re-verify.
       - dependency-name: "Corvus.Json.ExtendedTypes"
         update-types: ["version-update:semver-major"]
       - dependency-name: "corvus.json.jsonschema.typegeneratortool"
@@ -67,12 +67,11 @@ updates:
       interval: weekly
       day: monday
     ignore:
-      # Major bumps (8.0 -> 10.0) break at runtime: the app's TFM is net8.0 (fixed to the .csproj,
-      # not the base image tag), and .NET's default roll-forward policy does not cross major
-      # versions, so an aspnet:10.0(-noble-chiseled) image has no 8.0 runtime to run it with.
-      # Verified empirically: the container exits immediately with "You must install or update
-      # .NET to run this application ... Framework: Microsoft.NETCore.App, version 8.0.0 ...
-      # found: 10.0.9". Re-evaluate together with a coordinated TFM bump across the whole solution.
+      # Major bumps break at runtime: the app's TFM (net10.0 since #634) is fixed in the .csproj,
+      # not by the base image tag, and .NET's default roll-forward policy does not cross major
+      # versions, so a next-major aspnet image has no matching runtime to run it with (verified
+      # empirically for 8.0 -> 10.0: the container exits with "You must install or update .NET to
+      # run this application"). Move the image together with a coordinated TFM bump.
       - dependency-name: "dotnet/sdk"
         update-types: ["version-update:semver-major"]
       - dependency-name: "dotnet/aspnet"
@@ -84,8 +83,7 @@ updates:
       interval: weekly
       day: monday
     ignore:
-      # Same reasoning as the ApiServer entry above — net8.0 TFM, verified the same runtime
-      # framework-resolution failure empirically.
+      # Same reasoning as the ApiServer entry above — the image major must follow the TFM.
       - dependency-name: "dotnet/sdk"
         update-types: ["version-update:semver-major"]
       - dependency-name: "dotnet/aspnet"

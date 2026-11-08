@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Building OS is an open-source IoT platform for smart building management. Built with .NET 8.0 backend and Next.js 16 frontend. Collects data from building equipment (HVAC, power meters, environmental sensors) via MQTT / NATS, stores telemetry in a Parquet lake on MinIO, and provides REST + gRPC APIs with a Next.js dashboard.
+Building OS is an open-source IoT platform for smart building management. Built with .NET 10 backend and Next.js 16 frontend. Collects data from building equipment (HVAC, power meters, environmental sensors) via MQTT / NATS, stores telemetry in a Parquet lake on MinIO, and provides REST + gRPC APIs with a Next.js dashboard.
 
 ## Architecture
 
@@ -456,8 +456,8 @@ The `resourceType` values (`building`, `floor`, `space`, `device`, `point`) corr
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | .NET 8.0, ASP.NET Core |
-| Workers | .NET 8.0, `BackgroundService` (ConnectorWorker) |
+| Backend | .NET 10, ASP.NET Core |
+| Workers | .NET 10, `BackgroundService` (ConnectorWorker) |
 | Frontend | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 (web-client; `(admin)` workspace at `/admin`) |
 | UI Components | Radix UI, Recharts, React Hook Form |
 | Authentication | Keycloak (OIDC / JWT), `JwtBearerDefaults` in ASP.NET Core |
@@ -612,7 +612,7 @@ This is a single-context repository. Read the root domain documentation and rele
 
 ## Environment Requirements
 
-- .NET SDK 8.0+
+- .NET SDK 10.0+ (`DotNet/global.json` pins 10.0.100, `rollForward: latestFeature`)
 - Node.js 22.22.2+ (or 24.15.0+) minimum (`web-client/.node-version` + `package.json` `engines`; Node 20 is EOL and `@testing-library/jest-dom` 7 requires 22, #407; jsdom 30.1.3 requires `^22.22.2 || ^24.15.0`, #618); CI and the web Docker image run 22.x
 - Docker Desktop (for local development)
 - Buf CLI (for proto → TypeScript generation)

@@ -126,7 +126,7 @@ gRPC）→ Web Client（Next.js）。制御は逆方向に API → NATS → Gate
 | ツール | バージョン | 用途 |
 |--------|-----------|------|
 | Docker Desktop | 最新 | OSS スタック起動 |
-| .NET SDK | 8.0.126 以上の 8.0.x | バックエンドをホストで起動・ビルド（`DotNet/global.json` の SDK 固定に一致が必要） |
+| .NET SDK | 10.0.100 以上の 10.0.x | バックエンドをホストで起動・ビルド（`DotNet/global.json` の SDK 固定に一致が必要） |
 | Node.js | 22.22.2 以上（24 系なら 24.15.0 以上。`.node-version`/`engines` の最低要件。CI・Docker イメージも 22.x） | フロントエンドビルド |
 | Yarn | 1.22+（または Corepack 経由で有効化） | フロントエンドをホストで起動 |
 | Buf CLI | 最新 | proto → TypeScript コード生成 |
@@ -237,8 +237,8 @@ cd ../BuildingOS.ConnectorWorker
 dotnet run
 ```
 
-> `DotNet/global.json` は SDK `8.0.126` + `rollForward: latestPatch` を指定しています。
-> そのため `dotnet run` は 8.0.x SDK が必要で、10.x SDK のみでは起動できません。
+> `DotNet/global.json` は SDK `10.0.100` + `rollForward: latestFeature` を指定しています。
+> そのため `dotnet run` には 10.0.x SDK（10.0.100 以上）が必要で、8.x SDK では起動できません（#634）。
 
 ---
 
