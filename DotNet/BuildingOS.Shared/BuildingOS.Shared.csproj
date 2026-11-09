@@ -8,8 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.Core" Version="4.0.102.16" />
-      <PackageReference Include="AWSSDK.S3" Version="4.0.104.8" />
+        <PackageReference Include="AWSSDK.Core" Version="4.0.102.19" />
+      <PackageReference Include="AWSSDK.S3" Version="4.0.104.11" />
       <PackageReference Include="Npgsql" Version="10.0.3" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
       <PackageReference Include="Parquet.Net" Version="4.25.0" />
