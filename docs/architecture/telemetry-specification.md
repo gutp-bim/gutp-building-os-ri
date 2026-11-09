@@ -128,6 +128,8 @@ stream の読み取りが止まる（背圧）。`StreamAck` はキューの ack
 場合、「永続化済みだが `StreamAck` に数えられなかった」frame は最大ウィンドウ件になりうる（従来は最大 1 件）。
 gRPC ingress の `id` は `{pointId}.{frame の timestamp（unix µs）}`（#625 で受信時刻 ms から変更）なので、
 元の `timestamp` のまま再送された frame は同じ `id` になり、レイクの `id` 重複排除で 1 行に潰れる。
+読み取り時の重複排除は mode によらず掛かる（`WARM_STORE=timescale` の cold tier の reader
+`MinioParquetColdTelemetryStore` も含む、#657）。
 受信時刻ベースの `id` では、同じ point の別の読み取りが同じミリ秒に届くと 1 行に潰れて失われていた
 （`accepted` には数えられるのに Lake に無い）。timestamp が欠落・不正で受信時刻に倒した frame（#418）の
 `id` は従来どおり受信時刻ベース（運用上の扱いは

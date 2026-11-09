@@ -9,8 +9,8 @@ namespace BuildingOS.Shared.Test.Infrastructure.Telemetry;
 
 public class MinioParquetColdTelemetryStoreTest
 {
-    private static string Key(string b, DateTime t) =>
-        $"building_id={b}/year={t.Year:D4}/month={t.Month:D2}/day={t.Day:D2}/hour={t.Hour:D2}/part-x.parquet";
+    private static string Key(string b, DateTime t, string file = "part-x") =>
+        $"building_id={b}/year={t.Year:D4}/month={t.Month:D2}/day={t.Day:D2}/hour={t.Hour:D2}/{file}.parquet";
 
     [Fact]
     public async Task QueryAsync_ReadsOnlyInRangeObjects_AndFiltersRows()
@@ -46,7 +46,35 @@ public class MinioParquetColdTelemetryStoreTest
         Assert.Empty(rows);
     }
 
-    private static async Task<byte[]> WriteParquet(params (string Point, DateTime Time, double Value)[] data)
+    [Fact]
+    public async Task QueryAsync_SameIdInTwoObjects_ReturnsOneRow()
+    {
+        // #657: a frame re-sent with its original timestamp gets the same id (#625) and lands in a
+        // different part object; the re-sender re-serializes `data`, so the key order differs.
+        var hour = new DateTime(2026, 6, 12, 12, 0, 0, DateTimeKind.Utc);
+        var t = hour.AddMinutes(10);
+        var storage = new FakeBlobStorage();
+        storage.Objects[Key("bldg-1", hour, "part-a")] = await WriteParquetRows(
+            ("p1", t, 1.5, "p1.1", "{\"a\":1,\"b\":2}"),
+            ("p1", hour.AddMinutes(5), 0.5, null, null));
+        storage.Objects[Key("bldg-1", hour, "part-b")] = await WriteParquetRows(
+            ("p1", t, 1.5, "p1.1", "{\"b\":2,\"a\":1}"),
+            ("p1", hour.AddMinutes(20), 2.5, "p1.2", null));
+
+        var store = new MinioParquetColdTelemetryStore(storage, new MemoryCache(new MemoryCacheOptions()));
+
+        var rows = await store.QueryAsync("p1", hour, hour.AddHours(1));
+
+        // the duplicated id collapses to one row; the id-less row is kept; ascending by time
+        Assert.Equal(new double?[] { 0.5, 1.5, 2.5 }, rows.Select(r => r.Value).ToArray());
+        Assert.Single(rows, r => r.Id == "p1.1");
+    }
+
+    private static Task<byte[]> WriteParquet(params (string Point, DateTime Time, double Value)[] data) =>
+        WriteParquetRows(data.Select((d, i) => (d.Point, d.Time, d.Value, (string?)$"id-{i}", (string?)null)).ToArray());
+
+    private static async Task<byte[]> WriteParquetRows(
+        params (string Point, DateTime Time, double Value, string? Id, string? Data)[] data)
     {
         var fPointId = new DataField<string>("point_id");
         var fBuilding = new DataField<string>("building");
@@ -68,8 +96,8 @@ public class MinioParquetColdTelemetryStoreTest
             await rg.WriteColumnAsync(new DataColumn(fName, data.Select(_ => "n").ToArray()));
             await rg.WriteColumnAsync(new DataColumn(fValue, data.Select(d => (double?)d.Value).ToArray()));
             await rg.WriteColumnAsync(new DataColumn(fTime, data.Select(d => (DateTime?)d.Time).ToArray()));
-            await rg.WriteColumnAsync(new DataColumn(fData, data.Select(_ => (string?)null).ToArray()));
-            await rg.WriteColumnAsync(new DataColumn(fId, data.Select((_, i) => $"id-{i}").ToArray()));
+            await rg.WriteColumnAsync(new DataColumn(fData, data.Select(d => d.Data).ToArray()));
+            await rg.WriteColumnAsync(new DataColumn(fId, data.Select(d => d.Id).ToArray()));
         }
         return ms.ToArray();
     }

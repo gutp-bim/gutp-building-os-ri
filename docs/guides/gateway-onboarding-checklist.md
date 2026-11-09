@@ -82,7 +82,8 @@
   **最大 N 件**（既定 128。#625 以前は最大 1 件）残りうる。**未 ack 分はそのまま再送してよい。**
   gRPC ingress の `id` は `{pointId}.{frame の timestamp（unix µs）}` で読み取り自体を表す（#625 で受信時刻
   ベースから変更）ため、再送された frame は元の frame と同じ `id` になり、Lake の `id` 重複排除
-  （writer の flush 内・compaction の時間パーティション内・読み取り時）で 1 行に潰れる。前提は
+  （writer の flush 内・compaction の時間パーティション内・読み取り時。読み取り時は timescale mode の cold tier
+  も含む、#657）で 1 行に潰れる。前提は
   **再送時に元の `timestamp` を変えないこと**。送り直す時点の時刻を付け直すと別の読み取りとして残る。
   逆に、同じ point に同じ `timestamp` で別の値を送ると 1 件（後勝ち）として扱われる。
   N を大きくしても得られるのはレイテンシ×帯域の積ぶんだけで、既定 128 で十分飽和する。

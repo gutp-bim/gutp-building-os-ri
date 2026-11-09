@@ -13,6 +13,8 @@ namespace BuildingOS.Shared.Infrastructure.Telemetry;
 /// reader discovers buildings (cached briefly), then lists only the month prefixes that overlap the
 /// range and reads only the objects whose hour partition overlaps it. The listing/decoding primitives
 /// live in <see cref="ParquetLakeScan"/>, shared with the parquet-mode warm+cold store (#214).
+/// Rows are de-duplicated by <c>id</c> with the same rule as that store
+/// (<see cref="ParquetLakeReadPlanner.DedupById"/>, #657).
 /// </summary>
 public class MinioParquetColdTelemetryStore : IColdTelemetryStore
 {
@@ -28,6 +30,8 @@ public class MinioParquetColdTelemetryStore : IColdTelemetryStore
     {
         var keys = await _scan.ListKeysInRangeAsync(start, end, cancellationToken).ConfigureAwait(false);
         var rows = await _scan.ReadKeysAsync(keys, pointId, start, end, cancellationToken).ConfigureAwait(false);
-        return rows.OrderBy(r => r.Datetime, StringComparer.Ordinal).ToArray();
+        // #657: a frame re-sent with its original timestamp has the same id (#625) but lands in
+        // another part object, so the read-time id de-dup applies here as in parquet mode.
+        return ParquetLakeReadPlanner.DedupById(rows); // ascending by time
     }
 }
