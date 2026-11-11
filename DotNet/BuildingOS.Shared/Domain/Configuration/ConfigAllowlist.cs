@@ -18,6 +18,7 @@ public static class ConfigAllowlist
         ("KEYCLOAK_ADMIN_CLIENT_ID", false),
         ("KEYCLOAK_ADMIN_CLIENT_SECRET", true),
         ("DISABLE_AUTH", false),
+        ("CLIENT_CREDENTIALS_ROLE_POLICY", false),
         ("PROMETHEUS_URL", false),
         ("SYSTEM_STATUS_HEALTH_TARGETS", false),
         ("OTEL_EXPORTER_OTLP_ENDPOINT", false),

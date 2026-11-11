@@ -134,4 +134,92 @@ public class AuthorizationContextMiddlewareTest
         Assert.False(ctx.IsAdmin);
         Assert.Empty(ctx.Permissions);
     }
+
+    // ---- #667: client-credentials (idtyp=app) tokens ----
+
+    private sealed class ListLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        public List<(Microsoft.Extensions.Logging.LogLevel Level, string Message)> Entries { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private static async Task<AuthorizationContext> ResolveAppTokenAsync(
+        Mock<IUserManagementService> svc, ClientCredentialsRoleOptions? options,
+        Microsoft.Extensions.Logging.ILogger<AuthorizationContextMiddleware>? logger, params Claim[] claims)
+    {
+        var services = new ServiceCollection().AddSingleton(svc.Object);
+        if (options is not null) services.AddSingleton(options);
+        var http = new DefaultHttpContext
+        {
+            RequestServices = services.BuildServiceProvider(),
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("idtyp", "app"), .. claims], "Bearer")),
+        };
+        var middleware = new AuthorizationContextMiddleware(
+            _ => Task.CompletedTask, logger ?? NullLogger<AuthorizationContextMiddleware>.Instance);
+
+        await middleware.InvokeAsync(http, new MemoryCache(new MemoryCacheOptions()));
+
+        return (AuthorizationContext)http.Items[AuthorizationContextMiddleware.HttpContextKey]!;
+    }
+
+    /// <summary>
+    /// #667: by default (no option registered) an app token without a role is not an admin, and it is not
+    /// looked up in the Keycloak Admin API — its subject is a service principal, not a Keycloak user.
+    /// </summary>
+    [Fact]
+    public async Task AppToken_WithoutARole_GetsNothing_AndSkipsTheAdminApi()
+    {
+        var svc = Service(new EntraUser { Id = "u1", DisplayName = "u1", Role = "admin" });
+
+        var ctx = await ResolveAppTokenAsync(svc, null, null, new Claim(ClaimTypes.NameIdentifier, "u1"));
+
+        Assert.False(ctx.IsAdmin);
+        Assert.Equal("user", ctx.Role);
+        Assert.Empty(ctx.Permissions);
+        svc.Verify(s => s.GetUserByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AppToken_Viewer_GetsItsRoleAndPermissions()
+    {
+        var ctx = await ResolveAppTokenAsync(new Mock<IUserManagementService>(), ClientCredentialsRoleOptions.Default, null,
+            new Claim(ClaimTypes.NameIdentifier, "svc-reader-667"),
+            new Claim("building_os_role", "viewer"), new Claim("permissions", "building:B1:read"));
+
+        Assert.Equal("viewer", ctx.Role);
+        Assert.Equal(["building:B1:read"], ctx.Permissions);
+    }
+
+    [Fact]
+    public async Task AppToken_UnderLegacyAdmin_IsAdmin()
+    {
+        var ctx = await ResolveAppTokenAsync(new Mock<IUserManagementService>(),
+            new ClientCredentialsRoleOptions(ClientCredentialsRolePolicy.LegacyAdmin), null,
+            new Claim(ClaimTypes.NameIdentifier, "svc-legacy-667"));
+
+        Assert.True(ctx.IsAdmin);
+    }
+
+    /// <summary>A role-less or mis-spelled client is warned about once per client and value, not per request.</summary>
+    [Fact]
+    public async Task AppToken_WithoutAKnownRole_IsWarnedAboutOncePerClientAndValue()
+    {
+        var logger = new ListLogger<AuthorizationContextMiddleware>();
+        var svc = new Mock<IUserManagementService>();
+        var sub = new Claim(ClaimTypes.NameIdentifier, "svc-warn-" + Guid.NewGuid());
+
+        await ResolveAppTokenAsync(svc, ClientCredentialsRoleOptions.Default, logger, sub);
+        await ResolveAppTokenAsync(svc, ClientCredentialsRoleOptions.Default, logger, sub);
+        await ResolveAppTokenAsync(svc, ClientCredentialsRoleOptions.Default, logger, sub, new Claim("building_os_role", "Admin"));
+        await ResolveAppTokenAsync(svc, ClientCredentialsRoleOptions.Default, logger, sub, new Claim("building_os_role", "viewer"));
+
+        var warnings = logger.Entries.Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning).ToList();
+        Assert.Equal(2, warnings.Count);   // no role (once) + "Admin" (once); viewer is a real role
+        Assert.Contains(warnings, w => w.Message.Contains("no building_os_role"));
+        Assert.Contains(warnings, w => w.Message.Contains("building_os_role Admin"));
+    }
 }

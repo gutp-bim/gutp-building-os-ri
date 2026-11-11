@@ -57,26 +57,47 @@ public class AuthorizationContextMiddleware
 
         var userId = AuthorizationClaimResolver.GetUserId(claims);
 
-        // 0-1. Token-only resolution: client-credential (idtyp=app) → admin, or a user token already
+        // 0-1. Token-only resolution: a client-credential (idtyp=app) token, or a user token already
         //      carrying the Building OS role/permission claims (Keycloak-native building_os_role /
         //      permissions, with the legacy Azure-AD extension_BuildingOS_* names as a fallback).
         //      No I/O, so no per-request Keycloak Admin API call on the common path (#10 sign-off fix).
-        var fromClaims = AuthorizationClaimResolver.TryResolve(claims);
+        var appTokenPolicy = (context.RequestServices.GetService<ClientCredentialsRoleOptions>()
+                              ?? ClientCredentialsRoleOptions.Default).Policy;
+        var fromClaims = AuthorizationClaimResolver.TryResolve(claims, appTokenPolicy);
         if (fromClaims != null)
         {
-            // #506: an app token is downgraded only by exactly building_os_role=group-manager. Any other
-            // role claim on it is ignored and the client stays admin — almost certainly a misconfigured
-            // group-manager (wrong case, stray space), so say so instead of failing open silently.
-            // Once per client and value: app tokens resolve on every request, uncached.
+            // App tokens resolve on every request, uncached, so each warning is once per client and value.
             var appRole = claims.FirstOrDefault(c => c.Type == AuthorizationClaimResolver.RoleClaim)?.Value
                           ?? claims.FirstOrDefault(c => c.Type == AuthorizationClaimResolver.LegacyRoleClaim)?.Value;
-            if (fromClaims.IsAdmin && IsAppToken(claims)
-                && !string.IsNullOrEmpty(appRole) && appRole != "admin"
-                && WarnedAppRoles.TryAdd($"{fromClaims.UserId}\n{appRole}", 0))
+            if (appTokenPolicy == ClientCredentialsRolePolicy.LegacyAdmin)
             {
+                // #506: under legacy-admin an app token is downgraded only by exactly
+                // building_os_role=group-manager. Any other role claim on it is ignored and the client stays
+                // admin — almost certainly a misconfigured group-manager (wrong case, stray space).
+                if (fromClaims.IsAdmin && IsAppToken(claims)
+                    && !string.IsNullOrEmpty(appRole) && appRole != RoleCatalog.Admin
+                    && WarnedAppRoles.TryAdd($"{fromClaims.UserId}\n{appRole}", 0))
+                {
+                    _logger.LogWarning(
+                        "Client-credentials token for {UserId} carries building_os_role {Role}, which only " +
+                        "'group-manager' (exact) changes; the client is treated as admin " +
+                        "({Variable}=legacy-admin)",
+                        ForLog(fromClaims.UserId), ForLog(appRole), ClientCredentialsRoleOptions.EnvironmentVariable);
+                }
+            }
+            else if (IsAppToken(claims) && !RoleCatalog.IsAssignable(appRole) && appRole != RoleCatalog.GroupManager
+                     && WarnedAppRoles.TryAdd($"{fromClaims.UserId}\n{appRole ?? "\0none"}", 0))
+            {
+                // #667: an app token is no longer admin by default. One without a role — or with one that
+                // is not a Building OS role (wrong case, stray space) — gets no role; say so, since it is
+                // most likely an existing client that has not been given building_os_role yet.
                 _logger.LogWarning(
-                    "Client-credentials token for {UserId} carries building_os_role {Role}, which only " +
-                    "'group-manager' (exact) changes; the client is treated as admin", ForLog(fromClaims.UserId), ForLog(appRole));
+                    "Client-credentials token for {UserId} carries {Role}, not a Building OS role; it is given no " +
+                    "role. Give the client building_os_role (admin|operator|viewer|group-manager), or set " +
+                    "{Variable}=legacy-admin to restore the pre-#667 admin default",
+                    ForLog(fromClaims.UserId),
+                    appRole is null ? "no building_os_role" : "building_os_role " + ForLog(appRole),
+                    ClientCredentialsRoleOptions.EnvironmentVariable);
             }
             if (!fromClaims.IsAdmin && !fromClaims.IsGroupManager && IsAppToken(claims) && userId is null
                 && WarnedAppRoles.TryAdd("\nno-subject", 0))

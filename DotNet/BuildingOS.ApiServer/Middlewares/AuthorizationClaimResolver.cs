@@ -6,8 +6,10 @@ namespace BuildingOs.ApiServer.Middlewares;
 
 /// <summary>
 /// Pure resolution of an <see cref="AuthorizationContext"/> from JWT claims alone (no I/O). Covers the
-/// two token-only paths: client-credential (<c>idtyp=app</c>) → admin (or group-manager, #506), and a user token that already
-/// carries the Building OS role/permission claims. Returns <c>null</c> when neither applies, so the
+/// two token-only paths: a client-credential token (<c>idtyp=app</c>) and a user token that already
+/// carries the Building OS role/permission claims. A client-credential token is authorized by the role and
+/// permissions it carries, like a user token, and gets nothing without a role (#667); under
+/// <see cref="ClientCredentialsRolePolicy.LegacyAdmin"/> it is admin unless it is a group-manager (#506). Returns <c>null</c> when neither applies, so the
 /// caller falls back to the Keycloak Admin API lookup.
 ///
 /// Claim names are read **Keycloak-native first** (<c>building_os_role</c> / <c>permissions</c>, as
@@ -26,18 +28,17 @@ public static class AuthorizationClaimResolver
     /// <summary>A role that grants nothing (the same "user" the middleware falls back to).</summary>
     public const string NoRole = "user";
 
-    public static AuthorizationContext? TryResolve(IReadOnlyCollection<Claim> claims)
+    public static AuthorizationContext? TryResolve(
+        IReadOnlyCollection<Claim> claims,
+        ClientCredentialsRolePolicy appTokenPolicy = ClientCredentialsRolePolicy.Explicit)
     {
         var userId = GetUserId(claims);
 
         var role = claims.FirstOrDefault(c => c.Type == RoleClaim)?.Value
                 ?? claims.FirstOrDefault(c => c.Type == LegacyRoleClaim)?.Value;
 
-        // Client-credential (app) token → admin, even without a user id. The one exception is an
-        // application's service account given the group-manager role (#506) through the same
-        // building_os_role claim users get: it keeps Groups in sync without full admin. Only that
-        // exact value opts out — any other claim leaves an existing app client admin as before, so no
-        // deployment changes behaviour by accident.
+        // Client-credential (app) token. An application's service account given the group-manager role
+        // (#506) keeps Groups in sync without full admin, under either policy.
         var idtyp = claims.FirstOrDefault(c => c.Type == "idtyp")?.Value;
         if (idtyp == "app")
         {
@@ -52,12 +53,31 @@ public static class AuthorizationClaimResolver
                     Permissions = Array.Empty<string>(),
                 };
             }
-            return new AuthorizationContext
+            if (appTokenPolicy == ClientCredentialsRolePolicy.LegacyAdmin)
             {
-                UserId = userId ?? "app",
-                Role = "admin",
-                Permissions = Array.Empty<string>(),
-            };
+                // Pre-#667: any other (or no) role claim leaves the client admin.
+                return new AuthorizationContext
+                {
+                    UserId = userId ?? "app",
+                    Role = RoleCatalog.Admin,
+                    Permissions = Array.Empty<string>(),
+                };
+            }
+            if (role is null)
+            {
+                // #667: no role → nothing, never admin. Returned here rather than falling back to the
+                // Keycloak Admin API: an app's subject is a service principal, not a Keycloak user.
+                return new AuthorizationContext
+                {
+                    UserId = userId ?? "app",
+                    Role = NoRole,
+                    Permissions = Array.Empty<string>(),
+                };
+            }
+            // Any other role: evaluated exactly like a user token below — admin only for an explicit
+            // building_os_role=admin; a mis-cased or unknown role is never admin and leaves the client
+            // only the permission strings it carries.
+            userId ??= "app";
         }
 
         // User token carrying the Building OS authz claims (Keycloak-native, Azure-AD fallback).
@@ -87,7 +107,8 @@ public static class AuthorizationClaimResolver
     /// <summary>
     /// Whether the token was issued by the client-credentials grant: Azure AD's <c>idtyp=app</c>, or the
     /// client-id claim Keycloak's default <c>service_account</c> scope puts only on service-account tokens
-    /// (<c>client_id</c> since Keycloak 24, <c>clientId</c> before). Only <c>idtyp=app</c> also means admin.
+    /// (<c>client_id</c> since Keycloak 24, <c>clientId</c> before). Being one grants nothing by itself
+    /// (only <see cref="ClientCredentialsRolePolicy.LegacyAdmin"/> still makes <c>idtyp=app</c> an admin).
     /// </summary>
     public static bool IsServiceAccountToken(IReadOnlyCollection<Claim> claims)
         => claims.Any(c => (c.Type == "idtyp" && c.Value == "app")

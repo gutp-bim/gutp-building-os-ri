@@ -192,7 +192,7 @@ Gateway単位のフルPoint List（`GatewayPointEntry[]`のJSON）を事前計�
 - mTLS 終端の ingress（Traefik）が、検証済みクライアント証明書の identity を**信頼ヘッダ**
   （既定 `X-Gateway-Id`）に注入する。
 - エンドポイントは `X-Gateway-Id == {gatewayId}` を要求する（`IGatewayIdentityResolver`）。
-- ops 診断用に **admin JWT はバイパス**（`idtyp=app` / admin role）。
+- ops 診断用に **admin JWT はバイパス**（admin role。client credentials のトークン `idtyp=app` も、`building_os_role=admin` を明示したときだけ admin になる — #667）。
 - 本ルートは `[AuthorizeFilter]` を付けない（gateway は user JWT を持たないため）。束縛不一致かつ
   非 admin は **403**。
 

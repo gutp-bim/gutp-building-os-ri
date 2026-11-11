@@ -40,6 +40,13 @@ public class EnvModule
     /// </summary>
     public readonly string? ControlSchemaFailurePolicy =
         Environment.GetEnvironmentVariable(BuildingOS.Shared.Domain.ControlSafetyOptions.EnvironmentVariable);
+    /// <summary>
+    /// Raw <c>CLIENT_CREDENTIALS_ROLE_POLICY</c> (#667): unset/<c>explicit</c> authorizes a client-credentials
+    /// token (<c>idtyp=app</c>) by the role and permissions it carries; <c>legacy-admin</c> restores the old
+    /// admin-by-default.
+    /// </summary>
+    public readonly string? ClientCredentialsRolePolicy =
+        Environment.GetEnvironmentVariable(BuildingOS.Shared.Domain.Authorization.ClientCredentialsRoleOptions.EnvironmentVariable);
     public readonly int ParquetQueryMaxFiles =
         int.TryParse(Environment.GetEnvironmentVariable("PARQUET_QUERY_MAX_FILES"), out var f) && f > 0 ? f : 0;
     /// <summary>
