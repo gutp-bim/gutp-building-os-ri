@@ -99,9 +99,29 @@ service-account user the attribute `role` = `group-manager`, and add the `buildi
 (and `basic`, so the token carries `sub`) to the client. A Keycloak service-account token is recognised by
 the `client_id` claim that the default `service_account` scope adds (`clientId` before Keycloak 24); with
 `building_os_role=group-manager` (exact) and a `sub` it is a group-manager. Without a `sub` it gets no access
-(Group ownership is keyed on it). An Azure AD client-credentials token (`idtyp=app`, table below) is admin
-by default and becomes a group-manager only with exactly that claim; any other `building_os_role` value on
-it is ignored with a one-time warning, so existing clients keep working unchanged.
+(Group ownership is keyed on it). An Azure AD client-credentials token (`idtyp=app`, table below) with exactly
+that claim is a group-manager in the same way.
+
+### Client-credentials tokens get only the role they carry (#667)
+
+A client-credentials token — Azure AD's `idtyp=app`, or a Keycloak service account (`client_id` claim) — is
+authorized by its `building_os_role` and `permissions` claims, **exactly like a user token**. Being a
+client-credentials token grants nothing by itself:
+
+| Token carries | Result |
+|---|---|
+| `building_os_role=admin` | admin |
+| `building_os_role=operator` / `viewer` + `permissions` | that role, scoped by those permission strings — e.g. a read-only integration is `viewer` + `building:B1:read` and gets 403 on `POST /api/v1/points/{id}/control` |
+| `building_os_role=group-manager` (+ `sub`) | group-manager (above) |
+| no `building_os_role`, or a value that is not a Building OS role (`Admin`, ` admin`, …) | no role (a role-less `idtyp=app` token is not looked up in the Admin API) — the API server logs one warning per client and value |
+
+**Breaking change (#667).** Before #667 every `idtyp=app` token was admin unless it carried exactly
+`building_os_role=group-manager`, so a client registered as read-only could still control equipment. To
+upgrade, give each existing client-credentials client an explicit `building_os_role` (`admin` if it really
+needs full admin, otherwise a narrower role plus `permissions`). If that cannot be done before the upgrade,
+set `CLIENT_CREDENTIALS_ROLE_POLICY=legacy-admin` on the API server to restore the old admin default
+temporarily; the server logs a WARNING at startup while it is set. Any other value (including a typo) is
+treated as the default `explicit`. The effective value is shown in `/platform/config`.
 
 Resource IDs that are not group IDs remain hashed by the API authorization
 layer. Keycloak stores permission strings as user or group attributes and emits
@@ -117,7 +137,7 @@ The `building-os-api` client scope emits two access-token claims, read directly 
 |---|---|---|
 | `building_os_role` (single) | user attr `role` | `Role` |
 | `permissions` (multivalued) | user attr `permissions` ∪ every group's `permissions` | `Permissions` |
-| `idtyp=app` (client credentials) | — | `Role=admin` (service account), or `group-manager` when the token carries `building_os_role=group-manager` (#506) |
+| `idtyp=app` (client credentials) | — | none by itself: the token's own `building_os_role` / `permissions` apply as above (#667). Only under `CLIENT_CREDENTIALS_ROLE_POLICY=legacy-admin` is it `Role=admin` unless it carries `building_os_role=group-manager` (#506) |
 
 The middleware reads these **Keycloak-native** names first and falls back to the legacy
 Azure-AD optional-claim names (`extension_BuildingOS_role` / `extension_BuildingOS_permissions`,

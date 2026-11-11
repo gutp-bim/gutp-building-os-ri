@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BuildingOs.ApiServer.Middlewares;
+using BuildingOS.Shared.Domain.Authorization;
 
 namespace BuildingOS.ApiServer.Test.Authorization;
 
@@ -7,10 +8,103 @@ public class AuthorizationClaimResolverTest
 {
     private static Claim Sub(string id) => new(ClaimTypes.NameIdentifier, id);
 
+    private const ClientCredentialsRolePolicy Legacy = ClientCredentialsRolePolicy.LegacyAdmin;
+
+    // ---- #667: explicit (default) — an app token gets only the role and permissions it carries ----
+
+    /// <summary>#667: an app token without a role is not an admin — it gets nothing, and does not fall
+    /// through to the Admin API (TryResolve returns a context, not null).</summary>
     [Fact]
-    public void AppToken_ResolvesToAdmin()
+    public void AppToken_WithoutARole_GetsNothing()
     {
-        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), Sub("svc1")]);
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), Sub("svc1"), new Claim("permissions", "point:*:read,control")]);
+
+        Assert.NotNull(ctx);
+        Assert.False(ctx!.IsAdmin);
+        Assert.Equal(AuthorizationClaimResolver.NoRole, ctx.Role);
+        Assert.Empty(ctx.Permissions);
+        Assert.Equal("svc1", ctx.UserId);
+    }
+
+    [Fact]
+    public void AppToken_WithoutARoleOrUserId_GetsNothing_UnderTheAppId()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app")]);
+
+        Assert.NotNull(ctx);
+        Assert.Equal("app", ctx!.UserId);
+        Assert.False(ctx.IsAdmin);
+        Assert.Empty(ctx.Permissions);
+    }
+
+    [Fact]
+    public void AppToken_WithAnExplicitAdminRole_IsAdmin()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), Sub("svc1"), new Claim("building_os_role", "admin")]);
+
+        Assert.True(ctx!.IsAdmin);
+        Assert.Equal("svc1", ctx.UserId);
+    }
+
+    /// <summary>A read-only integration: viewer plus read grants, exactly like a user token.</summary>
+    [Fact]
+    public void AppToken_Viewer_GetsItsRoleAndPermissions()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+        [
+            new Claim("idtyp", "app"), Sub("svc-reader"),
+            new Claim("building_os_role", "viewer"), new Claim("permissions", "building:B1:read"),
+        ]);
+
+        Assert.Equal("viewer", ctx!.Role);
+        Assert.False(ctx.IsAdmin);
+        Assert.Equal(["building:B1:read"], ctx.Permissions);
+    }
+
+    [Fact]
+    public void AppToken_Operator_GetsItsRoleAndPermissions()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve(
+        [
+            new Claim("idtyp", "app"), Sub("svc-ctl"),
+            new Claim("building_os_role", "operator"), new Claim("permissions", "point:P1:read,control"),
+        ]);
+
+        Assert.Equal("operator", ctx!.Role);
+        Assert.False(ctx.IsAdmin);
+        Assert.Equal(["point:P1:read,control"], ctx.Permissions);
+    }
+
+    /// <summary>A mis-spelled role fails closed: never admin.</summary>
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData(" admin")]
+    [InlineData("Group-Manager")]
+    [InlineData("superuser")]
+    public void AppToken_WithAMisspelledRole_IsNotAdmin(string role)
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), Sub("svc1"), new Claim("building_os_role", role)]);
+
+        Assert.False(ctx!.IsAdmin);
+        Assert.False(ctx.IsGroupManager);
+        Assert.Empty(ctx.Permissions);
+    }
+
+    [Fact]
+    public void AppToken_WithAnExplicitRole_WithoutUserId_FallsBackToAppId()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), new Claim("building_os_role", "viewer")]);
+
+        Assert.Equal("app", ctx!.UserId);
+        Assert.Equal("viewer", ctx.Role);
+    }
+
+    // ---- legacy-admin — the pre-#667 behaviour, kept as a migration aid ----
+
+    [Fact]
+    public void Legacy_AppToken_ResolvesToAdmin()
+    {
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), Sub("svc1")], Legacy);
 
         Assert.NotNull(ctx);
         Assert.Equal("admin", ctx!.Role);
@@ -19,24 +113,30 @@ public class AuthorizationClaimResolverTest
     }
 
     [Fact]
-    public void AppToken_WithoutUserId_FallsBackToAppId()
+    public void Legacy_AppToken_WithoutUserId_FallsBackToAppId()
     {
-        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app")]);
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app")], Legacy);
 
         Assert.NotNull(ctx);
         Assert.Equal("app", ctx!.UserId);
         Assert.Equal("admin", ctx.Role);
     }
 
+    // ---- group-manager (#506) — the same under both policies ----
+
     /// <summary>
     /// #506: an application's client-credentials service account is given the group-manager role
-    /// through the same building_os_role claim users get — the one opt-out from "app token = admin".
+    /// through the same building_os_role claim users get — under legacy-admin, the one opt-out from
+    /// "app token = admin".
     /// </summary>
-    [Fact]
-    public void AppToken_CarryingGroupManager_IsAGroupManagerNotAnAdmin()
+    [Theory]
+    [InlineData(ClientCredentialsRolePolicy.Explicit)]
+    [InlineData(ClientCredentialsRolePolicy.LegacyAdmin)]
+    public void AppToken_CarryingGroupManager_IsAGroupManagerNotAnAdmin(ClientCredentialsRolePolicy policy)
     {
         var ctx = AuthorizationClaimResolver.TryResolve(
-            [new Claim("idtyp", "app"), Sub("svc-portal"), new Claim("building_os_role", "group-manager")]);
+            [new Claim("idtyp", "app"), Sub("svc-portal"), new Claim("building_os_role", "group-manager"),
+             new Claim("permissions", "building:*:read")], policy);
 
         Assert.NotNull(ctx);
         Assert.Equal("group-manager", ctx!.Role);
@@ -50,10 +150,12 @@ public class AuthorizationClaimResolverTest
     /// Ownership of Groups is keyed on the subject, so a group-manager needs a real one: an app token
     /// without sub would share the "app" fallback with every other such client. Fail closed.
     /// </summary>
-    [Fact]
-    public void AppToken_GroupManagerWithoutASubject_GetsNothing()
+    [Theory]
+    [InlineData(ClientCredentialsRolePolicy.Explicit)]
+    [InlineData(ClientCredentialsRolePolicy.LegacyAdmin)]
+    public void AppToken_GroupManagerWithoutASubject_GetsNothing(ClientCredentialsRolePolicy policy)
     {
-        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), new Claim("building_os_role", "group-manager")]);
+        var ctx = AuthorizationClaimResolver.TryResolve([new Claim("idtyp", "app"), new Claim("building_os_role", "group-manager")], policy);
 
         Assert.False(ctx!.IsAdmin);
         Assert.False(ctx.IsGroupManager);
@@ -77,12 +179,15 @@ public class AuthorizationClaimResolverTest
         Assert.Equal("svc-portal", ctx.UserId);
     }
 
-    /// <summary>A Keycloak service-account token is not made an admin by being one (unlike idtyp=app).</summary>
-    [Fact]
-    public void KeycloakServiceAccountToken_KeepsItsOwnRole()
+    /// <summary>A Keycloak service-account token is not made an admin by being one, under either policy
+    /// (legacy-admin elevates only idtyp=app).</summary>
+    [Theory]
+    [InlineData(ClientCredentialsRolePolicy.Explicit)]
+    [InlineData(ClientCredentialsRolePolicy.LegacyAdmin)]
+    public void KeycloakServiceAccountToken_KeepsItsOwnRole(ClientCredentialsRolePolicy policy)
     {
         var ctx = AuthorizationClaimResolver.TryResolve(
-            [Sub("svc-x"), new Claim("client_id", "x"), new Claim("building_os_role", "viewer")]);
+            [Sub("svc-x"), new Claim("client_id", "x"), new Claim("building_os_role", "viewer")], policy);
 
         Assert.Equal("viewer", ctx!.Role);
     }
@@ -112,10 +217,10 @@ public class AuthorizationClaimResolverTest
     [InlineData("operator")]
     [InlineData("admin")]
     [InlineData("Group-Manager")]
-    public void AppToken_WithAnyOtherRoleClaim_StaysAdmin(string role)
+    public void Legacy_AppToken_WithAnyOtherRoleClaim_StaysAdmin(string role)
     {
         var ctx = AuthorizationClaimResolver.TryResolve(
-            [new Claim("idtyp", "app"), Sub("svc1"), new Claim("building_os_role", role)]);
+            [new Claim("idtyp", "app"), Sub("svc1"), new Claim("building_os_role", role)], Legacy);
 
         Assert.True(ctx!.IsAdmin);
     }
@@ -181,5 +286,29 @@ public class AuthorizationClaimResolverTest
         var ctx = AuthorizationClaimResolver.TryResolve([Sub("user5"), new Claim("name", "Someone")]);
 
         Assert.Null(ctx);
+    }
+
+    [Theory]
+    [InlineData(null, ClientCredentialsRolePolicy.Explicit)]
+    [InlineData("", ClientCredentialsRolePolicy.Explicit)]
+    [InlineData("explicit", ClientCredentialsRolePolicy.Explicit)]
+    [InlineData(" EXPLICIT ", ClientCredentialsRolePolicy.Explicit)]
+    [InlineData("legacy-admin", ClientCredentialsRolePolicy.LegacyAdmin)]
+    [InlineData(" Legacy-Admin ", ClientCredentialsRolePolicy.LegacyAdmin)]
+    public void Policy_Parses(string? raw, ClientCredentialsRolePolicy expected)
+    {
+        Assert.Equal(expected, ClientCredentialsRoleOptions.ParsePolicy(raw, out var recognized));
+        Assert.True(recognized);
+    }
+
+    /// <summary>#667: a typo must never re-open admin-by-default.</summary>
+    [Theory]
+    [InlineData("legacy")]
+    [InlineData("admin")]
+    [InlineData("legacy_admin")]
+    public void Policy_UnknownValue_FallsBackToExplicit_AndSaysSo(string raw)
+    {
+        Assert.Equal(ClientCredentialsRolePolicy.Explicit, ClientCredentialsRoleOptions.ParsePolicy(raw, out var recognized));
+        Assert.False(recognized);
     }
 }

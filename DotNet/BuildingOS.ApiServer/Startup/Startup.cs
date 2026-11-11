@@ -73,6 +73,10 @@ namespace BuildingOs.ApiServer
             // Control-write fail-closed switch (#481). Parsed once; the effective value is logged in Configure.
             services.AddSingleton(new BuildingOS.Shared.Domain.ControlSafetyOptions(
                 BuildingOS.Shared.Domain.ControlSafetyOptions.ParsePolicy(_envModule.ControlSchemaFailurePolicy, out _)));
+            // Client-credentials authorization (#667). Parsed once; the effective value is logged in Configure.
+            services.AddSingleton(new BuildingOS.Shared.Domain.Authorization.ClientCredentialsRoleOptions(
+                BuildingOS.Shared.Domain.Authorization.ClientCredentialsRoleOptions.ParsePolicy(
+                    _envModule.ClientCredentialsRolePolicy, out _)));
             // Twin admin tools (#322): staged import preview/apply + read-only SPARQL console.
             services.AddScoped<BuildingOS.Shared.Domain.TwinAdmin.ITwinAdminService>(
                 sp => new OxiGraphTwinAdminService(
@@ -478,9 +482,31 @@ namespace BuildingOs.ApiServer
                 policy, BuildingOS.Shared.Domain.ControlSafetyOptions.EnvironmentVariable);
         }
 
+        private void LogClientCredentialsRolePolicy(IServiceProvider services)
+        {
+            var log = services.GetRequiredService<ILogger<Startup>>();
+            const string variable = BuildingOS.Shared.Domain.Authorization.ClientCredentialsRoleOptions.EnvironmentVariable;
+            var policy = BuildingOS.Shared.Domain.Authorization.ClientCredentialsRoleOptions.ParsePolicy(
+                _envModule.ClientCredentialsRolePolicy, out var recognized);
+            if (!recognized)
+                log.LogWarning("{Variable}={Value} is not explicit|legacy-admin; using {Policy}",
+                    variable, _envModule.ClientCredentialsRolePolicy, policy);
+            if (policy == BuildingOS.Shared.Domain.Authorization.ClientCredentialsRolePolicy.LegacyAdmin)
+                log.LogWarning(
+                    "{Variable}=legacy-admin: every client-credentials (idtyp=app) token without " +
+                    "building_os_role=group-manager is an admin, including read-only integrations. Give each " +
+                    "client an explicit building_os_role and unset it (docs/operations/keycloak-permission-mapping.md)",
+                    variable);
+            else
+                log.LogInformation(
+                    "Client-credentials (idtyp=app) tokens are authorized by their building_os_role/permissions: {Policy} ({Variable})",
+                    policy, variable);
+        }
+
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             LogControlSafety(app.ApplicationServices);
+            LogClientCredentialsRolePolicy(app.ApplicationServices);
 
             // EF Core migrations require session-scoped advisory locks.
             // Use POSTGRES_MIGRATION_CONNECTION_STRING (session pool or direct) instead of
